@@ -123,6 +123,7 @@ class Codeowners(object):
         """
         self.patterns: list[tuple[re.Pattern, list[str]]] = []
         self.path: Optional[str] = None
+        self._owners_by_path: dict[str, list[str]] = {}
 
         path = path or self.location(cwd)
 
@@ -193,7 +194,13 @@ class Codeowners(object):
         :param path: path to check
         :return: list of file code owners identified by the given path
         """
+        if path in self._owners_by_path:
+            return self._owners_by_path[path]
+
         for pattern, owners in self.patterns:
             if pattern.search(path):
+                self._owners_by_path[path] = owners
                 return owners
+
+        self._owners_by_path[path] = []
         return []

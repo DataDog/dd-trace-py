@@ -35,10 +35,34 @@ def nodeid_to_names(nodeid: str) -> tuple[str, str, str]:
     return module, suite, test
 
 
+def _has_custom_name_hooks(config: pytest.Config) -> bool:
+    """Whether any plugin overrides the module/suite/test name via the pytest_ddtrace_get_item_* hooks.
+
+    Cached on `config` (one per session/worker process) since `get_hookimpls()` is itself a small
+    list-copy, and this is checked from `item_to_test_ref`, which runs once per collected item.
+    """
+    cached = getattr(config, "_ddtrace_has_custom_name_hooks", None)
+    if cached is None:
+        hook = config.hook
+        cached = bool(
+            hook.pytest_ddtrace_get_item_module_name.get_hookimpls()
+            or hook.pytest_ddtrace_get_item_suite_name.get_hookimpls()
+            or hook.pytest_ddtrace_get_item_test_name.get_hookimpls()
+        )
+        config._ddtrace_has_custom_name_hooks = cached
+    return cached
+
+
 def item_to_test_ref(item: pytest.Item) -> TestRef:
-    custom_module = item.config.hook.pytest_ddtrace_get_item_module_name(item=item)
-    custom_suite = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
-    custom_test = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+    # No plugin implements these hooks in the common case; skip the 3 pluggy dispatches per item
+    # (this runs for every collected item, not just ITR-skipped ones) and go straight to the nodeid
+    # fallback, which is what an empty-firstresult hook call would produce anyway.
+    if _has_custom_name_hooks(item.config):
+        custom_module = item.config.hook.pytest_ddtrace_get_item_module_name(item=item)
+        custom_suite = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
+        custom_test = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+    else:
+        custom_module = custom_suite = custom_test = None
 
     default_module, default_suite, default_test = nodeid_to_names(item.nodeid)
 
