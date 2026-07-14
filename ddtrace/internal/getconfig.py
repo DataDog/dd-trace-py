@@ -20,7 +20,7 @@ def get_config(
     default: t.Any = None,
     modifier: t.Optional[t.Callable[[t.Any], t.Any]] = None,
     otel_env: t.Optional[str] = None,
-    report_telemetry=True,
+    report_telemetry: bool = True,
 ) -> t.Any:
     """Retrieve a configuration value in order of precedence:
     1. Fleet stable config (highest)
@@ -105,7 +105,7 @@ def get_config(
     return effective_val
 
 
-def _invalid_otel_config(otel_env):
+def _invalid_otel_config(otel_env: str) -> None:
     log.warning(
         "Setting %s to %s is not supported by ddtrace, this configuration will be ignored.",
         otel_env,
@@ -122,7 +122,7 @@ def _invalid_otel_config(otel_env):
     )
 
 
-def _hiding_otel_config(otel_env, dd_env):
+def _hiding_otel_config(otel_env: str, dd_env: str) -> None:
     log.debug(
         "Datadog configuration %s is already set. OpenTelemetry configuration will be ignored: %s=%s",
         dd_env,

@@ -119,6 +119,7 @@ after the ``with`` block exits. For example::
         return future
 """
 
+import contextvars
 import logging
 import types
 import typing
@@ -135,12 +136,6 @@ from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 from .events import EventType
-
-
-if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
-
-import contextvars
 
 
 _MISSING = object()
@@ -180,7 +175,7 @@ class ExecutionContext(Generic[EventType]):
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
-        self._inner_span: Optional["Span"] = None
+        self._inner_span: Optional[Any] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
@@ -324,7 +319,7 @@ class ExecutionContext(Generic[EventType]):
         return current
 
     @property
-    def span(self) -> "Span":
+    def span(self) -> Any:
         if self._inner_span is None:
             log.warning(
                 "No span found in %s. "
@@ -336,7 +331,7 @@ class ExecutionContext(Generic[EventType]):
         return self._inner_span
 
     @span.setter
-    def span(self, value: "Span") -> None:
+    def span(self, value: Any) -> None:
         self._inner_span = value
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
@@ -428,7 +423,7 @@ def discard_local_item(data_key: str) -> None:
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
 
 
-def get_span() -> Optional["Span"]:
+def get_span() -> Optional[Any]:
     current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
     while current is not None:
         if current._inner_span is not None:
@@ -437,7 +432,7 @@ def get_span() -> Optional["Span"]:
     return None
 
 
-def get_root_span() -> Optional["Span"]:
+def get_root_span() -> Optional[Any]:
     span = get_span()
     if span is None:
         return None if tracer is None else tracer.current_root_span()
