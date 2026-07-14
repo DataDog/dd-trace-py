@@ -533,6 +533,8 @@ class TestOptPlugin:
                 items[:] = selected
                 if asbool(env.get("_DD_CIVISIBILITY_SEND_DESELECTS")):
                     self._emit_itr_deselected_test_events(deselected, selected, test_refs)
+                else:
+                    self._count_itr_deselected_tests(deselected, test_refs)
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -635,6 +637,48 @@ class TestOptPlugin:
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
+    def _owned_deselect_modules(
+        self, deselected_items: list[pytest.Item], test_refs: dict[pytest.Item, TestRef]
+    ) -> set[ModuleRef]:
+        """Modules this worker owns for sharding test-level ITR deselect work across xdist workers.
+
+        Under xdist, every worker sees the same full, unsharded item list, in the same order (xdist
+        itself requires this — it aborts the run otherwise), at this point. Rather than electing a
+        single worker to handle every deselected test, each worker only handles the modules it
+        owns: modules are numbered in (identical, deterministic) first-seen order and assigned to
+        worker `i % workercount == workerid`, using only `workerid`/`workercount` xdist already
+        puts in `workerinput` — no extra data needs to be sent between workers.
+        """
+        module_order: list[ModuleRef] = []
+        seen_modules: set[ModuleRef] = set()
+        for item in deselected_items:
+            module_ref = test_refs[item].suite.module
+            if module_ref not in seen_modules:
+                seen_modules.add(module_ref)
+                module_order.append(module_ref)
+
+        return {
+            module_ref
+            for i, module_ref in enumerate(module_order)
+            if i % self._itr_deselect_worker_count == self._itr_deselect_worker_index
+        }
+
+    def _count_itr_deselected_tests(
+        self, deselected_items: list[pytest.Item], test_refs: dict[pytest.Item, TestRef]
+    ) -> None:
+        """Count test-level ITR deselections towards the session's ITR skip metric, without emitting events.
+
+        Used when `_DD_CIVISIBILITY_SEND_DESELECTS` is off: `test.itr.tests_skipping.count` must
+        still reflect the true number of deselected tests, but we skip the per-test Test/Suite/Module
+        discovery (`_discover_test`) that only exists to build the synthetic skip events that
+        `_emit_itr_deselected_test_events` sends. Shards by module the same way that function does, so
+        the count is never multiplied by the number of xdist workers.
+        """
+        my_modules = self._owned_deselect_modules(deselected_items, test_refs)
+        self.session.tests_skipped_by_itr += sum(
+            1 for item in deselected_items if test_refs[item].suite.module in my_modules
+        )
+
     def _emit_itr_deselected_test_events(
         self,
         deselected_items: list[pytest.Item],
@@ -648,18 +692,13 @@ class TestOptPlugin:
         module) we already have the real pytest `Item`, so we can reuse `_discover_test` to build
         the same module/suite/test objects the runtime path would create.
 
-        Under xdist, every worker sees the same full, unsharded item list, in the same order (xdist
-        itself requires this — it aborts the run otherwise), at this point. Rather than electing a
-        single worker to emit every deselected test's events, each worker only emits events for the
-        modules it owns: modules are numbered in (identical, deterministic) first-seen order and
-        assigned to worker `i % workercount == workerid`, using only `workerid`/`workercount` xdist
-        already puts in `workerinput` — no extra data needs to be sent between workers. A whole
-        module (not individual tests) is the sharding unit so that the suite/module-finish
-        bookkeeping below, which assumes a single process sees all of a module's deselected tests,
-        stays correct — splitting a module's tests across workers would cause duplicate
-        suite/module-finish events. `test_refs` is a cache of `item_to_test_ref` results built by
-        the caller while making the deselect decision, reused here to avoid paying for the pluggy
-        hook dispatches and nodeid regex a second time for every item.
+        Sharded across xdist workers by module (see `_owned_deselect_modules`) — a whole module
+        (not individual tests) is the sharding unit so that the suite/module-finish bookkeeping
+        below, which assumes a single process sees all of a module's deselected tests, stays
+        correct: splitting a module's tests across workers would cause duplicate suite/module-finish
+        events. `test_refs` is a cache of `item_to_test_ref` results built by the caller while making
+        the deselect decision, reused here to avoid paying for the pluggy hook dispatches and nodeid
+        regex a second time for every item.
 
         Suites/modules left with none of their tests remaining are finished here, since no test of
         theirs will ever reach `pytest_runtest_protocol_wrapper`. Suites/modules with a mix of
@@ -672,19 +711,7 @@ class TestOptPlugin:
             remaining_suites.add(suite_ref)
             remaining_modules.add(suite_ref.module)
 
-        module_order: list[ModuleRef] = []
-        seen_modules: set[ModuleRef] = set()
-        for item in deselected_items:
-            module_ref = test_refs[item].suite.module
-            if module_ref not in seen_modules:
-                seen_modules.add(module_ref)
-                module_order.append(module_ref)
-
-        my_modules = {
-            module_ref
-            for i, module_ref in enumerate(module_order)
-            if i % self._itr_deselect_worker_count == self._itr_deselect_worker_index
-        }
+        my_modules = self._owned_deselect_modules(deselected_items, test_refs)
 
         finished_suites: set[TestSuite] = set()
         finished_modules: set[TestModule] = set()
@@ -1558,12 +1585,13 @@ class XdistTestOptPlugin:
         """
         Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
 
-        NOTE: Summing across workers is only correct because every worker performs a full,
-        unsharded collection and would independently arrive at the same true count. To avoid
-        multiplying that count by the number of workers, only the elected owner worker (see
-        `_is_itr_skip_event_owner`) actually calls `mark_skipped_by_itr()`; every other worker
-        reports 0 here. So this sum is really "owner's true count + zeros", not an aggregation of
-        distinct partial counts.
+        NOTE: Summing across workers is correct for two different reasons depending on the skip
+        mechanism. Suite-level ITR skips are counted by a single elected owner worker (see
+        `_is_itr_skip_event_owner`); every other worker reports 0, so the sum is "owner's true count
+        + zeros". Test-level ITR deselects are instead sharded by module across every worker (see
+        `_owned_deselect_modules`), each counting only the tests in the modules it owns; the sum
+        there is a genuine aggregation of distinct partial counts. Either way, the total equals the
+        true number of ITR-skipped tests, never multiplied by worker count.
         """
         if not hasattr(node, "workeroutput"):
             return
