@@ -120,7 +120,9 @@ Datadog::publish_fast_copy_profiler_metadata(ProfilerStats* stats)
     snapshot.user_disabled = fast_copy_user_disabled;
     snapshot.capable = safe_memcpy_initialized;
     snapshot.syscall_fallback = fast_copy_syscall_fallback;
-    snapshot.enabled = fast_copy_active;
+    snapshot.enabled = fast_copy_active.load(std::memory_order_relaxed);
+    snapshot.desired = fast_copy_desired.load(std::memory_order_relaxed);
+    snapshot.foreign_takeover = fast_copy_foreign_takeover.load(std::memory_order_relaxed);
     snapshot.snapshot_initialized = true;
 
     if (stats == nullptr) {
@@ -130,7 +132,9 @@ Datadog::publish_fast_copy_profiler_metadata(ProfilerStats* stats)
     stats->set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
     stats->set_fast_copy_memory_capable(safe_memcpy_initialized);
     stats->set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
-    stats->set_fast_copy_memory_enabled(fast_copy_active);
+    stats->set_fast_copy_memory_enabled(fast_copy_active.load(std::memory_order_relaxed));
+    stats->set_fast_copy_memory_desired(fast_copy_desired.load(std::memory_order_relaxed));
+    stats->set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
 }
 
 void

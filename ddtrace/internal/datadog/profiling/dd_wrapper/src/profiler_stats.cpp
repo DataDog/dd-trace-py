@@ -334,6 +334,18 @@ Datadog::ProfilerStats::get_internal_metadata_json()
                                                   fast_copy_snapshot.syscall_fallback,
                                                   fast_copy_snapshot.snapshot_initialized,
                                                   false));
+    append_bool(internal_metadata_json,
+                "fast_copy_memory_desired",
+                resolve_fast_copy_bool_or_default(fast_copy_memory_desired,
+                                                  fast_copy_snapshot.desired,
+                                                  fast_copy_snapshot.snapshot_initialized,
+                                                  false));
+    append_bool(internal_metadata_json,
+                "fast_copy_memory_foreign_takeover",
+                resolve_fast_copy_bool_or_default(fast_copy_memory_foreign_takeover,
+                                                  fast_copy_snapshot.foreign_takeover,
+                                                  fast_copy_snapshot.snapshot_initialized,
+                                                  false));
 
     auto maybe_heap_tracker_count = get_heap_tracker_size();
     if (maybe_heap_tracker_count) {

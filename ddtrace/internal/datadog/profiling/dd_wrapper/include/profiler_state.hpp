@@ -96,6 +96,8 @@ class ProfilerState
         bool capable = false;
         bool syscall_fallback = false;
         bool enabled = false;
+        bool desired = false;
+        bool foreign_takeover = false;
     };
     FastCopyProfilerMetadata fast_copy_metadata{};
 
