@@ -80,12 +80,13 @@ EOF
 
 run_hook() {
     push_input="$1"
-    env -i \
+    # Use a pipe, not <<< (bash-only); invoke the hook via its bash shebang.
+    printf '%s\n' "${push_input}" | env -i \
         PATH="${TMPDIR_TEST}:${PATH}" \
         HOME="${TMPDIR_TEST}" \
         SKIP_CLANG_TIDY_PROFILING="${SKIP_CLANG_TIDY_PROFILING:-}" \
         DDTRACE_PREPUSH_CLANG_TIDY_STRICT="${DDTRACE_PREPUSH_CLANG_TIDY_STRICT:-}" \
-        sh "${HOOK}" <<< "${push_input}"
+        bash "${HOOK}"
 }
 
 PUSH_INPUT="refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"

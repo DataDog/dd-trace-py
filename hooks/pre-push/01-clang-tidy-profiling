@@ -96,7 +96,7 @@ collect_changed_files() {
 }
 
 CHANGED_FILES="$(collect_changed_files || true)"
-if ! grep -qE "${PROFILING_CPP_RE}" <<<"${CHANGED_FILES}"; then
+if ! printf '%s\n' "${CHANGED_FILES}" | grep -qE "${PROFILING_CPP_RE}"; then
     exit 0 # no profiling native changes in this push
 fi
 
