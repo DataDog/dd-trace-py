@@ -858,6 +858,40 @@ def test_annotate_llm_message_with_audio_parts(llmobs):
         ]
 
 
+def test_annotate_llm_message_with_image_parts(llmobs):
+    """Image parts annotated on input/output messages reach the emitted span event."""
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+            output_data=[
+                {
+                    "content": "done",
+                    "role": "assistant",
+                    "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}],
+                }
+            ],
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [
+            {
+                "content": "describe this",
+                "role": "user",
+                "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+            }
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"content": "done", "role": "assistant", "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}]}
+        ]
+
+
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
