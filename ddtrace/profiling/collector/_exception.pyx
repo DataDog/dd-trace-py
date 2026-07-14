@@ -100,38 +100,45 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     if _collecting:
         return
 
-    # RAISE fires in every frame the exception unwinds through, not just at the
-    # raise site. Before invoking this callback CPython appends the current frame
-    # to exception.__traceback__, so the traceback length tells us how far the
-    # exception has already propagated.
-
-    # A single entry (tb_next is None) is the raise site, more than one entry
-    # is a propagation re-raise in an ancestor frame.
-    # We only sample the raise site.
-    tb = (<object> exception).__traceback__
-    if tb is None or tb.tb_next is not None:
+    # StopIteration and GeneratorExit are control-flow mechanisms.
+    # For-loops, generator .close(), and async iteration all funnel
+    # through RAISE with a single-frame traceback that would pass the
+    # tb_next guard below, so we filter them here
+    if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
         return
 
-    cdef _SamplerState state = _state
-    if state is None:
-        return
-
-    state.counter += 1
-
-    if state.counter < state.next_sample:
-        return
-
-    state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
-    state.counter = 0
-
-    # If an exception ever leaks from _collect_exception, this will silently
-    # disable sys.monitoring. Guard against that and against reentrancy
-    # (next_sample == 1 and _collect_exception triggers another
-    # RAISE callback internally).
+    # Set the reentrancy guard before any attribute access on the exception
+    # object. A custom __getattribute__ that raises during the
+    # __traceback__ lookup would fire another RAISE callback; without the
+    # guard that secondary exception could recurse and leak back into user
+    # code, replacing the original exception being raised.
+    cdef _SamplerState state
     _collecting = True
     try:
-        # At the raise site the head of the traceback is the raising frame; its
-        # f_back chain is the full Python stack up to the entry point.
+        # RAISE fires in every frame the exception unwinds through, not just
+        # at the raise site. Before invoking this callback CPython appends
+        # the current frame to exception.__traceback__, so the traceback
+        # length tells us how far the exception has already propagated.
+        # A single entry (tb_next is None) is the raise site; more than one
+        # is a propagation re-raise in an ancestor frame.
+        tb = (<object> exception).__traceback__
+        if tb is None or tb.tb_next is not None:
+            return
+
+        state = _state
+        if state is None:
+            return
+
+        state.counter += 1
+
+        if state.counter < state.next_sample:
+            return
+
+        state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
+        state.counter = 0
+
+        # At the raise site the head of the traceback is the raising frame;
+        # its f_back chain is the full Python stack up to the entry point.
         _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
         LOG.debug("Failed to collect exception")

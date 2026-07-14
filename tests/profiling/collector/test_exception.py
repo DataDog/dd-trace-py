@@ -674,6 +674,104 @@ def test_exception_uses_push_monotonic_ns() -> None:
         assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"
 
 
+class _CountingIterator:
+    """Iterator that raises StopIteration after *n* items."""
+
+    def __init__(self, n: int):
+        self._remaining = n
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._remaining <= 0:
+            raise StopIteration
+        self._remaining -= 1
+        return self._remaining
+
+
+def test_stopiteration_not_sampled(tmp_path: Path) -> None:
+    """StopIteration from iterator exhaustion must not appear in exception profiles."""
+    output_filename = _setup_profiler(tmp_path, "test_stopiteration")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(100):
+            for _item in _CountingIterator(5):
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+
+    for sample in samples:
+        for loc_id in sample.location_id:
+            loc = next(location for location in profile.location if location.id == loc_id)
+            for line in loc.line:
+                func = profile.function[line.function_id - 1]
+                func_name = profile.string_table[func.name]
+                assert func_name != "__next__", "StopIteration from __next__ should not appear in exception profiles"
+
+
+def test_generatorexit_not_sampled(tmp_path: Path) -> None:
+    """GeneratorExit from generator.close() must not appear in exception profiles."""
+    output_filename = _setup_profiler(tmp_path, "test_generatorexit")
+
+    def _gen():
+        while True:
+            yield 1
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(100):
+            g = _gen()
+            next(g)
+            g.close()
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) == 0, f"Expected no exception samples from GeneratorExit, got {len(samples)}"
+
+
+def test_real_exceptions_still_sampled_with_iterators(tmp_path: Path) -> None:
+    """Real exceptions must still be captured even when iterators are also running."""
+    output_filename = _setup_profiler(tmp_path, "test_real_with_iterators")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _item in _CountingIterator(10):
+            pass
+        for _ in range(10):
+            try:
+                raise ValueError("real error")
+            except ValueError:
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0, "Real ValueError exceptions should still be sampled"
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="test_real_exceptions_still_sampled_with_iterators",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(
+                        test_real_exceptions_still_sampled_with_iterators, 'raise ValueError("real error")'
+                    ),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
 def _propagate_depth_3() -> None:
     raise ValueError("propagated")
 
