@@ -5552,6 +5552,13 @@
         "default": null
       }
     ],
+    "OTEL_TRACES_SPAN_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
@@ -6037,6 +6044,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],
