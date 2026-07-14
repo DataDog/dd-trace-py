@@ -213,21 +213,41 @@ def comparison(
 # retries / semaphore / instance state we don't need locally. If the engine's dispatch
 # changes, keep this in sync. See RFC "Replay data sources" / Open Question #5.
 # --------------------------------------------------------------------------- #
+def _is_zero_arg_callable(fn: Any) -> bool:
+    """True if ``fn`` is callable with no required positional args (a thunk).
+
+    Used to tell a lazy ``evaluators`` *thunk* (``lambda: [...]``) apart from a bare
+    evaluator *function* (``def check(input_data, output_data, expected_output)``): the
+    former takes no args and is called to produce the list, the latter takes args and is
+    a single evaluator. If the signature can't be introspected, err toward "not a thunk"
+    so we wrap rather than call-and-crash.
+    """
+    if not callable(fn):
+        return False
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return not any(p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) and p.default is p.empty for p in params)
+
+
 def resolve_evaluators(evaluators: Any) -> list[Any]:
     """Resolve the decorator's lazy ``evaluators`` into a concrete list.
 
-    Accepts a list/tuple (used as-is) or a zero-arg callable returning a list (called
-    here — never at import, so a credentialed evaluator is built only by an activated
-    runner). ``None`` -> ``[]``.
+    Accepts a list/tuple (used as-is), a zero-arg callable returning a list (a *thunk*,
+    called here — never at import, so a credentialed evaluator is built only by an
+    activated runner), or a single bare evaluator (any other callable, e.g. a plain
+    ``(input_data, output_data, expected_output)`` function, wrapped into a one-element
+    list). ``None`` -> ``[]``.
     """
     if evaluators is None:
         return []
     if isinstance(evaluators, (list, tuple)):
         return list(evaluators)
-    if callable(evaluators):
+    if _is_zero_arg_callable(evaluators):  # a thunk -> call it to get the list
         produced = evaluators()
         return list(produced) if produced else []
-    return [evaluators]
+    return [evaluators]  # a bare single evaluator (function or instance) -> wrap it
 
 
 def _normalize_eval_result(name: str, result: Any) -> list[dict[str, Any]]:

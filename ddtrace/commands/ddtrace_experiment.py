@@ -135,7 +135,7 @@ def _flush_llmobs() -> None:
         LLMObs.flush()
     except Exception:
         # best-effort flush on exit; log but never fail the CLI
-        log.debug("ddtrace-experiment: LLM Obs flush on exit failed", exc_info=True)
+        log.warning("ddtrace-experiment: LLM Obs flush on exit failed", exc_info=True)
 
 
 def _trunc(v: Any, n: int = 34) -> str:
@@ -268,7 +268,7 @@ def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> 
             return [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
         except Exception:
             # best-effort read of a prior baseline; log and fall through to no inputs
-            log.debug("ddtrace-experiment: could not read prior baseline %r", baseline_file, exc_info=True)
+            log.warning("ddtrace-experiment: could not read prior baseline %r", baseline_file, exc_info=True)
     return []
 
 
