@@ -1048,6 +1048,20 @@ def test_annotate_metrics_updates(llmobs):
         }
 
 
+def test_annotate_metrics_dotted_keys_sanitized(llmobs):
+    """Dots in metric keys are replaced with underscores so ingestion doesn't nest and drop them."""
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(
+            span=span,
+            metrics={"anomaly.query_count": 8, "anomaly.query_error_count": 0, "total_tokens": 30},
+        )
+        assert get_llmobs_metrics(span) == {
+            "anomaly_query_count": 8,
+            "anomaly_query_error_count": 0,
+            "total_tokens": 30,
+        }
+
+
 def test_annotate_metrics_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         with pytest.raises(Exception) as excinfo:

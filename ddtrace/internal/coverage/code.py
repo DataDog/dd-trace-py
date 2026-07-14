@@ -97,7 +97,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[list[Path]] = None, collect_import_time_coverage: bool = False):
+    def install(
+        cls,
+        include_paths: t.Optional[list[Path]] = None,
+        collect_import_time_coverage: bool = False,
+    ):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -256,10 +260,22 @@ class ModuleCodeCollector(ModuleWatchdog):
             if _PY_GE_314:
                 _tls_coverage.covered = ctx_covered.get()[-1]
 
-            # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
-            # This ensures each test/suite gets accurate coverage data
+            # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
+            # active and update the DISABLE optimisation flag accordingly.  Then re-enable
+            # monitoring only when the optimisation is active (restart_events is global and
+            # would corrupt other tools' state if called unnecessarily).
+            # NOTE: This global restart_events() call is safe specifically because it is
+            # gated on update_disable_optimization() having *just* confirmed no other tool is
+            # registered -- there is no other tool's disabled-event state for it to corrupt at
+            # this instant. Once another tool is detected, this branch stops firing for the rest
+            # of the run. This is deliberately different from the tool-scoped set_local_events()
+            # toggle in instrumentation_py3_12._rearm_all_events(), which handles the one case
+            # where a *known* other tool is present and must be left untouched.
             if _PY_GE_312:
-                sys.monitoring.restart_events()
+                from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
+
+                if update_disable_optimization():
+                    sys.monitoring.restart_events()
 
             return self
 
