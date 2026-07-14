@@ -107,10 +107,16 @@ struct ThreadAltStack
             return;
         }
 
-        // Optional cleanup: disable and free. Safe at thread exit.
-        stack_t disable{};
-        disable.ss_flags = SS_DISABLE;
-        (void)sigaltstack(&disable, nullptr);
+        // Only disable the alt stack if the one currently installed on this thread is still
+        // the one we installed. Another component (for example crashtracker) may have replaced
+        // this thread's alt stack after us; disabling in that case would strip the replacement
+        // owner's alt stack and break its fault handling. We free our own mapping regardless.
+        stack_t cur{};
+        if (sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == mem && !(cur.ss_flags & SS_DISABLE)) {
+            stack_t disable{};
+            disable.ss_flags = SS_DISABLE;
+            (void)sigaltstack(&disable, nullptr);
+        }
         munmap(mem, size);
     }
 };
