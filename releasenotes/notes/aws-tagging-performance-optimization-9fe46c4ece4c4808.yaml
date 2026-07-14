@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws payload tagging: Improve performance by avoiding deepcopy, caching parsed JSONPath expressions, and only evaluating request/response redaction paths for the matching payload.
