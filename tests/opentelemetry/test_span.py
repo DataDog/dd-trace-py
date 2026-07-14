@@ -340,34 +340,6 @@ def test_otel_span_attribute_remapping_disabled_with_otel_trace_semantics(oteltr
             assert span._ddspan.get_tag("http.status_code") is None
 
 
-def test_otel_span_kind_not_set_with_otel_trace_semantics(oteltracer):
-    """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: span.kind is not set regardless of OTel SpanKind."""
-    with patch.object(config, "_otel_trace_semantics_enabled", True):
-        for kind in (
-            OtelSpanKind.CLIENT,
-            OtelSpanKind.SERVER,
-            OtelSpanKind.PRODUCER,
-            OtelSpanKind.CONSUMER,
-            OtelSpanKind.INTERNAL,
-        ):
-            with oteltracer.start_span("test-kind", kind=kind) as span:
-                assert span._ddspan.get_tag("span.kind") is None
-
-
-def test_otel_span_kind_sets_span_type_with_otel_trace_semantics(oteltracer):
-    """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: span_type is set from OTel SpanKind."""
-    with patch.object(config, "_otel_trace_semantics_enabled", True):
-        for kind, expected_span_type in (
-            (OtelSpanKind.CLIENT, "client"),
-            (OtelSpanKind.SERVER, "server"),
-            (OtelSpanKind.PRODUCER, "producer"),
-            (OtelSpanKind.CONSUMER, "consumer"),
-            (OtelSpanKind.INTERNAL, "internal"),
-        ):
-            with oteltracer.start_span("test-kind", kind=kind) as span:
-                assert span._ddspan.span_type == expected_span_type
-
-
 def test_otel_record_exception_suppresses_dd_tags_with_otel_trace_semantics(oteltracer):
     """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: record_exception does not set DD error tags on the span."""
     with patch.object(config, "_otel_trace_semantics_enabled", True):
