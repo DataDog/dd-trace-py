@@ -305,8 +305,13 @@ requirements_json_test:
 # Regenerates the riot lockfiles + requirements.csv (this image has every
 # interpreter, incl. 3.15-dev, which contributors rarely have locally). On a PR
 # branch, drift is not a dead-end: commit_requirements_lockfiles pushes the fix
-# back automatically. On protected / merge-queue refs, where we must not push,
-# drift stays a hard gate.
+# back automatically. On integration refs -- the default branch, release lines,
+# and merge-queue refs -- where a bot push is unsafe, drift stays a hard gate.
+#
+# NB: we intentionally do NOT gate on CI_COMMIT_REF_PROTECTED. The GitLab mirror
+# marks EVERY branch protected via a blanket `*` protected-branch rule, so that
+# variable is always "true" and cannot distinguish a PR branch from an
+# integration branch. We gate on the ref name instead.
 check_requirements_lockfiles:
   stage: tests
   needs: []
@@ -339,10 +344,12 @@ check_requirements_lockfiles:
       echo "REGEN_DRIFT=true" > regen.env
       git diff --cached > regen.patch
       git --no-pager diff --cached --stat
-      if [ "${CI_COMMIT_REF_PROTECTED:-false}" = "true" ] \
+      if [ "${CI_COMMIT_REF_NAME:-}" = "main" ] \
+          || [ "${CI_COMMIT_REF_NAME:-}" = "${CI_DEFAULT_BRANCH:-main}" ] \
+          || [[ "${CI_COMMIT_REF_NAME:-}" =~ ^[0-9]+\.[0-9x]+$ ]] \
           || [[ "${CI_COMMIT_REF_NAME:-}" == gh-readonly-queue/* ]] \
           || [[ "${CI_COMMIT_REF_NAME:-}" == mq-working-branch-* ]]; then
-        echo "ERROR: .riot/requirements/*.txt and/or requirements.csv are out of date on a protected/merge-queue ref."
+        echo "ERROR: .riot/requirements/*.txt and/or requirements.csv are out of date on an integration ref (default/release/merge-queue) where auto-commit is unsafe."
         echo "Run scripts/compile-and-prune-test-requirements and python scripts/requirements_to_csv.py, then commit the result."
         exit 1
       fi
@@ -371,9 +378,15 @@ commit_requirements_lockfiles:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   rules:
-    # Never auto-commit on protected / merge-queue refs (they hard-fail in the
-    # regen job instead); only act when there was drift on a PR branch.
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    # The GitLab mirror marks EVERY branch protected (blanket `*` rule), so
+    # CI_COMMIT_REF_PROTECTED is useless here. Gate on the ref name instead:
+    # never auto-commit on the default branch, release lines, or merge-queue
+    # refs (they hard-fail in the regen job); only self-heal PR branches.
+    - if: $CI_COMMIT_REF_NAME == "main"
+      when: never
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+\.[0-9x]+$/
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /^gh-readonly-queue\//
       when: never

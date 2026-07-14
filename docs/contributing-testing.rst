@@ -206,8 +206,8 @@ If you prefer to regenerate locally (for faster iteration, or if the auto-commit
   $ scripts/ddtest scripts/compile-and-prune-test-requirements
 
 and commit the resulting changes to files in ``.riot/requirements`` (and ``requirements.csv``) alongside the
-changes you made to ``riotfile.py``. On protected and merge-queue refs the check stays a hard gate and is not
-auto-committed.
+changes you made to ``riotfile.py``. On integration refs (the default branch, release lines, and merge-queue
+refs) the check stays a hard gate and is not auto-committed.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
