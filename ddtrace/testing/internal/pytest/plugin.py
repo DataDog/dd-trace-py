@@ -202,7 +202,9 @@ def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[s
         return None
 
 
-def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
+def _get_test_location_info(
+    item: pytest.Item, workspace_path: Path, precise_lines: bool = True
+) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
 
@@ -211,6 +213,10 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.
         - relative_path: path relative to workspace, or None on failure
         - start_line: starting line number, or 0 if unavailable
         - end_line: ending line number, or 0 if unavailable
+
+    `precise_lines=False` skips `_get_source_lines`'s AST/inspect-based lookup in favor of pytest's
+    already-computed `reportinfo()` (no end_line). Used for synthetic skip events, where the test
+    never runs and end_line precision isn't worth the per-item introspection cost.
     """
     try:
         # Get absolute path from item
@@ -219,8 +225,10 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.
         if relative_path is None:
             raise ValueError(f"{item_path!r} is not under workspace {workspace_path!r}")
 
-        # Try to get precise source line information
-        start_line, end_line = _get_source_lines(item, item_path)
+        if precise_lines:
+            start_line, end_line = _get_source_lines(item, item_path)
+        else:
+            start_line, end_line = item.reportinfo()[1] or 0, 0
 
         return relative_path, start_line, end_line
 
@@ -649,7 +657,10 @@ class TestOptPlugin:
             test_ref = test_refs[item]
             # Deselected items are, by construction, skippable and not unskippable (see the
             # deselect condition in pytest_collection_modifyitems) — skip re-checking markers.
-            test_module, test_suite, test = self._discover_test(item, test_ref, skip_unskippable_check=True)
+            # They also never run, so the precise (AST/inspect-based) end_line isn't needed.
+            test_module, test_suite, test = self._discover_test(
+                item, test_ref, skip_unskippable_check=True, precise_source_lines=False
+            )
 
             if not test_module.is_started():
                 test_module.start()
@@ -683,13 +694,19 @@ class TestOptPlugin:
                     TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _discover_test(
-        self, item: pytest.Item, test_ref: TestRef, skip_unskippable_check: bool = False
+        self,
+        item: pytest.Item,
+        test_ref: TestRef,
+        skip_unskippable_check: bool = False,
+        precise_source_lines: bool = True,
     ) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test item, creating them if necessary.
 
         `skip_unskippable_check` lets callers that already know the answer (e.g. the ITR deselect
         path, where a deselected item is never unskippable by construction) skip re-walking markers.
+        `precise_source_lines=False` skips the AST/inspect-based end_line lookup, for callers (e.g.
+        the same ITR deselect path) where the test never runs and that precision isn't needed.
         """
 
         def _on_new_module(module: TestModule) -> None:
@@ -701,7 +718,9 @@ class TestOptPlugin:
         def _on_new_test(test: Test) -> None:
             """Initialize test with location, parameters, and custom attributes."""
             # Get test location information (path and line numbers)
-            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
+            relative_path, start_line, end_line = _get_test_location_info(
+                item, self.manager.workspace_path, precise_lines=precise_source_lines
+            )
 
             # Set test original name if available
             if test_original_name := _get_test_original_name(item):
