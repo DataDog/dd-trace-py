@@ -11,12 +11,22 @@ benchmark isolates in-process EVP work: no network, no Remote Config backend, an
 native flag evaluation cost.
 """
 
+import queue
+
 import bm
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import FlagType
 from openfeature.flag_evaluation import Reason
 from openfeature.hook import HookContext
+
+
+class _DiscardingQueue(queue.Queue):
+    """Exercise Queue.put_nowait without retaining benchmark events."""
+
+    def _put(self, item):
+        self.queue.append(item)
+        self.queue.popleft()
 
 
 def _make_hook_context(flag_key, targeting_key, attrs):
@@ -83,15 +93,14 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         hook = FlagEvalEVPHook(writer)
 
         if mode == "hook_enqueue":
+            # Preserve Queue.put_nowait locking and notification overhead without
+            # periodically draining and aggregating events in this isolated mode.
+            writer._queue = _DiscardingQueue(maxsize=writer._queue.maxsize)
 
             def _(loops):
                 for i in range(loops):
                     idx = i % cycle_count
                     hook.finally_after(hook_contexts[idx], details_list[idx], {})
-                    # Keep the queue from saturating so this measures steady-state
-                    # enqueue, not queue overflow accounting.
-                    if writer._queue.full():
-                        writer._drain_queue()
 
             yield _
 
