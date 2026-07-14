@@ -19,12 +19,18 @@ from contextlib import contextmanager
 import random
 import threading
 import time
+from typing import Iterator
+from typing import NamedTuple
 from typing import Optional
 
 
+class _Backoff(NamedTuple):
+    next_allowed: float  # monotonic time before which the ARN is not retried
+    failures: int  # consecutive failure count
+
+
 _INFERENCE_PROFILE_CACHE: dict[str, str] = {}
-# profile ARN -> [next-allowed monotonic time, consecutive failure count]
-_RESOLVE_BACKOFF: dict[str, list] = {}
+_RESOLVE_BACKOFF: dict[str, _Backoff] = {}
 # profile ARNs a thread is currently attempting to resolve (single-flight)
 _RESOLVE_IN_FLIGHT: set[str] = set()
 _CACHE_LOCK = threading.Lock()
@@ -78,7 +84,7 @@ def end_resolve(profile_arn: str) -> None:
 
 
 @contextmanager
-def begin_resolve(profile_arn: str):
+def begin_resolve(profile_arn: str) -> Iterator[bool]:
     """Yield True if the caller claimed the single-flight slot for `profile_arn` (not already
     in flight and past any backoff window), else False. Releases the claim on exit.
     """
@@ -101,12 +107,13 @@ def record_resolve_failure(profile_arn: str) -> tuple[float, int]:
     with _CACHE_LOCK:
         if profile_arn not in _RESOLVE_BACKOFF and len(_RESOLVE_BACKOFF) >= _BACKOFF_MAX_ENTRIES:
             _evict_backoff_locked(now)
-        count = _RESOLVE_BACKOFF.get(profile_arn, [0.0, 0])[1] + 1
+        prev = _RESOLVE_BACKOFF.get(profile_arn)
+        count = (prev.failures if prev is not None else 0) + 1
         capped = min(_BACKOFF_BASE_SECONDS * (_BACKOFF_FACTOR ** (count - 1)), _BACKOFF_MAX_SECONDS)
         # Half-jitter: keep at least half the interval (so it still spaces out) while
         # de-synchronizing retries across processes.
         delay = capped * random.uniform(0.5, 1.0)  # nosec B311 - not security-sensitive
-        _RESOLVE_BACKOFF[profile_arn] = [now + delay, count]
+        _RESOLVE_BACKOFF[profile_arn] = _Backoff(now + delay, count)
         return delay, count
 
 
@@ -121,16 +128,16 @@ def is_resolve_in_backoff(profile_arn: str) -> bool:
 def _within_backoff_locked(profile_arn: str) -> bool:
     # True if the ARN's backoff window has not yet elapsed. Caller holds _CACHE_LOCK.
     entry = _RESOLVE_BACKOFF.get(profile_arn)
-    return entry is not None and entry[0] > time.monotonic()
+    return entry is not None and entry.next_allowed > time.monotonic()
 
 
 def _evict_backoff_locked(now: float) -> None:
     # Drop entries whose backoff window has elapsed (they would be retried anyway); if still
     # at capacity, drop the soonest-to-expire entry to make room. Caller holds _CACHE_LOCK.
-    for arn in [arn for arn, entry in _RESOLVE_BACKOFF.items() if entry[0] <= now]:
+    for arn in [arn for arn, entry in _RESOLVE_BACKOFF.items() if entry.next_allowed <= now]:
         _RESOLVE_BACKOFF.pop(arn, None)
     if len(_RESOLVE_BACKOFF) >= _BACKOFF_MAX_ENTRIES:
-        soonest = min(_RESOLVE_BACKOFF, key=lambda arn: _RESOLVE_BACKOFF[arn][0])
+        soonest = min(_RESOLVE_BACKOFF, key=lambda arn: _RESOLVE_BACKOFF[arn].next_allowed)
         _RESOLVE_BACKOFF.pop(soonest, None)
 
 
