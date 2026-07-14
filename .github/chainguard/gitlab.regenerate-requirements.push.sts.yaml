@@ -1,0 +1,10 @@
+issuer: https://gitlab.ddbuild.io
+
+# Scoped to dd-trace-py GitLab pipelines only (not the benchmarks project that
+# the read policy also allows). Branch enforcement (never push to protected /
+# merge-queue refs) is done in the GitLab job rules; GitHub branch protection on
+# main is the backstop.
+subject_pattern: "project_path:DataDog/apm-reliability/dd-trace-py:ref_type:branch:ref:.*"
+
+permissions:
+  contents: write
