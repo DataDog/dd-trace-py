@@ -10,65 +10,74 @@ BUILD_DIR="${SCRIPT_DIR}/build"
 echo "Script dir: ${SCRIPT_DIR}"
 echo "Repo root: ${REPO_ROOT}"
 
-# Build the rust native library first (required for cmake to find it)
-echo "Building rust native library..."
-pushd "${REPO_ROOT}"
-pip install setuptools_rust
-python3 setup.py build_rust --inplace
-popd
-
-# Configure cmake for dd_wrapper to generate compile_commands.json
-echo "Configuring cmake for dd_wrapper..."
-mkdir -p "${BUILD_DIR}/dd_wrapper"
-pushd "${BUILD_DIR}/dd_wrapper"
-cmake \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
-    -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
-    -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
-    "${SCRIPT_DIR}/dd_wrapper"
-popd
-
-# Configure cmake for stack (including fuzz harnesses so they are covered by clang-tidy)
-echo "Configuring cmake for stack..."
-mkdir -p "${BUILD_DIR}/stack"
-pushd "${BUILD_DIR}/stack"
-cmake \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
-    -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
-    -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
-    -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
-    -DBUILD_FUZZING=ON \
-    -DSTACK_USE_LIBFUZZER=OFF \
-    "${SCRIPT_DIR}/stack"
-popd
-
-# Merge compile_commands.json from all build directories
-MERGED_COMPILE_COMMANDS="${BUILD_DIR}/compile_commands.json"
-echo "Merging compile_commands.json files..."
-COMPILE_COMMANDS_FILES=()
-for subdir in dd_wrapper stack ddup; do
-    if [[ -f "${BUILD_DIR}/${subdir}/compile_commands.json" ]]; then
-        COMPILE_COMMANDS_FILES+=("${BUILD_DIR}/${subdir}/compile_commands.json")
+if [[ "${DDTRACE_CLANG_TIDY_SKIP_BUILD:-0}" == "1" ]]; then
+    if [[ ! -f "${BUILD_DIR}/compile_commands.json" ]]; then
+        echo "Error: DDTRACE_CLANG_TIDY_SKIP_BUILD=1 but ${BUILD_DIR}/compile_commands.json is missing."
+        echo "Bootstrap once with: bash ${SCRIPT_DIR}/run_clang_tidy.sh"
+        exit 1
     fi
-done
-
-if [[ ${#COMPILE_COMMANDS_FILES[@]} -eq 0 ]]; then
-    echo "Error: No compile_commands.json files found after cmake configure"
-    exit 1
-fi
-
-# Merge JSON arrays using jq
-if [[ ${#COMPILE_COMMANDS_FILES[@]} -eq 1 ]]; then
-    cp "${COMPILE_COMMANDS_FILES[0]}" "${MERGED_COMPILE_COMMANDS}"
+    echo "Skipping rust/cmake bootstrap (DDTRACE_CLANG_TIDY_SKIP_BUILD=1)"
 else
-    jq -s 'add' "${COMPILE_COMMANDS_FILES[@]}" > "${MERGED_COMPILE_COMMANDS}"
-fi
+    # Build the rust native library first (required for cmake to find it)
+    echo "Building rust native library..."
+    pushd "${REPO_ROOT}"
+    pip install setuptools_rust
+    python3 setup.py build_rust --inplace
+    popd
 
-echo "Using merged compile_commands.json from: ${BUILD_DIR}"
+    # Configure cmake for dd_wrapper to generate compile_commands.json
+    echo "Configuring cmake for dd_wrapper..."
+    mkdir -p "${BUILD_DIR}/dd_wrapper"
+    pushd "${BUILD_DIR}/dd_wrapper"
+    cmake \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
+        -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
+        -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
+        "${SCRIPT_DIR}/dd_wrapper"
+    popd
+
+    # Configure cmake for stack (including fuzz harnesses so they are covered by clang-tidy)
+    echo "Configuring cmake for stack..."
+    mkdir -p "${BUILD_DIR}/stack"
+    pushd "${BUILD_DIR}/stack"
+    cmake \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
+        -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
+        -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
+        -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
+        -DBUILD_FUZZING=ON \
+        -DSTACK_USE_LIBFUZZER=OFF \
+        "${SCRIPT_DIR}/stack"
+    popd
+
+    # Merge compile_commands.json from all build directories
+    MERGED_COMPILE_COMMANDS="${BUILD_DIR}/compile_commands.json"
+    echo "Merging compile_commands.json files..."
+    COMPILE_COMMANDS_FILES=()
+    for subdir in dd_wrapper stack ddup; do
+        if [[ -f "${BUILD_DIR}/${subdir}/compile_commands.json" ]]; then
+            COMPILE_COMMANDS_FILES+=("${BUILD_DIR}/${subdir}/compile_commands.json")
+        fi
+    done
+
+    if [[ ${#COMPILE_COMMANDS_FILES[@]} -eq 0 ]]; then
+        echo "Error: No compile_commands.json files found after cmake configure"
+        exit 1
+    fi
+
+    # Merge JSON arrays using jq
+    if [[ ${#COMPILE_COMMANDS_FILES[@]} -eq 1 ]]; then
+        cp "${COMPILE_COMMANDS_FILES[0]}" "${MERGED_COMPILE_COMMANDS}"
+    else
+        jq -s 'add' "${COMPILE_COMMANDS_FILES[@]}" > "${MERGED_COMPILE_COMMANDS}"
+    fi
+
+    echo "Using merged compile_commands.json from: ${BUILD_DIR}"
+fi
 
 # Collect all profiling source files, except for  headers, source files, build artifacts.
 # Fuzz sources are included so clang-tidy catches compilation regressions in the harnesses

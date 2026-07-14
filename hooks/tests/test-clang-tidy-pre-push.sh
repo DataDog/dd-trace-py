@@ -13,12 +13,6 @@ FAIL=0
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
-RUN_SCRIPT="${TMPDIR_TEST}/run_clang_tidy.sh"
-PROFILING_DIR="${TMPDIR_TEST}/ddtrace/internal/datadog/profiling"
-mkdir -p "${PROFILING_DIR}"
-printf '#!/usr/bin/env sh\necho run_clang_tidy >> "%s"\n' "${TMPDIR_TEST}/clang-tidy-calls.txt" > "${RUN_SCRIPT}"
-chmod +x "${RUN_SCRIPT}"
-
 check() {
     name="$1"
     condition="$2"
@@ -29,6 +23,38 @@ check() {
         echo "FAIL: $name"
         FAIL=$((FAIL + 1))
     fi
+}
+
+setup_toolchain() {
+    clang_major="${1:-18}"
+    for cmd in cmake jq run-clang-tidy; do
+        printf '#!/usr/bin/env sh\nexit 0\n' > "${TMPDIR_TEST}/${cmd}"
+        chmod +x "${TMPDIR_TEST}/${cmd}"
+    done
+    cat > "${TMPDIR_TEST}/clang-tidy" << EOF
+#!/usr/bin/env sh
+if [ "\$1" = "--version" ]; then
+    echo "clang-tidy version ${clang_major}.1.0"
+    exit 0
+fi
+exit 0
+EOF
+    chmod +x "${TMPDIR_TEST}/clang-tidy"
+}
+
+setup_repo_layout() {
+    mkdir -p "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/build"
+    printf '[]\n' > "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/build/compile_commands.json"
+    cat > "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/run_clang_tidy.sh" << EOF
+#!/usr/bin/env sh
+if [ "\${DDTRACE_CLANG_TIDY_SKIP_BUILD:-0}" != "1" ]; then
+    echo "expected DDTRACE_CLANG_TIDY_SKIP_BUILD=1" >&2
+    exit 2
+fi
+echo run_clang_tidy >> "${TMPDIR_TEST}/clang-tidy-calls.txt"
+exit 0
+EOF
+    chmod +x "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/run_clang_tidy.sh"
 }
 
 # Mock git: rev-parse returns TMPDIR_TEST as repo root; pre-push stdin drives diff output.
@@ -53,45 +79,56 @@ EOF
 }
 
 run_hook() {
-  push_input="$1"
-  env -i \
-      PATH="${TMPDIR_TEST}:${PATH}" \
-      HOME="${TMPDIR_TEST}" \
-      SKIP_CLANG_TIDY_PROFILING="${SKIP_CLANG_TIDY_PROFILING:-}" \
-      DDTRACE_PREPUSH_CLANG_TIDY_STRICT="${DDTRACE_PREPUSH_CLANG_TIDY_STRICT:-}" \
-      sh "${HOOK}" <<< "${push_input}"
+    push_input="$1"
+    env -i \
+        PATH="${TMPDIR_TEST}:${PATH}" \
+        HOME="${TMPDIR_TEST}" \
+        SKIP_CLANG_TIDY_PROFILING="${SKIP_CLANG_TIDY_PROFILING:-}" \
+        DDTRACE_PREPUSH_CLANG_TIDY_STRICT="${DDTRACE_PREPUSH_CLANG_TIDY_STRICT:-}" \
+        sh "${HOOK}" <<< "${push_input}"
 }
 
-# Provide fake toolchain binaries on PATH.
-for cmd in cmake jq clang-tidy run-clang-tidy; do
-    printf '#!/usr/bin/env sh\nexit 0\n' > "${TMPDIR_TEST}/${cmd}"
-    chmod +x "${TMPDIR_TEST}/${cmd}"
-done
-
-# Point the hook at our stub run_clang_tidy.sh via repo layout under TMPDIR_TEST.
-cat > "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/run_clang_tidy.sh" << EOF
-#!/usr/bin/env sh
-echo run_clang_tidy >> "${TMPDIR_TEST}/clang-tidy-calls.txt"
-exit 0
-EOF
-chmod +x "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/run_clang_tidy.sh"
+PUSH_INPUT="refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
 
 # No profiling native changes: hook is a no-op.
+setup_toolchain 18
+setup_repo_layout
 setup_git_mock "README.md"
 : > "${TMPDIR_TEST}/clang-tidy-calls.txt"
-run_hook "refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)" > /dev/null
+run_hook "${PUSH_INPUT}" > /dev/null
 check "no profiling changes skips clang-tidy" "! [ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
 
-# Profiling C++ change: hook runs clang-tidy script.
+# Profiling C++ change with prerequisites: hook runs analysis in skip-build mode.
+setup_toolchain 18
+setup_repo_layout
 setup_git_mock "ddtrace/internal/datadog/profiling/stack/src/sampler.cpp"
 : > "${TMPDIR_TEST}/clang-tidy-calls.txt"
-run_hook "refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)" > /dev/null
+run_hook "${PUSH_INPUT}" > /dev/null
 check "profiling native changes run clang-tidy" "[ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
 
-# SKIP_CLANG_TIDY_PROFILING=1 bypasses the check.
+# LLVM <18 is rejected (skip, not run).
+setup_toolchain 14
+setup_repo_layout
 setup_git_mock "ddtrace/internal/datadog/profiling/stack/src/sampler.cpp"
 : > "${TMPDIR_TEST}/clang-tidy-calls.txt"
-SKIP_CLANG_TIDY_PROFILING=1 run_hook "refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)" > /dev/null
+run_hook "${PUSH_INPUT}" > /dev/null
+check "clang-tidy older than 18 is skipped" "! [ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
+
+# Missing compile_commands.json skips without running analysis.
+setup_toolchain 18
+setup_repo_layout
+rm -f "${TMPDIR_TEST}/ddtrace/internal/datadog/profiling/build/compile_commands.json"
+setup_git_mock "ddtrace/internal/datadog/profiling/stack/src/sampler.cpp"
+: > "${TMPDIR_TEST}/clang-tidy-calls.txt"
+run_hook "${PUSH_INPUT}" > /dev/null
+check "missing compile_commands skips clang-tidy" "! [ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
+
+# SKIP_CLANG_TIDY_PROFILING=1 bypasses the check.
+setup_toolchain 18
+setup_repo_layout
+setup_git_mock "ddtrace/internal/datadog/profiling/stack/src/sampler.cpp"
+: > "${TMPDIR_TEST}/clang-tidy-calls.txt"
+SKIP_CLANG_TIDY_PROFILING=1 run_hook "${PUSH_INPUT}" > /dev/null
 check "SKIP_CLANG_TIDY_PROFILING bypasses clang-tidy" "! [ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
 
 echo ""

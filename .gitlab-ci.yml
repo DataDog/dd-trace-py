@@ -388,12 +388,8 @@ detect_circular_imports:
     - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-pr.json
     - cat cycles-pr.json
-  # Compare against the PR target branch (e.g. 4.12 backports), not always main.
-    - |
-      CYCLES_BASE_REF="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${GITHUB_BASE_REF:-main}}"
-      echo "Circular-import baseline: origin/${CYCLES_BASE_REF}"
-    - cd dd-trace-py && git fetch origin "${CYCLES_BASE_REF}" && git checkout "origin/${CYCLES_BASE_REF}" && cd ..
-    # Analyse the target branch ddtrace using the PR version of cycles.py (has uv metadata)
+    - cd dd-trace-py && git checkout main && cd ..
+    # Analyse main branch ddtrace using the PR version of cycles.py (has uv metadata)
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
     - |

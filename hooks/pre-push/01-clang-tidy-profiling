@@ -11,8 +11,10 @@
 # these diagnostics, so this hook only *detects* — it does not modify files.
 #
 # It is gated on profiling native changes and is a no-op otherwise. Because the
-# analysis needs a full toolchain (clang-tidy 18+, cmake, jq) it is skipped with
-# a friendly note when the toolchain is missing, unless strict mode is enabled.
+# analysis needs a full toolchain (clang-tidy 18+, cmake, jq) and a cached
+# compile_commands.json from a prior bootstrap it is skipped with a friendly note
+# when prerequisites are missing, unless strict mode is enabled. The hook never
+# pip-installs or builds into the active Python environment.
 #
 # Escape hatches:
 #   git push --no-verify                       # skip all pre-push hooks
@@ -37,10 +39,41 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PROFILING_DIR="${REPO_ROOT}/ddtrace/internal/datadog/profiling"
 RUN_SCRIPT="${PROFILING_DIR}/run_clang_tidy.sh"
+COMPILE_COMMANDS="${PROFILING_DIR}/build/compile_commands.json"
 ZERO="0000000000000000000000000000000000000000"
 
 # Only C/C++ under the profiling tree matter for this analysis.
 PROFILING_CPP_RE='^ddtrace/internal/datadog/profiling/.*\.(c|cc|cpp|h|hpp)$'
+
+clang_tidy_major_version() {
+    if ! command -v clang-tidy >/dev/null 2>&1; then
+        return 1
+    fi
+    local major
+    major="$(clang-tidy --version 2>/dev/null | sed -nE 's/.*clang-tidy version ([0-9]+).*/\1/p' | head -1)"
+    [[ -n "${major}" ]] || return 1
+    printf '%s' "${major}"
+}
+
+have_clang_tidy_18_plus() {
+    local cmd major
+    for cmd in run-clang-tidy-20 run-clang-tidy-19 run-clang-tidy-18; do
+        if command -v "${cmd}" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    if command -v run-clang-tidy >/dev/null 2>&1; then
+        major="$(clang_tidy_major_version)" || return 1
+        [[ "${major}" -ge 18 ]]
+        return
+    fi
+    if command -v clang-tidy >/dev/null 2>&1; then
+        major="$(clang_tidy_major_version)" || return 1
+        [[ "${major}" -ge 18 ]]
+        return
+    fi
+    return 1
+}
 
 # Collect the set of files this push would add relative to origin/main. Reads the
 # standard pre-push stdin format: "<local_ref> <local_sha> <remote_ref> <remote_sha>".
@@ -69,19 +102,17 @@ fi
 
 log "${BLUE}Profiling native changes detected in this push — running clang-tidy...${NC}"
 
-# Verify the toolchain is present before attempting the (heavy) analysis.
+# Verify prerequisites before attempting analysis.
 missing=()
-have_run_clang_tidy=0
-for cmd in run-clang-tidy run-clang-tidy-20 run-clang-tidy-19 run-clang-tidy-18; do
-    if command -v "${cmd}" >/dev/null 2>&1; then
-        have_run_clang_tidy=1
-        break
-    fi
-done
-[[ "${have_run_clang_tidy}" == "0" ]] && ! command -v clang-tidy >/dev/null 2>&1 && missing+=("clang-tidy / run-clang-tidy (v18+)")
+if ! have_clang_tidy_18_plus; then
+    missing+=("clang-tidy / run-clang-tidy (LLVM 18+, matching CI)")
+fi
 command -v cmake >/dev/null 2>&1 || missing+=("cmake")
 command -v jq >/dev/null 2>&1 || missing+=("jq")
 [[ -f "${RUN_SCRIPT}" ]] || missing+=("${RUN_SCRIPT}")
+[[ -f "${COMPILE_COMMANDS}" ]] || missing+=(
+    "profiling build/compile_commands.json (bootstrap once: bash ddtrace/internal/datadog/profiling/run_clang_tidy.sh)"
+)
 
 if [[ ${#missing[@]} -gt 0 ]]; then
     log "${YELLOW}clang-tidy profiling check skipped — missing:${NC}"
@@ -90,13 +121,13 @@ if [[ ${#missing[@]} -gt 0 ]]; then
         log "${RED}Strict mode (DDTRACE_PREPUSH_CLANG_TIDY_STRICT=1): failing.${NC}"
         exit 1
     fi
-    log "${YELLOW}Install the toolchain (clang-tidy 18+, cmake, jq) to enable this check,${NC}"
+    log "${YELLOW}Install the toolchain (clang-tidy 18+, cmake, jq) and bootstrap compile_commands,${NC}"
     log "${YELLOW}or rely on the CI 'clang-tidy profiling' job. Continuing push.${NC}"
     exit 0
 fi
 
-# run_clang_tidy.sh caches its build dir, so repeat runs only re-analyze deltas.
-if ! bash "${RUN_SCRIPT}"; then
+# Analysis only — reuse cached compile_commands; do not pip-install or build in-place.
+if ! DDTRACE_CLANG_TIDY_SKIP_BUILD=1 bash "${RUN_SCRIPT}"; then
     log ""
     log "${RED}clang-tidy found issues in the profiling native code (see above).${NC}"
     log "${YELLOW}This is the same analysis as the CI 'clang-tidy profiling' job.${NC}"
