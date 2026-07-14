@@ -18,15 +18,27 @@ def test_lazy_import():
     assert tracer.context_provider.active() is None
 
 
-@pytest.mark.skip(reason="wrapt 2.0 now imports asyncio by default")
-@pytest.mark.subprocess()
-def test_asyncio_not_imported_by_auto_instrumentation():
-    # Module unloading is not supported for asyncio, a simple workaround
-    # is to ensure asyncio is not imported by ddtrace.auto or ddtrace-run.
-    # If asyncio is imported by ddtrace.auto the asyncio event loop with fail
-    # to register new loops in some platforms (e.g. Ubuntuu).
+def test_asyncio_event_loop_registration_with_module_cloning():
+    import os
+    import subprocess
     import sys
 
-    import ddtrace.auto  # noqa: F401
-
-    assert "asyncio" not in sys.modules
+    # Run in a pristine interpreter (not pytest's, which pre-imports asyncio) and force
+    # module cloning. Narrowed cloning leaves asyncio loaded, so the _asyncio C extension
+    # stays in sync with asyncio.events and event loop registration keeps working — the
+    # bug that occurred when asyncio was unloaded and re-imported.
+    script = (
+        "import ddtrace.auto\n"
+        "import sys\n"
+        "assert 'asyncio' in sys.modules, 'asyncio was unloaded by module cloning'\n"
+        "assert '_asyncio' in sys.modules, '_asyncio was unloaded by module cloning'\n"
+        "import asyncio\n"
+        "loop = asyncio.new_event_loop()\n"
+        "asyncio.set_event_loop(loop)\n"
+        "assert asyncio.get_event_loop() is loop\n"
+        "print('OK')\n"
+    )
+    env = {**os.environ, "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "1"}
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "OK" in result.stdout
