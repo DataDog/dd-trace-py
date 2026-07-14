@@ -2,7 +2,6 @@ import asyncio
 from types import SimpleNamespace
 
 import aio_pika
-from aio_pika import ExchangeType
 import pytest
 
 from ddtrace.contrib.internal.aio_pika.patch import traced_get
@@ -266,12 +265,12 @@ async def test_publish_with_custom_headers(patch_aio_pika):
 )
 async def test_publish_to_internal_exchange_raises(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
-        temp_exchange = await channel.declare_exchange(
-            "internal_exchange_test",
-            type=ExchangeType.DIRECT,
-            internal=True,
-            auto_delete=True,
-        )
+        # AIDEV-NOTE: Newer pamqp versions reject internal exchanges while
+        # declaring them, before Exchange.publish reaches the error path this
+        # test verifies. An unchecked exchange reference exercises that path
+        # consistently across the supported aio-pika versions.
+        temp_exchange = await channel.get_exchange("internal_exchange_test", ensure=False)
+        temp_exchange.internal = True
 
         msg = make_message("error test")
         with pytest.raises(ValueError, match="Can not publish to internal exchange"):
