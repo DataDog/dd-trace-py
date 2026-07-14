@@ -318,6 +318,141 @@ class TestITR:
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
+    def test_itr_suite_level_emits_skip_events(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Suite-level ITR: ignored file gets a test_suite_end with status=skip, no test events inside."""
+        pytester.makepyfile(
+            test_skippable="""
+            def test_inside_skipped_suite():
+                assert False  # would fail if it ran
+            """,
+            test_running="""
+            def test_passes():
+                assert True
+            """,
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            SuiteRef(ModuleRef(""), "test_skippable.py"),
+        }
+
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        # Only test_running.py::test_passes ran; test_skippable.py was ignored before import.
+        result.assertoutcome(passed=1)
+
+        all_events = list(event_capture.events())
+        # 1 test + 2 suites + 1 module + 1 session = 5 (no test events for the skipped suite)
+        assert len(all_events) == 5
+
+        suite_events = list(event_capture.events_by_type("test_suite_end"))
+        assert len(suite_events) == 2
+
+        skipped_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_skippable.py")
+        assert skipped_suite["content"]["meta"]["test.status"] == "skip"
+        assert skipped_suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+
+        running_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_running.py")
+        assert running_suite["content"]["meta"]["test.status"] == "pass"
+        assert running_suite["content"]["meta"].get("test.skipped_by_itr") is None
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "suite"
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+        assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
+    def test_itr_suite_level_unskippable_file_runs_normally(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Suite-level ITR: a file with datadog_itr_unskippable is NOT ignored and its tests run."""
+        pytester.makepyfile(
+            test_unskippable="""
+            import pytest
+
+            @pytest.mark.skipif(False, reason='datadog_itr_unskippable')
+            def test_forced_run():
+                assert True
+            """,
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            SuiteRef(ModuleRef(""), "test_unskippable.py"),
+        }
+
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        # The unskippable file was not ignored — its test ran and passed.
+        result.assertoutcome(passed=1)
+
+        # test event present (file was collected, not ignored)
+        test_event = event_capture.event_by_test_name("test_forced_run")
+        assert test_event["content"]["meta"]["test.status"] == "pass"
+
+        # No ITR-skip events emitted (the suite ran, it wasn't skipped)
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"].get("test.itr.tests_skipping.count") == 0
+        assert session["content"]["meta"].get("test.itr.tests_skipping.tests_skipped") == "false"
+
+    @pytest.mark.skipif("slipcover" in sys.modules, reason="slipcover is incompatible with ITR code coverage")
+    @pytest.mark.skipif(sys.version_info >= (3, 14), reason="ITR code coverage currently not supported in Python 3.14")
+    def test_itr_suite_level_coverage_uses_suite_coverage(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Suite mode: coverage events carry test_suite_id but no span_id."""
+        pytester.makepyfile(
+            lib_answer="""
+            ANSWER = 42
+            """,
+            test_foo="""
+            from lib_answer import ANSWER
+
+            def test_answer():
+                assert ANSWER == 42
+            """,
+        )
+
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(coverage_enabled=True),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+        ):
+            with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
+                pytester.inline_run("--ddtrace", "-v", "-s")
+
+        coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
+        assert len(coverage_events) == 1
+        event = coverage_events[0]
+        # Suite-level coverage has test_suite_id but no span_id.
+        assert "test_suite_id" in event
+        assert "span_id" not in event
+        assert "test_session_id" in event
+
     @pytest.mark.skipif("slipcover" in sys.modules, reason="slipcover is incompatible with ITR code coverage")
     @pytest.mark.skipif(sys.version_info >= (3, 14), reason="ITR code coverage currently not supported in Python 3.14")
     def test_itr_code_coverage_disabled(self, pytester: Pytester) -> None:

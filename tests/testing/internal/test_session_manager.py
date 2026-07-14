@@ -9,11 +9,13 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -185,6 +187,230 @@ class TestSessionManagerIsSkippableTest:
         assert session_manager.is_skippable_test(test_ref1) is True
         assert session_manager.is_skippable_test(test_ref2) is True
         assert session_manager.is_skippable_test(test_ref3) is True
+
+    def test_api_empty_name_module_does_not_match_real_module(self) -> None:
+        """API returns ModuleRef('.') (EMPTY_NAME) but local item has a real directory module.
+
+        When test.bundle is absent the API stores module=EMPTY_NAME. This must NOT
+        match a local TestRef with a real module name — otherwise tests in different
+        directories with the same filename would be incorrectly skipped.
+        """
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        api_suite = SuiteRef(ModuleRef(EMPTY_NAME), "test_outcomes.py")
+        api_test_ref = TestRef(api_suite, "test_function")
+
+        local_suite = SuiteRef(ModuleRef("tests.subdir"), "test_outcomes.py")
+        local_test_ref = TestRef(local_suite, "test_function")
+
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_skippable_items({api_test_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_test(local_test_ref) is False
+
+
+class TestSessionManagerIsSkippableSuitePath:
+    """Test is_skippable_suite_path, including the EMPTY_NAME module fallback."""
+
+    def setup_method(self) -> None:
+        self.test_env = MockDefaults.test_environment()
+
+    def test_suite_path_matches_exact_module(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path matches when SuiteRef has the real directory module."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is True
+
+    def test_suite_path_empty_name_module_does_not_match_real_module(self, tmp_path: pytest.fixture) -> None:
+        """API returns module=EMPTY_NAME; is_skippable_suite_path must NOT match a file in a real subdirectory.
+
+        Without a module discriminator (test.bundle absent) we cannot tell which directory
+        the suite belongs to, so we must not skip to avoid cross-directory false positives.
+        """
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_no_match_different_name(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False when the suite filename is different."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_bar.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_skipping_disabled(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path always returns False when skipping is disabled."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "test_foo.py"
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(False)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_test_level_mode_returns_false(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False in TEST-level mode (skippable_items has TestRefs)."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "test_foo.py"
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.TEST)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_not_skipped_when_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False when any test in the suite has attempt_to_fix=True."""
+        from ddtrace.testing.internal.settings_data import TestProperties
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        atf_test_ref = TestRef(suite_ref, "test_fix_me")
+        other_test_ref = TestRef(suite_ref, "test_normal")
+
+        session_manager = (
+            session_manager_mock()
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .with_test_properties(
+                {
+                    atf_test_ref: TestProperties(attempt_to_fix=True),
+                    other_test_ref: TestProperties(),
+                }
+            )
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_skippable_when_no_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns True when no test in the suite has attempt_to_fix."""
+        from ddtrace.testing.internal.settings_data import TestProperties
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        test_ref = TestRef(suite_ref, "test_normal")
+
+        session_manager = (
+            session_manager_mock()
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .with_test_properties({test_ref: TestProperties(quarantined=True)})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is True
+
+    def test_suite_path_uses_root_path_over_workspace(self, tmp_path: pytest.fixture) -> None:
+        """When root_path differs from workspace_path, the module is derived from root_path."""
+        workspace = tmp_path / "workspace"
+        rootdir = workspace / "tests"
+        rootdir.mkdir(parents=True)
+        suite_file = rootdir / "test_foo.py"
+        suite_file.touch()
+
+        # Backend reports module="" (rootdir-relative: file is at rootdir root)
+        suite_ref_rootdir = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref_rootdir})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        # Without root_path: workspace-relative gives module="tests", no match
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+        # With root_path=rootdir: rootdir-relative gives module="", matches
+        assert session_manager.is_skippable_suite_path(suite_file, root_path=rootdir) is True
 
 
 class TestSessionNameTest:
@@ -584,7 +810,7 @@ class TestUpdatePrMergeBase:
 class TestUploadSentinel:
     """Tests for the upload-completion sentinel used to deduplicate work across xdist workers."""
 
-    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
         from ddtrace.testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)
@@ -680,7 +906,7 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
-        cast(Mock, sm.api_client).get_known_commits.assert_not_called()
+        sm.api_client.get_known_commits.assert_not_called()  # type: ignore[attr-defined]
 
     def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
         """The sentinel is written when the early-return on all-commits-known path is taken."""
@@ -688,7 +914,7 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        cast(Mock, sm.api_client).get_known_commits.return_value = ["commit-1", "commit-2"]
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -710,8 +936,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        cast(Mock, sm.api_client).get_known_commits.return_value = []
-        cast(Mock, sm.api_client).send_git_pack_file.return_value = 123  # bytes uploaded
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.return_value = 123  # type: ignore[attr-defined]  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -732,7 +958,7 @@ class TestUploadSentinel:
         """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        cast(Mock, sm.api_client).get_known_commits.return_value = []
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -754,8 +980,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        cast(Mock, sm.api_client).get_known_commits.return_value = []
-        cast(Mock, sm.api_client).send_git_pack_file.return_value = None  # upload failure
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.return_value = None  # type: ignore[attr-defined]  # upload failure
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -777,9 +1003,9 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        cast(Mock, sm.api_client).get_known_commits.return_value = []
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
         # First packfile succeeds, second fails.
-        cast(Mock, sm.api_client).send_git_pack_file.side_effect = [123, None]
+        sm.api_client.send_git_pack_file.side_effect = [123, None]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -800,7 +1026,7 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         # API returning None signals a failure that aborts the upload.
-        cast(Mock, sm.api_client).get_known_commits.return_value = None
+        sm.api_client.get_known_commits.return_value = None  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -883,7 +1109,7 @@ class TestUploadSentinel:
 class TestUploadLock:
     """Tests for the cross-process lock around upload_git_data."""
 
-    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
         from ddtrace.testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)
@@ -938,7 +1164,7 @@ class TestUploadLock:
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        cast(Mock, sm.api_client).get_known_commits.return_value = ["c1"]
+        sm.api_client.get_known_commits.return_value = ["c1"]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["c1"]
@@ -1084,3 +1310,261 @@ class TestUploadLock:
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = {}
         sm.cleanup_upload_artifacts()  # no workspace_path — must not raise
+
+
+class TestParallelInit:
+    """Tests for the parallel initialisation of network calls in SessionManager.__init__."""
+
+    def setup_method(self) -> None:
+        self.session = TestSession("pytest")
+        self.session.set_attributes(
+            test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
+        )
+
+    def _make_mock_client(self, **kwargs) -> Mock:
+        return mock_api_client_settings(**kwargs)
+
+    # -------------------------------------------------------------------------
+    # 1. Happy-path: all three calls are wired up in the parallel block
+    # -------------------------------------------------------------------------
+
+    def test_all_three_parallel_calls_are_made(self) -> None:
+        """get_known_tests, get_test_management_properties, and upload_git_data are all invoked."""
+        mock_client = self._make_mock_client(
+            known_tests_enabled=True,
+            test_management_enabled=True,
+        )
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_called_once()
+        mock_client.get_test_management_properties.assert_called_once()
+        # upload_git_data calls get_known_commits under the hood
+        mock_client.get_known_commits.assert_called_once()
+
+    def test_known_tests_skipped_when_disabled(self) -> None:
+        """get_known_tests is not called when known_tests_enabled is False."""
+        mock_client = self._make_mock_client(known_tests_enabled=False)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_not_called()
+
+    def test_test_management_properties_skipped_when_disabled(self) -> None:
+        """get_test_management_properties is not called when test_management is disabled."""
+        mock_client = self._make_mock_client(test_management_enabled=False)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_test_management_properties.assert_not_called()
+
+    # -------------------------------------------------------------------------
+    # 2. require_git sequential chain: get_skippable_tests uses re-fetched settings
+    # -------------------------------------------------------------------------
+
+    def test_require_git_enables_itr_for_skippable_fetch(self) -> None:
+        """When the re-fetched settings after git upload enable ITR, get_skippable_tests is called."""
+        # First get_settings call: ITR disabled, require_git=True.
+        settings_before_git = Settings(require_git=True, itr_enabled=False)
+        # Second get_settings call (after upload): ITR now enabled.
+        settings_after_git = Settings(require_git=False, itr_enabled=True, skipping_enabled=True)
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        # Skippable fetch must have been triggered by the re-fetched settings.
+        mock_client.get_skippable_tests.assert_called_once()
+        assert sm.settings.itr_enabled is True
+
+    def test_require_git_disables_itr_suppresses_skippable_fetch(self) -> None:
+        """When the re-fetched settings disable ITR, get_skippable_tests is NOT called."""
+        settings_before_git = Settings(require_git=True, itr_enabled=True, skipping_enabled=True)
+        settings_after_git = Settings(require_git=False, itr_enabled=False)
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        mock_client.get_skippable_tests.assert_not_called()
+        assert sm.skippable_items == set()
+
+    def test_known_tests_and_test_management_use_pre_upload_settings(self) -> None:
+        """known_tests/test_management decisions must use the settings captured before the
+        concurrent git-upload thread replaces self.settings, not whatever self.settings happens
+        to be when each thread runs (otherwise the outcome would race on thread scheduling).
+        """
+        settings_before_git = Settings(require_git=True, known_tests_enabled=True)
+        settings_before_git.test_management.enabled = True
+        settings_after_git = Settings(require_git=False, known_tests_enabled=False)
+        settings_after_git.test_management.enabled = False
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        # Both decisions were made when known_tests_enabled/test_management.enabled were True,
+        # regardless of the settings refetch triggered by require_git.
+        mock_client.get_known_tests.assert_called_once()
+        mock_client.get_test_management_properties.assert_called_once()
+
+    # -------------------------------------------------------------------------
+    # 3. Exceptions from background threads propagate to the caller
+    # -------------------------------------------------------------------------
+
+    def test_exception_in_get_known_tests_propagates(self) -> None:
+        """An exception raised by get_known_tests surfaces in the main thread."""
+        mock_client = self._make_mock_client(known_tests_enabled=True)
+        mock_client.get_known_tests.side_effect = RuntimeError("network failure")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            pytest.raises(RuntimeError, match="network failure"),
+        ):
+            SessionManager(self.session)
+
+    def test_exception_in_get_test_management_properties_propagates(self) -> None:
+        """An exception raised by get_test_management_properties surfaces in the main thread."""
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        mock_client.get_test_management_properties.side_effect = RuntimeError("server error")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            pytest.raises(RuntimeError, match="server error"),
+        ):
+            SessionManager(self.session)
+
+    def test_exception_in_upload_git_data_propagates(self) -> None:
+        """An exception raised inside the git-upload thread surfaces in the main thread."""
+        mock_client = self._make_mock_client()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch.object(SessionManager, "upload_git_data", side_effect=RuntimeError("git upload failed")),
+            pytest.raises(RuntimeError, match="git upload failed"),
+        ):
+            SessionManager(self.session)
+
+    # -------------------------------------------------------------------------
+    # 4. atf_all_flaky mode: only test management properties, nothing else
+    # -------------------------------------------------------------------------
+
+    def test_atf_all_flaky_sets_flag_and_logs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """In ATF-all-flaky mode, atf_all_flaky_tests is True and the count is logged."""
+        module_ref = ModuleRef("m")
+        suite_ref = SuiteRef(module_ref, "s.py")
+        flaky_test = TestRef(suite_ref, "test_flaky")
+        props = {flaky_test: TestProperties(attempt_to_fix=True)}
+
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        mock_client.get_test_management_properties.return_value = props
+
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch("ddtrace.testing.internal.session_manager.log") as mock_log,
+        ):
+            sm = SessionManager(self.session)
+
+        assert sm.atf_all_flaky_tests is True
+        assert sm.test_properties == props
+        # The count log must fire exactly once with the correct number.
+        atf_log_calls = [c for c in mock_log.info.call_args_list if "attempt_to_fix" in str(c)]
+        assert len(atf_log_calls) == 1
+        assert "1" in str(atf_log_calls[0])
+
+    def test_atf_all_flaky_skips_known_tests_and_skippable_but_still_uploads_git(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode, get_known_tests/get_skippable_tests are skipped, but git data is still uploaded."""
+        mock_client = self._make_mock_client(test_management_enabled=True, known_tests_enabled=True)
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch.object(SessionManager, "upload_git_data") as mock_upload,
+        ):
+            sm = SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_not_called()
+        mock_client.get_skippable_tests.assert_not_called()
+        mock_upload.assert_called_once()
+        assert sm.known_tests == set()
+        assert sm.skippable_items == set()
+
+    def test_non_atf_all_flaky_does_not_set_flag(self) -> None:
+        """Without the ATF-all-flaky env var, atf_all_flaky_tests is False."""
+        mock_client = self._make_mock_client()
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        assert sm.atf_all_flaky_tests is False
+
+    def test_atf_all_flaky_uses_all_statuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """In ATF-all-flaky mode, get_test_management_properties is called with all statuses."""
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_test_management_properties.assert_called_once_with(
+            statuses=("active", "quarantined", "disabled")
+        )
