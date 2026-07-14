@@ -477,6 +477,13 @@ class TestOptPlugin:
 
         self.manager.finish()
 
+    def _should_deselect(self, item: pytest.Item) -> bool:
+        if _is_test_unskippable(item):
+            return False
+        if self.manager.is_skippable_test(test_ref := item_to_test_ref(item)):
+            return not ((test_props := self.manager.test_properties.get(test_ref)) and test_props.attempt_to_fix)
+        return False
+
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
     ) -> None:
@@ -496,16 +503,11 @@ class TestOptPlugin:
             selected = []
             deselected = []
             for item in items:
-                test_ref = item_to_test_ref(item)
-                test_props = self.manager.test_properties.get(test_ref)
-                if (
-                    self.manager.is_skippable_test(test_ref)
-                    and not _is_test_unskippable(item)
-                    and not (test_props and test_props.attempt_to_fix)
-                ):
+                if self._should_deselect(item):
                     deselected.append(item)
                 else:
                     selected.append(item)
+
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
