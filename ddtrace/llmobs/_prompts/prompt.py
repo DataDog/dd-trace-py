@@ -8,6 +8,7 @@ from typing import Union
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
+from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
@@ -29,7 +30,7 @@ class ManagedPrompt:
     id: str
     version: str
     label: Optional[str]
-    source: Literal["registry", "cache", "fallback"]
+    source: Literal["registry", "cache", "fallback", "ff", "resolve"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
@@ -49,9 +50,12 @@ class ManagedPrompt:
         Returns:
             str (for text templates) or list[Message] (for chat templates)
         """
+        rendered: Union[str, list[Message]]
         if isinstance(self.template, str):
-            return safe_substitute(self.template, variables)
-        return render_chat(self.template, variables)
+            rendered = safe_substitute(self.template, variables)
+        else:
+            rendered = render_chat(self.template, variables)
+        return attach_prompt(rendered, self.to_annotation_dict(**variables))
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:
         """

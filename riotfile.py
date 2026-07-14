@@ -97,6 +97,7 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",  # 2-second timeout
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
     # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
@@ -620,6 +621,8 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # exercises the module-cloning regression test for yaml/_yaml
+                "PyYAML": latest,
                 # Ray Serve cloudpickles objects that reference the global config
                 # (which holds forksafe locks); test_forksafe.py exercises that path.
                 "cloudpickle": latest,
@@ -2039,6 +2042,7 @@ venv = Venv(
                     pys="3.9",
                     pkgs={
                         "pytest": [
+                            "==6.2.5",
                             "~=7.2",
                             "~=8.0",
                         ],
@@ -3597,6 +3601,9 @@ venv = Venv(
                         "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
+                        # openfeature-sdk is an optional dependency (ddtrace[openfeature]) gating the
+                        # FFE prompt path; the FFE tests in test_prompts.py need it installed.
+                        "openfeature-sdk": ">=0.8,<1",
                     },
                     venvs=[
                         Venv(
@@ -4471,7 +4478,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_api",
-            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
+            command="pytest {cmdargs} tests/aiguard/api/",
             pkgs={
                 "requests": latest,
             },
@@ -4479,7 +4486,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_langchain",
-            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            command="pytest {cmdargs} tests/aiguard/langchain/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4515,7 +4522,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_openai",
-            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            command="pytest {cmdargs} tests/aiguard/openai/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4546,7 +4553,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_anthropic",
-            command="pytest {cmdargs} tests/appsec/ai_guard/anthropic/",
+            command="pytest {cmdargs} tests/aiguard/anthropic/",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4575,7 +4582,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_strands",
-            command="pytest {cmdargs} tests/appsec/ai_guard/strands_hooks/",
+            command="pytest {cmdargs} tests/aiguard/strands_hooks/",
             pkgs={
                 "strands-agents": ">=1.29.0",
             },
@@ -4583,7 +4590,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_litellm_guardrail",
-            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
             pkgs={
                 "pytest-asyncio": latest,
             },
