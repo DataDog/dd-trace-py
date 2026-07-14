@@ -495,6 +495,8 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
+                # exercises the module-cleanup regression test for yaml/_yaml
+                "PyYAML": latest,
             },
             venvs=[
                 Venv(
@@ -507,7 +509,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.12"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
-                        "setuptools": latest,
+                        # pkg_resources was removed in setuptools 82.
+                        "setuptools": "<82",
                     },
                 ),
             ],

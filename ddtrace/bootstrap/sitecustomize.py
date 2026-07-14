@@ -76,6 +76,8 @@ def cleanup_loaded_modules():
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
+            "yaml",  # third parties (e.g. Airflow) cache SafeLoader/safe_load at import time
+            "_yaml",  # PyYAML's C backend does not like being unloaded and reimported
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
