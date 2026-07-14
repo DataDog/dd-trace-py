@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fixes an issue where cache write input tokens were not captured by the OpenAI integration when using newer models that include cache write token charges.
