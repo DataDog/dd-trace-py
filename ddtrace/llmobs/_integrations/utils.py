@@ -1143,7 +1143,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     if function_call_chunk:
         if not stored_tool_calls:
             stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
+        # so coerce to "" — getattr's default only applies when the attribute is absent.
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
         return
     if not tool_call_chunk:
         return
@@ -1171,9 +1173,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls.append(call_dict)
         list_idx = -1
     if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
+        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
     elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
+        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
 
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
