@@ -16,9 +16,13 @@ Do NOT re-derive; do NOT add per-SDK env-var knobs for the limits.
 Lifecycle (mirrors the Node SpanEnrichmentHook):
 - Per-root-span state lives in a ``WeakKeyDictionary`` keyed by the span, so it
   is garbage-collected with the span -- zero idle per-span overhead (DG-005).
-- The hook subscribes to the ``trace.span_finish`` core event on construction
-  and writes the tags when the *local root* span finishes, then deletes that
-  span's state.
+- The hook subscribes to the ``trace.span_finish`` core event LAZILY, on the
+  first evaluation that actually records data (not on construction), and writes
+  the tags when the *local root* span finishes, then deletes that span's state.
+  Lazy subscription means a provider that is constructed but never used for a
+  real evaluation (e.g. one built with ``initialization_timeout=0`` that fails
+  to initialize and is discarded without ``shutdown()``) never leaves a global
+  span-finish listener behind.
 - ``destroy()`` unsubscribes that exact callback (symmetric subscribe<->
   unsubscribe -- prevents a duplicate subscription on provider reconfigure).
 - Both the capture path and the write path swallow exceptions: span enrichment
@@ -138,9 +142,13 @@ class SpanEnrichmentState:
             self._subjects[hashed] = {serial_id}
 
     def add_default(self, flag_key: str, value: typing.Any) -> None:
-        value_str = self._coerce_default_value(value)
-        if len(value_str) > self.MAX_DEFAULT_VALUE_LENGTH:
-            value_str = self._truncate_utf16(value_str, self.MAX_DEFAULT_VALUE_LENGTH)
+        # Truncate unconditionally: the 64-unit cap is measured in UTF-16 code
+        # units (matching Node's ``slice(0, 64)``), NOT Python code points. A
+        # ``len(value_str) > 64`` guard would skip truncation for astral-plane
+        # values that are <=64 code points but >64 UTF-16 units (e.g. 40 emoji =
+        # 80 units), emitting a value Node would have cut -- diverging the wire
+        # format. ``_truncate_utf16`` is a no-op for values already within limit.
+        value_str = self._truncate_utf16(self._coerce_default_value(value), self.MAX_DEFAULT_VALUE_LENGTH)
         with self._lock:
             # First-wins: an existing flag key is never overwritten.
             if flag_key in self._defaults:
@@ -265,7 +273,27 @@ class SpanEnrichmentHook(Hook):  # type: ignore[misc]
         # written, never cleaned). id(self) makes each hook's subscription
         # distinct; destroy() removes the exact callback by identity.
         self._subscription_name = "ffe.span_enrichment.%d" % id(self)
-        core.on(_SPAN_FINISH_EVENT, self._on_span_finish, self._subscription_name)
+        # Subscribe LAZILY (see _ensure_subscribed), not here: a hook constructed
+        # for a provider that never runs a real evaluation must not leak a global
+        # listener. Guarded by _states_lock.
+        self._subscribed = False
+
+    def _ensure_subscribed(self) -> None:
+        """Subscribe to ``trace.span_finish`` on first data capture (idempotent).
+
+        Deferring the subscription out of ``__init__`` is what makes a
+        discarded, never-used provider leak-free: ``set_provider`` never
+        evaluates a flag, so ``finally_after`` never runs for a throwaway
+        provider and this is never reached -- no listener is registered.
+        """
+        if self._subscribed:
+            return
+        with self._states_lock:
+            # Re-check under the lock (another thread may have subscribed between
+            # the fast-path read above and acquiring the lock).
+            if not self._subscribed:
+                core.on(_SPAN_FINISH_EVENT, self._on_span_finish, self._subscription_name)
+                self._subscribed = True
 
     def _get_root_span(self) -> typing.Optional[typing.Any]:
         """O(1) local-root lookup -- mirrors Node's ``trace.started[0]``."""
@@ -308,12 +336,14 @@ class SpanEnrichmentHook(Hook):  # type: ignore[misc]
             # no serial_id) must NOT create empty state that lingers until span
             # GC -- it leaves no state to clean up on finish.
             if serial_id is not None:
+                self._ensure_subscribed()
                 state = self._get_or_create_state(root_span)
                 state.add_serial_id(serial_id)
                 if do_log and targeting_key:
                     state.add_subject(targeting_key, serial_id)
             elif getattr(details, "variant", None) is None:
                 # Runtime-default detection = MISSING VARIANT (not a reason enum).
+                self._ensure_subscribed()
                 state = self._get_or_create_state(root_span)
                 state.add_default(hook_context.flag_key, getattr(details, "value", None))
         except Exception as e:
@@ -349,4 +379,6 @@ class SpanEnrichmentHook(Hook):  # type: ignore[misc]
             core.reset_listeners(_SPAN_FINISH_EVENT, self._on_span_finish)
         except Exception as e:
             log.debug("span enrichment destroy failed: %s", e)
+        with self._states_lock:
+            self._subscribed = False
         self._span_states = WeakKeyDictionary()

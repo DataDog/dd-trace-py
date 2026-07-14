@@ -208,6 +208,17 @@ class TestSpanEnrichmentState:
         # Still valid UTF-8 (no lone surrogate left by the pair-aligned cut).
         assert value.encode("utf-8").decode("utf-8") == value
 
+    def test_default_value_astral_under_codepoint_limit_still_truncated(self):
+        # Regression (codex P2): 40 emoji == 40 Python code points (<=64) but 80
+        # UTF-16 units (>64). A `len(value_str) > 64` guard would SKIP truncation
+        # and emit all 40, while Node's slice(0,64) keeps 32 -- a wire divergence.
+        # Truncation must run based on UTF-16 units, not the code-point len().
+        state = SpanEnrichmentState()
+        state.add_default("emoji-flag", "🎉" * 40)
+        value = state._defaults["emoji-flag"]
+        assert value == "🎉" * 32
+        assert len(value) == 32
+
     def test_default_value_truncation_drops_split_surrogate_stays_valid_utf8(self):
         # WR-02 edge: when the 64-unit boundary falls in the MIDDLE of a surrogate
         # pair (a leading BMP char shifts the astral chars by one unit), the lone
@@ -396,15 +407,37 @@ class TestSpanEnrichmentHook:
         finally:
             hook.destroy()
 
+    def test_construction_does_not_subscribe(self):
+        # Leak regression (codex P2): constructing a hook must NOT register a
+        # global trace.span_finish listener. A DataDogProvider built but never
+        # used for a real evaluation -- e.g. the llmobs prompt manager's
+        # DataDogProvider(initialization_timeout=0) that fails to initialize and
+        # is discarded without shutdown() -- would otherwise leak a listener that
+        # runs on every span finish for the life of the process.
+        hook = self._hook()
+        assert hook._subscribed is False
+        hook.destroy()  # safe no-op when never subscribed
+
     def test_destroy_unsubscribes_span_finish(self):
         from ddtrace.internal import core
+        from ddtrace.trace import tracer
 
-        assert core.has_listeners("trace.span_finish") in (True, False)
         hook = self._hook()
+        # Subscription is LAZY: construction alone does not subscribe.
+        assert hook._subscribed is False
+        # The first data-bearing evaluation subscribes.
+        with tracer.trace("root"):
+            hook.finally_after(
+                _make_hook_context(),
+                _make_details(True, "on", {"__dd_split_serial_id": 100, "__dd_do_log": False}),
+                {},
+            )
+        assert hook._subscribed is True
         assert core.has_listeners("trace.span_finish") is True
         hook.destroy()
         # After destroy, our specific callback is gone (no listeners remain in this isolated test).
         assert core.has_listeners("trace.span_finish") is False
+        assert hook._subscribed is False
 
     def test_double_construction_no_duplicate_write(self):
         # Reconfigure scenario: a second hook must not cause double tag-application
@@ -485,7 +518,9 @@ class TestSpanEnrichmentHook:
         hook = self._hook()
         try:
             with tracer.trace("root") as root:
-                # Force-create empty state directly (bypassing the branch guard).
+                # Subscribe as finally_after would (subscription is lazy), then
+                # force-create empty state directly (bypassing the branch guard).
+                hook._ensure_subscribed()
                 hook._get_or_create_state(root)
                 assert root in hook._span_states
                 assert hook._span_states[root].has_data() is False
