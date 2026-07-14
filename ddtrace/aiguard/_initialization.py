@@ -1,0 +1,26 @@
+import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.asm import ai_guard_config
+
+
+logger = ddlogger.get_logger(__name__)
+
+_AI_GUARD_TO_BE_LOADED: bool = True
+
+
+def load_ai_guard() -> None:
+    """Lazily load the ai_guard module listeners."""
+    global _AI_GUARD_TO_BE_LOADED
+    if _AI_GUARD_TO_BE_LOADED:
+        try:
+            if not ai_guard_config._ai_guard_enabled:
+                return
+
+            from ddtrace.aiguard._listener import ai_guard_listen
+
+            ai_guard_listen()
+
+        except Exception:
+            logger.warning("AI Guard initialization failed", exc_info=True)
+
+        finally:
+            _AI_GUARD_TO_BE_LOADED = False
