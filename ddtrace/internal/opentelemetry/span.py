@@ -401,6 +401,6 @@ class Span(OtelSpan):
             if network_protocol_name:
                 return f"{network_protocol_name}.client.request"
             else:
-                return "server.request"
+                return "client.request"
 
         return span_kind
