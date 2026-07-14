@@ -45,6 +45,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -84,6 +85,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -183,6 +185,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -319,6 +322,14 @@ class LLMObsActivateDistributedHeadersError(Exception):
     pass
 
 
+def _deprecate_prompt_label(method: str) -> None:
+    deprecate(
+        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+        category=DDTraceDeprecationWarning,
+    )
+
+
 @dataclass
 class LLMObsSpan:
     """LLMObs span object.
@@ -332,12 +343,19 @@ class LLMObsSpan:
                 return None
             if span.get_tag("no_input") == "1":
                 span.input = []
+            # Redact or drop sensitive top-level metadata
+            span.metadata.pop("tool_config", None)
             return span
+
+    ``metadata`` exposes the span's top-level metadata for redaction. Internal Datadog
+    fields (such as cost and agent manifest data) are never included and cannot be
+    modified through this object.
     """
 
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
     _tags: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -431,7 +449,20 @@ def _normalize_llmobs_meta(
     empty optional fields.
     """
     llmobs_meta[LLMOBS_STRUCT.SPAN] = _SpanField(kind=span_kind)
-    llmobs_meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+
+    current_metadata = llmobs_meta.get(LLMOBS_STRUCT.METADATA)
+    if not isinstance(current_metadata, dict):
+        current_metadata = {}
+    preserved_dd = current_metadata.get(LLMOBS_STRUCT.METADATA_DD)
+    user_metadata = llmobs_span.metadata
+    if not isinstance(user_metadata, dict):
+        log.warning("LLMObs span processor set non-dict metadata (%r); ignoring.", type(user_metadata))
+        user_metadata = current_metadata
+    # Drop any user-supplied `_dd` so internal metadata cannot be spoofed, then restore the real one.
+    new_metadata = {k: v for k, v in user_metadata.items() if k != LLMOBS_STRUCT.METADATA_DD}
+    if preserved_dd is not None:
+        new_metadata[LLMOBS_STRUCT.METADATA_DD] = preserved_dd
+    llmobs_meta[LLMOBS_STRUCT.METADATA] = new_metadata
 
     model_name = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_NAME, None)
     model_provider = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_PROVIDER, None)
@@ -650,6 +681,10 @@ class LLMObs(Service):
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 
         llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        original_metadata = llmobs_meta.get(LLMOBS_STRUCT.METADATA)
+        if not isinstance(original_metadata, dict):
+            original_metadata = {}
+        llmobs_span.metadata = {k: v for k, v in original_metadata.items() if k != LLMOBS_STRUCT.METADATA_DD}
         user_processed_span = self._apply_user_span_processor(span, llmobs_span)
         if user_processed_span is None:
             log.debug("LLMObs span %s dropped by user processor", span)
@@ -834,6 +869,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
+        sample_rate: Optional[float] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -852,6 +888,9 @@ class LLMObs(Service):
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
+        :param float sample_rate: The proportion of LLMObs traces to sample, between 0.0 and 1.0 (inclusive).
+            Takes precedence over the DD_LLMOBS_SAMPLE_RATE environment variable. Defaults to that env var, or 1.0
+            (sample everything) if neither is set or within the valid range.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -872,6 +911,21 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
+        # Validate and fallback sample rates (inline arg --> env var --> 1.0)
+        if sample_rate is not None and 0.0 <= sample_rate <= 1.0:
+            config._llmobs_sample_rate = sample_rate
+        else:
+            if sample_rate is not None:
+                log.warning(
+                    "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.",
+                    sample_rate,
+                )
+            if not 0.0 <= config._llmobs_sample_rate <= 1.0:
+                log.warning(
+                    "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.",
+                    config._llmobs_sample_rate,
+                )
+                config._llmobs_sample_rate = 1.0
 
         error = None
         start_ns = time.time_ns()
@@ -993,6 +1047,7 @@ class LLMObs(Service):
                 _auto,
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
+                config._llmobs_sample_rate,
             )
 
     @staticmethod
@@ -1822,24 +1877,30 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        *,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
+        targeting_key: Optional[str] = None,
+        **attributes: Any,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
+        :param targeting_key: Sticky bucketing key for A/B tests when resolving a version by environment.
+        :param attributes: Arbitrary targeting attributes used when resolving a version by environment.
 
         :returns: A ManagedPrompt object with template and rendering methods
         :raises ValueError: If the prompt cannot be fetched and no fallback is provided
 
         Example::
 
-            # Simple usage - returns the latest version
+            # Simple usage. If DD_ENV is set, an environment-scoped variant is resolved
+            # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
 
@@ -1848,6 +1909,13 @@ class LLMObs(Service):
                 "greeting",
                 label="production",
                 fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Environment resolution with targeting (requires DD_ENV and agent mode)
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                targeting_key="user-123",
+                tier="premium",
             )
 
             # Use with annotation_context for observability
@@ -1859,8 +1927,16 @@ class LLMObs(Service):
                     messages=prompt.format(**variables)
                 )
         """
+        if label is not None:
+            _deprecate_prompt_label("get_prompt")
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.get_prompt(prompt_id, label, fallback)
+        return prompt_manager.get_prompt(
+            prompt_id,
+            label=label,
+            fallback=fallback,
+            targeting_key=targeting_key,
+            **attributes,
+        )
 
     @classmethod
     def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
@@ -1882,7 +1958,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1890,11 +1966,13 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: Deprecated; set DD_ENV instead. Deployment label selecting a version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
         """
+        if label is not None:
+            _deprecate_prompt_label("refresh_prompt")
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
 
@@ -1902,9 +1980,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-
-        if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -1914,11 +1989,13 @@ class LLMObs(Service):
 
         return PromptManager(
             api_key=api_key,
+            app_key=config._dd_app_key or "",
             base_url=base_url,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            agentless=should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled),
         )
 
     @classmethod
@@ -2039,7 +2116,7 @@ class LLMObs(Service):
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
         ml_app precedence: parent span._store > distributed context > global config > service.
-        session_id is optional and only propagated from span._store
+        session_id is optional and propagated from the parent span._store or the distributed context.
         """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
@@ -2055,7 +2132,7 @@ class LLMObs(Service):
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
                 llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
-                session_id = None
+                session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
@@ -2065,6 +2142,10 @@ class LLMObs(Service):
             sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        # Fall back to the trace-level default session when the parent chain carries none (e.g. a
+        # span under a session-less parent). The default is the first session set anywhere in the
+        # trace; an explicit session_id on this span still overrides it (applied after activation).
+        session_id = session_id or span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
 
         resolved_name = span.name
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
@@ -2153,6 +2234,11 @@ class LLMObs(Service):
         )
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
+        # First session in the trace becomes the trace-level default (first-writer wins), so later
+        # spans under a session-less parent fall back to it and it propagates across services.
+        effective_session_id = get_llmobs_session_id(span)
+        if effective_session_id and span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
+            span.context._meta[PROPAGATED_SESSION_ID_KEY] = effective_session_id
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -2477,19 +2563,23 @@ class LLMObs(Service):
                                                         information for an LLM call
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
-                                        "tool_calls": ..., "tool_results": ...}, where "tool_calls" are an optional
-                                        list of tool call dictionaries with required keys: "name", "arguments", and
-                                        optional keys: "tool_id", "type", and "tool_results" are an optional list of
-                                        tool result dictionaries with required key: "result", and optional keys:
-                                        "name", "tool_id", "type" for function calling scenarios.
+                                        "tool_calls": ..., "tool_results": ..., "audio_parts": ...}, where "tool_calls"
+                                        are an optional list of tool call dictionaries with required keys: "name",
+                                        "arguments", and optional keys: "tool_id", "type", and "tool_results" are an
+                                        optional list of tool result dictionaries with required key: "result", and
+                                        optional keys: "name", "tool_id", "type" for function calling scenarios.
+                                        "audio_parts" is an optional list of audio dictionaries, each with a required
+                                        "mime_type" and one of "content" (base64-encoded audio) or "attachment_key".
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
-                                        "tool_calls": ...}, where "tool_calls" are an optional list of tool call
-                                        dictionaries with required keys: "name", "arguments", and optional keys:
-                                        "tool_id", "type" for function calling scenarios.
+                                        "tool_calls": ..., "audio_parts": ...}, where "tool_calls" are an optional list
+                                        of tool call dictionaries with required keys: "name", "arguments", and optional
+                                        keys: "tool_id", "type" for function calling scenarios. "audio_parts" is an
+                                        optional list of audio dictionaries, each with a required "mime_type" and one of
+                                        "content" (base64-encoded audio) or "attachment_key".
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
@@ -3085,7 +3175,7 @@ class LLMObs(Service):
                     return
                 raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
             _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
-            if _parent_id is None:
+            if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
                 return
@@ -3098,6 +3188,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3113,6 +3204,8 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+                if propagated_session_id is not None:
+                    llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3122,6 +3215,8 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+            if propagated_session_id is not None:
+                llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

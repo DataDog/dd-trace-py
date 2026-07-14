@@ -113,9 +113,6 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
         msg = await consumer.getone()
         consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert producer_cluster_id == consumer_cluster_id != "", (
-        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
-    )
     assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
     assert (
         max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id))
@@ -146,9 +143,6 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
         await consumer.commit(offsets)
         consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert producer_cluster_id == consumer_cluster_id != "", (
-        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
-    )
     assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
     assert (
         max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id))

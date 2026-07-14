@@ -138,6 +138,13 @@
         ]
       }
     ],
+    "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -171,6 +178,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_AI_GUARD_OPENAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_TIMEOUT": [
@@ -2475,6 +2489,16 @@
         "default": "false"
       }
     ],
+    "DD_MISTRALAI_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_MISTRALAI_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_MLFLOW_SERVICE": [
       {
         "implementation": "A",
@@ -3018,6 +3042,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_PYTORCH_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "aliases": [
+          "DD_PYTORCH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYNAMODB_SERVICE": [
@@ -4383,6 +4417,13 @@
         "default": null
       }
     ],
+    "DD_TRACE_MISTRALAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_MLFLOW_ENABLED": [
       {
         "implementation": "A",
@@ -4461,6 +4502,13 @@
       }
     ],
     "DD_TRACE_OTEL_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -4635,6 +4683,13 @@
       }
     ],
     "DD_TRACE_RAY_CORE_API": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TRACE_PYTORCH_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5505,6 +5560,13 @@
         "default": null
       }
     ],
+    "OTEL_TRACES_SPAN_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
@@ -5566,6 +5628,14 @@
         "implementation": "A",
         "type": "int",
         "default": "10000",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
@@ -5969,11 +6039,27 @@
         "internal": true
       }
     ],
+    "_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_TEST_SKIP_QUARANTINED_TESTS": [
       {
         "implementation": "A",
         "type": "boolean",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],
@@ -6014,7 +6100,31 @@
         "version": "B",
         "type": "boolean",
         "default": "false",
-        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
+        "propertyKeys": [
+          "trace_stats_computation_experimental_client_obfuscation_enabled"
+        ]
+      }
+    ],
+    "DD_PYTORCH_JOB_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "_DD_RAY_RUN_METADATA": [
+      {
+        "implementation": "A",
+        "type": "json",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "DD_TRAINING_STEP_PROFILING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ]
   }

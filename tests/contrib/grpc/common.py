@@ -1,4 +1,5 @@
 import os
+import time
 
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
@@ -42,10 +43,24 @@ class GrpcBaseTestCase(TracerTestCase):
     def _start_server(self):
         self._server_pool = logging_pool.pool(1)
         self._server = grpc.server(self._server_pool)
-        self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
+        # gRPC core releases the listening socket asynchronously, so a rebind can transiently fail:
+        # add_insecure_port raises RuntimeError (Core port 0), not returns 0. Retry with a backoff.
+        last_exc = None
+        for i in range(10):
+            try:
+                self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
+                break
+            except RuntimeError as exc:
+                last_exc = exc
+                time.sleep(0.1 * (i + 1))
+        else:
+            raise RuntimeError("Failed to bind to address [::]:%d after multiple attempts" % (_GRPC_PORT)) from last_exc
         add_HelloServicer_to_server(_HelloServicer(), self._server)
         self._server.start()
 
     def _stop_server(self):
-        self._server.stop(None)
+        # Wait for shutdown so the port is released before the next test rebinds it (avoids a
+        # SO_REUSEPORT race where the new client hits the dying server, causing flaky failures).
+        shutdown_complete = self._server.stop(None)
+        shutdown_complete.wait()
         self._server_pool.shutdown(wait=True)

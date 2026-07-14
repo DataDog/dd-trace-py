@@ -36,6 +36,7 @@ from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -104,7 +105,11 @@ class SessionManager:
         self.collected_tests: set[TestRef] = set()
         self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None
-        self.itr_skipping_level = ITRSkippingLevel.TEST  # TODO: SUITE level not supported at the moment.
+        suite_mode_env = env.get("_DD_CIVISIBILITY_ITR_SUITE_MODE")
+        if suite_mode_env is not None:
+            self.itr_skipping_level = ITRSkippingLevel.SUITE if asbool(suite_mode_env) else ITRSkippingLevel.TEST
+        else:
+            self.itr_skipping_level = ITRSkippingLevel.TEST
 
         self.is_user_provided_service: bool
 
@@ -147,9 +152,22 @@ class SessionManager:
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
-        self.test_properties = (
-            self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-        )
+
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            tm_properties = self.api_client.get_test_management_properties(
+                statuses=("active", "quarantined", "disabled")
+            )
+            self.atf_all_flaky_tests: bool = True
+            self.test_properties: dict[TestRef, TestProperties] = tm_properties
+            log.info(
+                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
+                len(tm_properties),
+            )
+        else:
+            self.atf_all_flaky_tests = False
+            self.test_properties = (
+                self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
+            )
 
         self.upload_git_data()
         if self.settings.itr_enabled:
@@ -732,6 +750,38 @@ class SessionManager:
 
         return test_ref in self.skippable_items or test_ref.suite in self.skippable_items
 
+    def is_skippable_suite_path(self, collection_path: Path, root_path: t.Optional[Path] = None) -> bool:
+        """Return True if the entire suite (file) at collection_path is ITR-skippable.
+
+        Only meaningful in suite-skipping mode; always returns False in test-skipping mode since
+        skippable_items then contains TestRefs, not SuiteRefs.
+
+        ``root_path`` should be pytest's rootdir so that the module/suite derivation matches
+        ``item_to_test_ref`` (which works from nodeids, themselves relative to rootdir).  When
+        *None* we fall back to ``workspace_path`` for backwards-compatibility.
+        """
+        if not self.settings.skipping_enabled:
+            return False
+        if self.itr_skipping_level != ITRSkippingLevel.SUITE:
+            return False
+        base = root_path or self.workspace_path
+        try:
+            relative = collection_path.relative_to(base)
+        except ValueError:
+            return False
+        # Mirror the module/suite decomposition used by item_to_test_ref / nodeid_to_names:
+        # everything up to the last path component becomes the dot-separated module name,
+        # and the filename itself is the suite name.
+        module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+        suite_ref = SuiteRef(ModuleRef(module_name), relative.name)
+        if suite_ref not in self.skippable_items:
+            return False
+        # Do not skip suites that contain attempt-to-fix tests — those must run regardless of ITR.
+        for test_ref, props in self.test_properties.items():
+            if test_ref.suite == suite_ref and props.attempt_to_fix:
+                return False
+        return True
+
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
 
@@ -753,6 +803,10 @@ class SessionManager:
         if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
             log.debug("Test Management is disabled by environment variable")
             self.settings.test_management.enabled = False
+
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            log.debug("ATF-all-flaky mode enabled: forcing Test Management on")
+            self.settings.test_management.enabled = True
 
         _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
         if _coverage_upload_env.lower() in ("false", "0"):

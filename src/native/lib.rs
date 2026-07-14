@@ -3,6 +3,7 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
@@ -55,6 +56,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
+    contextvar::register_contextvar(m)?;
     rand::register_rand(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
