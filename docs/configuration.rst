@@ -773,6 +773,13 @@ Test Visibility
      version_added:
         v1.13.0:
 
+   DD_CIVISIBILITY_ITR_SKIP:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables skip-marker handling for tests selected by Intelligent Test Runner instead of deselecting them during collection.
+
    DD_CIVISIBILITY_LOG_LEVEL:
       type: String
       default: "info"
