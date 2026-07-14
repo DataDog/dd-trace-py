@@ -2,7 +2,7 @@ import logging
 import sys
 import typing as t
 
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._inferred_base_service import detect_service
 from ddtrace.internal.utils.formats import asbool
