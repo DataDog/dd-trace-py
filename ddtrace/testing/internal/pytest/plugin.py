@@ -44,8 +44,6 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -204,9 +202,7 @@ def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[s
         return None
 
 
-def _get_test_location_info(
-    item: pytest.Item, workspace_path: Path, precise_lines: bool = True
-) -> tuple[t.Optional[str], int, int]:
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
 
@@ -215,10 +211,6 @@ def _get_test_location_info(
         - relative_path: path relative to workspace, or None on failure
         - start_line: starting line number, or 0 if unavailable
         - end_line: ending line number, or 0 if unavailable
-
-    `precise_lines=False` skips `_get_source_lines`'s AST/inspect-based lookup in favor of pytest's
-    already-computed `reportinfo()` (no end_line). Used for synthetic skip events, where the test
-    never runs and end_line precision isn't worth the per-item introspection cost.
     """
     try:
         # Get absolute path from item
@@ -227,10 +219,8 @@ def _get_test_location_info(
         if relative_path is None:
             raise ValueError(f"{item_path!r} is not under workspace {workspace_path!r}")
 
-        if precise_lines:
-            start_line, end_line = _get_source_lines(item, item_path)
-        else:
-            start_line, end_line = item.reportinfo()[1] or 0, 0
+        # Try to get precise source line information
+        start_line, end_line = _get_source_lines(item, item_path)
 
         return relative_path, start_line, end_line
 
@@ -338,16 +328,11 @@ class TestOptPlugin:
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
         # Whether this process is responsible for emitting ITR-skip events/metrics (both
-        # suite-level ignore events and test-level deselect events). Every xdist worker performs a
+        # suite-level ignore events and test-level deselect counts). Every xdist worker performs a
         # full, unsharded collection pass (so they all discover the same ignored suites/deselected
         # tests), but we must only report/count them once per session. We elect the first worker
         # ("gw0") as the sole owner; non-xdist runs always own it.
         self._is_itr_skip_event_owner = True
-        # This worker's index/count within the xdist run (0/1 for non-xdist and for the controller),
-        # read from workerinput in pytest_sessionstart. Used to shard test-level deselect-event
-        # emission by module across workers instead of electing a single owner for all of them.
-        self._itr_deselect_worker_index = 0
-        self._itr_deselect_worker_count = 1
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -366,9 +351,6 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_skip_event_owner = xdist_worker_input.get("workerid") == "gw0"
-                worker_id = xdist_worker_input.get("workerid", "gw0")
-                self._itr_deselect_worker_index = int(worker_id[2:]) if worker_id.startswith("gw") else 0
-                self._itr_deselect_worker_count = int(xdist_worker_input.get("workercount", 1)) or 1
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -513,12 +495,8 @@ class TestOptPlugin:
         if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
             selected = []
             deselected = []
-            # Computing a TestRef involves pluggy hook dispatches and a nodeid regex match, so we
-            # cache it here for reuse by _emit_itr_deselected_test_events instead of recomputing it.
-            test_refs: dict[pytest.Item, TestRef] = {}
             for item in items:
                 test_ref = item_to_test_ref(item)
-                test_refs[item] = test_ref
                 test_props = self.manager.test_properties.get(test_ref)
                 if (
                     self.manager.is_skippable_test(test_ref)
@@ -531,10 +509,7 @@ class TestOptPlugin:
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
-                if asbool(env.get("_DD_CIVISIBILITY_SEND_DESELECTS")):
-                    self._emit_itr_deselected_test_events(deselected, selected, test_refs)
-                else:
-                    self._count_itr_deselected_tests(deselected, test_refs)
+                self._count_itr_deselected_tests(len(deselected))
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -637,141 +612,24 @@ class TestOptPlugin:
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    def _owned_deselect_modules(
-        self, deselected_items: list[pytest.Item], test_refs: dict[pytest.Item, TestRef]
-    ) -> set[ModuleRef]:
-        """Modules this worker owns for sharding test-level ITR deselect work across xdist workers.
+    def _count_itr_deselected_tests(self, deselected_count: int) -> None:
+        """Count test-level ITR deselections towards the session's ITR skip metric.
 
-        Under xdist, every worker sees the same full, unsharded item list, in the same order (xdist
-        itself requires this — it aborts the run otherwise), at this point. Rather than electing a
-        single worker to handle every deselected test, each worker only handles the modules it
-        owns: modules are numbered in (identical, deterministic) first-seen order and assigned to
-        worker `i % workercount == workerid`, using only `workerid`/`workercount` xdist already
-        puts in `workerinput` — no extra data needs to be sent between workers.
+        No synthetic skip events are sent for test-level deselects: a customer who needs spans for
+        ITR-skipped tests can set `DD_CIVISIBILITY_ITR_SKIP=1` to fall back to the skip-marker path,
+        where the test runs through the normal runtime path and gets a real event. This only updates
+        the count.
+
+        Under xdist, every worker performs a full, unsharded collection pass, so every worker would
+        compute the same `deselected_count` independently; only the elected owner (see
+        `_is_itr_skip_event_owner`) applies it, so the total isn't multiplied by worker count.
         """
-        module_order: list[ModuleRef] = []
-        seen_modules: set[ModuleRef] = set()
-        for item in deselected_items:
-            module_ref = test_refs[item].suite.module
-            if module_ref not in seen_modules:
-                seen_modules.add(module_ref)
-                module_order.append(module_ref)
+        if self._is_itr_skip_event_owner:
+            self.session.tests_skipped_by_itr += deselected_count
 
-        return {
-            module_ref
-            for i, module_ref in enumerate(module_order)
-            if i % self._itr_deselect_worker_count == self._itr_deselect_worker_index
-        }
-
-    def _count_itr_deselected_tests(
-        self, deselected_items: list[pytest.Item], test_refs: dict[pytest.Item, TestRef]
-    ) -> None:
-        """Count test-level ITR deselections towards the session's ITR skip metric, without emitting events.
-
-        Used when `_DD_CIVISIBILITY_SEND_DESELECTS` is off: `test.itr.tests_skipping.count` must
-        still reflect the true number of deselected tests, but we skip the per-test Test/Suite/Module
-        discovery (`_discover_test`) that only exists to build the synthetic skip events that
-        `_emit_itr_deselected_test_events` sends. Shards by module the same way that function does, so
-        the count is never multiplied by the number of xdist workers.
-        """
-        my_modules = self._owned_deselect_modules(deselected_items, test_refs)
-        self.session.tests_skipped_by_itr += sum(
-            1 for item in deselected_items if test_refs[item].suite.module in my_modules
-        )
-
-    def _emit_itr_deselected_test_events(
-        self,
-        deselected_items: list[pytest.Item],
-        remaining_items: list[pytest.Item],
-        test_refs: dict[pytest.Item, TestRef],
-    ) -> None:
-        """Emit synthetic test_end (status=skip) events for tests deselected by test-level ITR skipping.
-
-        Mirrors `_emit_itr_ignored_suite_events`, but at test granularity: called from
-        `pytest_collection_modifyitems`, where (unlike suite-ignore, which never imports the
-        module) we already have the real pytest `Item`, so we can reuse `_discover_test` to build
-        the same module/suite/test objects the runtime path would create.
-
-        Sharded across xdist workers by module (see `_owned_deselect_modules`) — a whole module
-        (not individual tests) is the sharding unit so that the suite/module-finish bookkeeping
-        below, which assumes a single process sees all of a module's deselected tests, stays
-        correct: splitting a module's tests across workers would cause duplicate suite/module-finish
-        events. `test_refs` is a cache of `item_to_test_ref` results built by the caller while making
-        the deselect decision, reused here to avoid paying for the pluggy hook dispatches and nodeid
-        regex a second time for every item.
-
-        Suites/modules left with none of their tests remaining are finished here, since no test of
-        theirs will ever reach `pytest_runtest_protocol_wrapper`. Suites/modules with a mix of
-        deselected and remaining tests are started/finished normally by the runtime path.
-        """
-        remaining_suites: set[SuiteRef] = set()
-        remaining_modules: set[ModuleRef] = set()
-        for item in remaining_items:
-            suite_ref = test_refs[item].suite
-            remaining_suites.add(suite_ref)
-            remaining_modules.add(suite_ref.module)
-
-        my_modules = self._owned_deselect_modules(deselected_items, test_refs)
-
-        finished_suites: set[TestSuite] = set()
-        finished_modules: set[TestModule] = set()
-        for item in deselected_items:
-            test_ref = test_refs[item]
-            if test_ref.suite.module not in my_modules:
-                continue
-
-            # Deselected items are, by construction, skippable and not unskippable (see the
-            # deselect condition in pytest_collection_modifyitems) — skip re-checking markers.
-            # They also never run, so the precise (AST/inspect-based) end_line isn't needed.
-            test_module, test_suite, test = self._discover_test(
-                item, test_ref, skip_unskippable_check=True, precise_source_lines=False
-            )
-
-            if not test_module.is_started():
-                test_module.start()
-                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
-            if not test_suite.is_started():
-                test_suite.start()
-                TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
-
-            test.start()
-            test_run = test.make_test_run()
-            test_run.start(start_ns=test.start_ns)
-            test_run.set_status(TestStatus.SKIP)
-            test_run.set_tags({TestTag.SKIP_REASON: SKIPPED_BY_ITR_REASON})
-            test_run.finish()
-            test_run.set_final_status(TestStatus.SKIP)
-            test.set_status(TestStatus.SKIP)
-            test.mark_skipped_by_itr()
-            test.finish()
-            self.manager.writer.put_item(test_run)
-
-            if test_ref.suite not in remaining_suites and test_suite not in finished_suites:
-                finished_suites.add(test_suite)
-                test_suite.finish()
-                self.manager.writer.put_item(test_suite)
-                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
-
-                if test_ref.suite.module not in remaining_modules and test_module not in finished_modules:
-                    finished_modules.add(test_module)
-                    test_module.finish()
-                    self.manager.writer.put_item(test_module)
-                    TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
-
-    def _discover_test(
-        self,
-        item: pytest.Item,
-        test_ref: TestRef,
-        skip_unskippable_check: bool = False,
-        precise_source_lines: bool = True,
-    ) -> tuple[TestModule, TestSuite, Test]:
+    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test item, creating them if necessary.
-
-        `skip_unskippable_check` lets callers that already know the answer (e.g. the ITR deselect
-        path, where a deselected item is never unskippable by construction) skip re-walking markers.
-        `precise_source_lines=False` skips the AST/inspect-based end_line lookup, for callers (e.g.
-        the same ITR deselect path) where the test never runs and that precision isn't needed.
         """
 
         def _on_new_module(module: TestModule) -> None:
@@ -783,9 +641,7 @@ class TestOptPlugin:
         def _on_new_test(test: Test) -> None:
             """Initialize test with location, parameters, and custom attributes."""
             # Get test location information (path and line numbers)
-            relative_path, start_line, end_line = _get_test_location_info(
-                item, self.manager.workspace_path, precise_lines=precise_source_lines
-            )
+            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
             # Set test original name if available
             if test_original_name := _get_test_original_name(item):
@@ -808,7 +664,7 @@ class TestOptPlugin:
             # Mark test as unskippable if needed (only when ITR skipping is enabled, to match v2 and avoid inflating
             # telemetry). _discover_test runs at run time (from pytest_runtest_protocol_wrapper), so skippable_items
             # is already populated when the SessionManager was created in pytest_load_initial_conftest.
-            if not skip_unskippable_check and self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
+            if self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
                 test.mark_unskippable()
 
             # Add custom tags if available
@@ -1585,13 +1441,9 @@ class XdistTestOptPlugin:
         """
         Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
 
-        NOTE: Summing across workers is correct for two different reasons depending on the skip
-        mechanism. Suite-level ITR skips are counted by a single elected owner worker (see
-        `_is_itr_skip_event_owner`); every other worker reports 0, so the sum is "owner's true count
-        + zeros". Test-level ITR deselects are instead sharded by module across every worker (see
-        `_owned_deselect_modules`), each counting only the tests in the modules it owns; the sum
-        there is a genuine aggregation of distinct partial counts. Either way, the total equals the
-        true number of ITR-skipped tests, never multiplied by worker count.
+        Both suite-level ignores and test-level deselects are counted only by the elected owner
+        worker (see `_is_itr_skip_event_owner`); every other worker reports 0, so summing across
+        workers here is always "owner's true count + zeros", never multiplied by worker count.
         """
         if not hasattr(node, "workeroutput"):
             return

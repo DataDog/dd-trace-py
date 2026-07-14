@@ -968,13 +968,11 @@ class TestXdistLoadScope:
 class TestXdistItrSkipCounting:
     """Verify the ITR tests-skipped count is correct under xdist, not multiplied by worker count.
 
-    NOTE: Regression coverage for `_owned_deselect_modules`. Every xdist worker performs a full,
-    unsharded collection pass, so before module-based sharding existed, every worker independently
-    incremented its own copy of `tests_skipped_by_itr` by the same true count, and
-    `pytest_testnodedown` summed all of them — multiplying the reported
-    `test.itr.tests_skipping.count` by the number of workers. Using more workers than skipped tests
-    here means most workers see zero real work, which is exactly the scenario that used to inflate
-    the count the most.
+    NOTE: Regression coverage for the `_is_itr_skip_event_owner` election used by
+    `_count_itr_deselected_tests`. Every xdist worker performs a full, unsharded collection pass, so
+    without the owner election every worker would independently count the same deselected tests, and
+    `pytest_testnodedown` would sum all of them — multiplying the reported
+    `test.itr.tests_skipping.count` by the number of workers.
     """
 
     @staticmethod
@@ -1007,39 +1005,8 @@ class TestXdistItrSkipCounting:
     def test_tests_skipped_by_itr_count_not_multiplied_by_workers(self, test_project: Path) -> None:
         """Deselecting 2 tests via test-level ITR skip must report exactly 2, regardless of worker count.
 
-        `_DD_CIVISIBILITY_SEND_DESELECTS` is off by default, so no synthetic skip events are sent —
-        see `test_tests_skipped_by_itr_count_without_send_deselects` for that case — but the session
-        metric must still reflect the true count, computed by the lightweight
-        `_count_itr_deselected_tests` counting path.
-        """
-        skippable_tests = self._write_two_skippable_test_files(test_project)
-
-        with MockCIVisibilityServer(tests_skipping_enabled=True, skippable_tests=skippable_tests) as server:
-            env = _make_env(server.url, extra={"_DD_CIVISIBILITY_SEND_DESELECTS": "1"})
-            result = _run_pytest_subprocess(test_project, "-n", "4", env=env)
-
-            assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-
-            session_events = server.get_session_events()
-            assert len(session_events) == 1, f"Expected exactly 1 session event, got {len(session_events)}"
-            assert session_events[0]["content"]["metrics"]["test.itr.tests_skipping.count"] == 2, (
-                "Count must equal the true number of deselected tests, not that number times the worker count"
-            )
-
-            test_events = server.get_test_events()
-            skipped_names = sorted(
-                e["content"]["meta"]["test.name"] for e in test_events if e["content"]["meta"]["test.status"] == "skip"
-            )
-            assert skipped_names == ["test_skip_one", "test_skip_two"], (
-                f"Expected exactly the 2 deselected tests to have synthetic skip events, got: {skipped_names}"
-            )
-            for event in test_events:
-                if event["content"]["meta"]["test.name"] in ("test_skip_one", "test_skip_two"):
-                    assert event["content"]["meta"]["test.skipped_by_itr"] == "true"
-
-    def test_tests_skipped_by_itr_count_without_send_deselects(self, test_project: Path) -> None:
-        """With `_DD_CIVISIBILITY_SEND_DESELECTS` unset (the default), no synthetic skip events are
-        sent for deselected tests, but the session-level skip count must still be accurate.
+        No synthetic skip events are sent for deselected tests, but the session-level skip count
+        must still be accurate.
         """
         skippable_tests = self._write_two_skippable_test_files(test_project)
 
@@ -1060,8 +1027,7 @@ class TestXdistItrSkipCounting:
                 e["content"]["meta"]["test.name"] for e in test_events if e["content"]["meta"]["test.status"] == "skip"
             ]
             assert skipped_names == [], (
-                f"No synthetic skip events should be sent when _DD_CIVISIBILITY_SEND_DESELECTS is unset, "
-                f"got: {skipped_names}"
+                f"No synthetic skip events should be sent for deselected tests, got: {skipped_names}"
             )
 
 
