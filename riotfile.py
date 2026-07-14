@@ -601,6 +601,8 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # exercises the module-cloning regression test for yaml/_yaml
+                "PyYAML": latest,
             },
             venvs=[
                 Venv(

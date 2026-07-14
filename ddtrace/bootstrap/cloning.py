@@ -79,6 +79,8 @@ def cleanup_loaded_modules() -> None:
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
+            "yaml",  # third parties (e.g. Airflow) cache SafeLoader/safe_load at import time
+            "_yaml",  # PyYAML's C backend does not like being unloaded and reimported
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
