@@ -495,8 +495,12 @@ class TestOptPlugin:
         if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
             selected = []
             deselected = []
+            # Computing a TestRef involves pluggy hook dispatches and a nodeid regex match, so we
+            # cache it here for reuse by _emit_itr_deselected_test_events instead of recomputing it.
+            test_refs: dict[pytest.Item, TestRef] = {}
             for item in items:
                 test_ref = item_to_test_ref(item)
+                test_refs[item] = test_ref
                 test_props = self.manager.test_properties.get(test_ref)
                 if (
                     self.manager.is_skippable_test(test_ref)
@@ -510,7 +514,7 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
                 if self._is_itr_skip_event_owner:
-                    self._emit_itr_deselected_test_events(deselected, selected)
+                    self._emit_itr_deselected_test_events(deselected, selected, test_refs)
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -614,7 +618,10 @@ class TestOptPlugin:
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _emit_itr_deselected_test_events(
-        self, deselected_items: list[pytest.Item], remaining_items: list[pytest.Item]
+        self,
+        deselected_items: list[pytest.Item],
+        remaining_items: list[pytest.Item],
+        test_refs: dict[pytest.Item, TestRef],
     ) -> None:
         """Emit synthetic test_end (status=skip) events for tests deselected by test-level ITR skipping.
 
@@ -625,20 +632,24 @@ class TestOptPlugin:
 
         Under xdist, every worker sees the same full, unsharded item list at this point, so only
         the elected owner (see `_is_itr_skip_event_owner`) emits these events/metrics; all workers
-        still deselect the items so none of them run.
+        still deselect the items so none of them run. `test_refs` is a cache of `item_to_test_ref`
+        results built by the caller while making the deselect decision, reused here to avoid paying
+        for the pluggy hook dispatches and nodeid regex a second time for every item.
 
         Suites/modules left with none of their tests remaining are finished here, since no test of
         theirs will ever reach `pytest_runtest_protocol_wrapper`. Suites/modules with a mix of
         deselected and remaining tests are started/finished normally by the runtime path.
         """
-        remaining_suites = {item_to_test_ref(item).suite for item in remaining_items}
-        remaining_modules = {item_to_test_ref(item).suite.module for item in remaining_items}
+        remaining_suites = {test_refs[item].suite for item in remaining_items}
+        remaining_modules = {test_refs[item].suite.module for item in remaining_items}
 
         finished_suites: set[TestSuite] = set()
         finished_modules: set[TestModule] = set()
         for item in deselected_items:
-            test_ref = item_to_test_ref(item)
-            test_module, test_suite, test = self._discover_test(item, test_ref)
+            test_ref = test_refs[item]
+            # Deselected items are, by construction, skippable and not unskippable (see the
+            # deselect condition in pytest_collection_modifyitems) — skip re-checking markers.
+            test_module, test_suite, test = self._discover_test(item, test_ref, skip_unskippable_check=True)
 
             if not test_module.is_started():
                 test_module.start()
@@ -671,9 +682,14 @@ class TestOptPlugin:
                     self.manager.writer.put_item(test_module)
                     TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
+    def _discover_test(
+        self, item: pytest.Item, test_ref: TestRef, skip_unskippable_check: bool = False
+    ) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test item, creating them if necessary.
+
+        `skip_unskippable_check` lets callers that already know the answer (e.g. the ITR deselect
+        path, where a deselected item is never unskippable by construction) skip re-walking markers.
         """
 
         def _on_new_module(module: TestModule) -> None:
@@ -708,7 +724,7 @@ class TestOptPlugin:
             # Mark test as unskippable if needed (only when ITR skipping is enabled, to match v2 and avoid inflating
             # telemetry). _discover_test runs at run time (from pytest_runtest_protocol_wrapper), so skippable_items
             # is already populated when the SessionManager was created in pytest_load_initial_conftest.
-            if self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
+            if not skip_unskippable_check and self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
                 test.mark_unskippable()
 
             # Add custom tags if available
