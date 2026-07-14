@@ -8,12 +8,12 @@ Tests that:
   AND DD retries are all disabled (external plugin drives retries).
 """
 
-import logging
 from unittest import mock
 
 import pytest
 
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
+from ddtrace.testing.internal.pytest.plugin import _HOOKIMPL_SUPPORTS_SPECNAME
 from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import TestOptPluginWithProtocol
@@ -88,48 +88,61 @@ class TestPluginClassSelection:
         MockBase.assert_not_called()
 
     @pytest.mark.parametrize("plugin_name,disable_flag", list(_EXTERNAL_RERUN_PLUGINS.items()))
-    def test_external_plugin_with_dd_retries_emits_warning(self, plugin_name, disable_flag, caplog):
+    def test_external_plugin_with_dd_retries_emits_warning(self, plugin_name, disable_flag):
         config, _ = _make_mock_config(plugin_names={plugin_name}, atr_enabled=True)
 
-        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.pytest.plugin"):
+        with mock.patch(f"{_PLUGIN_MODULE}.log.warning") as mock_warning:
             pytest_configure(config)
 
-        assert plugin_name in caplog.text
-        assert "take precedence" in caplog.text
+        messages = [" ".join(str(arg) for arg in call.args) for call in mock_warning.call_args_list]
+        assert any(plugin_name in message and "take precedence" in message for message in messages)
 
     @pytest.mark.parametrize("plugin_name", ["rerunfailures", "flaky"])
-    def test_external_plugin_without_dd_retries_no_warning(self, plugin_name, caplog):
+    def test_external_plugin_without_dd_retries_no_warning(self, plugin_name):
         config, _ = _make_mock_config(plugin_names={plugin_name})
 
-        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.pytest.plugin"):
+        with mock.patch(f"{_PLUGIN_MODULE}.log.warning") as mock_warning:
             pytest_configure(config)
 
-        assert caplog.text == ""
+        mock_warning.assert_not_called()
 
     @pytest.mark.parametrize("plugin_name,disable_flag", list(_EXTERNAL_RERUN_PLUGINS.items()))
-    def test_external_plugin_with_test_management_warns_about_atf(self, plugin_name, disable_flag, caplog):
+    def test_external_plugin_with_test_management_warns_about_atf(self, plugin_name, disable_flag):
         """When only test management is enabled (no ATR/EFD), external plugin drives but ATF won't work."""
         config, session_manager = _make_mock_config(plugin_names={plugin_name}, atf_enabled=True)
 
-        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.pytest.plugin"):
+        with mock.patch(f"{_PLUGIN_MODULE}.log.warning") as mock_warning:
             pytest_configure(config)
 
-        assert "Attempt to Fix" in caplog.text
-        assert disable_flag in caplog.text
+        messages = [" ".join(str(arg) for arg in call.args) for call in mock_warning.call_args_list]
+        assert any("Attempt to Fix" in message and disable_flag in message for message in messages)
         assert session_manager.settings.test_management.enabled is True
 
-    def test_multiple_external_plugins_warns_about_each(self, caplog):
+    def test_multiple_external_plugins_warns_about_each(self):
         config, _ = _make_mock_config(plugin_names={"rerunfailures", "flaky"}, efd_enabled=True)
 
-        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.pytest.plugin"):
+        with mock.patch(f"{_PLUGIN_MODULE}.log.warning") as mock_warning:
             pytest_configure(config)
 
-        assert "rerunfailures" in caplog.text
-        assert "flaky" in caplog.text
+        messages = [" ".join(str(arg) for arg in call.args) for call in mock_warning.call_args_list]
+        assert any("rerunfailures" in message for message in messages)
+        assert any("flaky" in message for message in messages)
 
-    def test_base_plugin_has_no_runtest_protocol_hook(self):
-        """TestOptPlugin must not define pytest_runtest_protocol (the external plugin drives execution)."""
-        assert not hasattr(TestOptPlugin, "pytest_runtest_protocol")
+    def test_bdd_plugin_registration_error_does_not_crash_session(self):
+        config, _ = _make_mock_config(plugin_names={"bdd"})
+
+        with (
+            mock.patch(f"{_PLUGIN_MODULE}.BddTestOptPlugin", side_effect=Exception("pytest-bdd not installed")),
+            mock.patch(f"{_PLUGIN_MODULE}.log.debug") as mock_debug,
+        ):
+            pytest_configure(config)
+
+        assert any("Could not register BDD plugin integration" in call.args[0] for call in mock_debug.call_args_list)
+
+    def test_base_plugin_runtest_protocol_hook_registration(self):
+        """TestOptPlugin only exposes pytest_runtest_protocol directly when specname= is unavailable."""
+        assert hasattr(TestOptPlugin, "pytest_runtest_protocol") is not _HOOKIMPL_SUPPORTS_SPECNAME
+        assert hasattr(TestOptPlugin, "pytest_runtest_protocol_wrapper") is _HOOKIMPL_SUPPORTS_SPECNAME
 
     def test_with_protocol_plugin_has_runtest_protocol_hook(self):
         assert hasattr(TestOptPluginWithProtocol, "pytest_runtest_protocol")
@@ -234,11 +247,7 @@ class TestPluginClassSelection:
             assert item.user_properties == []
 
     def test_child_plugin_defers_quarantine_masking_without_atf(self):
-        """Child plugin does NOT apply xfail for quarantined non-ATF tests.
-
-        Quarantine masking is deferred to after retries so ATR can see real FAIL status.
-        The base plugin still uses xfail because it doesn't control the retry loop.
-        """
+        """Child plugin does not xfail quarantined tests before ATR has a chance to retry failures."""
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
@@ -252,7 +261,6 @@ class TestPluginClassSelection:
 
         TestOptPluginWithProtocol._apply_test_management_markers(plugin, item=item, test=test)
 
-        # No markers should be applied — masking happens after retries in _apply_quarantine_masking.
         item.add_marker.assert_not_called()
         assert item.user_properties == []
 
