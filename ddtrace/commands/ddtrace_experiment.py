@@ -128,7 +128,7 @@ def _flush_llmobs() -> None:
         from ddtrace.llmobs import LLMObs
 
         LLMObs.flush()
-    except Exception:
+    except Exception:  # nosec B110 - best-effort flush on exit; must never fail the CLI
         pass
 
 
@@ -260,7 +260,7 @@ def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> 
         try:
             cases = runner.load_baselines(baseline_file).get(subject) or []
             return [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
-        except Exception:
+        except Exception:  # nosec B110 - best-effort read of a prior baseline; fall through to []
             pass
     return []
 
