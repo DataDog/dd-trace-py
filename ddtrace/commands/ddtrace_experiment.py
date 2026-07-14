@@ -18,6 +18,13 @@ Experiments: the first publish is the frozen **baseline** (a real run with cost 
 metrics over the subject's auto-managed dataset); every later publish is compared against
 it in the **compare view**. The dataset is refreshed to exactly each run's inputs.
 
+Publish conventions (module-level, optional): ``--publish`` operates on one subject over a
+set of inputs, resolved from the imported module:
+  * subject — ``--name``, else a module global ``SUBJECT``, else the sole registered subject
+    (required if several are registered).
+  * inputs — a module global ``INPUTS`` (a list; what you're testing now), else the inputs
+    from a prior offline baseline. ``INPUTS`` wins, so editing the module drives the refresh.
+
 Activation is positive and explicit — the decorators are inert unless this command runs,
 so they are safe to leave in production code. As a one-way fail-safe this command also
 refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).

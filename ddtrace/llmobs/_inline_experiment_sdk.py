@@ -178,12 +178,19 @@ def sync_dataset(dataset: Any, inputs: list[Any]) -> dict[str, int]:
             # engine reads; the regression signal is still the compare view, not this field.
             dataset.append({"input_data": value, "expected_output": None})
             added += 1
-    counts = {"added": added, "deleted": len(to_delete), "kept": len(seen)}
+    counts = {"added": added, "deleted": len(to_delete), "kept": len(seen), "pushed": True}
     if added or to_delete:
         try:
             dataset.push()
         except Exception:
-            log.debug("inline experiment: could not push dataset sync", exc_info=True)
+            counts["pushed"] = False
+            log.warning(
+                "inline experiment: failed to push dataset %r to the backend — the experiment "
+                "will run against an unpersisted dataset and the compare view may not line up. "
+                "Re-run with debug logging for details.",
+                getattr(dataset, "name", "?"),
+                exc_info=True,
+            )
     return counts
 
 

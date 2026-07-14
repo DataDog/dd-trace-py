@@ -463,15 +463,27 @@ def test_sync_dataset_diffs_to_current_inputs():
     counts = sdk.sync_dataset(ds, [{"t": "c"}, {"t": "d"}, {"t": "e"}])
     # end state = EXACTLY the current inputs; c kept (its record survives), a/b deleted, d/e added
     assert ds.inputs() == [{"t": "c"}, {"t": "d"}, {"t": "e"}]
-    assert counts == {"added": 2, "deleted": 2, "kept": 1}
+    assert counts == {"added": 2, "deleted": 2, "kept": 1, "pushed": True}
     assert ds.pushed == 1
 
 
 def test_sync_dataset_noop_when_unchanged():
     ds = _FakeDataset([{"input_data": {"t": "a"}}, {"input_data": {"t": "b"}}])
     counts = sdk.sync_dataset(ds, [{"t": "a"}, {"t": "b"}])
-    assert counts == {"added": 0, "deleted": 0, "kept": 2}
+    assert counts == {"added": 0, "deleted": 0, "kept": 2, "pushed": True}
     assert ds.pushed == 0  # no diff -> no push -> new version not created
+
+
+def test_sync_dataset_surfaces_push_failure(monkeypatch):
+    ds = _FakeDataset([{"input_data": {"t": "a"}}])
+
+    def _boom():
+        raise RuntimeError("backend down")
+
+    monkeypatch.setattr(ds, "push", _boom)
+    counts = sdk.sync_dataset(ds, [{"t": "b"}])  # add b + delete a -> push attempted, fails
+    # the failure is surfaced (pushed=False + a warning), not swallowed as success
+    assert counts["added"] == 1 and counts["deleted"] == 1 and counts["pushed"] is False
 
 
 def test_publish_run_syncs_stable_dataset_and_uses_subject_evaluators(monkeypatch):
@@ -701,3 +713,46 @@ def test_cli_run_publish_rerun_compares_to_frozen_baseline(tmp_path, monkeypatch
     # the frozen baseline id + local baseline are unchanged by the rerun
     assert runner.load_publish_meta(p, "e")["baseline_experiment_id"] == "base-1"
     assert runner.load_baselines(p)["e"] == [{"input": {"x": 1}, "output": 11}]
+
+
+def test_evaluate_one_reports_publish_only_evaluators(monkeypatch):
+    # deepeval / pydantic-evals adapters aren't scorable locally; the engine wraps them on
+    # --publish. evaluate_one should report them as publish-only rather than crashing.
+    from ddtrace.llmobs import _experiment as _exp
+
+    monkeypatch.setattr(_exp, "_is_function_evaluator", lambda e: False)
+    (r,) = runner.evaluate_one(object(), recorded=1, new=1, input_data={})
+    assert r["error"] == "unsupported locally (publish-only)" and r["assessment"] is None
+
+
+def test_sdk_task_replays_async_subject():
+    # The engine invokes the (sync) task via asyncio.to_thread — a worker thread with no
+    # running loop — so _invoke's asyncio.run(...) for an ASYNC subject is safe on --publish.
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    async def f(x):
+        import asyncio as _a
+
+        await _a.sleep(0)
+        return {"v": x}
+
+    _set_mode(Mode.REPLAY)
+    task = sdk._make_task("e")
+    assert task({"x": 7}, None) == {"v": 7}
+
+
+def test_smells_like_prod_one_way_gate(monkeypatch):
+    import sys as _sys
+
+    from ddtrace.internal.settings import env as _env
+
+    # no TTY AND DD_ENV=prod -> refuse
+    monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
+    monkeypatch.setattr(_env, "get", lambda k, d="": "prod" if k == "DD_ENV" else d)
+    assert cli._smells_like_prod() is True
+    # an interactive TTY never trips it, even in prod (the gate can only tighten)
+    monkeypatch.setattr(_sys.stdout, "isatty", lambda: True, raising=False)
+    assert cli._smells_like_prod() is False
+    # a non-prod env never trips it
+    monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
+    monkeypatch.setattr(_env, "get", lambda k, d="": d)
+    assert cli._smells_like_prod() is False

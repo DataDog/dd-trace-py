@@ -267,6 +267,12 @@ def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> li
     except a ``MultiEvaluatorResult`` which expands to one row per sub-metric (matching the
     ``--publish`` engine path). The recorded baseline is the evaluator's ``expected_output``;
     the new output is ``output_data``.
+
+    Supports the evaluator types you can score offline: ``BaseEvaluator`` (incl. ``LLMJudge``),
+    ``BaseAsyncEvaluator``, and plain sync/async functions. Third-party adapter evaluators
+    (deepeval ``BaseMetric``, pydantic-evals) are **publish-only** — the engine wraps them on
+    ``--publish``, but local ``--evaluate`` reports them as ``error: "unsupported locally
+    (publish-only)"`` rather than scoring them.
     """
     from ddtrace.llmobs._experiment import BaseAsyncEvaluator
     from ddtrace.llmobs._experiment import EvaluatorContext
@@ -285,7 +291,17 @@ def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> li
         elif _is_function_evaluator(evaluator):
             result = evaluator(input_data, new, recorded)
         else:
-            return [{"name": name, "value": None, "assessment": None, "reasoning": None, "error": "unsupported type"}]
+            # deepeval / pydantic-evals adapters: the engine supports them on --publish, but
+            # we don't wrap them for local scoring.
+            return [
+                {
+                    "name": name,
+                    "value": None,
+                    "assessment": None,
+                    "reasoning": None,
+                    "error": "unsupported locally (publish-only)",
+                }
+            ]
     except Exception as e:  # noqa: BLE001 - surface eval errors per-row, never abort the replay
         return [{"name": name, "value": None, "assessment": None, "reasoning": None, "error": "%r" % (e,)}]
 
