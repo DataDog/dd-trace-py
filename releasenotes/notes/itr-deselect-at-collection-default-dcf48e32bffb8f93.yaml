@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    CI Visibility: test-level Intelligent Test Runner (ITR) skipping now deselects skippable tests
+    at collection time by default, instead of marking them skipped at runtime; deselected tests
+    count towards the ITR skip metric but produce no test span. Set
+    ``DD_CIVISIBILITY_ITR_SKIP=1`` to keep marking ITR-skipped tests with ``pytest.mark.skip`` at
+    runtime instead, which still produces a span.

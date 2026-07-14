@@ -1,3 +1,0 @@
-fixes:
-  - |
-    CI Visibility: Fixes the configuration registry for ``DD_CIVISIBILITY_ITR_SKIP``.
