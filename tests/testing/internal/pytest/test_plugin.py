@@ -222,7 +222,7 @@ class TestSkippingAndITRFeatures:
 
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
 
         assert result is True
         assert test_file in plugin._itr_ignored_suite_paths
@@ -250,7 +250,7 @@ class TestSkippingAndITRFeatures:
 
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
 
         assert result is None
         assert not plugin._itr_ignored_suite_paths
@@ -359,7 +359,7 @@ class TestSkippingAndITRFeatures:
         mock_config = Mock()
         mock_config.rootpath = tmp_path
 
-        plugin.pytest_ignore_collect(collection_path=test_file, config=mock_config)
+        plugin._pytest_ignore_collect_impl(test_file, config=mock_config)
 
         mock_manager.is_skippable_suite_path.assert_called_once_with(test_file, root_path=tmp_path)
 
