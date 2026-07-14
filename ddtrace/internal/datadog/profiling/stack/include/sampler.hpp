@@ -88,10 +88,11 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
+
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
-
-    double fast_copy_warmup_seconds = 15.0;
 
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.

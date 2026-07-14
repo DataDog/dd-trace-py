@@ -279,7 +279,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
     // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_active;
+    const bool fast_copy_desired = fast_copy_requested;
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
