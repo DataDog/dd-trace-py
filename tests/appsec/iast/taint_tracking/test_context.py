@@ -229,3 +229,71 @@ def test_get_ranges_public_api_does_not_leak_across_request_slots():
     finish_request_context(ctx_a)
     finish_request_context(ctx_b)
     IAST_CONTEXT.set(None)
+
+
+def test_copy_ranges_from_strings_writes_to_active_slot_not_earlier_slot():
+    """copy_ranges_from_strings must write the derived taint into the active slot.
+
+    Regression: the native multi-slot resolver picks the first slot holding the
+    source id, so with a stale entry in an earlier slot the derived taint was
+    written there and the scoped get_ranges() read from the active slot missed it.
+    """
+    from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
+    from ddtrace.appsec._iast._taint_tracking import get_ranges
+    from ddtrace.appsec._iast._taint_tracking import set_ranges
+
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    ctx_b = start_request_context()
+    assert ctx_a is not None and ctx_b is not None and ctx_a != ctx_b
+
+    # The same source object lives in both slots, with ctx_a being the earlier slot.
+    shared = _taint_pyobject_base("SECRET", "p", "SECRET", OriginType.PARAMETER, contextid=ctx_a)
+    ranges_a = get_ranges(shared, ctx_a)
+    assert len(ranges_a) > 0
+    set_ranges(shared, ranges_a, ctx_b)
+    assert len(get_ranges(shared, ctx_b)) > 0
+
+    # Active request is the later slot ctx_b.
+    IAST_CONTEXT.set(ctx_b)
+    derived = "X" + shared  # a fresh, otherwise-untracked object
+    copy_ranges_from_strings(shared, derived)
+
+    # The derived taint must be visible from the active slot's scoped read.
+    assert len(get_ranges(derived, ctx_b)) > 0
+
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
+
+
+def test_copy_and_shift_ranges_from_strings_writes_to_active_slot_not_earlier_slot():
+    """copy_and_shift_ranges_from_strings must also be scoped to the active slot."""
+    from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
+    from ddtrace.appsec._iast._taint_tracking import get_ranges
+    from ddtrace.appsec._iast._taint_tracking import set_ranges
+
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    ctx_b = start_request_context()
+    assert ctx_a is not None and ctx_b is not None and ctx_a != ctx_b
+
+    shared = _taint_pyobject_base("SECRET", "p", "SECRET", OriginType.PARAMETER, contextid=ctx_a)
+    ranges_a = get_ranges(shared, ctx_a)
+    assert len(ranges_a) > 0
+    set_ranges(shared, ranges_a, ctx_b)
+    assert len(get_ranges(shared, ctx_b)) > 0
+
+    IAST_CONTEXT.set(ctx_b)
+    derived = "X" + shared
+    copy_and_shift_ranges_from_strings(shared, derived, 1, len(derived))
+
+    assert len(get_ranges(derived, ctx_b)) > 0
+
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
