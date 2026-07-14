@@ -911,8 +911,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _downgrade(self, status):
         if self._api_version == "v0.5":
             self._api_version = "v0.4"
-            # Rebuilding the exporter discards its native span buffer — i.e. any spans
-            # buffered under v0.5 are dropped on the downgrade, matching prior behavior.
+            # Rebuilding the exporter drops any spans still buffered under v0.5.
             self._exporter = self._create_exporter()
             _safelog(
                 log.warning,
@@ -977,15 +976,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
-        # The trace-level origin lives on the Context (and only the chunk-root span's native
-        # attributes). Pass it down so every converted span gets `_dd.origin`, matching the
-        # msgpack encoder which stamped it from trace[0].context.dd_origin at pack time.
+        # Origin lives on the Context, not on non-root spans, so pass it down explicitly for
+        # every span to get `_dd.origin`.
         ctx = spans[0].context
         dd_origin = ctx.dd_origin if ctx is not None else None
 
-        # v0.5 output has no wire fields for span links/events; JSON-encode them into meta
-        # instead, matching the historical v0.5 encoder (libdatadog's v0.4->v0.5 downgrade
-        # has no equivalent fallback and would otherwise drop them silently).
+        # v0.5 has no wire fields for span links/events, so JSON-encode them into meta instead.
         outcome, item_bytes = self._exporter.put_trace(
             spans, dd_origin, encode_links_events_as_json=self._api_version == "v0.5"
         )
@@ -1040,10 +1036,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         response_body: Optional[str] = None
         try:
-            # Use the count flush() actually drained (not the pre-fetch above) for metrics:
-            # a concurrent write()/flush() from another thread can add to or drain the buffer
-            # between the buffered_traces() check and this call, since they're separate lock
-            # acquisitions on the native buffer.
+            # Re-read the drained count: a concurrent write()/flush() may have changed the
+            # buffer between the buffered_traces() check above and this call.
             n_traces, response_body = self._exporter.flush()
             if n_traces == 0:
                 return
@@ -1066,9 +1060,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._log_send_failure(n_traces, e)
             return
         finally:
-            # Mirror the previous encoder path: count the drained chunks as "sent" for the
-            # drop-rate calculation even if the send itself failed (the buffer is emptied
-            # either way).
+            # The buffer is drained regardless of send success, so count it as sent either way.
             self._metrics["sent_traces"] += n_traces
 
         if self._response_cb and response_body:

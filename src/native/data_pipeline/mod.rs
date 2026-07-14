@@ -18,10 +18,7 @@ use crate::shared_runtime::SharedRuntimePy;
 use crate::span::SpanData;
 use exceptions::TraceExporterErrorPy;
 
-// Cached once on first use — `ddtrace.internal._encoding.packb`, the vendored msgpack packer
-// used only to serialize meta_struct values. Avoids a sys.modules lookup + getattr on every
-// single put_trace call. Never invalidated; the losing thread in a race drops its `Py<PyAny>`
-// (pyo3 0.28 defers the decref if that happens off-GIL).
+// `ddtrace.internal._encoding.packb`, cached to avoid a module lookup on every put_trace call.
 static PACKB: OnceLock<Py<PyAny>> = OnceLock::new();
 
 fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
@@ -241,10 +238,8 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     ///
-    /// `max_size` / `max_item_size` bound the native span buffer (in estimated bytes):
-    /// `max_size` is the total budget across all buffered trace chunks, `max_item_size`
-    /// the cap for a single chunk. They mirror the writer's `buffer_size` /
-    /// `max_payload_size` settings.
+    /// `max_size` / `max_item_size` bound the native span buffer in estimated bytes: total
+    /// budget across all buffered chunks, and cap per chunk.
     fn build(
         &mut self,
         shared_runtime: PyRef<'_, SharedRuntimePy>,
@@ -265,9 +260,8 @@ impl TraceExporterBuilderPy {
                 chunks: Vec::new(),
                 est_bytes: 0,
                 max_size,
-                // A single item can never exceed the total buffer budget; clamp so
-                // oversized-item drops are reported as ItemTooLarge rather than BufferFull.
-                // Mirrors the old Cython encoder's MsgpackEncoderBase.__cinit__ clamp.
+                // Clamp so an item can never exceed the buffer budget: oversized-item drops
+                // report as ItemTooLarge rather than BufferFull.
                 max_item_size: max_item_size.min(max_size),
             }),
         };
@@ -311,15 +305,8 @@ pub struct TraceExporterPy {
 }
 
 impl TraceExporterPy {
-    /// Lock the native span buffer, recovering from poisoning instead of panicking.
-    ///
-    /// A panic while the lock is held (e.g. from a future change to the code running under
-    /// it) would otherwise poison the `Mutex` forever: every subsequent `put_trace`/`flush`
-    /// call would panic too, permanently killing the writer's periodic flush thread (or, in
-    /// sync_mode, propagating an uncaught `pyo3_runtime.PanicException` — a `BaseException`
-    /// subclass that bypasses `except Exception` — into application code). The buffer's
-    /// invariants (`chunks`/`est_bytes`) are simple enough that using the guard's contents
-    /// as-is after a poisoning panic is safe; we just don't want a stuck lock.
+    /// Lock the native span buffer, recovering from poisoning instead of panicking — a
+    /// poisoned lock would otherwise permanently break every subsequent put_trace/flush call.
     fn lock_buffer(&self) -> std::sync::MutexGuard<'_, TraceBuffer> {
         self.buffer
             .lock()
@@ -355,18 +342,12 @@ impl TraceExporterPy {
     /// Convert one trace chunk (a Python ``list[Span]``) into libdatadog v0.4 spans and
     /// buffer it for the next flush.
     ///
-    /// Each element must be a ``SpanData`` (the Python ``Span`` subclasses it), letting us
-    /// borrow the native struct directly and read its attributes without the Python C-API.
+    /// ``dd_origin`` is the trace-level origin, stamped as ``_dd.origin`` into every span's
+    /// meta. Returns `(outcome, item_bytes)` rather than raising, so the writer can record drop
+    /// metrics on the hot path without exception handling.
     ///
-    /// ``dd_origin`` is the trace-level origin (``trace[0].context.dd_origin``, extracted on
-    /// the Python side); it is stamped as ``_dd.origin`` into every span's meta.
-    ///
-    /// Returns `(outcome, item_bytes)` (never raises for buffer pressure) so the writer can
-    /// record drop metrics and log accurate size context on the hot path without exception
-    /// handling. `item_bytes` is the encoded size of *this* trace.
-    ///
-    /// `encode_links_events_as_json`: true when the writer's output format is v0.5 (which has
-    /// no wire fields for span links/events) — see `SpanData::build_v04_span`'s doc comment.
+    /// `encode_links_events_as_json`: true for v0.5 output, which has no wire fields for span
+    /// links/events — see `SpanData::build_v04_span`.
     #[pyo3(signature = (spans, dd_origin=None, encode_links_events_as_json=false))]
     fn put_trace(
         &self,
@@ -384,16 +365,14 @@ impl TraceExporterPy {
             None => None,
         };
 
-        // The vendored msgpack packer, used only to serialize meta_struct values.
-        // `None` simply skips meta_struct (e.g. if the module/attribute is ever missing).
+        // Packs meta_struct values; None skips meta_struct entirely.
         let packb = get_packb(py);
 
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         let mut item_bytes: usize = 0;
         for span in &spans {
-            // Build the span and extract its raw meta_struct entries while borrowed, then drop
-            // the borrow before calling packb (a GIL-yield point) — see build_v04_span's doc
-            // comment for why the borrow must not span that call.
+            // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
+            // build_v04_span's doc comment.
             let (mut v04_span, meta_struct_raw) = {
                 let span_ref = span.bind(py).borrow();
                 span_ref.build_v04_span(
@@ -416,9 +395,7 @@ impl TraceExporterPy {
                         .insert(key, Bytes::from_py_bytes(py_bytes));
                 }
             }
-            // Accumulated here (rather than a second `chunk.iter().map(byte_size).sum()` pass
-            // after the loop) since byte_size() summation is order-independent and every span
-            // is already being walked once to build it.
+            // Summed here rather than a second pass over `chunk` after the loop.
             item_bytes += v04_span.byte_size();
             chunk.push(v04_span);
         }
@@ -438,9 +415,7 @@ impl TraceExporterPy {
     /// Drain the buffered trace chunks and send them directly to the agent via
     /// [`TraceExporter::send_trace_chunks`], bypassing msgpack encode/decode entirely.
     ///
-    /// The GIL is released for the whole send: serialization reads ``PyBackedString`` via a
-    /// raw pointer (GIL-free), and the consumed spans' ``Py`` refs are dropped off-GIL using
-    /// pyo3's deferred-decref (drained on reattach).
+    /// The GIL is released for the whole send.
     ///
     /// Returns ``(n_traces_sent, response_body)`` where ``response_body`` is the agent's
     /// JSON body for a changed sampling rate, else ``None``.

@@ -309,13 +309,9 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
 
 @pytest.mark.snapshot()
 def test_native_writer_span_events():
-    # Default config = v0.5 output. libdatadog's v0.5 Span struct has no span_events field, so
-    # dd-trace-py JSON-encodes span events into meta["events"] before handing off to the trace
-    # exporter, matching the historical Cython V05 encoder's compatibility shim (see
-    # SpanData.build_v04_span's encode_links_events_as_json path). Genuine v0.4 (native field)
-    # output is covered by test_native_writer_links_events_v04_output (a runtime _trace_api
-    # override does NOT switch the writer's output format). See ENCODER_DIFFERENCES.md.
-    # time_unix_nano is fixed for determinism.
+    # Default v0.5 output has no span_events wire field, so events get JSON-encoded into
+    # meta["events"] instead. Native v0.4 field output is covered by
+    # test_native_writer_links_events_v04_output. See ENCODER_DIFFERENCES.md.
     from ddtrace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -328,11 +324,8 @@ def test_native_writer_span_events():
 
 @pytest.mark.snapshot()
 def test_native_writer_span_links():
-    # Default config = v0.5 output. libdatadog's v0.5 Span struct has no span_links field, so
-    # dd-trace-py JSON-encodes span links into meta["_dd.span_links"] before handing off to the
-    # trace exporter, matching the historical Cython V05 encoder's compatibility shim (see
-    # SpanData.build_v04_span's encode_links_events_as_json path). Genuine v0.4 (native field)
-    # output is covered by test_native_writer_links_events_v04_output. See ENCODER_DIFFERENCES.md.
+    # Default v0.5 output has no span_links wire field, so links get JSON-encoded into
+    # meta["_dd.span_links"] instead. See ENCODER_DIFFERENCES.md.
     from ddtrace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -346,10 +339,8 @@ def test_native_writer_span_links():
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
 def test_native_writer_links_events_v04_output():
-    # Forces v0.4 OUTPUT at startup (env var, since a runtime _trace_api override does NOT rebuild
-    # the writer). Checks that libdatadog's native v0.4 span_links/span_events fields reach the
-    # agent as structured fields (vs the v0.5 path's JSON-encoded-into-meta fallback above).
-    # See ENCODER_DIFFERENCES.md.
+    # v0.4 output has native span_links/span_events fields (vs the v0.5 JSON-into-meta
+    # fallback above). See ENCODER_DIFFERENCES.md.
     from ddtrace.trace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -365,9 +356,8 @@ def test_native_writer_links_events_v04_output():
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
 def test_native_writer_span_link_event_attribute_truncation():
-    # v0.4 output: an oversized span-link/event attribute value must be truncated to
-    # TRUNCATED_SPAN_ATTRIBUTE_LEN (2500 chars) + "<truncated>..." the same way meta/name/
-    # service/resource/type already are, matching the historical Cython encoder's pack_text().
+    # An oversized span-link/event attribute value must be truncated the same way meta/name/
+    # service/resource/type already are.
     from ddtrace.trace import tracer
 
     long_value = "a" * 30000
@@ -384,9 +374,8 @@ def test_native_writer_span_link_event_attribute_truncation():
 
 @pytest.mark.snapshot()
 def test_native_writer_origin_on_child_spans():
-    # Regression guard: `_dd.origin` (set on the trace context) must appear on EVERY span in the
-    # chunk, including non-root children. The native conversion stamps it per-span from
-    # spans[0].context.dd_origin, matching the historical Cython encoder. See ENCODER_DIFFERENCES.md.
+    # Regression guard: `_dd.origin` must appear on EVERY span in the chunk, including
+    # non-root children. See ENCODER_DIFFERENCES.md.
     from ddtrace import tracer
 
     with tracer.trace("root", service="my-svc") as root:

@@ -99,16 +99,12 @@ class NativeWriterTests(BaseTestCase):
         )
 
     def test_metrics_generic_send_failure(self):
-        # A generic (non-4xx) send failure -- e.g. the agent is unreachable -- still drains the
-        # native buffer (Rust's flush() takes the chunks before attempting the send) and counts
-        # them as "sent" for drop-rate purposes, mirroring the old encoder path where a trace
-        # counted as sent once its payload left the encoder's buffer, regardless of whether the
-        # HTTP request itself succeeded.
+        # A generic (non-4xx) send failure, e.g. an unreachable agent, still drains the buffer
+        # and counts the traces as "sent" for drop-rate purposes.
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            # Long interval so the background periodic thread never flushes mid-test; the
-            # explicit flush_queue() call below is the only flush attempt.
+            # Long interval so the background periodic thread never flushes mid-test.
             managed_writer(
                 self.WRITER_CLASS,
                 "http://asdf:1234",
@@ -312,9 +308,8 @@ class NativeWriterTests(BaseTestCase):
             )
 
     def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
-        # A single trace chunk can never fit if it's bigger than the whole buffer, regardless
-        # of max_payload_size: max_item_size is clamped to max_size (mirroring the old Cython
-        # encoder's clamp), so this is reported as t_too_big rather than the misleading "full".
+        # max_item_size is clamped to max_size, so a chunk bigger than the whole buffer reports
+        # as t_too_big rather than the misleading "full".
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
@@ -351,11 +346,8 @@ class NativeWriterTests(BaseTestCase):
                 max_payload_size=100000,
             ) as writer,
         ):
-            # The agent is unreachable, so each flush "fails" to send — but the native buffer is
-            # drained regardless, so the chunks count as sent for drop-rate purposes (matching the
-            # old encoder path). The keep rate is stamped onto trace[0] at write time as
-            # 1.0 - drop_sma, so we read it back from the span's _KEEP_SPANS_RATE_KEY metric rather
-            # than decoding a sent payload.
+            # The keep rate is stamped onto trace[0] at write time as 1.0 - drop_sma, so read
+            # it back from the span's _KEEP_SPANS_RATE_KEY metric rather than decoding a payload.
             traces = [
                 [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)] for i in range(1, 5)
             ]

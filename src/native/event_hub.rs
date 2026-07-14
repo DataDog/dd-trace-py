@@ -20,9 +20,7 @@ static RT_OK_PY: OnceLock<Py<PyAny>> = OnceLock::new();
 static RT_EXCEPTION_PY: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // OnceLock::get_or_try_init is unstable; use get+set pattern instead.
-// #[macro_export] so other modules caching a Python object in a `static OnceLock<Py<PyAny>>`
-// (e.g. data_pipeline's `PACKB`, span::span_data's `JSON_DUMPS`) can reuse this instead of
-// hand-rolling the same get/init/race-loses-drops-Py logic.
+// Exported so other modules caching a Python object in a static OnceLock can reuse this.
 #[macro_export]
 macro_rules! get_or_init {
     ($cell:expr, $py:expr, $init:expr) => {{
