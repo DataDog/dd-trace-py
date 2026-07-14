@@ -8,8 +8,11 @@ import warnings
 
 import pytest
 
+from ddtrace import config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.manager import _PromptRequest
@@ -349,6 +352,84 @@ class TestPrompts:
                 assert prompt_data["template"] == "Fallback: {name}"
                 assert "label" not in prompt_data
                 assert "tags" not in prompt_data
+
+    def test_auto_prompt_tracking_tags_llm_span_from_format(self, tracer):
+        """A prompt rendered via format() and passed straight into an auto-instrumented LLM call
+        gets tagged automatically, with no annotation_context needed.
+        """
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        integration = BaseLLMIntegration(IntegrationConfig(config, "fake_llm"))
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("greeting")
+        rendered = prompt.format(name="Alice")
+
+        with LLMObs.llm(model_name="test-model", name="test") as span:
+            integration.llmobs_set_tags(span, args=[], kwargs={"messages": rendered})
+
+        prompt_data = get_llmobs_input_prompt(span)
+        assert prompt_data["id"] == "greeting"
+        assert prompt_data["variables"] == {"name": "Alice"}
+
+    def test_auto_prompt_tracking_yields_to_explicit_annotation(self, tracer):
+        """An explicit annotation_context(prompt=...) still wins over an auto-tracked prompt."""
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        integration = BaseLLMIntegration(IntegrationConfig(config, "fake_llm"))
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            auto_prompt = LLMObs.get_prompt("greeting")
+        with mock_api(200, CHAT_PROMPT_RESPONSE):
+            explicit_prompt = LLMObs.get_prompt("assistant")
+        rendered = auto_prompt.format(name="Alice")
+
+        with LLMObs.annotation_context(prompt=explicit_prompt.to_annotation_dict(persona="pirate", question="hi")):
+            with LLMObs.llm(model_name="test-model", name="test") as span:
+                integration.llmobs_set_tags(span, args=[], kwargs={"messages": rendered})
+
+        prompt_data = get_llmobs_input_prompt(span)
+        assert prompt_data["id"] == "assistant"
+
+    def test_auto_prompt_tracking_matches_correct_prompt_among_concurrent_renders(self, tracer):
+        """Two prompts rendered in the same trace attach to their own LLM span each, even when
+        the calls consuming them complete out of render order.
+        """
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        integration = BaseLLMIntegration(IntegrationConfig(config, "fake_llm"))
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            prompt_a = LLMObs.get_prompt("greeting")
+        with mock_api(200, CHAT_PROMPT_RESPONSE):
+            prompt_b = LLMObs.get_prompt("assistant")
+
+        with LLMObs.workflow(name="handle-both"):
+            rendered_a = prompt_a.format(name="Alice")
+            rendered_b = prompt_b.format(persona="pirate", question="ahoy?")
+
+            # call for prompt_b finishes first, even though prompt_a rendered first
+            with LLMObs.llm(model_name="test-model", name="call-b") as span_b:
+                integration.llmobs_set_tags(span_b, args=[], kwargs={"messages": rendered_b})
+            with LLMObs.llm(model_name="test-model", name="call-a") as span_a:
+                integration.llmobs_set_tags(span_a, args=[], kwargs={"messages": rendered_a})
+
+        assert get_llmobs_input_prompt(span_a)["id"] == "greeting"
+        assert get_llmobs_input_prompt(span_b)["id"] == "assistant"
+
+    def test_auto_prompt_tracking_skips_untracked_input(self, tracer):
+        """A request that carries no managed-prompt render (e.g. the render was copied or rebuilt)
+        leaves the span untagged rather than guessing.
+        """
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        integration = BaseLLMIntegration(IntegrationConfig(config, "fake_llm"))
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("greeting")
+        rendered = prompt.format(name="Alice")
+
+        with LLMObs.llm(model_name="test-model", name="test") as span:
+            # str() drops the tracked-prompt subclass, mirroring a caller that copies the render
+            integration.llmobs_set_tags(span, args=[], kwargs={"messages": str(rendered)})
+
+        assert get_llmobs_input_prompt(span) is None
 
     def test_trigger_background_refresh_does_not_leave_stale_thread_entry(self):
         manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)

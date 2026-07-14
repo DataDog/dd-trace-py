@@ -361,6 +361,32 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
+class _TrackedPromptStr(str):
+    dd_prompt: Prompt
+
+
+class _TrackedPromptList(list):
+    dd_prompt: Prompt
+
+
+def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> Union[str, list[Message]]:
+    """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
+    if not config._llmobs_enabled:
+        return rendered_value
+    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
+    tracked = tracked_cls(rendered_value)
+    tracked.dd_prompt = prompt
+    return tracked
+
+
+def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Return the managed-prompt metadata carried by any value passed into this LLM call, if any."""
+    for value in (*args, *kwargs.values()):
+        if isinstance(value, (_TrackedPromptStr, _TrackedPromptList)):
+            return value.dd_prompt
+    return None
+
+
 def get_llmobs_span_name(span: Span) -> Optional[str]:
     """Return the span name stored on a span's meta_struct."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
