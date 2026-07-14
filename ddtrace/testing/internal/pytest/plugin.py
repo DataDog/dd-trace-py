@@ -44,6 +44,8 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -341,6 +343,11 @@ class TestOptPlugin:
         # tests), but we must only report/count them once per session. We elect the first worker
         # ("gw0") as the sole owner; non-xdist runs always own it.
         self._is_itr_skip_event_owner = True
+        # This worker's index/count within the xdist run (0/1 for non-xdist and for the controller),
+        # read from workerinput in pytest_sessionstart. Used to shard test-level deselect-event
+        # emission by module across workers instead of electing a single owner for all of them.
+        self._itr_deselect_worker_index = 0
+        self._itr_deselect_worker_count = 1
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -359,6 +366,9 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_skip_event_owner = xdist_worker_input.get("workerid") == "gw0"
+                worker_id = xdist_worker_input.get("workerid", "gw0")
+                self._itr_deselect_worker_index = int(worker_id[2:]) if worker_id.startswith("gw") else 0
+                self._itr_deselect_worker_count = int(xdist_worker_input.get("workercount", 1)) or 1
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -521,7 +531,7 @@ class TestOptPlugin:
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
-                if self._is_itr_skip_event_owner:
+                if asbool(env.get("_DD_CIVISIBILITY_SEND_DESELECTS")):
                     self._emit_itr_deselected_test_events(deselected, selected, test_refs)
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
@@ -638,23 +648,51 @@ class TestOptPlugin:
         module) we already have the real pytest `Item`, so we can reuse `_discover_test` to build
         the same module/suite/test objects the runtime path would create.
 
-        Under xdist, every worker sees the same full, unsharded item list at this point, so only
-        the elected owner (see `_is_itr_skip_event_owner`) emits these events/metrics; all workers
-        still deselect the items so none of them run. `test_refs` is a cache of `item_to_test_ref`
-        results built by the caller while making the deselect decision, reused here to avoid paying
-        for the pluggy hook dispatches and nodeid regex a second time for every item.
+        Under xdist, every worker sees the same full, unsharded item list, in the same order (xdist
+        itself requires this — it aborts the run otherwise), at this point. Rather than electing a
+        single worker to emit every deselected test's events, each worker only emits events for the
+        modules it owns: modules are numbered in (identical, deterministic) first-seen order and
+        assigned to worker `i % workercount == workerid`, using only `workerid`/`workercount` xdist
+        already puts in `workerinput` — no extra data needs to be sent between workers. A whole
+        module (not individual tests) is the sharding unit so that the suite/module-finish
+        bookkeeping below, which assumes a single process sees all of a module's deselected tests,
+        stays correct — splitting a module's tests across workers would cause duplicate
+        suite/module-finish events. `test_refs` is a cache of `item_to_test_ref` results built by
+        the caller while making the deselect decision, reused here to avoid paying for the pluggy
+        hook dispatches and nodeid regex a second time for every item.
 
         Suites/modules left with none of their tests remaining are finished here, since no test of
         theirs will ever reach `pytest_runtest_protocol_wrapper`. Suites/modules with a mix of
         deselected and remaining tests are started/finished normally by the runtime path.
         """
-        remaining_suites = {test_refs[item].suite for item in remaining_items}
-        remaining_modules = {test_refs[item].suite.module for item in remaining_items}
+        remaining_suites: set[SuiteRef] = set()
+        remaining_modules: set[ModuleRef] = set()
+        for item in remaining_items:
+            suite_ref = test_refs[item].suite
+            remaining_suites.add(suite_ref)
+            remaining_modules.add(suite_ref.module)
+
+        module_order: list[ModuleRef] = []
+        seen_modules: set[ModuleRef] = set()
+        for item in deselected_items:
+            module_ref = test_refs[item].suite.module
+            if module_ref not in seen_modules:
+                seen_modules.add(module_ref)
+                module_order.append(module_ref)
+
+        my_modules = {
+            module_ref
+            for i, module_ref in enumerate(module_order)
+            if i % self._itr_deselect_worker_count == self._itr_deselect_worker_index
+        }
 
         finished_suites: set[TestSuite] = set()
         finished_modules: set[TestModule] = set()
         for item in deselected_items:
             test_ref = test_refs[item]
+            if test_ref.suite.module not in my_modules:
+                continue
+
             # Deselected items are, by construction, skippable and not unskippable (see the
             # deselect condition in pytest_collection_modifyitems) — skip re-checking markers.
             # They also never run, so the precise (AST/inspect-based) end_line isn't needed.

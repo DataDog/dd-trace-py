@@ -26,8 +26,10 @@ class TestITR:
         """Unset coverage upload env var so tests are not affected by external environment."""
         monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
 
-    def test_itr_one_skipped_test(self, pytester: Pytester) -> None:
+    def test_itr_one_skipped_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         # Create a test file with multiple tests
         pytester.makepyfile(
             test_foo="""
@@ -218,8 +220,10 @@ class TestITR:
         assert test_event["content"]["meta"].get("test.itr.unskippable") is None
         assert test_event["content"]["meta"].get("test.itr.forced_run") is None
 
-    def test_itr_one_unskippable_test(self, pytester: Pytester) -> None:
+    def test_itr_one_unskippable_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         # Create a test file with multiple tests
         pytester.makepyfile(
             test_foo="""
@@ -322,6 +326,8 @@ class TestITR:
 
     def test_itr_deselect_test_level(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test-level ITR skip (the default): skippable test is deselected, not skip-marked."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         pytester.makepyfile(
             test_foo="""
             def test_should_be_deselected():
@@ -365,12 +371,16 @@ class TestITR:
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
         assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
-    def test_itr_deselect_test_level_attempt_to_fix_not_deselected(self, pytester: Pytester) -> None:
+    def test_itr_deselect_test_level_attempt_to_fix_not_deselected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test-level ITR skip: a skippable test that is also attempt_to_fix must NOT be deselected.
 
         Mirrors test_itr_one_unskippable_test, but for the attempt_to_fix exemption in
         pytest_collection_modifyitems's deselect branch rather than the unskippable-marker one.
         """
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         pytester.makepyfile(
             test_foo="""
             def test_should_be_deselected():
@@ -431,13 +441,17 @@ class TestITR:
         [session] = event_capture.events_by_type("test_session_end")
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
-    def test_itr_deselect_test_level_whole_suite_deselected(self, pytester: Pytester) -> None:
+    def test_itr_deselect_test_level_whole_suite_deselected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When every test in a suite is deselected, the suite/module are finished synthetically.
 
         No test in this suite ever reaches `pytest_runtest_protocol_wrapper`, so the suite/module
         lifecycle can't be closed by the normal runtime path — `_emit_itr_deselected_test_events`
         must do it explicitly, mirroring `_emit_itr_ignored_suite_events` for suite-level ITR.
         """
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         pytester.makepyfile(
             test_all_deselected="""
             def test_one():
