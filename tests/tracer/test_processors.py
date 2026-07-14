@@ -4,7 +4,6 @@ import mock
 import pytest
 
 import ddtrace
-
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
