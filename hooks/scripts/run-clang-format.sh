@@ -1,8 +1,10 @@
 #!/usr/bin/env sh
 # clang-format version CI pins via the lint dependency group (clang-format==18.1.5).
 CFORMAT_VERSION=18.1.5
-staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(c|h|cc|cpp|hpp)$')
-if [ -n "$staged_files" ]; then
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(c|h|cc|cpp|hpp)$' | tr '\n' ' ')
+if [ -n "$(printf '%s' "$staged_files" | tr -d ' \t\n')" ]; then
+    file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
+    echo "Formatting $file_count staged C/C++ file(s)..."
     # Resolve a clang-format binary, preferring the version pinned in the lint
     # dependency group (clang-format==18.1.5) so local formatting matches CI, which
     # runs `scripts/lint cformat`. An unpinned PATH binary reformats differently
@@ -26,7 +28,16 @@ if [ -n "$staged_files" ]; then
             exit 1
         fi
     fi
-    "$clang_format" -i $staged_files
+
+    # Skip re-adding files that already had unstaged changes to preserve partial staging.
+    unstaged_before=$(git diff --name-only)
+
+    "$clang_format" -i $staged_files || exit $?
+
+    echo "$staged_files" | tr ' ' '\n' | while read -r f; do
+        [ -n "$f" ] || continue
+        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+    done
 else
     echo 'Run clang-format skipped: No C/C++ files were found in `git diff --staged`'
 fi
