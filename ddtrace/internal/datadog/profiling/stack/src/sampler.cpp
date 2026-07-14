@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/profiler_stats.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -113,6 +114,26 @@ get_thread_cpu_time_us()
 }
 
 } // namespace
+
+void
+Datadog::publish_fast_copy_profiler_metadata(ProfilerStats* stats)
+{
+    auto& snapshot = ProfilerState::get().fast_copy_metadata;
+    snapshot.user_disabled = fast_copy_user_disabled;
+    snapshot.capable = safe_memcpy_initialized;
+    snapshot.syscall_fallback = fast_copy_syscall_fallback;
+    snapshot.enabled = fast_copy_active;
+    snapshot.snapshot_initialized = true;
+
+    if (stats == nullptr) {
+        return;
+    }
+
+    stats->set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
+    stats->set_fast_copy_memory_capable(safe_memcpy_initialized);
+    stats->set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
+    stats->set_fast_copy_memory_enabled(fast_copy_active);
+}
 
 void
 Sampler::adapt_sampling_interval()
@@ -279,6 +300,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
         set_fast_copy_enabled(false);
     }
 
+    publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
         // Check if a pause has been requested (e.g., for signal handler swapping).
@@ -295,6 +318,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 break;
             }
         }
+
+        publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
 
         // Measure CPU time before acquiring the profile lock so lock-wait time
         // is not counted as sampling overhead.
@@ -474,10 +499,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             borrow.stats().increment_sampling_event_count();
             borrow.stats().set_string_table_count(echion->string_table().size());
-            borrow.stats().set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
-            borrow.stats().set_fast_copy_memory_capable(safe_memcpy_initialized);
-            borrow.stats().set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
-            borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
+            publish_fast_copy_profiler_metadata(&borrow.stats());
             borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
             borrow.stats().set_greenlet_count(greenlet_count);
 
