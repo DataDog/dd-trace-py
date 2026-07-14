@@ -1372,6 +1372,9 @@ microsecond_t
 Engine::interval_us() const
 {
 #if DD_CPU_TIMER_SUPPORTED
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return 0;
+    }
     return static_cast<microsecond_t>(g_state.interval_ms.load(std::memory_order_acquire) * 1000ULL);
 #else
     return 0;
