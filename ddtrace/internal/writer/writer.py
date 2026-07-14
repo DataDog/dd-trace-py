@@ -849,11 +849,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if metrics_headers:
                 builder.set_otlp_metrics_headers(metrics_headers)
             builder.set_connection_timeout(otel_config.exporter.METRICS_TIMEOUT)
-            # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
-            # attributes on the exported metric.
-            # if config._otel_trace_semantics_enabled:
-            if config._otel_semantics_enabled:
-                builder.enable_otel_trace_semantics()
+        # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
+        # attributes on the exported metric.
+        if config._otel_trace_semantics_enabled and (self._otlp_endpoint is not None or self._otlp_metrics_endpoint is not None):
+            builder.enable_otel_trace_semantics()
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
 
