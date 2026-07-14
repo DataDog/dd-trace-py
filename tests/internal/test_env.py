@@ -184,27 +184,27 @@ def test_contains_false_when_neither_canonical_nor_alias_set(monkeypatch):
 
 
 def test_get_config_falls_back_to_alias_in_local_config(monkeypatch):
-    from ddtrace.internal import telemetry as telemetry_mod
+    from ddtrace.internal import getconfig as config_mod
 
     canonical, legacy = _pick_alias_pair()
     monkeypatch.delenv(canonical, raising=False)
     monkeypatch.delenv(legacy, raising=False)
-    monkeypatch.setattr(telemetry_mod, "LOCAL_CONFIG", {legacy: "from-local"})
-    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG", {})
+    monkeypatch.setattr(config_mod, "LOCAL_CONFIG", {legacy: "from-local"})
+    monkeypatch.setattr(config_mod, "FLEET_CONFIG", {})
 
-    val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
+    val = config_mod.get_config(canonical, default=None, report_telemetry=False)
     assert val == "from-local"
 
 
 def test_get_config_falls_back_to_alias_in_fleet_config(monkeypatch):
-    from ddtrace.internal import telemetry as telemetry_mod
+    from ddtrace.internal import getconfig as config_mod
 
     canonical, legacy = _pick_alias_pair()
     monkeypatch.delenv(canonical, raising=False)
     monkeypatch.delenv(legacy, raising=False)
-    monkeypatch.setattr(telemetry_mod, "LOCAL_CONFIG", {})
-    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG", {legacy: "from-fleet"})
-    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG_IDS", {})
+    monkeypatch.setattr(config_mod, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(config_mod, "FLEET_CONFIG", {legacy: "from-fleet"})
+    monkeypatch.setattr(config_mod, "FLEET_CONFIG_IDS", {})
 
-    val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
+    val = config_mod.get_config(canonical, default=None, report_telemetry=False)
     assert val == "from-fleet"
