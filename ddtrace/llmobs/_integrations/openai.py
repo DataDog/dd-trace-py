@@ -4,6 +4,7 @@ from typing import Optional
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -230,6 +231,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
+            if cache_write_tokens is not None:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
             # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
             reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
                 token_usage, "output_tokens_details", {}
