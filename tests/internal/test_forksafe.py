@@ -1,6 +1,7 @@
 from collections import Counter
 import functools
 import pickle
+import sys
 import threading
 from types import ModuleType
 
@@ -266,6 +267,10 @@ def test_double_fork():
     assert exit_code == 42
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 15),
+    reason="greenlet (via gevent) has no 3.15-compatible wheel yet (C-ext ABI break); re-enable when upstream ships",
+)
 @pytest.mark.subprocess(
     out=lambda _: Counter(_) == {"C": 3, "T": 4},
     err=None,

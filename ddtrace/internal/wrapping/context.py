@@ -8,7 +8,7 @@ from types import FrameType
 from types import FunctionType
 from types import TracebackType
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 import weakref
 
 import bytecode
@@ -353,8 +353,14 @@ _ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
 if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
-    # Keyed by code object solely for is_wrapped/extract lookups (not dispatch).
+    # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
     _ctx_registry: "weakref.WeakKeyDictionary[CodeType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
+    # Keyed by function instance: distinguishes functions that share a code object
+    # (e.g. closures re-created in a loop) from one another. Kept off the function's
+    # __dict__ (unlike a plain attribute) so functools.wraps does not propagate
+    # wrapping metadata and deepcopy of decorated functions does not traverse a
+    # context holding unpicklable state (locks, ContextVars). See issue #16443.
+    _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
     _ctx_registry_lock = Lock()
 
 
@@ -565,11 +571,13 @@ else:
 
 
 class ContextWrappedFunction(Protocol):
-    """A wrapped function."""
+    """A function that is (or can be) wrapped with a WrappingContext.
 
-    # Only used on the 3.15+ monitoring path, where per-function wrapping state
-    # is tracked via this attribute alongside the code-object keyed registry.
-    __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
+    Used purely as a structural type marker for call sites that operate on
+    wrapped functions. Per-function wrapping state is tracked off the function
+    object (see _fn_registry on 3.15+ / the registry on older versions), so this
+    protocol intentionally carries no wrapping-metadata attribute.
+    """
 
     def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
@@ -698,14 +706,22 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 # Also verify that THIS function instance is wrapped, not just some
                 # other function that shares the same code object (e.g. closures
                 # re-created in a loop).
-                return t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ is _ctx_registry[code]
-            except (AttributeError, Exception):
+                return _fn_registry.get(f) is _ctx_registry[code]
+            except Exception:
                 return False
 
         @classmethod
         def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
             ctx: t.Optional["_UniversalWrappingContext"] = _ctx_registry.get(get_function_code(f))
             if ctx is None:
+                raise ValueError("Function is not wrapped")
+            # Monitoring dispatches per code object, so a fresh function instance
+            # that merely shares a code object (e.g. a closure re-created in a
+            # loop) maps to the same registry entry without being wrapped itself.
+            # Mirror is_wrapped()'s per-instance check so callers such as wrapped()
+            # replace the stale registration via wrap() instead of double-
+            # registering on a context that belongs to another (often dead) function.
+            if _fn_registry.get(f) is not ctx:
                 raise ValueError("Function is not wrapped")
             return ctx
 
@@ -718,19 +734,16 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     # code object as an already-wrapped (but orphaned) function.
                     # This happens when closures are re-created in a loop: each
                     # iteration produces a new function object but the same code
-                    # object. If the new function doesn't carry __dd_context_wrapped__
-                    # the old monitoring registration is stale and should be replaced.
-                    try:
-                        if t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ is _ctx_registry[code]:
-                            raise ValueError("Function already wrapped")
-                    except AttributeError:
-                        pass
+                    # object. If the new function is not itself registered, the old
+                    # monitoring registration is stale and should be replaced.
+                    if _fn_registry.get(f) is _ctx_registry[code]:
+                        raise ValueError("Function already wrapped")
                     # Stale entry: clean up old monitoring before re-registering.
                     old: "_UniversalWrappingContext" = _ctx_registry.pop(code)
                     _monitoring.unregister(code, old)
                 _ctx_registry[code] = self
+                _fn_registry[f] = self
             _monitoring.register(code, self)
-            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
@@ -739,11 +752,8 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 if code not in _ctx_registry:
                     return
                 del _ctx_registry[code]
+                _fn_registry.pop(f, None)
             _monitoring.unregister(code, self)
-            try:
-                del t.cast(ContextWrappedFunction, f).__dd_context_wrapped__
-            except AttributeError:
-                pass
 
     else:
 

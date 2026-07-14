@@ -184,7 +184,10 @@ venv = Venv(
         ),
         Venv(
             name="appsec_integrations_packages",
-            pys=select_pys(),
+            # TODO(py3.15): greenlet (via gevent) has no 3.15-compatible wheel yet
+            # (C-ext ABI break: undefined symbol _PyGC_VisitFrameStack). Re-enable
+            # 3.15 once greenlet ships a compatible release.
+            pys=select_pys(max_version="3.14"),
             command="pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
                 "gevent": latest,
@@ -355,11 +358,13 @@ venv = Venv(
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
                 ),
             ],
@@ -1900,7 +1905,8 @@ venv = Venv(
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.14"),
+                    # TODO(py3.15): fastapi's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
                     pkgs={"fastapi": latest, "hypothesis": latest},
                 ),
             ],
@@ -3113,7 +3119,8 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                 ),
-                Venv(pys=select_pys(min_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}),
+                # TODO(py3.15): ormsgpack (PyO3 <=3.14) has no 3.15 wheel yet.
+                Venv(pys=select_pys(min_version="3.14", max_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}),
             ],
         ),
         Venv(
@@ -3236,7 +3243,8 @@ venv = Venv(
         Venv(
             name="mistralai",
             command="pytest {cmdargs} tests/contrib/mistralai",
-            pys=select_pys(min_version="3.10"),
+            # TODO(py3.15): mistralai's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+            pys=select_pys(min_version="3.10", max_version="3.14"),
             pkgs={
                 "pytest-asyncio": latest,
                 "mistralai": latest,
@@ -3245,7 +3253,8 @@ venv = Venv(
         Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
-            pys=select_pys(),
+            # TODO(py3.15): google-genai's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-genai": latest,
@@ -3279,14 +3288,16 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pydantic-ai-slim[openai]": ["==1.63.0"],
                     },
@@ -4551,7 +4562,8 @@ venv = Venv(
                     pkgs={"openai": "==1.102.0"},
                 ),
                 Venv(
-                    pys=select_pys(),
+                    # TODO(py3.15): openai's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(max_version="3.14"),
                     pkgs={"openai": latest},
                 ),
             ],
@@ -4559,7 +4571,8 @@ venv = Venv(
         Venv(
             name="ai_guard_anthropic",
             command="pytest {cmdargs} tests/aiguard/anthropic/",
-            pys=select_pys(),
+            # TODO(py3.15): anthropic's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
                 # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
@@ -4591,7 +4604,8 @@ venv = Venv(
             pkgs={
                 "strands-agents": ">=1.29.0",
             },
-            pys=select_pys(min_version="3.10"),
+            # TODO(py3.15): strands-agents' pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+            pys=select_pys(min_version="3.10", max_version="3.14"),
         ),
         Venv(
             name="ai_guard_litellm_guardrail",
@@ -4601,13 +4615,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): litellm's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "litellm[proxy]": "==1.78.5",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): litellm's pydantic-core (PyO3 <=3.14) has no 3.15 wheel yet.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
                     },

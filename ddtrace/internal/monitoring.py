@@ -245,6 +245,13 @@ def refresh(code: CodeType) -> None:
         entries: Optional[dict[int, _Entry]] = _registry.get(code)
         if entries and _tool_id is not None:
             sys.monitoring.set_local_events(_tool_id, code, _events_for(entries) & _LOCAL_EVENTS)
+            # A DISABLE returned from a per-line callback is sticky until the
+            # monitored event set changes or restart_events() is called.
+            # Re-applying the same local events above does not clear it, so we
+            # must explicitly restart events to re-enable any line locations
+            # that were previously DISABLE'd (e.g. a line that had no hook when
+            # first executed but has one now).
+            sys.monitoring.restart_events()
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:

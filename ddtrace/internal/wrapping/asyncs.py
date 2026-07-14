@@ -47,7 +47,6 @@ if PY >= (3, 15):
     COROUTINE_ASSEMBLY.parse(
         r"""
             get_awaitable                   0
-            push_null
             load_const                      None
 
         presend:
@@ -73,7 +72,6 @@ if PY >= (3, 15):
 
         loop:
             get_awaitable                   0
-            push_null
             load_const                      None
         presend0:
             send                            @send0
@@ -82,7 +80,7 @@ if PY >= (3, 15):
         try                                 @genexit lasti
             yield_value                     0
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -108,7 +106,6 @@ if PY >= (3, 15):
             load_attr                       (True, 'aclose')
             call                            0
             get_awaitable                   0
-            push_null
             load_const                      None
 
         presend1:
@@ -134,7 +131,6 @@ if PY >= (3, 15):
             push_null
             call_function_ex
             get_awaitable                   0
-            push_null
             load_const                      None
 
         presend2:
