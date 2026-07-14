@@ -97,7 +97,7 @@ case "$cmd" in
     uv_lint python scripts/check_suitespec_coverage.py "$@"
     ;;
   profiling-native-check)
-    uv_lint python scripts/check_profiling_native_coverage "$@"
+    uv_lint python scripts/check_profiling_native_coverage.py "$@"
     ;;
   error-log-check)
     uv_lint python scripts/check_constant_log_message.py "$@"
