@@ -331,27 +331,30 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """Build the agent manifest from a pydantic-ai ``Agent``.
 
         ``framework`` / ``name`` identify the agent; the remaining keys are the agent's captured
-        configuration (prompts, tools, capabilities, handoffs, model config, settings, memory), emitted as
-        flat top-level fields; ``metadata`` is display-only. Fields are omitted when empty.
+        configuration (prompts, tools, capabilities, handoffs, guardrails, tool transforms, model config,
+        settings, memory), emitted as flat top-level fields; ``metadata`` is display-only. Fields are omitted
+        when empty.
         """
         manifest: dict[str, Any] = {"framework": "PydanticAI"}
         manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
 
         model = getattr(agent, "model", None)
         if model:
-            model_name, _ = self._get_model_and_provider(model)
+            model_name, model_provider = self._get_model_and_provider(model)
             if model_name:
                 manifest["model"] = model_name
+            if model_provider:
+                manifest["model_provider"] = model_provider
         model_settings = getattr(agent, "model_settings", None)
         if model_settings is not None:
             manifest["model_settings"] = model_settings
 
-        instructions = self._build_prompt_entry(_collect_instructions(agent))
-        if instructions:
-            manifest["instructions"] = instructions
-        system_prompts = self._build_prompt_entry(_collect_system_prompts(agent))
-        if system_prompts:
-            manifest["system_prompts"] = system_prompts
+        # Prompts emit as flat fields: ``<key>`` (static text), ``<key>_is_dynamic`` (a callable resolves it
+        # per run), and ``<key>_functions`` (structured descriptors of the dynamic functions). The flat text
+        # is what the definition panel renders; the sidecar detail is what a prompt *change* is detectable
+        # from, for versioning.
+        self._set_prompt_fields(manifest, "instructions", _collect_instructions(agent))
+        self._set_prompt_fields(manifest, "system_prompts", _collect_system_prompts(agent))
 
         # Sort the order-incidental lists (tools/capabilities/handoffs); prompt ``functions`` and
         # ``history_processors`` keep registration order (semantic -- see their helpers).
@@ -374,6 +377,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
         handoffs = _sorted_definition_list(self._get_agent_handoffs(agent), ("tool_name",))
         if handoffs:
             manifest["handoffs"] = handoffs
+
+        # Output guardrails (``@agent.output_validator``): ``guardrails`` is the list of names the definition
+        # panel renders; ``guardrail_details`` carries the per-function detail (signature/doc/source) that a
+        # guardrail *change* is detectable from, for versioning.
+        guardrail_details = _sorted_definition_list(self._get_guardrails(agent), ("name",))
+        if guardrail_details:
+            manifest["guardrails"] = [g["name"] for g in guardrail_details]
+            manifest["guardrail_details"] = guardrail_details
+
+        # Per-run tool-set rewriters (``prepare_tools`` / ``prepare_output_tools``): they change which tools
+        # the agent may use per run, so they are part of the definition.
+        tool_transforms = self._get_tool_transforms(agent)
+        if tool_transforms:
+            manifest["tool_transforms"] = tool_transforms
 
         history_processors = self._get_history_processors(agent)
         if history_processors:
@@ -429,25 +446,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
             described.append(entry)
         return described
 
-    @classmethod
-    def _build_prompt_entry(cls, collected: tuple[list[str], list[Any]]) -> Optional[dict[str, Any]]:
-        """Shape ``(static_texts, dynamic_fns)`` into ``{text?, is_dynamic?, functions?}`` (``None`` if empty).
+    def _set_prompt_fields(self, manifest: dict[str, Any], key: str, collected: tuple[list[str], list[Any]]) -> None:
+        """Emit a prompt as flat fields: ``<key>`` (static text), ``<key>_is_dynamic``, ``<key>_functions``.
 
-        ``text`` is the static prompt text only; each dynamic prompt's definition lives once in ``functions``
-        (single-homed). ``functions`` keeps registration order -- dynamic prompts concatenate in order, so
-        it is semantic.
+        ``<key>`` is the static text only; each dynamic (callable) prompt's definition lives once in
+        ``<key>_functions`` (single-homed). ``<key>_functions`` keeps registration order -- dynamic prompts
+        concatenate in order, so it is semantic. Fields are omitted when empty.
         """
         static_texts, dynamic_fns = collected
-        entry: dict[str, Any] = {}
         text = " ".join(t for t in static_texts if t)
         if text:
-            entry["text"] = text
+            manifest[key] = text
         if dynamic_fns:
-            entry["is_dynamic"] = True
-        described = cls._describe_prompt_functions(dynamic_fns)
+            manifest[f"{key}_is_dynamic"] = True
+        described = self._describe_prompt_functions(dynamic_fns)
         if described:
-            entry["functions"] = described
-        return entry or None
+            manifest[f"{key}_functions"] = described
 
     @classmethod
     def _get_history_processors(cls, agent: Any) -> list[dict[str, Any]]:
@@ -485,7 +499,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return formatted_tools
 
     def _get_agent_settings(self, agent: Any) -> dict[str, Any]:
-        """Build ``agent_settings`` ``{retries?, end_strategy?, deps_type?}`` (only fields present on the agent)."""
+        """Build ``agent_settings`` (only fields present on the agent).
+
+        ``retries`` is the output-validation retry budget (``_max_result_retries``/``_max_output_retries``);
+        ``tool_retries`` is the distinct per-tool retry budget (``_max_tool_retries``).
+        """
         settings: dict[str, Any] = {}
         # pydantic-ai >1.63.0 renamed ``_max_result_retries`` -> ``_max_output_retries``; read the
         # successor when the old name is absent.
@@ -494,6 +512,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
             retries = getattr(agent, "_max_output_retries", None)
         if isinstance(retries, int):
             settings["retries"] = retries
+        tool_retries = getattr(agent, "_max_tool_retries", None)
+        if isinstance(tool_retries, int):
+            settings["tool_retries"] = tool_retries
         end_strategy = getattr(agent, "end_strategy", None)
         if isinstance(end_strategy, str):
             settings["end_strategy"] = end_strategy
@@ -541,6 +562,32 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if serialized is None or len(serialized) > _OUTPUT_SCHEMA_MAX_BYTES:
             return None
         return schema
+
+    def _get_guardrails(self, agent: Any) -> list[dict[str, Any]]:
+        """Describe the agent's output guardrails (``@agent.output_validator`` -> ``agent._output_validators``).
+
+        Each ``OutputValidator`` wraps the user function in ``.function``; describe it like a prompt function
+        (name/signature/doc/size-bounded source -- see the AIDEV-NOTE on ``_describe_prompt_functions`` re:
+        source is byte-capped but not content-redacted). Order-incidental -> the caller sorts by name.
+        """
+        validators = getattr(agent, "_output_validators", None) or []
+        fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
+        return self._describe_prompt_functions([fn for fn in fns if callable(fn)])
+
+    def _get_tool_transforms(self, agent: Any) -> list[dict[str, Any]]:
+        """Describe per-run tool-set rewriters (``prepare_tools`` / ``prepare_output_tools``).
+
+        Each is a single callable on ``agent._prepare_tools`` / ``agent._prepare_output_tools`` (absent on
+        agents that set neither); describe it and tag the ``scope`` it applies to.
+        """
+        transforms: list[dict[str, Any]] = []
+        for attr, scope in (("_prepare_tools", "tools"), ("_prepare_output_tools", "output_tools")):
+            fn = getattr(agent, attr, None)
+            if callable(fn):
+                for described in self._describe_prompt_functions([fn]):
+                    described["scope"] = scope
+                    transforms.append(described)
+        return transforms
 
     def _get_agent_capabilities(self, agent: Any) -> list[dict[str, Any]]:
         """List the typed capability surface (``builtin`` / ``mcp`` / ``sub-agent`` / ``custom``).

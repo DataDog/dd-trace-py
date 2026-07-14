@@ -25,29 +25,22 @@ def expected_foo_tool():
     ]
 
 
-# The manifest emits every field as a flat top-level key. ``model`` and -- for a normal agent -- an
-# ``output_type`` (defaulting to ``str``) and an ``agent_settings`` block (``retries`` / ``end_strategy``
-# are present on every supported pydantic-ai version 0.8.1 / 1.0.0 / 1.63.0) are always present;
-# ``model_settings`` appears only when the agent sets it. Prompt fields carry
-# ``{text, is_dynamic, functions}``. These are the per-test baselines.
+# The manifest emits every field as a flat top-level key. ``model`` / ``model_provider`` and -- for a
+# normal agent -- an ``output_type`` (defaulting to ``str``) and an ``agent_settings`` block
+# (``retries`` / ``tool_retries`` / ``end_strategy`` are present on every supported pydantic-ai version
+# 0.8.1 / 1.0.0 / 1.63.0) are always present; ``model_settings`` appears only when the agent sets it.
+# Prompts are flat: a static ``instructions`` / ``system_prompts`` string plus, for dynamic prompts,
+# ``<key>_is_dynamic`` / ``<key>_functions`` (that shape is covered by the builder-driven
+# ``test_manifest_*`` tests, so these end-to-end baselines carry only the static text). Per-test baselines.
 DEFAULT_OUTPUT_TYPE = {"name": "str"}
-DEFAULT_AGENT_SETTINGS = {"retries": 1, "end_strategy": "early"}
-
-
-def _expected_prompt_entry(text) -> dict:
-    """Build a prompt-field entry ``{text?}`` (empty dict -> omitted).
-
-    End-to-end callers only assert static prompt ``text``; the dynamic-prompt shape
-    (``is_dynamic`` / ``functions``) is covered by the builder-driven ``test_manifest_*`` tests, so this
-    helper stays minimal.
-    """
-    return {"text": text} if text else {}
+DEFAULT_AGENT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
 
 
 def expected_agent_metadata(
     *,
     name="test_agent",
     model="gpt-4o",
+    model_provider="openai",
     model_settings=None,
     instructions=None,
     system_prompts=None,
@@ -61,15 +54,17 @@ def expected_agent_metadata(
     manifest: dict = {"framework": "PydanticAI", "name": name}
     if model is not None:
         manifest["model"] = model
+    if model_provider is not None:  # mirrors the builder: computed from the model, present for gpt-4o
+        manifest["model_provider"] = model_provider
     if model_settings is not None:  # mirrors the builder: omitted when unset
         manifest["model_settings"] = model_settings
 
-    instructions_entry = _expected_prompt_entry(instructions)
-    if instructions_entry:
-        manifest["instructions"] = instructions_entry
-    system_prompts_entry = _expected_prompt_entry(system_prompts)
-    if system_prompts_entry:
-        manifest["system_prompts"] = system_prompts_entry
+    # Prompts are flat static-text strings; the dynamic-prompt shape (``<key>_is_dynamic`` /
+    # ``<key>_functions``) is asserted by the builder-driven ``test_manifest_*`` tests.
+    if instructions:
+        manifest["instructions"] = instructions
+    if system_prompts:
+        manifest["system_prompts"] = system_prompts
 
     # Omitted when empty, mirroring the builder; ``output_type`` / ``agent_settings`` are present for a
     # normal agent.
