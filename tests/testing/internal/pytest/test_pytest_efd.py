@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import typing as t
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -30,7 +29,7 @@ class TestEFD:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -67,12 +66,12 @@ class TestEFD:
 
         assert efd_tests[i]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
 
-        known_tests = list(event_capture.events_by_test_name("test_known"))
-        assert len(known_tests) == 1
+        known_test_events = list(event_capture.events_by_test_name("test_known"))
+        assert len(known_test_events) == 1
 
-        assert known_tests[0]["content"]["meta"].get("test.status") == "pass"
-        assert known_tests[0]["content"]["meta"].get("test.is_new") is None
-        assert known_tests[0]["content"]["meta"].get("test.is_retry") is None
+        assert known_test_events[0]["content"]["meta"].get("test.status") == "pass"
+        assert known_test_events[0]["content"]["meta"].get("test.is_new") is None
+        assert known_test_events[0]["content"]["meta"].get("test.is_retry") is None
 
         [session_event] = event_capture.events_by_type("test_session_end")
         assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
@@ -87,7 +86,7 @@ class TestEFD:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -132,7 +131,7 @@ class TestEFD:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -172,7 +171,7 @@ class TestEFD:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {}
+        known_tests: set[TestRef] = set()
 
         with (
             patch(
@@ -214,7 +213,7 @@ class TestEFD:
 
         pytester.makepyfile(test_foo=lots_of_new_tests)
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -246,12 +245,12 @@ class TestEFD:
             class TestFlaky:
                 count = 0
                 def test_new(self):
-                     self.count += 1
-                     assert self.count <= 1
+                     TestFlaky.count += 1
+                     assert TestFlaky.count <= 1
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -307,15 +306,15 @@ class TestEFD:
             class TestFlaky:
                 count = 0
                 def test_new(self):
-                     self.count += 1
-                     if self.count <= 1:
+                     TestFlaky.count += 1
+                     if TestFlaky.count <= 1:
                          pytest.skip()
                      else:
                          assert False
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -374,17 +373,17 @@ class TestEFD:
             class TestFlaky:
                 count = 0
                 def test_new(self):
-                     self.count += 1
-                     if self.count <= 1:
+                     TestFlaky.count += 1
+                     if TestFlaky.count <= 1:
                          pytest.skip()
-                     elif self.count <= 2:
+                     elif TestFlaky.count <= 2:
                          assert False
                      else:
                          assert True
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
