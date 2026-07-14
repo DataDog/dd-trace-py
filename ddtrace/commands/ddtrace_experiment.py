@@ -41,6 +41,11 @@ import sys
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
 
 def _smells_like_prod() -> bool:
     # ``env`` (not ``os.environ``) is the repo-mandated accessor; imported lazily so this
@@ -128,8 +133,9 @@ def _flush_llmobs() -> None:
         from ddtrace.llmobs import LLMObs
 
         LLMObs.flush()
-    except Exception:  # nosec B110 - best-effort flush on exit; must never fail the CLI
-        pass
+    except Exception:
+        # best-effort flush on exit; log but never fail the CLI
+        log.debug("ddtrace-experiment: LLM Obs flush on exit failed", exc_info=True)
 
 
 def _trunc(v: Any, n: int = 34) -> str:
@@ -260,8 +266,9 @@ def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> 
         try:
             cases = runner.load_baselines(baseline_file).get(subject) or []
             return [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
-        except Exception:  # nosec B110 - best-effort read of a prior baseline; fall through to []
-            pass
+        except Exception:
+            # best-effort read of a prior baseline; log and fall through to no inputs
+            log.debug("ddtrace-experiment: could not read prior baseline %r", baseline_file, exc_info=True)
     return []
 
 
