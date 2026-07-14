@@ -958,7 +958,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         ctx = spans[0].context
         dd_origin = ctx.dd_origin if ctx is not None else None
 
-        outcome, item_bytes = self._exporter.put_trace(spans, dd_origin)
+        # v0.5 output has no wire fields for span links/events; JSON-encode them into meta
+        # instead, matching the historical v0.5 encoder (libdatadog's v0.4->v0.5 downgrade
+        # has no equivalent fallback and would otherwise drop them silently).
+        outcome, item_bytes = self._exporter.put_trace(
+            spans, dd_origin, encode_links_events_as_json=self._api_version == "v0.5"
+        )
         if outcome == native.PutOutcome.ItemTooLarge:
             _safelog(
                 log.warning,
@@ -993,6 +998,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         finally:
             self._set_drop_rate()
 
+    def _log_send_failure(self, n_traces: int, e: Exception) -> None:
+        _safelog(
+            log.error,
+            "failed to send, dropping %d traces to intake at %s: %s",
+            n_traces,
+            self._intake_endpoint(),
+            str(e),
+            extra={"send_to_telemetry": False},
+        )
+
     def _flush(self, raise_exc: bool = False) -> None:
         n_traces = self._exporter.buffered_traces()
         if n_traces == 0:
@@ -1000,7 +1015,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         response_body: Optional[str] = None
         try:
-            _, response_body = self._exporter.flush()
+            # Use the count flush() actually drained (not the pre-fetch above) for metrics:
+            # a concurrent write()/flush() from another thread can add to or drain the buffer
+            # between the buffered_traces() check and this call, since they're separate lock
+            # acquisitions on the native buffer.
+            n_traces, response_body = self._exporter.flush()
+            if n_traces == 0:
+                return
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1012,26 +1033,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
             if raise_exc:
                 raise
-            _safelog(
-                log.error,
-                "failed to send, dropping %d traces to intake at %s: %s",
-                n_traces,
-                self._intake_endpoint(),
-                str(e),
-                extra={"send_to_telemetry": False},
-            )
+            self._log_send_failure(n_traces, e)
             return
         except Exception as e:
             if raise_exc:
                 raise
-            _safelog(
-                log.error,
-                "failed to send, dropping %d traces to intake at %s: %s",
-                n_traces,
-                self._intake_endpoint(),
-                str(e),
-                extra={"send_to_telemetry": False},
-            )
+            self._log_send_failure(n_traces, e)
             return
         finally:
             # Mirror the previous encoder path: count the drained chunks as "sent" for the

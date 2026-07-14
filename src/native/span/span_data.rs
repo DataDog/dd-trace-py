@@ -9,7 +9,8 @@ use pyo3::{
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
-use crate::py_string::{Bytes, PyBackedString, PyTraceData};
+use crate::get_or_init;
+use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
@@ -23,6 +24,15 @@ use super::utils::{
     extract_i64_or_default, extract_time_unix_nano, wall_clock_ns,
 };
 use super::{SpanEvent, SpanLink};
+use std::sync::OnceLock;
+
+/// Return type of `SpanData::build_v04_span`: the converted span, plus its `meta_struct`
+/// entries still unpacked (raw Python objects) for the caller to `packb` after dropping its
+/// borrow of the source `SpanData` — see that method's doc comment.
+type BuiltSpanWithRawMetaStruct = (
+    libdd_trace_utils::span::v04::Span<PyTraceData>,
+    Vec<(PyBackedString, Py<PyAny>)>,
+);
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -82,9 +92,9 @@ impl SpanData {
     /// are iterated rather than drained) so callers can still read `span_id`, `duration`,
     /// `get_tag()`, etc. after the span has been handed to the writer.
     ///
-    /// `packb` is an optional reference to `ddtrace.internal._encoding.packb`, used to
-    /// msgpack-serialise each `meta_struct` value (matching the Cython encoder). Pass
-    /// `None` to skip `meta_struct`.
+    /// `has_packb` indicates whether the caller has `ddtrace.internal._encoding.packb`
+    /// available to serialize `meta_struct` values (matching the Cython encoder); when
+    /// `false`, `meta_struct` is skipped entirely rather than extracted for nothing.
     ///
     /// `dd_origin` is the trace-level origin (from `trace[0].context.dd_origin`, extracted
     /// on the Python side). When present it is injected as `_dd.origin` into the span's
@@ -92,19 +102,36 @@ impl SpanData {
     /// pack time. The native attribute store only carries it on the chunk-root span (via
     /// `_update_tags_from_context`), so non-root spans rely on this injection.
     ///
+    /// `encode_links_events_as_json` mirrors the Cython V05 encoder's compatibility shim:
+    /// when the writer's *output* format is v0.5 (which has no wire fields for span links/
+    /// events), JSON-encode them into `meta[SPAN_LINKS_KEY]`/`meta[SPAN_EVENTS_KEY]` instead
+    /// of populating the native `span_links`/`span_events` vecs (libdatadog's v0.4->v0.5
+    /// downgrade drops those vecs outright, with no JSON fallback of its own).
+    ///
+    /// Returns the span alongside its raw (unpacked) `meta_struct` entries — the caller packs
+    /// those with `packb` and inserts them into the returned span's `meta_struct` map. This is
+    /// split out so the caller can drop its `SpanData` borrow *before* calling back into Python
+    /// (`packb`, a GIL-yield point): holding a `PyRef` across a nested Python call would make a
+    /// concurrent `&mut self` access to the same span (e.g. `set_tag`/`finish` from another
+    /// thread) fail with `PyBorrowMutError` or panic instead.
+    ///
     /// # GIL requirement
-    /// Must be called with the GIL held — it dereferences Python str/bytes objects and may
-    /// call back into Python (`packb`).
+    /// Must be called with the GIL held — it dereferences Python str/bytes objects.
     pub(crate) fn build_v04_span(
         &self,
         py: Python<'_>,
-        packb: Option<&Bound<'_, PyAny>>,
         dd_origin: Option<&PyBackedString>,
-    ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
+        encode_links_events_as_json: bool,
+        has_packb: bool,
+    ) -> PyResult<BuiltSpanWithRawMetaStruct> {
         // duration is Option<i64> where None == "not finished"; the writer only ever
-        // receives finished spans, but default to -1 ("unset") defensively.
-        // span_links/span_events are cloned — PyBackedString::clone increments Python
-        // refcounts (GIL held here).
+        // receives finished spans (SpanAggregator filters unfinished ones out before writing),
+        // but default to -1 ("unset") defensively if that invariant is ever violated (e.g. a
+        // span handed directly to put_trace in a test). -1 can't collide with a real duration
+        // (always >= 0) and is the best available sentinel: libdatadog's v0.4 `Span.duration`
+        // is a plain non-optional `i64` with no `skip_serializing_if`, so there is no wire
+        // representation for "no duration" to fall back to — unlike the old Cython encoder,
+        // which packed msgpack `nil` for `duration is None` using its own ad hoc wire format.
         let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData> {
             trace_id: self.trace_id,
             span_id: self.span_id,
@@ -116,10 +143,58 @@ impl SpanData {
             service: truncate_span_text(py, self.service.clone_ref(py)),
             resource: truncate_span_text(py, self.resource.clone_ref(py)),
             r#type: truncate_span_text(py, self.span_type.clone_ref(py)),
-            span_links: self.span_links.clone(),
-            span_events: self.span_events.clone(),
             ..Default::default()
         };
+
+        if encode_links_events_as_json {
+            // v0.5 output has no span_links/span_events wire fields; JSON-encode them into
+            // meta instead, matching the Cython V05 encoder's compatibility shim exactly
+            // (same "trace_id"/"span_id"/"attributes"/"tracestate"/"flags" shape as the
+            // public SpanLink.to_dict(), same "name"/"time_unix_nano"/"attributes" shape as
+            // dict(SpanEvent)). Built straight from self.span_links/span_events (truncating
+            // each string field inline) rather than via truncate_span_link/truncate_span_event
+            // + an intermediate Vec<NativeSpanLink/Event> clone that would just be discarded
+            // after conversion. The whole serialized blob is then truncated too, mirroring the
+            // old encoder's _pack_string() call on the final JSON string.
+            if !self.span_links.is_empty() {
+                let json = json_dumps_list(
+                    py,
+                    self.span_links
+                        .iter()
+                        .map(|l| span_link_to_json_dict(py, l)),
+                )?;
+                out.meta.insert(
+                    PyBackedString::from_static_str(SPAN_LINKS_KEY),
+                    truncate_span_text(py, json),
+                );
+            }
+            if !self.span_events.is_empty() {
+                let json = json_dumps_list(
+                    py,
+                    self.span_events
+                        .iter()
+                        .map(|e| span_event_to_json_dict(py, e)),
+                )?;
+                out.meta.insert(
+                    PyBackedString::from_static_str(SPAN_EVENTS_KEY),
+                    truncate_span_text(py, json),
+                );
+            }
+        } else {
+            // span_links/span_events are truncated+cloned (not drained) so self stays intact;
+            // truncation mirrors the Cython encoder's pack_text(), which truncated every
+            // link/event string field the same way it truncated meta.
+            out.span_links = self
+                .span_links
+                .iter()
+                .map(|link| truncate_span_link(py, link))
+                .collect();
+            out.span_events = self
+                .span_events
+                .iter()
+                .map(|event| truncate_span_event(py, event))
+                .collect();
+        }
 
         // Materialise the unified attribute store into v0.4 meta (Str) and metrics
         // (Int/Float as f64). Iterate (don't drain) so self.attributes stays intact for
@@ -153,25 +228,24 @@ impl SpanData {
             );
         }
 
-        // Serialise meta_struct entries with packb. Iterate (don't take) so post-finish
+        // Extract meta_struct's raw (key, value) pairs for the caller to pack with `packb`
+        // once our borrow of `self` is dropped. Skipped entirely when packb isn't available
+        // (nothing could be done with the entries anyway). Iterate (don't take) so post-finish
         // _get_struct_tag calls still work.
-        if let (Some(meta_struct), Some(packb)) = (&self.meta_struct, packb) {
-            for (k, v) in meta_struct.bind(py).iter() {
-                let Ok(key_backed) = k.extract::<PyBackedString>() else {
-                    continue;
-                };
-                let Ok(result) = packb.call1((&v,)) else {
-                    continue;
-                };
-                let Ok(py_bytes) = result.cast::<PyBytes>() else {
-                    continue;
-                };
-                out.meta_struct
-                    .insert(key_backed, Bytes::from_py_bytes(py_bytes));
+        let mut meta_struct_raw = Vec::new();
+        if has_packb {
+            if let Some(meta_struct) = &self.meta_struct {
+                for (k, v) in meta_struct.bind(py).iter() {
+                    let Ok(key_backed) = k.extract::<PyBackedString>() else {
+                        continue;
+                    };
+                    let key_backed = truncate_span_text(py, key_backed);
+                    meta_struct_raw.push((key_backed, v.unbind()));
+                }
             }
         }
 
-        out
+        Ok((out, meta_struct_raw))
     }
 }
 
@@ -205,6 +279,179 @@ fn truncate_span_text(py: Python<'_>, s: PyBackedString) -> PyBackedString {
         .collect();
     PyBackedString::try_from(PyString::new(py, &truncated))
         .expect("newly created PyString is valid UTF-8")
+}
+
+/// Truncate every string field of a span link: `tracestate` and each attribute key/value.
+/// Mirrors the Cython encoder's `_pack_links`, which ran every link field through `pack_text`.
+fn truncate_span_link(
+    py: Python<'_>,
+    link: &NativeSpanLink<PyTraceData>,
+) -> NativeSpanLink<PyTraceData> {
+    NativeSpanLink {
+        trace_id: link.trace_id,
+        trace_id_high: link.trace_id_high,
+        span_id: link.span_id,
+        tracestate: truncate_span_text(py, link.tracestate.clone_ref(py)),
+        flags: link.flags,
+        attributes: link
+            .attributes
+            .iter()
+            .map(|(k, v)| {
+                (
+                    truncate_span_text(py, k.clone_ref(py)),
+                    truncate_span_text(py, v.clone_ref(py)),
+                )
+            })
+            .collect(),
+    }
+}
+
+/// Truncate the string payload of a single attribute value (`String` variant only —
+/// booleans/numbers have no text to truncate). Mirrors `pack_span_event_attributes`.
+fn truncate_attribute_array_value(
+    py: Python<'_>,
+    value: &AttributeArrayValue<PyTraceData>,
+) -> AttributeArrayValue<PyTraceData> {
+    match value {
+        AttributeArrayValue::String(s) => {
+            AttributeArrayValue::String(truncate_span_text(py, s.clone_ref(py)))
+        }
+        AttributeArrayValue::Boolean(b) => AttributeArrayValue::Boolean(*b),
+        AttributeArrayValue::Integer(i) => AttributeArrayValue::Integer(*i),
+        AttributeArrayValue::Double(d) => AttributeArrayValue::Double(*d),
+    }
+}
+
+fn truncate_attribute_any_value(
+    py: Python<'_>,
+    value: &AttributeAnyValue<PyTraceData>,
+) -> AttributeAnyValue<PyTraceData> {
+    match value {
+        AttributeAnyValue::SingleValue(v) => {
+            AttributeAnyValue::SingleValue(truncate_attribute_array_value(py, v))
+        }
+        AttributeAnyValue::Array(vec) => AttributeAnyValue::Array(
+            vec.iter()
+                .map(|v| truncate_attribute_array_value(py, v))
+                .collect(),
+        ),
+    }
+}
+
+/// Truncate every string field of a span event: `name` and each attribute key/value.
+/// Mirrors the Cython encoder's `_pack_span_events`/`pack_span_event_attributes`.
+fn truncate_span_event(
+    py: Python<'_>,
+    event: &NativeSpanEvent<PyTraceData>,
+) -> NativeSpanEvent<PyTraceData> {
+    NativeSpanEvent {
+        time_unix_nano: event.time_unix_nano,
+        name: truncate_span_text(py, event.name.clone_ref(py)),
+        attributes: event
+            .attributes
+            .iter()
+            .map(|(k, v)| {
+                (
+                    truncate_span_text(py, k.clone_ref(py)),
+                    truncate_attribute_any_value(py, v),
+                )
+            })
+            .collect(),
+    }
+}
+
+/// Wire keys for the v0.5 JSON-encoded-into-meta fallback (mirror `SPAN_LINKS_KEY`/
+/// `SPAN_EVENTS_KEY` in `ddtrace/internal/constants.py`).
+const SPAN_LINKS_KEY: &str = "_dd.span_links";
+const SPAN_EVENTS_KEY: &str = "events";
+
+/// Build the same dict shape as the public `SpanLink.to_dict()` (see `span_link.rs`) from an
+/// already-flattened `NativeSpanLink`, for JSON-encoding under the v0.5 compatibility shim.
+fn span_link_to_json_dict(
+    py: Python<'_>,
+    link: &NativeSpanLink<PyTraceData>,
+) -> PyResult<Py<PyDict>> {
+    let full_trace_id = ((link.trace_id_high as u128) << 64) | (link.trace_id as u128);
+    // Fields are truncated inline here (rather than pre-truncating a whole cloned
+    // NativeSpanLink first) since this dict is built straight from the live `self.span_links`
+    // when JSON-encoding for v0.5 — see build_v04_span.
+    let d = PyDict::new(py);
+    d.set_item("trace_id", format!("{:032x}", full_trace_id))?;
+    d.set_item("span_id", format!("{:016x}", link.span_id))?;
+    if !link.attributes.is_empty() {
+        let attrs = PyDict::new(py);
+        for (k, v) in &link.attributes {
+            attrs.set_item(
+                &truncate_span_text(py, k.clone_ref(py)),
+                &truncate_span_text(py, v.clone_ref(py)),
+            )?;
+        }
+        d.set_item("attributes", attrs)?;
+    }
+    if !link.tracestate.is_empty() {
+        d.set_item(
+            "tracestate",
+            &truncate_span_text(py, link.tracestate.clone_ref(py)),
+        )?;
+    }
+    // Bit 31 encodes "flags present" (see build_native_link); unmask before surfacing,
+    // matching native_span_link_to_py's reverse mapping used by `_get_links()`.
+    if link.flags & 0x8000_0000 != 0 {
+        d.set_item("flags", (link.flags & 0x7FFF_FFFF) as i64)?;
+    }
+    Ok(d.unbind())
+}
+
+/// Build the same dict shape as `dict(SpanEvent(...))` (see `SpanEvent::__iter__` in
+/// `span_event.rs`) from a `NativeSpanEvent`, for JSON-encoding under the v0.5 shim. Fields are
+/// truncated inline for the same reason as `span_link_to_json_dict` above.
+fn span_event_to_json_dict(
+    py: Python<'_>,
+    event: &NativeSpanEvent<PyTraceData>,
+) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("name", &truncate_span_text(py, event.name.clone_ref(py)))?;
+    d.set_item("time_unix_nano", event.time_unix_nano)?;
+    if !event.attributes.is_empty() {
+        let attrs = PyDict::new(py);
+        for (k, v) in &event.attributes {
+            let truncated = truncate_attribute_any_value(py, v);
+            attrs.set_item(
+                &truncate_span_text(py, k.clone_ref(py)),
+                attribute_any_value_to_py(py, &truncated)?,
+            )?;
+        }
+        d.set_item("attributes", attrs)?;
+    }
+    Ok(d.unbind())
+}
+
+// Cached once on first use — `json.dumps`. Avoids a sys.modules lookup + getattr on every
+// call (this is on the v0.5 default-output hot path for any span with links/events).
+static JSON_DUMPS: OnceLock<Py<PyAny>> = OnceLock::new();
+
+fn get_json_dumps(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(JSON_DUMPS, py, {
+        py.import("json")
+            .and_then(|m| m.getattr("dumps"))
+            .map(|a| a.unbind())
+    })
+}
+
+/// `json.dumps([...])` over a sequence of dicts, matching the Cython encoder's
+/// `json_dumps([link.to_dict() for link in ...])` / `json_dumps([dict(e) for e in ...])`.
+fn json_dumps_list<I>(py: Python<'_>, dicts: I) -> PyResult<PyBackedString>
+where
+    I: Iterator<Item = PyResult<Py<PyDict>>>,
+{
+    let list = PyList::empty(py);
+    for d in dicts {
+        list.append(d?)?;
+    }
+    get_json_dumps(py)?
+        .call1(py, (list,))?
+        .bind(py)
+        .extract::<PyBackedString>()
 }
 
 #[pyo3::pymethods]

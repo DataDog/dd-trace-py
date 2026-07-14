@@ -6,16 +6,32 @@ use libdd_data_pipeline::trace_exporter::{
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use libdd_trace_utils::span::v04::Span;
-use pyo3::types::PyString;
+use pyo3::types::{PyBytes, PyString};
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
-use crate::py_string::{PyBackedString, PyTraceData};
+use crate::get_or_init;
+use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use crate::shared_runtime::SharedRuntimePy;
 use crate::span::SpanData;
 use exceptions::TraceExporterErrorPy;
+
+// Cached once on first use — `ddtrace.internal._encoding.packb`, the vendored msgpack packer
+// used only to serialize meta_struct values. Avoids a sys.modules lookup + getattr on every
+// single put_trace call. Never invalidated; the losing thread in a race drops its `Py<PyAny>`
+// (pyo3 0.28 defers the decref if that happens off-GIL).
+static PACKB: OnceLock<Py<PyAny>> = OnceLock::new();
+
+fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
+    get_or_init!(PACKB, py, {
+        py.import("ddtrace.internal._encoding")
+            .and_then(|m| m.getattr("packb"))
+            .map(|a| a.unbind())
+    })
+    .ok()
+}
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -231,7 +247,10 @@ impl TraceExporterBuilderPy {
                 chunks: Vec::new(),
                 est_bytes: 0,
                 max_size,
-                max_item_size,
+                // A single item can never exceed the total buffer budget; clamp so
+                // oversized-item drops are reported as ItemTooLarge rather than BufferFull.
+                // Mirrors the old Cython encoder's MsgpackEncoderBase.__cinit__ clamp.
+                max_item_size: max_item_size.min(max_size),
             }),
         };
         Ok(exporter)
@@ -273,6 +292,23 @@ pub struct TraceExporterPy {
     buffer: Mutex<TraceBuffer>,
 }
 
+impl TraceExporterPy {
+    /// Lock the native span buffer, recovering from poisoning instead of panicking.
+    ///
+    /// A panic while the lock is held (e.g. from a future change to the code running under
+    /// it) would otherwise poison the `Mutex` forever: every subsequent `put_trace`/`flush`
+    /// call would panic too, permanently killing the writer's periodic flush thread (or, in
+    /// sync_mode, propagating an uncaught `pyo3_runtime.PanicException` — a `BaseException`
+    /// subclass that bypasses `except Exception` — into application code). The buffer's
+    /// invariants (`chunks`/`est_bytes`) are simple enough that using the guard's contents
+    /// as-is after a poisoning panic is safe; we just don't want a stuck lock.
+    fn lock_buffer(&self) -> std::sync::MutexGuard<'_, TraceBuffer> {
+        self.buffer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
 #[pymethods]
 impl TraceExporterPy {
     /// Send a msgpack encoded trace payload.
@@ -310,12 +346,16 @@ impl TraceExporterPy {
     /// Returns `(outcome, item_bytes)` (never raises for buffer pressure) so the writer can
     /// record drop metrics and log accurate size context on the hot path without exception
     /// handling. `item_bytes` is the encoded size of *this* trace.
-    #[pyo3(signature = (spans, dd_origin=None))]
+    ///
+    /// `encode_links_events_as_json`: true when the writer's output format is v0.5 (which has
+    /// no wire fields for span links/events) — see `SpanData::build_v04_span`'s doc comment.
+    #[pyo3(signature = (spans, dd_origin=None, encode_links_events_as_json=false))]
     fn put_trace(
         &self,
         py: Python<'_>,
         spans: Vec<Py<SpanData>>,
         dd_origin: Option<Bound<'_, PyString>>,
+        encode_links_events_as_json: bool,
     ) -> PyResult<(PutOutcome, usize)> {
         if spans.is_empty() {
             return Ok((PutOutcome::NoEncodableSpans, 0));
@@ -326,21 +366,46 @@ impl TraceExporterPy {
             None => None,
         };
 
-        // The vendored msgpack packer, used only to serialize meta_struct values. Imported
-        // once per chunk (a cheap sys.modules lookup); `None` simply skips meta_struct.
-        let packb = py
-            .import("ddtrace.internal._encoding")
-            .and_then(|m| m.getattr("packb"))
-            .ok();
+        // The vendored msgpack packer, used only to serialize meta_struct values.
+        // `None` simply skips meta_struct (e.g. if the module/attribute is ever missing).
+        let packb = get_packb(py);
 
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
+        let mut item_bytes: usize = 0;
         for span in &spans {
-            let span_ref = span.bind(py).borrow();
-            chunk.push(span_ref.build_v04_span(py, packb.as_ref(), origin.as_ref()));
+            // Build the span and extract its raw meta_struct entries while borrowed, then drop
+            // the borrow before calling packb (a GIL-yield point) — see build_v04_span's doc
+            // comment for why the borrow must not span that call.
+            let (mut v04_span, meta_struct_raw) = {
+                let span_ref = span.bind(py).borrow();
+                span_ref.build_v04_span(
+                    py,
+                    origin.as_ref(),
+                    encode_links_events_as_json,
+                    packb.is_some(),
+                )?
+            };
+            if let Some(packb) = packb {
+                for (key, value) in meta_struct_raw {
+                    let Ok(result) = packb.call1(py, (value.bind(py),)) else {
+                        continue;
+                    };
+                    let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
+                        continue;
+                    };
+                    v04_span
+                        .meta_struct
+                        .insert(key, Bytes::from_py_bytes(py_bytes));
+                }
+            }
+            // Accumulated here (rather than a second `chunk.iter().map(byte_size).sum()` pass
+            // after the loop) since byte_size() summation is order-independent and every span
+            // is already being walked once to build it.
+            item_bytes += v04_span.byte_size();
+            chunk.push(v04_span);
         }
-        let item_bytes: usize = chunk.iter().map(|s| s.byte_size()).sum();
 
-        let mut buf = self.buffer.lock().unwrap();
+        let mut buf = self.lock_buffer();
         if item_bytes > buf.max_item_size {
             return Ok((PutOutcome::ItemTooLarge, item_bytes));
         }
@@ -363,7 +428,7 @@ impl TraceExporterPy {
     /// JSON body for a changed sampling rate, else ``None``.
     fn flush(&self, py: Python<'_>) -> PyResult<(usize, Option<String>)> {
         let chunks = {
-            let mut buf = self.buffer.lock().unwrap();
+            let mut buf = self.lock_buffer();
             buf.est_bytes = 0;
             std::mem::take(&mut buf.chunks)
         };
@@ -388,12 +453,12 @@ impl TraceExporterPy {
 
     /// Number of trace chunks currently buffered (replaces ``len(encoder)`` for drop-rate).
     fn buffered_traces(&self) -> usize {
-        self.buffer.lock().unwrap().chunks.len()
+        self.lock_buffer().chunks.len()
     }
 
     /// Estimated bytes currently buffered (replaces ``encoder.size``).
     fn buffered_bytes(&self) -> usize {
-        self.buffer.lock().unwrap().est_bytes
+        self.lock_buffer().est_bytes
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {

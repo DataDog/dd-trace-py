@@ -98,6 +98,32 @@ class NativeWriterTests(BaseTestCase):
             any_order=True,
         )
 
+    def test_metrics_generic_send_failure(self):
+        # A generic (non-4xx) send failure -- e.g. the agent is unreachable -- still drains the
+        # native buffer (Rust's flush() takes the chunks before attempting the send) and counts
+        # them as "sent" for drop-rate purposes, mirroring the old encoder path where a trace
+        # counted as sent once its payload left the encoder's buffer, regardless of whether the
+        # HTTP request itself succeeded.
+        statsd = mock.Mock()
+        with (
+            override_global_config(dict(_health_metrics_enabled=True)),
+            # Long interval so the background periodic thread never flushes mid-test; the
+            # explicit flush_queue() call below is the only flush attempt.
+            managed_writer(
+                self.WRITER_CLASS,
+                "http://asdf:1234",
+                dogstatsd=statsd,
+                sync_mode=False,
+                processing_interval=1000,
+            ) as writer,
+        ):
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+            writer.flush_queue()
+
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
+            assert writer._drop_sma.get() == 0.0
+
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
         with (
@@ -285,6 +311,31 @@ class NativeWriterTests(BaseTestCase):
                 any_order=True,
             )
 
+    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
+        # A single trace chunk can never fit if it's bigger than the whole buffer, regardless
+        # of max_payload_size: max_item_size is clamped to max_size (mirroring the old Cython
+        # encoder's clamp), so this is reported as t_too_big rather than the misleading "full".
+        statsd = mock.Mock()
+        with (
+            override_global_config(dict(_health_metrics_enabled=True)),
+            managed_writer(
+                self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, max_payload_size=100000, dogstatsd=statsd
+            ) as writer,
+        ):
+            writer.write(
+                [Span(name="a" * i, trace_id=1, span_id=j + 1, parent_id=j or None) for i, j in enumerate(range(50))]
+            )
+            writer.flush_queue()
+
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call(
+                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"]
+                    ),
+                ],
+                any_order=True,
+            )
+
     def test_keep_rate(self):
         statsd = mock.Mock()
         with (
@@ -389,10 +440,18 @@ class CIVisibilityWriterTests(NativeWriterTests):
     def test_drop_reason_trace_too_big(self):
         pytest.skip()
 
+    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
+        pytest.skip()
+
     def test_metrics_trace_too_big(self):
         pytest.skip()
 
     def test_keep_rate(self):
+        pytest.skip()
+
+    # CIVisibilityWriter retries with backoff (unlike NativeWriter), making this both slow and
+    # not a meaningful test of NativeWriter._flush()'s buffer-drain/metrics behavior.
+    def test_metrics_generic_send_failure(self):
         pytest.skip()
 
     def test_on_shutdown_idempotent(self):

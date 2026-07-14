@@ -207,11 +207,19 @@ class TraceExporter:
         :param data: The msgpack encoded trace payload to send.
         """
         ...
-    def put_trace(self, spans: Sequence["SpanData"], dd_origin: Optional[str] = None) -> tuple["PutOutcome", int]:
+    def put_trace(
+        self,
+        spans: Sequence["SpanData"],
+        dd_origin: Optional[str] = None,
+        encode_links_events_as_json: bool = False,
+    ) -> tuple["PutOutcome", int]:
         """
         Convert one trace chunk to libdatadog v0.4 spans and buffer it for the next flush.
         :param spans: The spans of one trace chunk (each a SpanData / Span).
         :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span.
+        :param encode_links_events_as_json: When True (v0.5 output), JSON-encode span
+            links/events into meta["_dd.span_links"]/meta["events"] instead of the native
+            v0.4 span_links/span_events fields, matching the historical v0.5 encoder.
         :return: (whether the chunk was buffered or why it was dropped, encoded size in bytes of this trace).
         """
         ...

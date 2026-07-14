@@ -309,10 +309,13 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
 
 @pytest.mark.snapshot()
 def test_native_writer_span_events():
-    # Default config = v0.5 output. Confirms the native path drops span events on v0.5 (the old
-    # V05 encoder JSON-encoded them into meta["events"]). Genuine v0.4 behavior is covered by
-    # test_native_writer_links_events_v04_output (a runtime _trace_api override does NOT switch
-    # the writer's output format). See ENCODER_DIFFERENCES.md. time_unix_nano is fixed for determinism.
+    # Default config = v0.5 output. libdatadog's v0.5 Span struct has no span_events field, so
+    # dd-trace-py JSON-encodes span events into meta["events"] before handing off to the trace
+    # exporter, matching the historical Cython V05 encoder's compatibility shim (see
+    # SpanData.build_v04_span's encode_links_events_as_json path). Genuine v0.4 (native field)
+    # output is covered by test_native_writer_links_events_v04_output (a runtime _trace_api
+    # override does NOT switch the writer's output format). See ENCODER_DIFFERENCES.md.
+    # time_unix_nano is fixed for determinism.
     from ddtrace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -325,9 +328,11 @@ def test_native_writer_span_events():
 
 @pytest.mark.snapshot()
 def test_native_writer_span_links():
-    # Default config = v0.5 output. Confirms the native path drops span links on v0.5 (libdatadog's
-    # v0.5 Span struct has no span_links field; old V05 JSON-encoded them into meta["_dd.span_links"]).
-    # Genuine v0.4 behavior is covered by test_native_writer_links_events_v04_output. See ENCODER_DIFFERENCES.md.
+    # Default config = v0.5 output. libdatadog's v0.5 Span struct has no span_links field, so
+    # dd-trace-py JSON-encodes span links into meta["_dd.span_links"] before handing off to the
+    # trace exporter, matching the historical Cython V05 encoder's compatibility shim (see
+    # SpanData.build_v04_span's encode_links_events_as_json path). Genuine v0.4 (native field)
+    # output is covered by test_native_writer_links_events_v04_output. See ENCODER_DIFFERENCES.md.
     from ddtrace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -342,8 +347,9 @@ def test_native_writer_span_links():
 @pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
 def test_native_writer_links_events_v04_output():
     # Forces v0.4 OUTPUT at startup (env var, since a runtime _trace_api override does NOT rebuild
-    # the writer). Checks whether libdatadog's native v0.4 span_links/span_events fields actually
-    # reach the agent (vs the v0.5 path which drops them). See ENCODER_DIFFERENCES.md.
+    # the writer). Checks that libdatadog's native v0.4 span_links/span_events fields reach the
+    # agent as structured fields (vs the v0.5 path's JSON-encoded-into-meta fallback above).
+    # See ENCODER_DIFFERENCES.md.
     from ddtrace.trace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -353,6 +359,26 @@ def test_native_writer_links_events_v04_output():
             attributes={"link.name": "linked"},
         )
         span._add_event("my_event", attributes={"k": "v"}, time_unix_nano=1700000000000000000)
+    tracer.flush()
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
+def test_native_writer_span_link_event_attribute_truncation():
+    # v0.4 output: an oversized span-link/event attribute value must be truncated to
+    # TRUNCATED_SPAN_ATTRIBUTE_LEN (2500 chars) + "<truncated>..." the same way meta/name/
+    # service/resource/type already are, matching the historical Cython encoder's pack_text().
+    from ddtrace.trace import tracer
+
+    long_value = "a" * 30000
+
+    with tracer.trace("operation", service="my-svc") as span:
+        span._set_link(
+            trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+            span_id=0x1122334455667788,
+            attributes={"link.name": long_value},
+        )
+        span._add_event("my_event", attributes={"attr": long_value}, time_unix_nano=1700000000000000000)
     tracer.flush()
 
 

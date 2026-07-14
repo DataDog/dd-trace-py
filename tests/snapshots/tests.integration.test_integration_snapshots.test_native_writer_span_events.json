@@ -11,18 +11,19 @@
     "meta": {
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a55028b00000000",
+      "_dd.p.tid": "6a563f4700000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
+      "events": "[{\"name\": \"my_event\",\"time_unix_nano\": 1700000000000000000,\"attributes\": {\"bool_attr\": true,\"int_attr\": 1,\"str_attr\": \"value\"}}]",
       "language": "python",
-      "runtime-id": "afaf8c79a6cf4b7d8fbd978d7f29274c"
+      "runtime-id": "1a2a559c07eb44ec8b8d31f650e8f52c"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 477.0
+      "process_id": 522.0
     },
-    "duration": 35631,
-    "start": 1783956107615984952
+    "duration": 50582,
+    "start": 1784037191405714538
   }]]
