@@ -80,16 +80,18 @@ EOF
 
 run_hook() {
     push_input="$1"
+    skip_flag="${2:-}"
     # Use a pipe, not <<< (bash-only); invoke the hook via its bash shebang.
     printf '%s\n' "${push_input}" | env -i \
         PATH="${TMPDIR_TEST}:${PATH}" \
         HOME="${TMPDIR_TEST}" \
-        SKIP_CLANG_TIDY_PROFILING="${SKIP_CLANG_TIDY_PROFILING:-}" \
+        SKIP_CLANG_TIDY_PROFILING="${skip_flag}" \
         DDTRACE_PREPUSH_CLANG_TIDY_STRICT="${DDTRACE_PREPUSH_CLANG_TIDY_STRICT:-}" \
         bash "${HOOK}"
 }
 
 PUSH_INPUT="refs/heads/x $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+ZERO_SHA="0000000000000000000000000000000000000000"
 
 # No profiling native changes: hook is a no-op.
 setup_toolchain 18
@@ -129,8 +131,30 @@ setup_toolchain 18
 setup_repo_layout
 setup_git_mock "ddtrace/internal/datadog/profiling/stack/src/sampler.cpp"
 : > "${TMPDIR_TEST}/clang-tidy-calls.txt"
-SKIP_CLANG_TIDY_PROFILING=1 run_hook "${PUSH_INPUT}" > /dev/null
+run_hook "${PUSH_INPUT}" 1 > /dev/null
 check "SKIP_CLANG_TIDY_PROFILING bypasses clang-tidy" "! [ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
+
+# merge-base failure on a new branch forces clang-tidy even without profiling paths in the diff.
+setup_toolchain 18
+setup_repo_layout
+cat > "${TMPDIR_TEST}/git" << EOF
+#!/usr/bin/env sh
+case "\$*" in
+    "rev-parse --show-toplevel")
+        printf '%s\n' "${TMPDIR_TEST}" ;;
+    "merge-base "*)
+        exit 1 ;;
+    "diff --name-only "*)
+        printf 'README.md\n' ;;
+    *)
+        exec "$(command -v git)" "\$@" ;;
+esac
+EOF
+chmod +x "${TMPDIR_TEST}/git"
+: > "${TMPDIR_TEST}/clang-tidy-calls.txt"
+# New remote branch: remote_sha is ZERO
+run_hook "refs/heads/x $(git rev-parse HEAD) refs/heads/main ${ZERO_SHA}" > /dev/null
+check "merge-base failure forces clang-tidy" "[ -s '${TMPDIR_TEST}/clang-tidy-calls.txt' ]"
 
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

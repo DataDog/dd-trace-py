@@ -75,28 +75,34 @@ have_clang_tidy_18_plus() {
     return 1
 }
 
+# Set when the push range cannot be determined; conservatively run clang-tidy.
+FORCE_CLANG_TIDY=0
+_changed_list="$(mktemp)"
+trap 'rm -f "${_changed_list}"' EXIT
+
 # Collect the set of files this push would add relative to origin/main. Reads the
 # standard pre-push stdin format: "<local_ref> <local_sha> <remote_ref> <remote_sha>".
-collect_changed_files() {
-    local local_ref local_sha remote_ref remote_sha base
-    while read -r local_ref local_sha remote_ref remote_sha; do
-        [[ "${local_sha}" == "${ZERO}" ]] && continue # branch deletion
-        if [[ "${remote_sha}" == "${ZERO}" ]]; then
-            # New branch on the remote: diff against the merge-base with main.
-            base="$(git merge-base "${local_sha}" origin/main 2>/dev/null || true)"
-        else
-            base="${remote_sha}"
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [[ "${local_sha}" == "${ZERO}" ]] && continue # branch deletion
+    if [[ "${remote_sha}" == "${ZERO}" ]]; then
+        # New branch on the remote: diff against the merge-base with main.
+        base="$(git merge-base "${local_sha}" origin/main 2>/dev/null || true)"
+        if [[ -z "${base}" ]]; then
+            # merge-base unavailable (e.g. origin/main not fetched): run clang-tidy
+            # rather than diff only the tip commit and miss earlier profiling edits.
+            FORCE_CLANG_TIDY=1
+            continue
         fi
-        if [[ -n "${base}" ]]; then
-            git diff --name-only "${base}" "${local_sha}" 2>/dev/null || true
-        else
-            git show --pretty="" --name-only "${local_sha}" 2>/dev/null || true
-        fi
-    done | sort -u
-}
+    else
+        base="${remote_sha}"
+    fi
+    git diff --name-only "${base}" "${local_sha}" 2>/dev/null >> "${_changed_list}" || true
+done
 
-CHANGED_FILES="$(collect_changed_files || true)"
-if ! printf '%s\n' "${CHANGED_FILES}" | grep -qE "${PROFILING_CPP_RE}"; then
+CHANGED_FILES="$(sort -u "${_changed_list}" 2>/dev/null || true)"
+rm -f "${_changed_list}"
+trap - EXIT
+if [[ "${FORCE_CLANG_TIDY}" != "1" ]] && ! printf '%s\n' "${CHANGED_FILES}" | grep -qE "${PROFILING_CPP_RE}"; then
     exit 0 # no profiling native changes in this push
 fi
 

@@ -34,9 +34,12 @@ if [ -n "$(printf '%s' "$staged_files" | tr -d ' \t\n')" ]; then
 
     "$clang_format" -i $staged_files || exit $?
 
-    echo "$staged_files" | tr ' ' '\n' | while read -r f; do
+    for f in $staged_files; do
         [ -n "$f" ] || continue
-        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+        if echo "$unstaged_before" | grep -qFx "$f"; then
+            continue
+        fi
+        git add "$f" || exit $?
     done
 else
     echo 'Run clang-format skipped: No C/C++ files were found in `git diff --staged`'
