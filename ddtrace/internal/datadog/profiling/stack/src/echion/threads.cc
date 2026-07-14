@@ -973,24 +973,18 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
 
             auto it = echion.thread_info_map().find(tstate.thread_id);
             if (it == echion.thread_info_map().end()) {
-                if (native_thread_id == 0) {
-                    // We failed to find ThreadInfo for thread_id, maybe there's a
-                    // race condition between this call and `register_thread()`.
-                    continue;
-                }
-
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_thread_id, "Thread");
-                if (!maybe_thread_info) {
-                    continue;
-                }
-                it = echion.thread_info_map().emplace(tstate.thread_id, std::move(*maybe_thread_info)).first;
+                // PyThreadState is copied from a concurrently changing interpreter
+                // list. Do not create ThreadInfo from its pthread_t: the thread may
+                // already have exited, and pthread_getcpuclockid() is unsafe for a
+                // stale pthread_t on glibc.
+                continue;
             }
 
-            // AIDEV-NOTE: timer_create CPU timers are per native thread, while the
-            // historical ThreadInfo map is metadata for wall sampling. A thread can
-            // have ThreadInfo from best-effort registration but no armed CPU timer,
-            // for example an already-existing main thread when profiling starts from
-            // an auxiliary thread. Reconcile CPU timer arming from the PyThreadState
+            // timer_create CPU timers are per native thread, while the historical
+            // ThreadInfo map is metadata for wall sampling. A thread can have
+            // ThreadInfo from best-effort registration but no armed CPU timer, for
+            // example an already-existing main thread when profiling starts from an
+            // auxiliary thread. Reconcile CPU timer arming from the PyThreadState
             // walk so wall-sampler discovery is the safety net. PyThreadState exposes
             // native_thread_id on CPython 3.14+, matching the CPU timer support floor.
             if (native_thread_id != 0 &&

@@ -520,7 +520,7 @@ Sampler::postfork_child()
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
         CpuTimer::Engine::get().register_thread(
-          current_thread_id, native_id, name.c_str(), PyGILState_GetThisThreadState());
+          current_thread_id, native_id, thread_name.c_str(), PyGILState_GetThisThreadState());
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
                   << ") " << thread_name << std::endl;
