@@ -56,7 +56,7 @@ cdef class _SamplerState:
 # to share sampler state, because the profiler is process scoped, not thread scoped
 cdef _SamplerState _state = None
 
-# Reentrancy guard: _collect_exception can trigger Raise callbacks
+# Reentrancy guard: _collect_exception can trigger RAISE callbacks
 # (via str(exc_value) raising, or ddup internals). Without this guard,
 # the callback would recurse.
 cdef bint _collecting = False
@@ -100,10 +100,7 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     if _collecting:
         return
 
-    # StopIteration and GeneratorExit are control-flow mechanisms.
-    # For-loops, generator .close(), and async iteration all funnel
-    # through RAISE with a single-frame traceback that would pass the
-    # tb_next guard below, so we filter them here
+    # Skip control-flow exceptions (iterator/generator termination).
     if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
         return
 

@@ -43,8 +43,6 @@ cdef extern from "sample.hpp" namespace "Datadog":
 cdef extern from "ddup_interface.hpp":
     ctypedef struct PyFrameObject:
         pass
-    ctypedef struct PyTracebackObject:
-        pass
 
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)

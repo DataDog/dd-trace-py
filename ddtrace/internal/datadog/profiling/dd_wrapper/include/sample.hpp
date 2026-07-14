@@ -17,8 +17,6 @@
 // NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
-struct _traceback;
-typedef struct _traceback PyTracebackObject;
 // NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
