@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security (IAST): fixes an issue where taint tracking could abort the Python process when old-style ``%`` string formatting handled tainted text containing literal IAST evidence marker delimiters.
