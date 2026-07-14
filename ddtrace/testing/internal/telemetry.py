@@ -363,7 +363,7 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
         self._output_dir = output_dir
         self._writer_supports_intercept = hasattr(self.writer, "_client")
         if self._writer_supports_intercept:
-            self.writer._client = _PayloadFileTelemetryClient(output_dir)  # type: ignore[assignment]
+            setattr(self.writer, "_client", _PayloadFileTelemetryClient(output_dir))
             # Re-arm app-started so it is included in the next flush with real content.
             self.writer.started = False
         else:

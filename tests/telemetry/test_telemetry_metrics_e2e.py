@@ -99,6 +99,8 @@ for _ in range(10):
 """
     env = os.environ.copy()
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     metrics_sc = test_agent_session.get_metrics("spans_created")
@@ -127,6 +129,8 @@ for _ in range(9):
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 

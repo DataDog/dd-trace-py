@@ -223,6 +223,153 @@ class SharedRuntime:
         """Returns a string representation of the runtime. Should only be used for debugging."""
         ...
 
+class TelemetryWorker:
+    """Native instrumentation-telemetry worker.
+
+    Wraps a ``Full``-flavor telemetry worker spawned on the shared
+    :class:`SharedRuntime`. The worker runs on the
+    shared runtime (no dedicated Python thread) and is reset on fork by the
+    runtime's fork hooks, preserving root-only app-started/app-closing.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        service: str,
+        env: Optional[str],
+        app_version: Optional[str],
+        language_name: str,
+        language_version: str,
+        tracer_version: str,
+        runtime_id: str,
+        runtime_name: Optional[str],
+        runtime_version: Optional[str],
+        hostname: str,
+        os: Optional[str],
+        os_version: Optional[str],
+        architecture: Optional[str],
+        kernel_name: Optional[str],
+        kernel_release: Optional[str],
+        kernel_version: Optional[str],
+        container_id: Optional[str],
+        endpoint_url: str,
+        api_key: Optional[str],
+        session_id: str,
+        parent_session_id: Optional[str],
+        root_session_id: Optional[str],
+        heartbeat_interval_secs: float,
+        extended_heartbeat_interval_secs: float,
+        debug_enabled: bool,
+        emit_app_lifecycle: bool = ...,
+        test_session_token: Optional[str] = ...,
+        install_id: Optional[str] = ...,
+        install_type: Optional[str] = ...,
+        install_time: Optional[str] = ...,
+    ) -> "TelemetryWorker":
+        """Build and spawn the worker on ``runtime``.
+
+        :param endpoint_url: BASE url. Agent: e.g. ``"http://host:8126"`` (the
+            ``/telemetry/proxy/api/v2/apmtelemetry`` path is appended). Agentless:
+            the intake base url (the ``/api/v2/apmtelemetry`` path is appended).
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path); when ``None`` the worker
+            POSTs through the agent proxy.
+        :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
+            schedules heartbeats/flushes but emits neither ``app-started`` nor
+            ``app-closing`` — only the root process emits them. Defaults to ``True``.
+        :raises ValueError: on an invalid endpoint or if the worker cannot be spawned.
+        """
+        ...
+    def start(self) -> None:
+        """Send the app-started lifecycle event. Call ONCE, on the origin process only."""
+        ...
+    def stop(self, send_app_closing: bool) -> None:
+        """Flush and shut the worker down, waiting briefly for it to drain.
+
+        :param send_app_closing: when ``True`` emit the app-closing event
+            (origin only); when ``False`` just force a final data flush.
+        """
+        ...
+    def flush(self) -> None:
+        """Force a data flush. Does not emit any lifecycle event. Non-blocking."""
+        ...
+    def add_configuration(
+        self, name: str, value: Optional[str], origin: "ConfigurationOrigin", config_id: Optional[str], seq_id: int
+    ) -> None:
+        """Queue a configuration change.
+
+        :param origin: a :class:`ConfigurationOrigin` (e.g. ``ConfigurationOrigin.env_var``).
+        """
+        ...
+    def add_integration(
+        self,
+        name: str,
+        version: Optional[str],
+        enabled: bool,
+        compatible: Optional[bool],
+        auto_enabled: Optional[bool],
+    ) -> None:
+        """Track a patch/integration outcome (app-integrations-change)."""
+        ...
+    def add_dependency(
+        self,
+        name: str,
+        version: Optional[str],
+        metadata: Optional[list[tuple[str, str]]],
+    ) -> None:
+        """Report a loaded dependency (app-dependencies-loaded / app-started).
+
+        :param metadata: optional SCA metadata as ``(type, value)`` pairs, where ``value``
+            is an opaque stringified-JSON payload (per the ``dependency_metadata`` telemetry
+            schema), passed through verbatim. Pass ``None`` to omit the field (SCA disabled),
+            or ``[]`` to emit an empty array (SCA enabled, no findings).
+        """
+        ...
+    def add_log(
+        self, identifier: int, message: str, level: "LogLevel", stack_trace: Optional[str], tags: Optional[str]
+    ) -> None:
+        """Queue a (pre-formatted, pre-deduped) log.
+
+        :param identifier: the Python-computed dedup key (passed through as-is).
+        :param level: a :class:`LogLevel` (``LogLevel.ERROR``/``WARN``/``DEBUG``).
+        :param tags: a pre-formatted tag string (e.g. ``"k:v,k2:v2"``) or ``None``.
+        """
+        ...
+    def add_metric_point(
+        self,
+        namespace: "MetricNamespace",
+        name: str,
+        metric_type: "MetricType",
+        value: float,
+        tags: list[str],
+        common: bool,
+    ) -> None:
+        """Add a metric point, registering/reusing a context per ``(namespace, name, type, tags)``.
+
+        :param namespace: a :class:`MetricNamespace`.
+        :param metric_type: a :class:`MetricType`. ``MetricType.rate`` aggregates
+            as a count sum; the backend divides by the flush interval.
+        :param tags: a list of ``"key:value"`` strings.
+        """
+        ...
+    def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
+        """Record a product enable/disable change (app-product-change).
+
+        :param product: e.g. ``mlobs``, ``dynamic_instrumentation``,
+            ``profiler``, ``appsec`` (any string is accepted as the product name).
+        """
+        ...
+    def add_endpoint(self, method: str, path: str, operation_name: Optional[str], resource_name: Optional[str]) -> None:
+        """Report an instrumented endpoint (ASM app-endpoints).
+
+        :param method: HTTP method (unknown methods map to ``"*"``; empty => unset).
+        :param path: request path; empty => unset.
+        """
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
@@ -400,6 +547,14 @@ class TraceExporterBuilder:
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
+        """
+        ...
+    def set_telemetry_handle(self, worker: "TelemetryWorker") -> TraceExporterBuilder:
+        """
+        Report the exporter's health metrics through an existing instrumentation-telemetry
+        worker instead of spawning a dedicated worker.
+        Takes precedence over ``enable_telemetry``. The caller owns the worker's lifecycle.
+        :param worker: the instrumentation ``TelemetryWorker`` to report through.
         """
         ...
     def enable_health_metrics(self) -> TraceExporterBuilder:
@@ -837,6 +992,65 @@ class config:
 # -----------------------------------------------------------------------------
 # Remote configuration
 # -----------------------------------------------------------------------------
+
+class MetricNamespace:
+    tracers: "MetricNamespace"
+    profilers: "MetricNamespace"
+    rum: "MetricNamespace"
+    appsec: "MetricNamespace"
+    ide_plugins: "MetricNamespace"
+    live_debugger: "MetricNamespace"
+    iast: "MetricNamespace"
+    general: "MetricNamespace"
+    telemetry: "MetricNamespace"
+    apm: "MetricNamespace"
+    sidecar: "MetricNamespace"
+    civisibility: "MetricNamespace"
+    mlobs: "MetricNamespace"
+    ddtraceapi: "MetricNamespace"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricType:
+    gauge: "MetricType"
+    count: "MetricType"
+    rate: "MetricType"
+    distribution: "MetricType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class ConfigurationOrigin:
+    env_var: "ConfigurationOrigin"
+    otel_env_var: "ConfigurationOrigin"
+    code: "ConfigurationOrigin"
+    dd_config: "ConfigurationOrigin"
+    remote_config: "ConfigurationOrigin"
+    default: "ConfigurationOrigin"
+    local_stable_config: "ConfigurationOrigin"
+    fleet_stable_config: "ConfigurationOrigin"
+    calculated: "ConfigurationOrigin"
+    unknown: "ConfigurationOrigin"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class LogLevel:
+    ERROR: "LogLevel"
+    WARN: "LogLevel"
+    DEBUG: "LogLevel"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
 
 class RemoteConfigProduct:
     """A remote-config product. One class attribute per libdatadog product.
