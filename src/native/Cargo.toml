@@ -11,7 +11,7 @@ opt-level = 's'
 codegen-units = 1
 
 [features]
-crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc", "dep:libdd-common"]
+crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:datadog-ffe"]
 stats = ["dep:libdd-ddsketch"]
@@ -44,7 +44,7 @@ libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }

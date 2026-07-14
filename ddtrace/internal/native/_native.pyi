@@ -969,6 +969,13 @@ class RemoteConfigClient:
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
         ...
+    def update_capabilities(
+        self,
+        mask: list[RemoteConfigCapabilities],
+        capabilities: list[RemoteConfigCapabilities],
+    ) -> None:
+        """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
         """Perform a single fetch against the agent and return the per-poll changes."""
         ...

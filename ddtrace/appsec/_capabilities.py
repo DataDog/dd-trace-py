@@ -31,8 +31,8 @@ _ALL_ASM_BLOCKING = [
 _ALL_RASP = [Cap.AsmRaspSqli, Cap.AsmRaspLfi, Cap.AsmRaspSsrf, Cap.AsmRaspShi, Cap.AsmRaspCmdi]
 _FEATURE_REQUIRED = (Cap.AsmActivation, Cap.AsmAutoUserInstrumMode)
 
-# Mask of every bit _rc_capabilities() may set, so re-advertising replaces only ASM-owned bits.
-_ALL_ASM_CAPABILITIES = Flags.ASM_ACTIVATION | Flags.ASM_AUTO_USER | _ALL_ASM_BLOCKING | _ALL_RASP
+# Every capability _rc_capabilities() may set, so re-advertising replaces only ASM-owned ones.
+_ALL_ASM_CAPABILITIES = [Cap.AsmActivation, Cap.AsmAutoUserInstrumMode, *_ALL_ASM_BLOCKING, *_ALL_RASP]
 
 
 def _asm_feature_is_required() -> bool:

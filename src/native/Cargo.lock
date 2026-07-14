@@ -136,6 +136,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -552,6 +561,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadog-ipc"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "datadog-ipc-macros",
+ "futures",
+ "glibc_version",
+ "io-lifetimes",
+ "libc",
+ "libdd-common",
+ "libdd-ddsketch",
+ "libdd-trace-protobuf",
+ "libdd-trace-stats",
+ "memfd",
+ "nix 0.29.0",
+ "page_size",
+ "sendfd",
+ "serde",
+ "tokio",
+ "tracing",
+ "winapi",
+ "windows-sys 0.48.0",
+ "zwohash",
+]
+
+[[package]]
+name = "datadog-ipc-macros"
+version = "0.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
@@ -559,6 +607,7 @@ dependencies = [
  "build_common",
  "bytes",
  "datadog-ffe",
+ "datadog-ipc",
  "libc",
  "libdd-capabilities-impl",
  "libdd-common",
@@ -574,6 +623,7 @@ dependencies = [
  "libdd-shared-runtime",
  "libdd-trace-utils",
  "libdd-tracer-flare",
+ "native-proc-macro",
  "pyo3",
  "pyo3-build-config",
  "pyo3-ffi",
@@ -581,6 +631,7 @@ dependencies = [
  "rustc-hash 1.1.0",
  "serde",
  "serde_json",
+ "strum",
  "tracing",
  "url",
 ]
@@ -941,6 +992,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "glibc_version"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803ff7635f1ab4e2c064b68a0c60da917d3d18dc8d086130f689d62ce4f1c33e"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -974,6 +1034,12 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hermit-abi"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
 name = "hex"
@@ -1302,6 +1368,17 @@ dependencies = [
  "hashbrown 0.17.1",
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "io-lifetimes"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2"
+dependencies = [
+ "hermit-abi",
+ "libc",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2147,6 +2224,15 @@ dependencies = [
  "mime",
  "spin",
  "version_check",
+]
+
+[[package]]
+name = "native-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3104,6 +3190,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
+name = "sendfd"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b183bfd5b1bc64ab0c1ef3ee06b008a9ef1b68a7d3a99ba566fbfe7a7c6d745b"
+dependencies = [
+ "libc",
+ "tokio",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3265,6 +3361,16 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
 
 [[package]]
 name = "simd-adler32"
@@ -3680,6 +3786,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
@@ -4285,6 +4392,15 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9"
+dependencies = [
+ "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "windows-sys"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
@@ -4745,3 +4861,9 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[package]]
+name = "zwohash"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beaf63e0740cea93ca85de39611a8bc8262a50adacd6321cd209a123676d0447"
