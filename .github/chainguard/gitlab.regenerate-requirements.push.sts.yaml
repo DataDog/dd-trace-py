@@ -1,10 +1,32 @@
 issuer: https://gitlab.ddbuild.io
 
-# Scoped to dd-trace-py GitLab pipelines only (not the benchmarks project that
-# the read policy also allows). Branch enforcement (never push to protected /
-# merge-queue refs) is done in the GitLab job rules; GitHub branch protection on
-# main is the backstop.
+# Scoped to dd-trace-py GitLab pipelines only (not the benchmarks project the
+# read policy also allows, and not forks - fork pipelines run under a different
+# project_path so they can never mint this token).
 subject_pattern: "project_path:DataDog/apm-reliability/dd-trace-py:ref_type:branch:ref:.*"
+
+# Narrow the write grant to the intended CI context (mirrors codeql.sts.yaml,
+# which already grants security_events: write to these same pipelines):
+# - ci_config_ref_uri pins the token to pipelines whose top-level definition is
+#   this repo's own .gitlab-ci.yml (this claim is null unless the pipeline
+#   definition lives in the same project), so triggered/child pipelines and
+#   foreign/included configs cannot request it.
+# - pipeline_source limits it to ordinary branch-push pipelines.
+# - ref_protected: "false" ensures the token can never be minted for a protected
+#   ref (e.g. main / merge-queue refs) at the source, independent of the
+#   consuming job's rules.
+# The ref itself is intentionally left open (any non-protected branch head): the
+# whole point of this policy is to push regenerated lockfiles back to *PR
+# branches*. Defense in depth: commit_requirements_lockfiles also refuses to push
+# to protected / merge-queue refs, and GitHub branch protection on main is the
+# backstop.
+claim_pattern:
+  project_path: "DataDog/apm-reliability/dd-trace-py"
+  ref_type: "branch"
+  ref: ".+"
+  ref_protected: "false"
+  pipeline_source: "push"
+  ci_config_ref_uri: "gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py//.gitlab-ci.yml@refs/heads/.+"
 
 permissions:
   contents: write
