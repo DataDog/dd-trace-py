@@ -1,9 +1,12 @@
 """Experimental, not-yet-stable LLM Observability APIs.
 
-Currently exposes the **inline experiments** decorators — a decorator-driven, trace-seeded
-local regression mechanism ("unit test for LLM apps"). Mark an input->output boundary in
-your already-instrumented app, then run it out-of-band with the ``ddtrace-experiment``
-command, which captures a baseline and replays the current code against it.
+Currently exposes the **inline experiments** API — a decorator-driven, trace-seeded local
+regression mechanism ("unit test for LLM apps"): the ``experiment_start`` / ``experiment_end``
+decorators plus the ``comparison`` evaluator helper. Mark an input->output boundary in your
+already-instrumented app, then run it out-of-band with ``ddtrace-experiment run``, which
+records a baseline and re-runs the current code against it, reporting a per-case
+``match`` / ``changed`` verdict (offline by default; ``--publish`` sends the run to the
+LLM Obs Experiments UI).
 
 The decorators are an inert no-op during normal execution; they only activate under the
 ``ddtrace-experiment`` runner. See ``ddtrace/llmobs/_local_regression_experiments_design.md``.

@@ -6,8 +6,9 @@ features:
     already-instrumented app with the new ``ddtrace.llmobs.experimental.experiment_start`` /
     ``experiment_end`` decorators (an inert no-op during normal execution), then run it out-of-band
     with the new ``ddtrace-experiment run`` command. ``run`` is offline by default: the first run
-    records a baseline and each later run re-runs the current code against it, reporting per-case
-    ``MATCH`` / ``CHANGED`` with a CI-friendly exit code — no backend or credentials required.
+    records a baseline and each later run re-runs the current code against it, reporting a per-case
+    execution status plus a ``match`` / ``changed`` verdict with a CI-friendly exit code — no
+    backend or credentials required.
     Pass ``ddtrace-experiment run --publish`` to also send the run to the LLM Obs Experiments UI:
     the first publish is a frozen *baseline* experiment (a real run, so it carries cost + eval
     metrics) over the subject's auto-managed dataset, and every later publish is compared against
