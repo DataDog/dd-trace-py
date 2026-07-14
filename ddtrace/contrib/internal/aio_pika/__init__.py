@@ -19,6 +19,14 @@
 Configuration
 ~~~~~~~~~~~~~
 
+.. py:data:: ddtrace.config.aio_pika["service"]
+
+   The service name reported by aio-pika spans. This option can also be set
+   with the ``DD_AIO_PIKA_SERVICE`` environment variable. The
+   ``DD_AIO_PIKA_SERVICE_NAME`` environment variable is supported as an alias.
+
+   Default: the application service name.
+
 .. py:data:: ddtrace.config.aio_pika["distributed_tracing_enabled"]
 
    Whether to inject/extract distributed tracing headers into/from message headers.

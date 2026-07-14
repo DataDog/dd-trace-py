@@ -1,11 +1,11 @@
+from types import TracebackType
+from typing import Optional
 from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
-from ddtrace.contrib._events.messaging import AIO_PIKA_ACTION_EVENT
-from ddtrace.contrib._events.messaging import AIO_PIKA_CONSUME_EVENT
-from ddtrace.contrib._events.messaging import AIO_PIKA_PUBLISH_EVENT
+from ddtrace.contrib._events.messaging import AioPikaEvents
+from ddtrace.contrib._events.messaging import MessagingActionEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
-from ddtrace.contrib._events.messaging import MessagingEvents
 from ddtrace.contrib._events.messaging import MessagingPublishEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
@@ -26,12 +26,12 @@ class MessagingTracingSubscriber(TracingSubscriber):  # type: ignore[type-arg, n
     """
 
     event_names = (
-        MessagingEvents.PUBLISH.value,
-        MessagingEvents.CONSUME.value,
-        MessagingEvents.ACTION.value,
-        AIO_PIKA_PUBLISH_EVENT,
-        AIO_PIKA_CONSUME_EVENT,
-        AIO_PIKA_ACTION_EVENT,
+        MessagingPublishEvent.event_name,
+        MessagingConsumeEvent.event_name,
+        MessagingActionEvent.event_name,
+        AioPikaEvents.PUBLISH.value,
+        AioPikaEvents.CONSUME.value,
+        AioPikaEvents.ACTION.value,
     )
 
     @classmethod
@@ -55,7 +55,19 @@ class MessagingTracingSubscriber(TracingSubscriber):  # type: ignore[type-arg, n
             span._set_attribute(MESSAGING_OPERATION, "publish")
             if event.distributed_tracing_enabled:
                 HTTPPropagator.inject(span.context, cast(dict[str, str], event.headers))
-        elif isinstance(event, MessagingConsumeEvent):
-            span._set_attribute(MESSAGING_OPERATION, event.operation)
         elif hasattr(event, "operation"):
             span._set_attribute(MESSAGING_OPERATION, event.operation)
+
+    @classmethod
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext,  # type: ignore[type-arg]
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        event = ctx.event
+        if isinstance(event, MessagingConsumeEvent) and event.start_ns:
+            # Queue.get must run before its span starts so that distributed
+            # context can be extracted from the returned message. Preserve the
+            # operation's full duration by moving the span start back to the
+            # timestamp captured immediately before the call.
+            ctx.span.start_ns = event.start_ns

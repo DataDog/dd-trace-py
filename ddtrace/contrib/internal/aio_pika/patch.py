@@ -1,3 +1,4 @@
+from time import time_ns
 from typing import Any
 from typing import Callable
 
@@ -6,9 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.messaging import AIO_PIKA_ACTION_EVENT
-from ddtrace.contrib._events.messaging import AIO_PIKA_CONSUME_EVENT
-from ddtrace.contrib._events.messaging import AIO_PIKA_PUBLISH_EVENT
+from ddtrace.contrib._events.messaging import AioPikaEvents
 from ddtrace.contrib._events.messaging import MessagingActionEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingPublishEvent
@@ -30,6 +29,12 @@ config._add(  # type: ignore[no-untyped-call]
         distributed_tracing_enabled=asbool(_get_config("DD_AIO_PIKA_DISTRIBUTED_TRACING", default=False)),
     ),
 )
+
+if config._data_streams_enabled:
+    # Importing from the integration side keeps DSM registration one-way.
+    # ddtrace.internal.datastreams must not import this plugin and be imported
+    # back by it, since that creates circular imports during package startup.
+    import ddtrace.internal.datastreams.aio_pika  # noqa:F401,E402
 
 
 def get_version() -> str:
@@ -76,21 +81,26 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
 
     exchange_name = getattr(instance, "name", "") or ""
     routing_key = args[1] if len(args) > 1 else kwargs.get("routing_key", "") or ""
-    destination = exchange_name or routing_key
     conn_attributes = _extract_conn_attributes(instance)
 
-    event = MessagingPublishEvent(
-        messaging_system=_MESSAGING_SYSTEM,
-        destination=destination,
-        component=config.aio_pika.integration_name,
-        integration_config=config.aio_pika,
-        headers=message.headers,
-        body=getattr(message, "body", b"") or b"",
-        distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
-        attributes=conn_attributes,
-    )
-
-    with core.context_with_event(event, context_name_override=AIO_PIKA_PUBLISH_EVENT):
+    with core.context_with_event(
+        MessagingPublishEvent(
+            messaging_system=_MESSAGING_SYSTEM,
+            # AIDEV-NOTE: Keep the exchange and routing key separate. In particular,
+            # the default exchange must remain "" while still reporting that a
+            # routing key was provided to DSM.
+            destination=exchange_name,
+            routing_key=routing_key,
+            component=config.aio_pika.integration_name,
+            integration_config=config.aio_pika,
+            service=trace_utils.ext_service(None, config.aio_pika),
+            headers=message.headers,
+            body=getattr(message, "body", b"") or b"",
+            distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
+            attributes=conn_attributes,
+        ),
+        context_name_override=AioPikaEvents.PUBLISH.value,
+    ):
         return await func(*args, **kwargs)
 
 
@@ -117,19 +127,26 @@ async def traced_consumer(
             if raw:
                 decoded_headers = trace_utils.decode_amqp_headers(raw)
         except AttributeError:
-            pass
+            log.debug(
+                "aio_pika: could not extract headers from %r — "
+                "the integration may be patching an unexpected message type",
+                msg,
+                exc_info=True,
+            )
 
-    event = MessagingConsumeEvent(
-        messaging_system=_MESSAGING_SYSTEM,
-        destination=destination,
-        component=config.aio_pika.integration_name,
-        integration_config=config.aio_pika,
-        headers=decoded_headers,
-        body=body,
-        distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
-    )
-
-    with core.context_with_event(event, context_name_override=AIO_PIKA_CONSUME_EVENT):
+    with core.context_with_event(
+        MessagingConsumeEvent(
+            messaging_system=_MESSAGING_SYSTEM,
+            destination=destination,
+            component=config.aio_pika.integration_name,
+            integration_config=config.aio_pika,
+            service=trace_utils.ext_service(None, config.aio_pika),
+            headers=decoded_headers,
+            body=body,
+            distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
+        ),
+        context_name_override=AioPikaEvents.CONSUME.value,
+    ):
         return await func(*args, **kwargs)
 
 
@@ -139,6 +156,7 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
     The underlying function is called first so we can extract distributed
     context from the result's headers and parent the span correctly.
     """
+    start_ns = time_ns()
     queue_name = getattr(instance, "name", "")
     result = None
     func_error = None
@@ -155,19 +173,22 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
             decoded_headers = trace_utils.decode_amqp_headers(raw)
         body = getattr(result, "body", b"") or b""
 
-    event = MessagingConsumeEvent(
-        messaging_system=_MESSAGING_SYSTEM,
-        destination=queue_name,
-        component=config.aio_pika.integration_name,
-        integration_config=config.aio_pika,
-        headers=decoded_headers,
-        body=body,
-        distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
-        operation="receive",
-        span_operation="get",
-    )
-
-    with core.context_with_event(event, context_name_override=AIO_PIKA_CONSUME_EVENT):
+    with core.context_with_event(
+        MessagingConsumeEvent(
+            messaging_system=_MESSAGING_SYSTEM,
+            destination=queue_name,
+            component=config.aio_pika.integration_name,
+            integration_config=config.aio_pika,
+            service=trace_utils.ext_service(None, config.aio_pika),
+            headers=decoded_headers,
+            body=body,
+            distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
+            operation="receive",
+            span_operation="get",
+            start_ns=start_ns,
+        ),
+        context_name_override=AioPikaEvents.CONSUME.value,
+    ):
         if func_error is not None:
             raise func_error
 
@@ -183,15 +204,17 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
         exchange_name = getattr(instance, "exchange", "") or ""
         routing_key = getattr(instance, "routing_key", "") or ""
         destination = exchange_name or routing_key
-        event = MessagingActionEvent(
-            messaging_system=_MESSAGING_SYSTEM,
-            destination=destination,
-            component=config.aio_pika.integration_name,
-            integration_config=config.aio_pika,
-            operation=operation,
-        )
-
-        with core.context_with_event(event, context_name_override=AIO_PIKA_ACTION_EVENT):
+        with core.context_with_event(
+            MessagingActionEvent(
+                messaging_system=_MESSAGING_SYSTEM,
+                destination=destination,
+                component=config.aio_pika.integration_name,
+                integration_config=config.aio_pika,
+                service=trace_utils.ext_service(None, config.aio_pika),
+                operation=operation,
+            ),
+            context_name_override=AioPikaEvents.ACTION.value,
+        ):
             return await func(*args, **kwargs)
 
     return _traced_action

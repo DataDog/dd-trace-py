@@ -1,9 +1,11 @@
 import asyncio
+from types import SimpleNamespace
 
 import aio_pika
 from aio_pika import ExchangeType
 import pytest
 
+from ddtrace.contrib.internal.aio_pika.patch import traced_get
 from tests.utils import override_config
 
 from .utils import aio_pika_ctx
@@ -16,7 +18,6 @@ _SNAPSHOT_IGNORES = [
     "metrics.network.destination.port",
     "meta.tracestate",
     # Queue/exchange names are randomised per test run for isolation.
-    "resource",
     "meta.messaging.destination.name",
 ]
 
@@ -263,18 +264,18 @@ async def test_publish_with_custom_headers(patch_aio_pika):
         "meta.error.type",
     ]
 )
-async def test_publish_to_nonexistent_exchange(patch_aio_pika):
+async def test_publish_to_internal_exchange_raises(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
         temp_exchange = await channel.declare_exchange(
-            "nonexistent_exchange_test",
+            "internal_exchange_test",
             type=ExchangeType.DIRECT,
+            internal=True,
             auto_delete=True,
         )
-        await temp_exchange.delete()
 
         msg = make_message("error test")
-        with pytest.raises(Exception):
-            await temp_exchange.publish(msg, routing_key="nonexistent")
+        with pytest.raises(ValueError, match="Can not publish to internal exchange"):
+            await temp_exchange.publish(msg, routing_key="internal")
 
 
 @pytest.mark.asyncio
@@ -309,3 +310,57 @@ async def test_destination_name_uses_queue_for_get(patch_aio_pika, test_spans):
     spans = test_spans.pop()
     get_span = next(s for s in spans if s.name == "rabbitmq.get")
     assert get_span.get_tag("messaging.destination.name") == queue.name
+
+
+@pytest.mark.asyncio
+async def test_resource_names_are_stable(patch_aio_pika, test_spans):
+    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+        await exchange.publish(make_message("resource names"), routing_key=routing_key)
+        incoming = await queue_get_with_retry(queue, no_ack=False)
+        await incoming.ack()
+
+    spans = test_spans.pop()
+    resources = {span.name: span.resource for span in spans}
+    assert resources["rabbitmq.publish"] == "rabbitmq.publish"
+    assert resources["rabbitmq.get"] == "rabbitmq.get"
+    assert resources["rabbitmq.ack"] == "rabbitmq.ack"
+
+
+@pytest.mark.asyncio
+async def test_queue_get_span_includes_wait_duration(patch_aio_pika, test_spans):
+    async def slow_get(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return SimpleNamespace(headers={}, body=b"duration test")
+
+    await traced_get(slow_get, SimpleNamespace(name="duration-queue"), (), {})
+
+    spans = test_spans.pop()
+    get_span = next(span for span in spans if span.name == "rabbitmq.get")
+    assert get_span.duration >= 0.04
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("config_key", ["service", "service_name"])
+async def test_service_override_applies_to_all_span_types(patch_aio_pika, test_spans, config_key):
+    with override_config("aio_pika", {config_key: "custom-aio-pika"}):
+        async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+            msg = make_message("service override test")
+            await exchange.publish(msg, routing_key=routing_key)
+
+            consume_done = asyncio.Event()
+
+            async def on_message(message: aio_pika.abc.AbstractIncomingMessage):
+                await message.ack()
+                consume_done.set()
+
+            consumer_tag = await queue.consume(on_message, no_ack=False)
+            try:
+                await asyncio.wait_for(consume_done.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                pytest.fail("Timed out waiting for service override consumer callback")
+            finally:
+                await queue.cancel(consumer_tag)
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
+    assert {span.service for span in spans} == {"custom-aio-pika"}

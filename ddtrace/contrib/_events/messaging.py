@@ -15,9 +15,10 @@ class MessagingEvents(str, Enum):
     ACTION = "messaging.action"
 
 
-AIO_PIKA_PUBLISH_EVENT = f"{MessagingEvents.PUBLISH.value}.aio_pika"
-AIO_PIKA_CONSUME_EVENT = f"{MessagingEvents.CONSUME.value}.aio_pika"
-AIO_PIKA_ACTION_EVENT = f"{MessagingEvents.ACTION.value}.aio_pika"
+class AioPikaEvents(str, Enum):
+    PUBLISH = f"{MessagingEvents.PUBLISH.value}.aio_pika"
+    CONSUME = f"{MessagingEvents.CONSUME.value}.aio_pika"
+    ACTION = f"{MessagingEvents.ACTION.value}.aio_pika"
 
 
 @dataclass
@@ -43,6 +44,7 @@ class MessagingPublishEvent(TracingEvent):
 
     messaging_system: str = event_field()
     destination: str = event_field()
+    routing_key: str = event_field(default="")
     #: The message's outbound header dict — modified in-place by subscribers.
     headers: dict[str, str] = event_field(default_factory=dict)
     body: bytes = event_field(default=b"")
@@ -79,6 +81,7 @@ class MessagingConsumeEvent(TracingEvent):
     body: bytes = event_field(default=b"")
     distributed_tracing_enabled: bool = event_field(default=False)
     operation: str = event_field(default="receive")
+    start_ns: int = event_field(default=0)
     # If set, overrides the operation token used when building operation_name while
     # leaving the ``messaging.operation`` tag equal to ``operation``.  Use this
     # when the method name (e.g. "get") differs from the semantic operation

@@ -1,17 +1,17 @@
-from ddtrace import config
-from ddtrace.contrib._events.messaging import AIO_PIKA_CONSUME_EVENT
-from ddtrace.contrib._events.messaging import AIO_PIKA_PUBLISH_EVENT
+from ddtrace.contrib._events.messaging import AioPikaEvents
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
+from . import data_streams_processor as get_processor
+
+
+# AIDEV-NOTE: The aio-pika patch imports this module only when DSM is enabled.
+# Keeping registration integration-driven avoids the circular dependency that
+# results when ddtrace.internal.datastreams imports this plugin during startup.
+
 
 def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:  # type: ignore[type-arg]
-    # AIDEV-NOTE: inline import avoids a circular import — this module is loaded
-    # at import time via the `if config._data_streams_enabled` block below, which
-    # can happen before the data_streams_processor is fully initialised.
-    from . import data_streams_processor as get_processor
-
     proc = get_processor()  # type: ignore[no-untyped-call]
     if proc is None:
         return
@@ -19,12 +19,13 @@ def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:  # type: ignore
     event = ctx.event
     headers = event.headers
     exchange_name = event.destination
+    has_routing_key = str(bool(event.routing_key)).lower()
     payload_size = _calculate_byte_size(event.body) + _calculate_byte_size(headers)  # type: ignore[no-untyped-call]
 
     pathway_tags = [
         "direction:out",
         "exchange:" + (exchange_name or ""),
-        "has_routing_key:false",
+        "has_routing_key:" + has_routing_key,
         "type:rabbitmq",
     ]
 
@@ -36,8 +37,6 @@ def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:  # type: ignore
 
 
 def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:  # type: ignore[type-arg]
-    from . import data_streams_processor as get_processor
-
     proc = get_processor()  # type: ignore[no-untyped-call]
     if proc is None:
         return
@@ -56,6 +55,5 @@ def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:  # type: ignore
     )
 
 
-if config._data_streams_enabled:
-    core.on(f"context.started.{AIO_PIKA_PUBLISH_EVENT}", handle_aio_pika_produce)
-    core.on(f"context.started.{AIO_PIKA_CONSUME_EVENT}", handle_aio_pika_consume)
+core.on(f"context.started.{AioPikaEvents.PUBLISH.value}", handle_aio_pika_produce)
+core.on(f"context.started.{AioPikaEvents.CONSUME.value}", handle_aio_pika_consume)

@@ -15,7 +15,6 @@ _DSM_SNAPSHOT_IGNORES = [
     "meta.out.host",
     "metrics.network.destination.port",
     "meta.tracestate",
-    "resource",
     "meta.messaging.destination.name",
 ]
 
@@ -48,8 +47,25 @@ async def test_dsm_publish_sets_checkpoint(patch_aio_pika, dsm_processor, tracer
         if "direction:out" in edge_tags and "type:rabbitmq" in edge_tags:
             found_produce = True
             assert f"exchange:{exchange.name}" in edge_tags
+            assert "has_routing_key:true" in edge_tags
             break
     assert found_produce, f"Expected produce checkpoint with direction:out, got keys: {list(first.keys())}"
+
+
+@pytest.mark.asyncio
+async def test_dsm_default_exchange_preserves_routing_key(patch_aio_pika, dsm_processor):
+    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+        msg = make_message("dsm default exchange test")
+        await channel.default_exchange.publish(msg, routing_key=queue.name)
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) >= 1, "Expected at least one DSM bucket after publish"
+
+    first = list(buckets.values())[0].pathway_stats
+    produce_tags = [key[0] for key in first if "direction:out" in key[0]]
+    assert len(produce_tags) == 1
+    assert "exchange:" in produce_tags[0]
+    assert "has_routing_key:true" in produce_tags[0]
 
 
 @pytest.mark.asyncio
