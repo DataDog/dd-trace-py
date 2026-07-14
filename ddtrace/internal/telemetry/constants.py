@@ -1,4 +1,9 @@
 from enum import Enum
+from typing import Optional
+
+
+# Tag list form accepted by the telemetry metric helpers: ``((k, v), ...)`` or ``None``.
+MetricTagType = Optional[tuple[tuple[str, str], ...]]
 
 
 class TELEMETRY_NAMESPACE(Enum):
@@ -8,8 +13,8 @@ class TELEMETRY_NAMESPACE(Enum):
     CIVISIBILITY = "civisibility"
     MLOBS = "mlobs"
     DD_TRACE_API = "ddtraceapi"
-    PROFILER = "profiler"
-    DEBUGGER = "debugger"
+    PROFILER = "profilers"
+    DEBUGGER = "live_debugger"
 
 
 class TELEMETRY_EVENT_TYPE(Enum):
