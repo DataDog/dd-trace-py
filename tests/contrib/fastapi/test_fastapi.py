@@ -428,6 +428,41 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert_serialize_span(serialize_span)
 
 
+def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app = fastapi.FastAPI()
+
+    @app.get("/items/{item_id}")
+    async def get_item(item_id: str):
+        return {"item_id": item_id}
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://testclient.local"],
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+
+    with TestClient(app) as test_client:
+        response = test_client.options(
+            "/items/foo",
+            headers={
+                "Origin": "http://testclient.local",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert response.status_code == 200
+    request_span = next(test_spans.filter_spans(name="fastapi.request"))
+    assert request_span.resource == "OPTIONS /items/{item_id}", (
+        f"Expected route pattern 'OPTIONS /items/{{item_id}}' but got {request_span.resource!r}"
+    )
+    assert request_span.get_tag("http.route") == "/items/{item_id}", (
+        f"Expected http.route tag '/items/{{item_id}}', got {request_span.get_tag('http.route')!r}"
+    )
+
+
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
     """Regression test for FastAPI >= 0.137 lazy _IncludedRouter breaking resource names."""
     from fastapi import APIRouter
