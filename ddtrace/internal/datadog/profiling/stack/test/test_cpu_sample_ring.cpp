@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <thread>
 
 using Datadog::CpuTimer::CpuSampleRing;
 using Datadog::CpuTimer::RawSample;
@@ -50,6 +51,23 @@ TEST(CpuSampleRing, StartsEmpty)
     EXPECT_EQ(ring.capacity(), 4u);
     EXPECT_TRUE(ring.empty());
     EXPECT_FALSE(ring.pop_for_consumer(out));
+}
+
+TEST(CpuSampleRing, ClampsCapacityToKeepOneUsableSlot)
+{
+    CpuSampleRing ring(0);
+    RawSample out{};
+
+    EXPECT_EQ(ring.capacity(), 2u);
+
+    RawSample* reserved = ring.reserve_for_producer();
+    ASSERT_NE(reserved, nullptr);
+    *reserved = make_sample(1);
+    ring.publish_for_producer();
+
+    EXPECT_EQ(ring.reserve_for_producer(), nullptr);
+    ASSERT_TRUE(ring.pop_for_consumer(out));
+    expect_sample_eq(out, make_sample(1));
 }
 
 TEST(CpuSampleRing, ProducerReserveDoesNotPublish)
@@ -100,7 +118,7 @@ TEST(CpuSampleRing, CapacityKeepsOneSlotOpenToDistinguishFullFromEmpty)
 
 TEST(CpuSampleRing, WraparoundPreservesFifoOrder)
 {
-    CpuSampleRing ring(3);
+    CpuSampleRing ring(4);
 
     RawSample first = make_sample(1);
     RawSample second = make_sample(2);
@@ -129,5 +147,33 @@ TEST(CpuSampleRing, WraparoundPreservesFifoOrder)
     expect_sample_eq(out, second);
     ASSERT_TRUE(ring.pop_for_consumer(out));
     expect_sample_eq(out, third);
+    EXPECT_TRUE(ring.empty());
+}
+
+TEST(CpuSampleRing, ConcurrentProducerAndConsumerPreserveWholeFifoSamples)
+{
+    constexpr uint64_t sample_count = 20'000;
+    CpuSampleRing ring(64);
+
+    std::thread producer([&] {
+        for (uint64_t id = 1; id <= sample_count; id++) {
+            RawSample* reserved;
+            while ((reserved = ring.reserve_for_producer()) == nullptr) {
+                std::this_thread::yield();
+            }
+            *reserved = make_sample(id);
+            ring.publish_for_producer();
+        }
+    });
+
+    for (uint64_t expected_id = 1; expected_id <= sample_count; expected_id++) {
+        RawSample actual{};
+        while (!ring.pop_for_consumer(actual)) {
+            std::this_thread::yield();
+        }
+        expect_sample_eq(actual, make_sample(expected_id));
+    }
+
+    producer.join();
     EXPECT_TRUE(ring.empty());
 }
