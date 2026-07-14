@@ -45,6 +45,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -84,6 +85,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -170,10 +172,15 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptVersionResponse
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -183,6 +190,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -317,6 +325,14 @@ class LLMObsActivateDistributedHeadersError(Exception):
     """Error raised when activating distributed headers."""
 
     pass
+
+
+def _deprecate_prompt_label(method: str) -> None:
+    deprecate(
+        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+        category=DDTraceDeprecationWarning,
+    )
 
 
 @dataclass
@@ -894,6 +910,11 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        if app_key:
+            # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
+            # before the app key was configured, so it rebuilds with the new key.
+            with cls._prompt_manager_lock:
+                cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
@@ -1866,24 +1887,30 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        *,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
+        targeting_key: Optional[str] = None,
+        **attributes: Any,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
+        :param targeting_key: Sticky bucketing key for A/B tests when resolving a version by environment.
+        :param attributes: Arbitrary targeting attributes used when resolving a version by environment.
 
         :returns: A ManagedPrompt object with template and rendering methods
         :raises ValueError: If the prompt cannot be fetched and no fallback is provided
 
         Example::
 
-            # Simple usage - returns the latest version
+            # Simple usage. If DD_ENV is set, an environment-scoped variant is resolved
+            # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
 
@@ -1892,6 +1919,13 @@ class LLMObs(Service):
                 "greeting",
                 label="production",
                 fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Environment resolution with targeting (requires DD_ENV and agent mode)
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                targeting_key="user-123",
+                tier="premium",
             )
 
             # Use with annotation_context for observability
@@ -1903,8 +1937,16 @@ class LLMObs(Service):
                     messages=prompt.format(**variables)
                 )
         """
+        if label is not None:
+            _deprecate_prompt_label("get_prompt")
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.get_prompt(prompt_id, label, fallback)
+        return prompt_manager.get_prompt(
+            prompt_id,
+            label=label,
+            fallback=fallback,
+            targeting_key=targeting_key,
+            **attributes,
+        )
 
     @classmethod
     def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
@@ -1914,8 +1956,10 @@ class LLMObs(Service):
             hot: If True, clear the hot (in-memory) cache. Defaults to True.
             warm: If True, clear the warm (file-based) cache. Defaults to True.
         """
-        if cls._prompt_manager is not None:
-            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+        if manager is not None:
+            manager.clear_cache(hot=hot, warm=warm)
         elif warm:
             # Clear file cache even if manager is not initialized
             cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
@@ -1926,7 +1970,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1934,21 +1978,198 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: Deprecated; set DD_ENV instead. Deployment label selecting a version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
         """
+        if label is not None:
+            _deprecate_prompt_label("refresh_prompt")
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
+    def create_prompt(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptResponse:
+        """Create a new prompt in the registry.
+
+        Args:
+            prompt_id: Unique identifier for the prompt.
+            template: List of chat messages defining the prompt template.
+            title: Optional human-readable title.
+            description: Optional description of the prompt.
+            user_version: Optional user-defined version string.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+
+        Returns:
+            The created prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request (bad template, missing fields).
+            PromptConflictError: A prompt with this prompt_id already exists.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt(
+            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def create_prompt_version(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptVersionResponse:
+        """Create a new version of an existing prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+            template: List of chat messages defining the new version's template.
+            description: Optional description of this version.
+            user_version: Optional user-defined version string.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+
+        Returns:
+            The created prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt_version(
+            prompt_id, template, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def update_prompt(
+        cls,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        """Update prompt metadata (title and/or description).
+
+        Args:
+            prompt_id: The prompt identifier.
+            title: New title for the prompt.
+            description: New description for the prompt.
+
+        Returns:
+            The updated prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt(prompt_id, title=title, description=description)
+
+    @classmethod
+    def update_prompt_version(
+        cls,
+        prompt_id: str,
+        version: int,
+        *,
+        labels: Optional[list[str]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        """Update a specific prompt version's metadata.
+
+        Args:
+            prompt_id: The prompt identifier.
+            version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
+            labels: New labels for the version.
+            description: New description for the version.
+
+        Returns:
+            The updated prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt or version does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+
+    @classmethod
+    def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
+        """Delete a prompt and all its versions from the registry.
+
+        Also evicts the prompt from local caches.
+
+        Args:
+            prompt_id: The prompt identifier to delete.
+
+        Returns:
+            Confirmation with prompt_id and deleted_at timestamp.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.delete_prompt(prompt_id)
+
+    @classmethod
+    def list_prompts(cls) -> list[PromptResponse]:
+        """List all prompts.
+
+        Returns:
+            A list of prompts.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompts()
+
+    @classmethod
+    def list_prompt_versions(cls, prompt_id: str) -> list[PromptVersionResponse]:
+        """List all versions of a prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+
+        Returns:
+            A list of prompt versions.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompt_versions(prompt_id)
 
     @classmethod
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-
         if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -1959,10 +2180,12 @@ class LLMObs(Service):
         return PromptManager(
             api_key=api_key,
             base_url=base_url,
+            app_key=cls._app_key,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            agentless=should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled),
         )
 
     @classmethod
@@ -2083,7 +2306,7 @@ class LLMObs(Service):
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
         ml_app precedence: parent span._store > distributed context > global config > service.
-        session_id is optional and only propagated from span._store
+        session_id is optional and propagated from the parent span._store or the distributed context.
         """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
@@ -2099,7 +2322,7 @@ class LLMObs(Service):
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
                 llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
-                session_id = None
+                session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
@@ -2109,6 +2332,10 @@ class LLMObs(Service):
             sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        # Fall back to the trace-level default session when the parent chain carries none (e.g. a
+        # span under a session-less parent). The default is the first session set anywhere in the
+        # trace; an explicit session_id on this span still overrides it (applied after activation).
+        session_id = session_id or span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
 
         resolved_name = span.name
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
@@ -2197,6 +2424,11 @@ class LLMObs(Service):
         )
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
+        # First session in the trace becomes the trace-level default (first-writer wins), so later
+        # spans under a session-less parent fall back to it and it propagates across services.
+        effective_session_id = get_llmobs_session_id(span)
+        if effective_session_id and span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
+            span.context._meta[PROPAGATED_SESSION_ID_KEY] = effective_session_id
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -2484,7 +2716,7 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        prompt: Optional[dict] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -2611,10 +2843,17 @@ class LLMObs(Service):
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
+                    # Don't clobber a caller-supplied instrumentation-method tag (e.g. the
+                    # auto-tagging path in base.py) with the ANNOTATED default.
+                    prompt_tags = (
+                        {}
+                        if tags and PROMPT_TRACKING_INSTRUMENTATION_METHOD in tags
+                        else {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    )
                     _annotate_llmobs_span_data(
                         span,
                         prompt=cast(Prompt, validated_prompt),
-                        tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
+                        tags=prompt_tags,
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -3146,6 +3385,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3161,6 +3401,8 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+                if propagated_session_id is not None:
+                    llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3170,6 +3412,8 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+            if propagated_session_id is not None:
+                llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

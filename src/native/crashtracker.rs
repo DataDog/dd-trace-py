@@ -11,8 +11,8 @@ use pyo3::prelude::*;
 
 mod crashtracker_runtime_stacks;
 use crashtracker_runtime_stacks::{
-    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-    native_runtime_stack_string_callback,
+    get_cached_dump_traceback_fn, init_dump_traceback_fn, init_frame_get_back_fn,
+    native_runtime_stack_frame_callback, native_runtime_stack_string_callback,
 };
 
 pub trait RustWrapper {
@@ -172,10 +172,14 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
+// TODO(py-315)(pyo3 0.28): `skip_from_py_object` opts out of the Clone-driven
+// automatic FromPyObject derive that pyo3 deprecated in 0.28. This type is
+// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
+// as an owned value, so skipping is safe.
 #[pyclass(
-    skip_from_py_object,
     name = "CrashtrackerMetadata",
-    module = "datadog.internal._native"
+    module = "datadog.internal._native",
+    skip_from_py_object
 )]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
@@ -262,6 +266,7 @@ pub fn crashtracker_init<'py>(
         {
             unsafe {
                 init_dump_traceback_fn();
+                init_frame_get_back_fn();
             }
             let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
             if dump_fn_available {
