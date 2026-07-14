@@ -528,7 +528,7 @@ def test_publish_run_syncs_stable_dataset_and_uses_subject_evaluators(monkeypatc
     assert out["experiment_id"] == "run-1"
     assert out["dataset_name"] == "inline-experiment-portfolio"
     assert out["dataset_url"] == "http://ds/inline-experiment-portfolio"  # surfaced for the CLI
-    assert out["sync"] == {"added": 1, "deleted": 0, "kept": 0}
+    assert out["sync"] == {"added": 1, "deleted": 0, "kept": 0, "pushed": True}
     assert out["pairs"] == [({"x": 1}, 11)]
 
 
@@ -683,6 +683,7 @@ def test_cli_run_publish_rerun_compares_to_frozen_baseline(tmp_path, monkeypatch
     calls = {}
     monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
     monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+    monkeypatch.setattr(sdk, "experiment_exists", lambda eid: True)  # frozen baseline still live
     monkeypatch.setattr(sdk, "compare_url_from_ids", lambda b, c, proj=None: "cmp:%s->%s" % (b, c))
 
     class _Mod:
@@ -756,3 +757,149 @@ def test_smells_like_prod_one_way_gate(monkeypatch):
     monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
     monkeypatch.setattr(_env, "get", lambda k, d="": d)
     assert cli._smells_like_prod() is False
+
+
+def test_publish_run_aborts_before_experiment_when_push_fails(monkeypatch):
+    ran = {"experiment": False}
+
+    class _DS(_FakeDataset):
+        def push(self):
+            raise RuntimeError("backend down")
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def pull_dataset(name, project_name=None):
+            return _DS([{"input_data": {"x": 9}}])  # has a stale record -> sync will push
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            ran["experiment"] = True
+            raise AssertionError("experiment must not run when the dataset push failed")
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    with pytest.raises(sdk.PublishAbort):
+        sdk.publish_run("e", [{"x": 1}])  # add x=1 + delete x=9 -> push -> fails -> abort
+    assert ran["experiment"] is False  # aborted BEFORE the paid run, so no bad baseline recorded
+
+
+def test_publish_run_restores_mode_after_run_exception(monkeypatch):
+    from ddtrace.llmobs._inline_experiment import _get_mode
+
+    class _Exp:
+        _id = "r"
+        url = "u"
+
+        def run(self):
+            raise RuntimeError("boom")
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def pull_dataset(name, project_name=None):
+            return _FakeDataset([])
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            return _Exp()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    with pytest.raises(RuntimeError):
+        sdk.publish_run("e", [{"x": 1}])
+    assert _get_mode() is Mode.OFF  # finally: restored -> no global-state leak
+
+
+def test_experiment_exists(monkeypatch):
+    class _Ok:
+        @staticmethod
+        def pull_experiment(eid):
+            return object()
+
+    class _Gone:
+        @staticmethod
+        def pull_experiment(eid):
+            raise RuntimeError("404")
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _Ok)
+    assert sdk.experiment_exists("exp-1") is True
+    assert sdk.experiment_exists(None) is False  # nothing to check
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _Gone)
+    assert sdk.experiment_exists("exp-1") is False  # dead pointer
+
+
+def test_cli_run_publish_aborts_on_push_failure(tmp_path, monkeypatch):
+    p = str(tmp_path / "b.json")
+    monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
+    monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+
+    class _Mod:
+        SUBJECT = "e"
+        INPUTS = [{"x": 1}]
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    monkeypatch.setattr(cli, "_import_target", lambda t: (_Mod, None))
+
+    def _abort(*a, **k):
+        raise sdk.PublishAbort("could not persist dataset")
+
+    monkeypatch.setattr(sdk, "publish_run", _abort)
+
+    args = cli._build_arg_parser().parse_args(["run", "mymod", "--publish", "--baseline-file", p])
+    with pytest.raises(SystemExit) as e:
+        cli._cmd_run(args, ie, runner)
+    assert e.value.code == 1
+    assert not runner.load_publish_meta(p, "e")  # no baseline frozen on abort
+
+
+def test_cli_run_publish_dead_baseline_pointer_suggests_rerecord(tmp_path, monkeypatch, capsys):
+    p = str(tmp_path / "b.json")
+    runner.save_publish_meta(p, "e", dataset_name="inline-experiment-e", baseline_experiment_id="gone-1")
+    runner.write_baseline_cases(p, "e", [({"x": 1}, 11)])
+    monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
+    monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+    monkeypatch.setattr(sdk, "experiment_exists", lambda eid: False)  # baseline deleted in UI
+    compared = {"n": 0}
+    monkeypatch.setattr(sdk, "compare_url_from_ids", lambda *a, **k: compared.__setitem__("n", 1) or "cmp")
+
+    class _Mod:
+        SUBJECT = "e"
+        INPUTS = [{"x": 2}]
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    monkeypatch.setattr(cli, "_import_target", lambda t: (_Mod, None))
+    monkeypatch.setattr(
+        sdk,
+        "publish_run",
+        lambda *a, **k: {
+            "experiment_id": "cur",
+            "url": "u",
+            "dataset_name": "inline-experiment-e",
+            "dataset_url": "du",
+            "sync": {"added": 0, "deleted": 0, "kept": 1, "pushed": True},
+            "pairs": [({"x": 2}, 22)],
+        },
+    )
+
+    args = cli._build_arg_parser().parse_args(["run", "mymod", "--publish", "--baseline-file", p])
+    cli._cmd_run(args, ie, runner)
+    out = capsys.readouterr().out
+    assert "no longer exists" in out and "--record" in out  # suggests re-recording
+    assert compared["n"] == 0  # dead pointer -> no compare link printed

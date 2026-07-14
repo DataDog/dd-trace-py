@@ -30,6 +30,32 @@ from ddtrace.llmobs._inline_experiment_runner import resolve_evaluators
 log = get_logger(__name__)
 
 
+class PublishAbort(RuntimeError):
+    """Abort a ``--publish`` run *before* the (paid) experiment runs.
+
+    Raised when proceeding would produce a misleading result — e.g. the dataset sync could
+    not be persisted, so the experiment would run over stale/unpersisted data. The CLI turns
+    this into a friendly message + non-zero exit rather than recording a bad baseline.
+    """
+
+
+def experiment_exists(experiment_id: Optional[str]) -> bool:
+    """Best-effort check that a frozen baseline experiment id still resolves in the backend.
+
+    Used to detect a dead baseline pointer (experiment deleted in the UI) so the caller can
+    suggest re-recording instead of printing a compare link that 404s.
+    """
+    if not experiment_id:
+        return False
+    from ddtrace.llmobs import LLMObs
+
+    try:
+        return LLMObs.pull_experiment(experiment_id) is not None
+    except Exception:
+        log.debug("inline experiment: baseline experiment %r not resolvable", experiment_id, exc_info=True)
+        return False
+
+
 def _make_task(name: str) -> Callable[..., Any]:
     """An Experiment task that replays the subject: re-invoke its entry with the
     record's ``input_data`` and return the produced output.
@@ -157,8 +183,10 @@ def sync_dataset(dataset: Any, inputs: list[Any]) -> dict[str, int]:
     """Diff-sync ``dataset`` to hold EXACTLY ``inputs``: add missing, delete removed, keep the
     rest (with their record ids, so the compare view matches unchanged cases across runs).
 
-    Deletes are applied high-index-first (``Dataset.delete`` pops the local list). Pushes once
-    as a new version. Returns ``{"added", "deleted", "kept"}``.
+    Inputs are treated as a **set** — duplicate inputs collapse to a single record (repeats are
+    not preserved). Deletes are applied high-index-first (``Dataset.delete`` pops the local
+    list). Pushes once as a new version. Returns ``{"added", "deleted", "kept", "pushed"}``;
+    ``pushed`` is ``False`` when a needed push to the backend failed (a warning is logged).
     """
     want = {_input_key(i): i for i in inputs}
     have_keys = [_input_key(dataset[idx].get("input_data")) for idx in range(len(dataset))]
@@ -211,6 +239,13 @@ def publish_run(
     ds_name = _dataset_name(name)
     dataset = _pull_or_create_dataset(ds_name, project_name)
     sync = sync_dataset(dataset, inputs)
+    if not sync.get("pushed", True):
+        # The dataset couldn't be persisted; abort BEFORE the (paid) experiment run so we don't
+        # record a baseline/experiment over stale data. The CLI asks the user to re-run.
+        raise PublishAbort(
+            "could not persist dataset %r to the backend; aborting before the experiment run. "
+            "Re-run `ddtrace-experiment run <target> --publish` (check DD_API_KEY / connectivity)." % ds_name
+        )
     spec = _REGISTRY.get(name, {})
     evaluators = resolve_evaluators(spec.get("evaluators")) or [_baseline_marker()]
 

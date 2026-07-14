@@ -9,7 +9,7 @@ records a baseline and re-runs the current code against it, reporting a per-case
 LLM Obs Experiments UI).
 
 The decorators are an inert no-op during normal execution; they only activate under the
-``ddtrace-experiment`` runner. See ``ddtrace/llmobs/_local_regression_experiments_design.md``.
+``ddtrace-experiment`` runner.
 
 .. warning::
    APIs in this module are experimental and may change or be removed without notice.

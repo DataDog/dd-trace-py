@@ -111,7 +111,15 @@ def _enable_llmobs(ml_app_arg: Optional[str]) -> str:
     ml_app = ml_app_arg or env.get("DD_LLMOBS_ML_APP") or "inline-experiments"
     if not LLMObs.enabled:
         agentless = True if env.get("DD_API_KEY") else None
-        LLMObs.enable(ml_app=ml_app, agentless_enabled=agentless)
+        try:
+            LLMObs.enable(ml_app=ml_app, agentless_enabled=agentless)
+        except Exception as e:  # surface an actionable message instead of a raw traceback
+            print(
+                "run --publish: could not enable LLM Observability (%s). Check DD_API_KEY / "
+                "DD_SITE (agentless) or that a Datadog agent is reachable, then re-run." % e,
+                file=sys.stderr,
+            )
+            sys.exit(2)
     return ml_app
 
 
@@ -287,7 +295,11 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
     # Every run is the same operation: sync the stable dataset to this run's inputs and run the
     # subject as one experiment (scored by the subject's own evaluators). The regression signal
     # is the compare view, not an in-experiment check.
-    published = sdk.publish_run(subject, inputs, project_name=args.project, experiment_name=args.experiment_name)
+    try:
+        published = sdk.publish_run(subject, inputs, project_name=args.project, experiment_name=args.experiment_name)
+    except sdk.PublishAbort as e:
+        print("run --publish: %s" % e, file=sys.stderr)
+        sys.exit(1)
     sync = published.get("sync") or {}
     print(
         "published experiment %r over dataset %r  (+%d/-%d, %d kept)"
@@ -303,8 +315,15 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
     print("  experiment -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
     print("  dataset    -> %s" % (published.get("dataset_url") or "LLM Obs -> Datasets"))
 
-    if baseline_id:
-        # A frozen baseline exists -> always link the compare view (baseline vs this run).
+    if baseline_id and not sdk.experiment_exists(baseline_id):
+        # The frozen baseline experiment is gone (deleted in the UI) -> a compare link would
+        # 404. Tell the user to re-establish it instead of printing a dead link.
+        print(
+            "  (frozen baseline experiment %s no longer exists — re-record it with "
+            "`ddtrace-experiment run %s --publish --record`)" % (baseline_id, args.target)
+        )
+    elif baseline_id:
+        # A frozen baseline exists -> link the compare view (baseline vs this run).
         compare = sdk.compare_url_from_ids(baseline_id, published["experiment_id"], args.project)
         if compare:
             print("  compare    -> %s" % compare)
