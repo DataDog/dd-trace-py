@@ -74,9 +74,7 @@ def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
     # DD_TRACE_AGENT_PROTOCOL_VERSION overrides the OTLP traces export configuration.
     if env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version:
         return True
-    if config._trace_native_span_events is not None:
-        return config._trace_native_span_events
-    return False
+    return config._trace_native_span_events
 
 
 class AgentConfig(DDConfig):
@@ -163,9 +161,9 @@ class AgentConfig(DDConfig):
     )
 
     _trace_native_span_events = DDConfig.v(
-        Optional[bool],
+        bool,
         "trace_native_span_events",
-        default=None,
+        default=False,
         help_type="Boolean",
         help="Stores whether native span events are enabled",
     )
