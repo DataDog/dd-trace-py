@@ -57,6 +57,7 @@ PATCH_MODULES = {
     "pymysql": True,
     "mariadb": True,
     "mcp": True,
+    "mistralai": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -176,6 +177,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.graph",
         "langgraph.prebuilt",
     ),
+    "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
     "pytorch": ("torch",),
 }

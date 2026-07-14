@@ -611,6 +611,7 @@ def request_patcher(name):
                 flask_request=flask.request,
                 ignored_exception_type=NotFound,
                 tags={COMPONENT: config.flask.integration_name},
+                integration_config=config.flask,
             ) as ctx,
             ctx.span,
         ):

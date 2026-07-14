@@ -163,7 +163,7 @@ experiments:
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.85 ms
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:

@@ -408,12 +408,13 @@ def set_service_and_source(
     int_config: Union["IntegrationConfig", dict],
     default_service_key: str = "_default_service",
 ) -> None:
+    service_source = ""
     mapped_service = config.service_mapping.get(service, service)
     if service != mapped_service:
-        span.set_tag(_SERVICE_SOURCE, "opt.service_mapping")
+        service_source = "opt.service_mapping"
         service = mapped_service
     elif int_config.get("split_by_domain", False):
-        span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
+        service_source = "opt.split_by_domain"
     # NB "not service" here makes svc_src make sense in cases of service inheritance
     elif not service or service == int_config.get(default_service_key):
         service_source = getattr(
@@ -421,8 +422,10 @@ def set_service_and_source(
             "integration_name",
             int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
         )
-        if service_source:
-            span.set_tag(_SERVICE_SOURCE, service_source)
+    else:
+        service_source = "m"
+    if service_source:
+        span.set_tag(_SERVICE_SOURCE, service_source)
     if service:
         span.service = service
 

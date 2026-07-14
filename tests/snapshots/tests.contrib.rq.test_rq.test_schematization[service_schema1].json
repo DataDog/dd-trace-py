@@ -11,25 +11,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ebafac00000000",
+      "_dd.p.tid": "6a3eaf9c00000000",
       "_dd.svc_src": "rq",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "rq",
       "job.func_name": "__call__",
-      "job.id": "6fa98a80-0440-4cf0-a0ce-7bd3f8af76f0",
+      "job.id": "0f10b08f-7ee6-4b91-a8a1-065a087c80e5",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "e9a95899f3254b37a006dbb6a767d794",
+      "runtime-id": "9ee6406b13504d3a9ae00d607c78e9e6",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 45083.0
+      "process_id": 13509.0
     },
-    "duration": 1912834,
-    "start": 1777053612819741923
+    "duration": 976917,
+    "start": 1782493084493438961
   }],
 [
   {
@@ -44,22 +44,22 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ebafac00000000",
+      "_dd.p.tid": "6a3eaf9c00000000",
       "_dd.svc_src": "rq",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "rq",
       "job.id": "abc",
       "language": "python",
-      "runtime-id": "e9a95899f3254b37a006dbb6a767d794"
+      "runtime-id": "9ee6406b13504d3a9ae00d607c78e9e6"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 45083.0
+      "process_id": 13509.0
     },
-    "duration": 330625,
-    "start": 1777053612822073465
+    "duration": 235958,
+    "start": 1782493084494710003
   }],
 [
   {
@@ -74,25 +74,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ebafac00000000",
+      "_dd.p.tid": "6a3eaf9c00000000",
       "_dd.svc_src": "rq_worker",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "rq",
-      "job.id": "6fa98a80-0440-4cf0-a0ce-7bd3f8af76f0",
+      "job.id": "0f10b08f-7ee6-4b91-a8a1-065a087c80e5",
       "job.origin": "q",
       "job.status": "failed",
       "language": "python",
-      "runtime-id": "e9a95899f3254b37a006dbb6a767d794",
+      "runtime-id": "9ee6406b13504d3a9ae00d607c78e9e6",
       "span.kind": "consumer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 45083.0
+      "process_id": 13509.0
     },
-    "duration": 3478667,
-    "start": 1777053612826142173
+    "duration": 3373417,
+    "start": 1782493084498677836
   },
      {
        "name": "rq.job.perform",
@@ -108,10 +108,10 @@
          "_dd.svc_src": "rq",
          "component": "rq",
          "error.message": "JobClass.__call__() got an unexpected keyword argument 'key'",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 173, in traced_job_perform\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1278, in perform\n    self._result = self._execute()\n                   ^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1315, in _execute\n    result = self.func(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: JobClass.__call__() got an unexpected keyword argument 'key'\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 173, in traced_job_perform\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31213_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1278, in perform\n    self._result = self._execute()\n                   ^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31213_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1315, in _execute\n    result = self.func(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: JobClass.__call__() got an unexpected keyword argument 'key'\n",
          "error.type": "builtins.TypeError",
-         "job.id": "6fa98a80-0440-4cf0-a0ce-7bd3f8af76f0"
+         "job.id": "0f10b08f-7ee6-4b91-a8a1-065a087c80e5"
        },
-       "duration": 942834,
-       "start": 1777053612826482923
+       "duration": 900250,
+       "start": 1782493084499001253
      }]]
