@@ -672,3 +672,45 @@ class TestITR:
             "even when coverage_report_upload_enabled=True; "
             f"was called {len(setup_coverage_calls)} time(s)"
         )
+
+    def test_itr_all_tests_deselected_via_test_level_returns_ok_exit_code(self, pytester: Pytester) -> None:
+        """Regression test: when all tests are deselected via test-level ITR, exit code should be 0 (OK).
+
+        Previously, when all tests in a session were deselected at the test level,
+        pytest would return NO_TESTS_COLLECTED (exit code 5), causing CI jobs to fail.
+        The fix ensures that both suite-level and test-level ITR deselections are
+        tracked, converting exit code 5 to 0 when tests are legitimately skipped.
+        """
+        pytester.makepyfile(
+            test_all_deselected="""
+            def test_one():
+                assert False  # would fail if it ran
+
+            def test_two():
+                assert False  # would fail if it ran
+            """
+        )
+
+        # Mark both tests as skippable via test-level ITR
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_all_deselected.py"), "test_one"),
+            TestRef(SuiteRef(ModuleRef(""), "test_all_deselected.py"), "test_two"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        # This is the key regression test: exit code should be 0 (OK), not 5 (NO_TESTS_COLLECTED)
+        assert result.ret == 0, (
+            f"When all tests are deselected via test-level ITR, pytest should return exit code 0 (OK), not {result.ret}"
+        )
+
+        # Verify that tests were deselected
+        [deselect_call] = result.getcalls("pytest_deselected")
+        assert len(deselect_call.items) == 2
