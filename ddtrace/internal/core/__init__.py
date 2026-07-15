@@ -322,7 +322,7 @@ class ExecutionContext(Generic[EventType]):
         return current
 
     @property
-    def span(self) -> Optional["Span"]:
+    def span(self) -> "Span":
         if self._inner_span is None:
             log.warning(
                 "No span found in %s. "
@@ -330,8 +330,8 @@ class ExecutionContext(Generic[EventType]):
                 "Creating fallback 'default' span.",
                 self,
             )
-            if tracer := self.get_item("tracer"):
-                self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
+            tracer = self.get_item("tracer")
+            self._inner_span = tracer.current_span() or tracer.trace("default")
         return self._inner_span
 
     @span.setter
