@@ -135,6 +135,56 @@ def test_dataclasses_not_unloaded():
     assert b
 
 
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_yaml_not_unloaded():
+    # Regression test for APMS-20000. The module cleanup used to drop and force a
+    # reimport of ``yaml``/``_yaml``. Consumers (e.g. Airflow's airflow/utils/yaml.py)
+    # capture ``yaml.load``/``yaml.SafeLoader`` at import time; after the cleanup those
+    # cached references went stale and calling through them raised:
+    #   yaml.constructor.ConstructorError: could not determine a constructor for the tag None
+    import sys
+
+    import pytest
+
+    import ddtrace
+
+    yaml = pytest.importorskip("yaml")
+
+    # Precondition: yaml must have been imported after ddtrace's LOADED_MODULES
+    # snapshot, otherwise it is protected by that snapshot and the cleanup sweep
+    # would never consider it, making this test pass trivially.
+    assert "yaml" not in ddtrace.LOADED_MODULES
+
+    # Emulate the third-party pattern of caching references at import time.
+    orig_load = yaml.load
+    SafeLoader = yaml.SafeLoader
+    # Prefer the C backend when available; it is the one that reacts badly to being
+    # unloaded and reimported (same failure family as protobuf's upb backend).
+    CSafeLoader = getattr(yaml, "CSafeLoader", None)
+    had_cyaml = "_yaml" in sys.modules
+
+    from ddtrace.bootstrap import cloning
+
+    # Force the sweep to run even if it already ran during bootstrap.
+    cloning.enabled = True
+    cloning.cleanup_loaded_modules()
+
+    # yaml/_yaml must survive the module cleanup so cached references stay valid.
+    assert "yaml" in sys.modules
+    if had_cyaml:
+        assert "_yaml" in sys.modules
+
+    # A fresh import (as user code would do post-cleanup) must return the same module.
+    import yaml as yaml_reimported
+
+    assert yaml_reimported is yaml
+
+    # Loading through the cached references must still succeed.
+    assert orig_load("a: 1\nb: 2\n", SafeLoader) == {"a": 1, "b": 2}
+    if CSafeLoader is not None:
+        assert orig_load("a: 1\nb: 2\n", CSafeLoader) == {"a": 1, "b": 2}
+
+
 def test_uwsgi_gevent():
     """
     Test that we support uwsgi + gevent when threads are patched.

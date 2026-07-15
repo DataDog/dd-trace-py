@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLMObs: ``LLMObs.get_prompt()`` now resolves environment-scoped prompt versions and supports
+    targeting for A/B testing. Set ``DD_ENV`` to select the version for that environment. The
+    signature is now keyword-only after ``prompt_id`` and accepts ``targeting_key`` (sticky
+    bucketing) and ``**attributes`` (targeting rules). #18127
+deprecations:
+  - |
+    LLM Observability: The ``label`` parameter of ``LLMObs.get_prompt()`` and ``LLMObs.refresh_prompt()`` is
+    deprecated. Set ``DD_ENV`` instead; the prompt version is resolved for that environment.
