@@ -1,7 +1,6 @@
 from typing import Any
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_env import in_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
@@ -78,7 +77,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
-    if not is_iast_request_enabled() and not in_iast_env():
+    if not is_iast_request_enabled():
         return False
 
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
