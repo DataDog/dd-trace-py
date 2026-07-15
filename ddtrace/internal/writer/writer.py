@@ -1295,7 +1295,7 @@ def create_trace_writer(
 
     # When enabled, libdatadog computes span stats and exports them as OTLP metrics to this endpoint
     # instead of the /v0.6/stats agent endpoint.
-    otlp_metrics_endpoint = (
+    _otlp_metrics_endpoint = (
         otel_config.exporter.TRACE_METRICS_ENDPOINT
         if _is_otlp_trace_metrics_enabled(
             otel_config.exporter,
