@@ -203,6 +203,15 @@ def test_sampling_rule_init():
     assert rule.name.pattern == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
+def test_sampling_rule_docstring_does_not_advertise_unsupported_matchers():
+    doc = SamplingRule.__init__.__doc__ or ""
+
+    assert "service=re.compile" not in doc
+    assert "service=lambda" not in doc
+    assert ":class:`re.Pattern`" not in doc
+    assert ":obj:`function`" not in doc
+
+
 @pytest.mark.parametrize(
     "rule_1,rule_2,expected_to_be_equal",
     [

@@ -433,6 +433,34 @@ class TracerTestCases(TracerTestCase):
             s.set_tag("a", "b")
         self.assert_has_no_spans()
 
+    def test_tracer_disabled_mid_trace_does_not_leak_started_spans(self):
+        self.tracer.enabled = True
+        root = self.trace("root")
+        child = self.trace("child")
+        self.tracer.enabled = False
+
+        try:
+            child.finish()
+            root.finish()
+            assert root.trace_id not in self.tracer._span_aggregator._traces
+        finally:
+            self.tracer.enabled = True
+            self.tracer._span_aggregator.reset()
+
+    def test_tracer_reenabled_mid_trace_does_not_flush_unfinished_root(self):
+        self.tracer.enabled = True
+        root = self.trace("root")
+        self.tracer.enabled = False
+        child = self.trace("child")
+        self.tracer.enabled = True
+
+        try:
+            child.finish()
+            self.assert_has_no_spans()
+        finally:
+            root.finish()
+            self.tracer._span_aggregator.reset()
+
     def test_unserializable_span_with_finish(self):
         try:
             import numpy as np

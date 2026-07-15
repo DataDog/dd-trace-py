@@ -151,6 +151,37 @@ def test_to_dict_with_attributes():
     assert attrs["flag"] == "true"
 
 
+@pytest.mark.subprocess(err=None)
+def test_to_dict_rejects_cyclic_attribute_without_crashing():
+    import pytest
+
+    from ddtrace._trace._span_link import SpanLink
+
+    # AIDEV-NOTE: this runs in a subprocess because the vulnerable Rust
+    # attribute flattener recursed until native stack overflow.
+    recursive = []
+    recursive.append(recursive)
+    link = SpanLink(trace_id=1, span_id=2, attributes={"recursive": recursive})
+
+    with pytest.raises((RecursionError, ValueError)):
+        link.to_dict()
+
+
+@pytest.mark.subprocess(err=None)
+def test_span_set_link_rejects_cyclic_attribute_without_crashing():
+    import pytest
+
+    from ddtrace.trace import Span
+
+    recursive = []
+    recursive.append(recursive)
+    span = Span("linked")
+
+    with pytest.raises((RecursionError, ValueError)):
+        span.set_link(trace_id=1, span_id=2, attributes={"recursive": recursive})
+        span._get_links()[0].to_dict()
+
+
 def test_to_dict_with_tracestate_and_flags():
     link = SpanLink(trace_id=1, span_id=2, tracestate="vendor=value", flags=1)
     d = link.to_dict()

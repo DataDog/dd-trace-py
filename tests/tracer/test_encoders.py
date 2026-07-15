@@ -361,6 +361,63 @@ def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
 
 
+def _encoded_trace_count(encoded, encoding):
+    unpacked = msgpack.unpackb(encoded, raw=True, strict_map_key=False)
+    if encoding == "v0.5":
+        return len(unpacked[1])
+    return len(unpacked)
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.parametrize("trace_count", [65535, 65536, 131071, 131072])
+def test_msgpack_trace_array_prefix_boundaries(encoding, trace_count):
+    encoder = MSGPACK_ENCODERS[encoding](64 << 20, 64 << 20)
+    span = Span(name="boundary")
+    span.finish()
+
+    for _ in range(trace_count):
+        encoder.put([span])
+
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    [(encoded, num_traces)] = encoded_traces
+
+    assert num_traces == trace_count
+    assert _encoded_trace_count(encoded, encoding) == trace_count
+
+
+@pytest.mark.parametrize("table_size", [65535, 65536, 131071, 131072])
+def test_msgpack_string_table_array_prefix_boundaries(table_size):
+    table = MsgpackStringTable(16 << 20)
+
+    for i in range(table_size - len(table)):
+        table.index("boundary-%d" % i)
+
+    encoded = table.flush()
+    string_table, raw_traces = msgpack.unpackb(encoded + b"\xc0", raw=True, strict_map_key=False)
+
+    assert raw_traces is None
+    assert len(string_table) == table_size
+
+
+@allencodings
+def test_msgpack_encoder_clamps_negative_duration(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
+    span = Span(name="negative-duration")
+    span.start_ns = 100
+    span.duration_ns = -1
+
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    decoded_trace = decode(encoded_traces[0][0])
+
+    if encoding == "v0.5":
+        assert decoded_trace[0][0][7] == 0
+    else:
+        assert decoded_trace[0][0][b"duration"] == 0
+
+
 def test_msgpack_encoding_after_an_exception_was_raised():
     """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
     # Encode a trace after a rollback/BufferFull occurs exception

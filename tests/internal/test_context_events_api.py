@@ -40,6 +40,32 @@ class TestContextEventsApi(unittest.TestCase):
         context.parent = core.ExecutionContext("bar")
         assert context.parent is not None
 
+    def test_default_execution_context_is_isolated_between_threads(self):
+        first_set = threading.Event()
+        second_set = threading.Event()
+        values = {}
+
+        def first_thread():
+            core.set_item("thread_marker", "first")
+            first_set.set()
+            assert second_set.wait(timeout=2)
+            values["first"] = core.get_item("thread_marker")
+
+        def second_thread():
+            assert first_set.wait(timeout=2)
+            core.set_item("thread_marker", "second")
+            values["second"] = core.get_item("thread_marker")
+            second_set.set()
+
+        first = threading.Thread(target=first_thread)
+        second = threading.Thread(target=second_thread)
+        first.start()
+        second.start()
+        first.join(timeout=2)
+        second.join(timeout=2)
+
+        assert values == {"first": "first", "second": "second"}
+
     def test_core_has_listeners(self):
         event_name = "my.cool.event"
         has_listeners = core.has_listeners(event_name)
@@ -210,6 +236,25 @@ class TestContextEventsApi(unittest.TestCase):
         with core.context_with_data("my.cool.context"):
             pass
 
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_exception_no_raise_logs_failure(self):
+        calls = []
+
+        def on_exception(*_):
+            raise RuntimeError("OH NO!")
+
+        def on_success(*_):
+            calls.append("success")
+
+        core.on("my.cool.event", on_exception, "bad")
+        core.on("my.cool.event", on_success, "good")
+
+        with self.assertLogs("ddtrace.internal.core", level="ERROR") as records:
+            assert core.dispatch("my.cool.event", ()) is None
+
+        assert calls == ["success"]
+        assert "OH NO!" in "\n".join(records.output)
+
     # The default raise value for tests is True, but let's be explicit to be safe
     @with_config_raise_value(raise_value=True)
     def test_core_dispatch_exceptions_all_raise(self):
@@ -247,7 +292,10 @@ class TestContextEventsApi(unittest.TestCase):
             received.append((a, b))
 
         core.on("my.cool.event", listener)
-        core.dispatch("my.cool.event", [1, 2])  # type: ignore[arg-type]  # ast-grep-ignore: core-dispatch-list-args-multi
+        core.dispatch(
+            "my.cool.event",
+            [1, 2],  # type: ignore[arg-type]  # ast-grep-ignore: core-dispatch-list-args-multi
+        )
         assert received == [(1, 2)]
 
     def test_core_dispatch_args_invalid_type_does_not_raise(self):

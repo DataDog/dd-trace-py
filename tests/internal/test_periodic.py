@@ -79,6 +79,46 @@ def test_periodic_join_positional_timeout_is_honored():
         t.join()
 
 
+@pytest.mark.subprocess
+def test_before_fork_does_not_wait_unbounded_for_blocked_periodic_callback():
+    import threading
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads as thread_hooks
+
+    callback_started = threading.Event()
+    callback_continue = threading.Event()
+    before_fork_done = threading.Event()
+
+    def _blocked_periodic():
+        callback_started.set()
+        callback_continue.wait()
+
+    worker = periodic.PeriodicThread(
+        interval=60.0,
+        target=_blocked_periodic,
+        name="repro:BeforeForkBlockedCallback",
+        no_wait_at_start=True,
+    )
+    worker.start()
+    assert callback_started.wait(timeout=2)
+
+    # AIDEV-NOTE: run the hook on a daemon helper so a regression fails the
+    # assertion instead of hanging the test runner in thread.join().
+    before_fork_thread = threading.Thread(target=lambda: (thread_hooks._before_fork(), before_fork_done.set()))
+    before_fork_thread.daemon = True
+    before_fork_thread.start()
+
+    try:
+        assert before_fork_done.wait(timeout=0.5), "before-fork hook waited unbounded for a blocked callback"
+    finally:
+        callback_continue.set()
+        before_fork_thread.join(timeout=2)
+        thread_hooks._after_fork_parent()
+        worker.stop()
+        worker.join(timeout=2)
+
+
 def test_periodic_awake_after_stop_returns_not_hangs():
     """Regression: awake() after a completed stop() used to block forever.
 
