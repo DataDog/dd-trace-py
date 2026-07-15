@@ -58,6 +58,22 @@ DEV_PROMPT_RESPONSE = {
     "template": "DEBUG: Hello {name}!",
 }
 
+VERSION_PROMPT_RESPONSE = {
+    "ID": "version-uuid-789",
+    "prompt_uuid": "prompt-uuid-123",
+    "prompt_id": "test-prompt-01",
+    "template": [
+        {"role": "system", "content": "test-prompt-01"},
+        {"role": "user", "content": "My {{template_variable}}"},
+    ],
+    "version": 3,
+    "user_version": "0.3.0",
+    "labels": ["development"],
+    "created_at": "2026-05-28T11:03:06.098777Z",
+    "version_created_at": "2026-05-28T11:03:06.098777Z",
+    "author": "author-uuid-456",
+}
+
 
 def _reset_prompt_state():
     """Reset LLMObs prompt manager state."""
@@ -493,6 +509,32 @@ class TestPrompts:
         assert spec.use_resolve and spec.env == "production" and spec.targeting_key == "user-1"
         assert kwargs["fallback"] is None
         assert prompt.source == "resolve"
+
+    def test_route_version_to_static_registry_ignores_env(self):
+        with override_global_config(dict(env="production", _llmobs_agentless_enabled=False)):
+            with mock_api(200, VERSION_PROMPT_RESPONSE) as conn:
+                with patch.object(PromptManager, "_fetch_from_ff") as ff_mock:
+                    prompt = LLMObs.get_prompt("test-prompt-01", version=3)
+
+        ff_mock.assert_not_called()
+        req = conn.requests[-1]
+        assert req["method"] == "GET"
+        assert req["path"].endswith("/test-prompt-01/versions/3")
+        assert "DD-APPLICATION-KEY" not in req["headers"]
+        assert prompt.version == "0.3.0"
+        assert prompt.template == VERSION_PROMPT_RESPONSE["template"]
+        assert prompt._version_uuid == VERSION_PROMPT_RESPONSE["ID"]
+        assert prompt.source == "registry"
+
+    def test_mutually_exclusive_selectors_have_distinct_cache_keys(self):
+        requests = [
+            _PromptRequest(prompt_id="greeting"),
+            _PromptRequest(prompt_id="greeting", version=1),
+            _PromptRequest(prompt_id="greeting", version=2),
+            _PromptRequest(prompt_id="greeting", label="production"),
+            _PromptRequest(prompt_id="greeting", env="production", targeting_key="user-1", attributes={"tier": 1}),
+        ]
+        assert len({req.key for req in requests}) == len(requests)
 
     def test_route_targeting_key_to_ff(self):
         manager = _make_manager(agentless=False)
