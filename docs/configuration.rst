@@ -833,7 +833,7 @@ Test Visibility
         also contains performance and memory usage improvements.
 
         Setting this option to ``false`` selects the legacy ``pytest`` plugin
-        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in dd-trace-py 5.0.0. Remove this
+        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
         environment variable, or set it to ``true``, to use the supported default plugin.
 
      version_added:
