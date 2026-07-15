@@ -612,7 +612,6 @@ venv = Venv(
             },
             command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
-                "ddtrace-internal": "==0.0.0rc12",
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
