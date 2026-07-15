@@ -267,24 +267,115 @@ _SKIPPABLE_RESPONSE = {
 
 
 class TestGetSkippableTests:
-    """Skippable tests are a hard no-op in manifest mode (matches Go behavior).
+    def test_reads_cache_file_returns_test_refs(self, monkeypatch, tmp_path):
+        """Without DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES, cache is read and TestRefs returned."""
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, correlation_id = provider.get_skippable_tests()
 
-    Cached skippable decisions should not be applied in hermetic Bazel runs,
-    regardless of whether a cache file exists.
-    """
+        module_ref = ModuleRef("mymodule")
+        suite_ref = SuiteRef(module_ref, "test_suite.py")
+        assert TestRef(suite_ref, "test_skip_me") in skippable
+        assert TestRef(suite_ref, "test_also_skip") in skippable
+        assert len(skippable) == 2
+        assert correlation_id == "abc-123"
 
-    def test_always_returns_empty_even_with_cache_file(self, tmp_path):
+    def test_bazel_payload_files_guard_returns_empty(self, monkeypatch, tmp_path):
+        """DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=true suppresses skippable tests even with cache present."""
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
         skippable, correlation_id = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
 
-    def test_returns_empty_without_cache_file(self, tmp_path):
+    def test_payload_files_false_string_reads_cache(self, monkeypatch, tmp_path):
+        """DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=false must not trigger the Bazel guard."""
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "false")
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, correlation_id = provider.get_skippable_tests()
+        assert len(skippable) == 2
+        assert correlation_id == "abc-123"
+
+    def test_returns_empty_without_cache_file(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
         provider = make_provider(tmp_path)
         skippable, correlation_id = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
+
+    def test_suite_level_skipping_returns_suite_refs(self, monkeypatch, tmp_path):
+        """ITRSkippingLevel.SUITE returns SuiteRef objects, not TestRefs."""
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        response = {
+            "data": [
+                {
+                    "type": "suite",
+                    "attributes": {"suite": "test_suite.py", "configurations": {"test.bundle": "mymodule"}},
+                }
+            ],
+            "meta": {"correlation_id": "suite-corr-id"},
+        }
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.SUITE)
+        skippable, correlation_id = provider.get_skippable_tests()
+
+        module_ref = ModuleRef("mymodule")
+        assert SuiteRef(module_ref, "test_suite.py") in skippable
+        assert len(skippable) == 1
+        assert correlation_id == "suite-corr-id"
+
+    def test_suite_items_ignored_at_test_level(self, monkeypatch, tmp_path):
+        """Suite-type items are not returned when skipping level is TEST."""
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        response = {
+            "data": [
+                {"type": "suite", "attributes": {"suite": "test_suite.py", "configurations": {"test.bundle": "m"}}},
+            ],
+            "meta": {},
+        }
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, _ = provider.get_skippable_tests()
+        assert skippable == set()
+
+    def test_unknown_item_types_are_ignored(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        response = {
+            "data": [
+                {"type": "unknown_type", "attributes": {"name": "x", "suite": "s.py", "configurations": {}}},
+            ],
+            "meta": {},
+        }
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, _ = provider.get_skippable_tests()
+        assert skippable == set()
+
+    def test_malformed_cache_returns_empty(self, monkeypatch, tmp_path):
+        """An unexpected cache structure returns empty without raising."""
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", {"unexpected": "format"})
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, correlation_id = provider.get_skippable_tests()
+        assert skippable == set()
+        assert correlation_id is None
+
+    def test_missing_test_bundle_uses_empty_module(self, monkeypatch, tmp_path):
+        """When test.bundle is absent the module name falls back to EMPTY_NAME."""
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        response = {
+            "data": [
+                {"type": "test", "attributes": {"name": "test_no_bundle", "suite": "s.py", "configurations": {}}},
+            ],
+            "meta": {},
+        }
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, _ = provider.get_skippable_tests()
+        assert len(skippable) == 1
 
 
 # ---------------------------------------------------------------------------

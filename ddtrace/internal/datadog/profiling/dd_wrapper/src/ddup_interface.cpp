@@ -196,9 +196,9 @@ ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count) // cppchec
 }
 
 void
-ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unusedFunction
+ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
 {
-    sample->push_heap(size);
+    sample->push_heap(size, count);
 }
 
 void
@@ -235,7 +235,7 @@ ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunctio
 }
 
 void
-ddup_push_task_id(Datadog::Sample* sample, int64_t task_id) // cppcheck-suppress unusedFunction
+ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id) // cppcheck-suppress unusedFunction
 {
     sample->push_task_id(task_id);
 }

@@ -41,11 +41,9 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -2505,8 +2503,7 @@ class BotocoreTest(TracerTestCase):
 
         return span
 
-    def _kinesis_assert_records(self, records, span):
-        record = records[0]
+    def _kinesis_assert_record(self, record, span):
         record_data = record["Data"]
         assert record_data is not None
 
@@ -2635,7 +2632,7 @@ class BotocoreTest(TracerTestCase):
         records = self._kinesis_get_records(client, shard_iterator, stream_arn, enable_stream_arn=enable_stream_arn)
 
         # assert commons for records
-        decoded_record_data = self._kinesis_assert_records(records, span)
+        decoded_record_data = self._kinesis_assert_record(records[0], span)
 
         # assert operation specifics for records
         assert len(records) == 1
@@ -2671,31 +2668,13 @@ class BotocoreTest(TracerTestCase):
         records = self._kinesis_get_records(client, shard_iterator, stream_arn, enable_stream_arn=enable_stream_arn)
 
         # assert commons for records
-        decoded_record_data = self._kinesis_assert_records(records, span)
+        decoded_record_data = self._kinesis_assert_record(records[0], span)
 
         # assert operation specifics for records
         assert len(records) == len(data)
 
-        # assert operation specifics for records
-        # make sure there's no trace context in the next record
-        record = records[1]
-
-        next_decoded_record = {}
-        try:
-            next_decoded_record = json.loads(record["Data"].decode("ascii"))
-        except Exception:
-            # next records are not affected, therefore, if the first decoding
-            # fails, it must be base64, since it should be untouched
-            next_decoded_record = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-
-        # if datastreams is enabled, we will have dd-pathway-ctx or dd-pathway-ctx-base64 in each record
-        # we should NOT have dd trace context in each record though!
-        if config._data_streams_enabled:
-            assert "_datadog" in next_decoded_record
-            assert HTTP_HEADER_TRACE_ID not in next_decoded_record["_datadog"]
-            assert PROPAGATION_KEY_BASE_64 in next_decoded_record["_datadog"]
-        else:
-            assert "_datadog" not in next_decoded_record
+        for record in records[1:]:
+            self._kinesis_assert_record(record, span)
 
         client.delete_stream(StreamName=stream_name)
 
@@ -2753,6 +2732,37 @@ class BotocoreTest(TracerTestCase):
         records = self._kinesis_generate_records(data, 2)
 
         self._test_kinesis_put_records_trace_injection("json_string_bytes", records)
+
+    def test_kinesis_put_records_trace_injection_skips_oversized_record(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        injected_headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+        empty_record_json = json.dumps({"json-string": ""})
+        empty_record_with_headers_json = json.dumps({"json-string": "", "_datadog": injected_headers})
+        header_size = len(empty_record_with_headers_json) - len(empty_record_json)
+        oversized_record_value = "x" * (
+            kinesis_service.MAX_KINESIS_DATA_SIZE - len(empty_record_json) - header_size + 1
+        )
+
+        records = [
+            {"Data": json.dumps({"json-string": "small"}), "PartitionKey": "1234"},
+            {"Data": json.dumps({"json-string": oversized_record_value}), "PartitionKey": "1234"},
+        ]
+        original_oversized_record = records[1]["Data"]
+
+        def inject_headers(_, payload):
+            payload[2]["_datadog"] = dict(injected_headers)
+
+        with mock.patch.object(kinesis_service.core, "dispatch", side_effect=inject_headers):
+            for record, should_inject_trace_context in kinesis_service.select_records_for_injection(
+                {"Records": records}, True
+            ):
+                kinesis_service.update_record(
+                    mock.Mock(), record, "stream", inject_trace_context=should_inject_trace_context
+                )
+
+        assert json.loads(records[0]["Data"])["_datadog"] == injected_headers
+        assert records[1]["Data"] == original_oversized_record
 
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):

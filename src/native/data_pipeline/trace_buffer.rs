@@ -12,7 +12,7 @@ use libdd_data_pipeline::{
         TraceExporterBuilder, TraceExporterOutputFormat,
     },
 };
-use libdd_shared_runtime::{SharedRuntime, WorkerHandle};
+use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime, SharedRuntime, WorkerHandle};
 use libdd_trace_utils::span::v04::Span;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
@@ -38,7 +38,7 @@ use super::agent_response::AgentResponsePy;
 /// the GIL. Source: `pyo3-0.28/src/instance.rs:2218-2244`, `src/internal/state.rs:186-217`.
 #[derive(Debug)]
 struct PyExport {
-    exporter: TraceExporter<NativeCapabilities>,
+    exporter: TraceExporter<NativeCapabilities, ForkSafeRuntime>,
 }
 
 impl Export<Span<PyTraceData>> for PyExport {
@@ -101,7 +101,7 @@ impl ExportSync {
 pub struct NativeTraceBufferPy {
     buffer: TraceBuffer<Span<PyTraceData>>,
     worker_handle: Option<WorkerHandle>,
-    runtime: Arc<SharedRuntime>,
+    runtime: Arc<ForkSafeRuntime>,
     export_sync: Arc<ExportSync>,
 }
 

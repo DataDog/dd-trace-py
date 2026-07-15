@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb92b600000000",
-      "_dd.svc_src": "mysvc",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:gunicorn,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "wsgi",
       "http.method": "GET",
@@ -41,7 +41,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "mysvc",
+         "_dd.svc_src": "m",
          "component": "wsgi"
        },
        "duration": 213625,
@@ -57,7 +57,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "mysvc",
+            "_dd.svc_src": "m",
             "component": "wsgi",
             "span.kind": "server"
           },
@@ -74,7 +74,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "mysvc",
+         "_dd.svc_src": "m",
          "component": "wsgi",
          "result_class": "list_iterator"
        },

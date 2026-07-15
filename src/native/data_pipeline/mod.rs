@@ -3,7 +3,7 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
-use libdd_shared_runtime::SharedRuntime;
+use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,11 +19,11 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder>,
+    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
-    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder> {
+    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder<ForkSafeRuntime>> {
         self.builder
             .as_mut()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -191,6 +191,24 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_otlp_metrics_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_metrics_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn enable_otel_trace_semantics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_otel_trace_semantics();
+        Ok(slf.into())
+    }
+
     fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
         Ok(slf.into())
@@ -226,11 +244,11 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter<NativeCapabilities>>,
+    inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
     /// Kept alive so the runtime is not shut down while this exporter is in use.
     /// Never read explicitly — holding the Arc is sufficient to prevent shutdown.
     #[allow(dead_code)]
-    runtime: Arc<SharedRuntime>,
+    runtime: Arc<ForkSafeRuntime>,
 }
 
 #[pymethods]
@@ -279,23 +297,23 @@ impl TraceExporterPy {
 
 impl Drop for TraceExporterPy {
     fn drop(&mut self) {
-        // DEV: Do NOT call exporter.shutdown() here — it calls SharedRuntime::block_on()
+        // DEV: Do NOT call exporter.shutdown() here — it calls ForkSafeRuntime::block_on()
         // which acquires self.runtime mutex, causing a recursive-lock deadlock when
-        // Drop is triggered by a Python GC cascade during SharedRuntime::shutdown_async()
+        // Drop is triggered by a Python GC cascade during ForkSafeRuntime::shutdown_async()
         // (which already holds that mutex on the same thread):
         //
-        //   SharedRuntime::shutdown()         ← acquires self.runtime mutex
+        //   ForkSafeRuntime::shutdown()         ← acquires self.runtime mutex
         //     └─ shutdown_async()             ← awaits worker futures
         //          └─ TraceExporterWorker::drop()  ← drops Py<PyAny> callback
         //               └─ Python GC cascade   ← SpanAggregator → NativeTraceBuffer → TraceExporterPy
         //                    └─ TraceExporterPy::drop()
         //                         └─ exporter.shutdown()
-        //                              └─ SharedRuntime::block_on()
+        //                              └─ ForkSafeRuntime::block_on()
         //                                   └─ self.runtime.lock()  ← DEADLOCK (already held)
         //
         // Shutdown is handled explicitly by:
         //   - NativeTraceBuffer.stop() (via trace_buffer.rs::NativeTraceBufferPy::shutdown)
-        //   - NativeRuntime._atexit() (via SharedRuntime::shutdown)
+        //   - NativeRuntime._atexit() (via ForkSafeRuntime::shutdown)
         // By the time this Drop runs, shutdown has already completed or is not needed.
         drop(self.inner.take());
     }

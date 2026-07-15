@@ -250,8 +250,8 @@ _MAX_NESTED_META_DEPTH = 12
 
 def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation.
-    The original structure is never mutated.
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
+    and every mapping key stringified. The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
 
@@ -267,7 +267,7 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
             )
             return safe_json(node)
         if isinstance(node, dict):
-            return {k: _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+            return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
         return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
 
     return _walk(obj, 0, "")
@@ -359,6 +359,32 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
+
+
+class _TrackedPromptStr(str):
+    dd_prompt: Prompt
+
+
+class _TrackedPromptList(list):
+    dd_prompt: Prompt
+
+
+def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> Union[str, list[Message]]:
+    """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
+    if not config._llmobs_enabled:
+        return rendered_value
+    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
+    tracked = tracked_cls(rendered_value)
+    tracked.dd_prompt = prompt
+    return tracked
+
+
+def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Return the managed-prompt metadata carried by any value passed into this LLM call, if any."""
+    for value in (*args, *kwargs.values()):
+        if isinstance(value, (_TrackedPromptStr, _TrackedPromptList)):
+            return value.dd_prompt
+    return None
 
 
 def get_llmobs_span_name(span: Span) -> Optional[str]:
@@ -541,6 +567,25 @@ def get_tool_version_from_llm_span(llm_span: Span, tool_name: str) -> Optional[s
     return None
 
 
+def _sanitize_metric_key(key):
+    """Replace dots in a metric key with underscores.
+
+    LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
+    decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
+    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    """
+    if not isinstance(key, str) or "." not in key:
+        return key
+    sanitized = key.replace(".", "_")
+    log.warning(
+        "LLMObs metric key %r contains '.', which is not supported and would prevent the span from "
+        "being ingested; replacing with %r.",
+        key,
+        sanitized,
+    )
+    return sanitized
+
+
 def _annotate_llmobs_span_data(
     span: Span,
     name: Optional[str] = None,
@@ -612,7 +657,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
@@ -624,7 +670,7 @@ def _annotate_llmobs_span_data(
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
         if metrics is not None:
-            llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
+            llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
             # Tag values are serialized as strings, so coerce non-string values here.
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})

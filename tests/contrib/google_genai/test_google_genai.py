@@ -330,7 +330,103 @@ def test_normalize_contents_google_genai(contents, expected):
             assert len(actual["parts"]) == len(expected_item["parts"])
 
 
+def test_extract_message_from_part_inline_data():
+    """inline_data parts are summarized by mime type instead of falling through to a class repr."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.Part(inline_data=types.Blob(mime_type="image/png", data=b"\x89PNG"))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[inline data: image/png]"
+
+
+def test_extract_message_from_part_file_data():
+    """file_data parts surface the file uri instead of a class repr."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.Part(file_data=types.FileData(file_uri="gs://bucket/image.png", mime_type="image/png"))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[file data: gs://bucket/image.png]"
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        types.Part(),  # empty part
+        types.Part(thought_signature=b"opaque-reasoning-signature"),  # thought-signature-only part
+    ],
+)
+def test_extract_message_from_part_unhandled_is_empty_not_unsupported(part):
+    """Unhandled parts produce empty content rather than a confusing 'Unsupported file type' string.
+
+    Regression coverage for issue #18698: an unhandled Gemini Part must not raise or emit a class
+    repr, since in the google_adk agent path that previously contributed to dropping the agent span.
+    """
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(part, "model")
+
+    assert "Unsupported file type" not in message.get("content", "")
+    assert message.get("content", "") == ""
+
+
+def test_extract_message_from_part_pil_image():
+    """PIL image inputs keep a placeholder instead of being silently dropped from LLMObs I/O."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    Image = pytest.importorskip("PIL.Image")
+    part = Image.new("RGB", (1, 1))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[image]"
+
+
+def test_extract_message_from_part_file_handle():
+    """Uploaded File handles surface their uri instead of being silently dropped."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.File(uri="https://generativelanguage.googleapis.com/v1beta/files/abc123")
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[file: https://generativelanguage.googleapis.com/v1beta/files/abc123]"
+
+
+def test_extract_message_from_part_unknown_object():
+    """A non-Part, non-media object keeps a typed placeholder rather than empty content."""
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(SimpleNamespace(), "user")
+
+    assert message["content"] == "[unsupported content: SimpleNamespace]"
+
+
 def test_google_genai_chat_send_message(mock_generate_content, genai_client, snapshot_context):
     with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")
         chat.send_message("tell me a story")
+
+
+def test_google_genai_none_optional_fields_do_not_crash():
+    """Regression: google-genai>=2.6.0 declares several fields as Optional; explicit None must not raise TypeError."""
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_genai import GoogleGenAIIntegration
+    from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
+
+    # All token usage fields None — fallback arithmetic must not raise
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=None,
+            candidates_token_count=None,
+            thoughts_token_count=None,
+            total_token_count=None,
+        )
+    )
+    assert extract_generation_metrics_google_genai(response) == {}
+
+    # candidates=None — must not raise when iterating
+    integration = object.__new__(GoogleGenAIIntegration)
+    assert integration._extract_output_messages(SimpleNamespace(candidates=None)) == []

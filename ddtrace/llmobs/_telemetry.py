@@ -7,6 +7,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -35,6 +36,7 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_CRUD_ERROR = "prompt.crud.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
@@ -76,6 +78,7 @@ def record_llmobs_enabled(
     auto: bool,
     instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
+    sample_rate: float,
 ):
     tags = _base_tags(error)
     tags.extend(
@@ -85,6 +88,7 @@ def record_llmobs_enabled(
             ("auto", str(int(auto))),
             ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
             ("ml_app", ml_app or "N/A"),
+            ("sample_rate", str(sample_rate)),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -102,7 +106,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span, export_mode: LLMObsExportMode, span_writer_is_agentless: Optional[bool] = None):
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -112,16 +116,7 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode, span_writer_i
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
-    if export_mode == LLMObsExportMode.APM_AGENTLESS:
-        intake = "apm_agentless"
-    elif export_mode == LLMObsExportMode.APM_AGENT:
-        intake = "apm_agent"
-    elif export_mode == LLMObsExportMode.LLMOBS_DIRECT and span_writer_is_agentless is True:
-        intake = "llmobs_agentless"
-    elif export_mode == LLMObsExportMode.LLMOBS_DIRECT and span_writer_is_agentless is False:
-        intake = "llmobs_agent_proxy"
-    else:
-        intake = "unknown"
+    intake = export_mode.value
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -274,9 +269,9 @@ def record_activate_distributed_headers(error: Optional[str]):
     )
 
 
-def record_prompt_source(source: str):
-    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
-    tags = [("from", source)]
+def record_prompt_source(source: PromptSource):
+    """Record the source of a prompt fetch."""
+    tags = [("from", source.value)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
@@ -291,6 +286,17 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_crud_error(method: str, error_type: str, status: int):
+    """Record a prompt CRUD API error."""
+    tags = [("method", method), ("error_type", error_type), ("status", str(status))]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_CRUD_ERROR,
         value=1,
         tags=tuple(tags),
     )

@@ -77,13 +77,13 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_heap(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
-    void ddup_push_task_id(Sample *sample, int64_t task_id)
+    void ddup_push_task_id(Sample *sample, uint64_t task_id)
     void ddup_push_task_name(Sample *sample, string_view task_name)
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
@@ -475,9 +475,9 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
-    def push_heap(self, value: int) -> None:
+    def push_heap(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_gputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
@@ -547,7 +547,7 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
+                ddup_push_task_id(self.ptr, clamp_to_uint64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:

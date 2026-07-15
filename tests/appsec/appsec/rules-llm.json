@@ -1,0 +1,52 @@
+{
+  "version": "2.2",
+  "metadata": {
+    "rules_version": "rules_llm"
+  },
+  "rules": [
+    {
+      "id": "llm-001-000",
+      "name": "LLM call",
+      "tags": {
+        "type": "llm.event",
+        "category": "business_logic",
+        "module": "business_logic"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.business_logic.llm.event",
+                "key_path": [
+                  "provider"
+                ]
+              }
+            ]
+          },
+          "operator": "exists"
+        }
+      ],
+      "transformers": [],
+      "output": {
+        "event": false,
+        "keep": true,
+        "attributes": {
+          "appsec.events.llm.call.provider": {
+            "address": "server.business_logic.llm.event",
+            "key_path": [
+              "provider"
+            ]
+          },
+          "appsec.events.llm.call.model": {
+            "address": "server.business_logic.llm.event",
+            "key_path": [
+              "model"
+            ]
+          }
+        }
+      },
+      "on_match": []
+    }
+  ]
+}
