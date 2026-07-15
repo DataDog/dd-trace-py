@@ -2,12 +2,14 @@ from collections import OrderedDict
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 from threading import RLock
 from time import time
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import quote
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAXSIZE
@@ -86,6 +88,14 @@ class HotCache:
         with self._lock:
             self._cache.clear()
 
+    def evict_prompt(self, prompt_id: str) -> None:
+        # Keys are f"{prompt_id}:{label}"; rsplit recovers the exact prompt_id
+        # (prompt_id may contain colons, label never does), avoiding over-eviction.
+        with self._lock:
+            keys_to_remove = [k for k in self._cache if k.rsplit(":", 1)[0] == prompt_id]
+            for k in keys_to_remove:
+                del self._cache[k]
+
     def __len__(self) -> int:
         with self._lock:
             return len(self._cache)
@@ -136,9 +146,15 @@ class WarmCache:
             log.warning("Failed to create prompt cache directory: %s", e)
             self._enabled = False
 
+    def _safe_dir(self, prompt_id: str) -> Path:
+        return self._cache_dir / quote(prompt_id, safe="")
+
     def _key_to_path(self, key: str) -> Path:
-        safe_key = key.replace(":", "_").replace("/", "_").replace("\\", "_")
-        return self._cache_dir / f"{safe_key}.json"
+        # cache_key() = f"{prompt_id}:{label or ''}"; label never contains ':'.
+        # quote() is injective (unlike replace), so distinct keys never collide on a path.
+        prompt_id, _, label = key.rpartition(":")
+        filename = quote(label, safe="") if label else "_default"
+        return self._safe_dir(prompt_id) / f"{filename}.json"
 
     def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
         """Load a prompt from file cache.
@@ -172,6 +188,7 @@ class WarmCache:
         data = entry._serialize()
         try:
             with self._lock:
+                path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f)
                 os.chmod(path, 0o600)
@@ -191,14 +208,23 @@ class WarmCache:
             except OSError as e:
                 log.debug("Failed to delete prompt from cache: %s", e)
 
+    def evict_prompt(self, prompt_id: str) -> None:
+        if not self._enabled or not self._cache_dir:
+            return
+        with self._lock:
+            shutil.rmtree(self._safe_dir(prompt_id), ignore_errors=True)
+
     def clear(self) -> None:
         """Clear all cached prompts."""
         if not self._enabled:
             return
 
         with self._lock:
-            for path in self._cache_dir.glob("*.json"):
+            for item in self._cache_dir.iterdir():
                 try:
-                    path.unlink()
+                    if item.is_dir():
+                        shutil.rmtree(item)
+                    else:
+                        item.unlink()
                 except OSError as e:
-                    log.debug("Failed to delete cached prompt %s: %s", path, e)
+                    log.debug("Failed to delete cached prompt %s: %s", item, e)

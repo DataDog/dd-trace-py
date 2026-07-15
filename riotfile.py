@@ -621,6 +621,8 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # exercises the module-cloning regression test for yaml/_yaml
+                "PyYAML": latest,
                 # Ray Serve cloudpickles objects that reference the global config
                 # (which holds forksafe locks); test_forksafe.py exercises that path.
                 "cloudpickle": latest,
@@ -3033,13 +3035,36 @@ venv = Venv(
         Venv(
             name="openai_agents",
             command="pytest {cmdargs} tests/contrib/openai_agents",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": ["~=0.0.0", latest],
             },
+            venvs=[
+                # openai-agents >= 0.9.0 requires Python >= 3.10, so the 0.14+ pins run on 3.10+ only.
+                # Python 3.9 needs two shims for the agents 0.8.x row that 3.10+ does not:
+                #  - urllib3 < 2: agents 0.8.x pulls types-requests >= 2.32 (needs urllib3 >= 2), which
+                #    collides with vcrpy's "urllib3 < 2; python_version < '3.10'" marker and backtracks
+                #    vcrpy to a urllib3-2-incompatible 4.3.0, breaking `import vcr`.
+                #  - eval-type-backport: agents 0.8.x pydantic models use PEP-604 "X | None" unions,
+                #    which Python 3.9 cannot runtime-evaluate without the backport.
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "openai-agents": ["~=0.0.0", "~=0.8.0"],
+                        "urllib3": "<2",
+                        "eval-type-backport": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.0.0", "~=0.8.0"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.14.0", latest]},
+                ),
+            ],
         ),
         Venv(
             name="langchain",
@@ -3232,7 +3257,7 @@ venv = Venv(
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
-                "mistralai": latest,
+                "mistralai": ["~=2.0.0", latest],
             },
         ),
         Venv(

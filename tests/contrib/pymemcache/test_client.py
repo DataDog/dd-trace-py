@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.pymemcache.client import WrappedClient
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
