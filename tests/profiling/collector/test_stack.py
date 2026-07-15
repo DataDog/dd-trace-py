@@ -84,7 +84,7 @@ def test_collect_truncate() -> None:
     p = profiler.Profiler()
     p.start()
 
-    assert _stack._get_frame_limits() == (max_nframes, 1024)
+    assert _stack._get_frame_limits() == (max_nframes, 256)
 
     func1()
 
@@ -106,14 +106,17 @@ def test_collect_truncate() -> None:
 
 
 @pytest.mark.subprocess
-def test_native_frame_limit() -> None:
+def test_native_frame_limit_scales_cache() -> None:
     from ddtrace.internal.datadog.profiling.stack import _stack
 
     _stack.set_max_frames(0)
-    assert _stack._get_frame_limits() == (64, 1024)
+    assert _stack._get_frame_limits() == (64, 256)
 
     _stack.set_max_frames(65)
-    assert _stack._get_frame_limits() == (65, 1024)
+    assert _stack._get_frame_limits() == (65, 260)
+
+    _stack.set_max_frames(512)
+    assert _stack._get_frame_limits() == (512, 1024)
 
     _stack.set_max_frames(10_000)
     assert _stack._get_frame_limits() == (10_000, 1024)
