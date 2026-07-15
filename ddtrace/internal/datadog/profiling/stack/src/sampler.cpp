@@ -96,6 +96,17 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 
 namespace {
 
+size_t
+calculate_frame_cache_capacity(size_t max_frames)
+{
+    if (max_frames >= g_max_echion_frame_cache_size / g_echion_frame_cache_size_multiplier) {
+        return g_max_echion_frame_cache_size;
+    }
+
+    const size_t scaled = max_frames * g_echion_frame_cache_size_multiplier;
+    return std::max(scaled, static_cast<size_t>(g_min_echion_frame_cache_size));
+}
+
 // Returns the CPU time of the calling thread in microseconds, or 0 on error.
 uint64_t
 get_thread_cpu_time_us()
@@ -573,7 +584,7 @@ Sampler::set_max_frames(uint64_t value)
 
     // Zero preserves the existing exporter behavior: retain the default limit.
     const size_t requested = value == 0 ? g_default_max_nframes : static_cast<size_t>(value);
-    echion->set_max_frames(requested);
+    echion->configure_frame_limits(requested, calculate_frame_cache_capacity(requested));
     return true;
 }
 
@@ -586,11 +597,11 @@ Sampler::max_frames() const
 size_t
 Sampler::frame_cache_capacity() const
 {
-    return g_default_echion_frame_cache_size;
+    return echion->frame_cache_capacity();
 }
 
 Sampler::Sampler()
-  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
+  : echion{ std::make_unique<EchionSampler>(calculate_frame_cache_capacity(g_default_max_nframes)) }
 {
 }
 

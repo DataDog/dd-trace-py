@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fix reduces profiler CPU and memory overhead for asyncio applications by limiting collected task and synchronous stack frames to ``DD_PROFILING_MAX_FRAMES``. When both are present, logical task frames are prioritized and remaining capacity retains synchronous execution context.
