@@ -335,6 +335,21 @@ class PytestTestCase(PytestTestCaseBase):
         test_span = spans[0]
         assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
 
+    def test_legacy_plugin_env_var_emits_deprecation_warning(self):
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+
+        result.assert_outcomes(passed=1)
+        output = result.stdout.str() + result.stderr.str()
+        assert "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated" in output
+
     def test_pytest_command_test_session_name(self):
         """Test that the pytest run command is used to set the test session name."""
         py_file = self.testdir.makepyfile(

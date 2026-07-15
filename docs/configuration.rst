@@ -832,6 +832,10 @@ Test Visibility
         independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
         also contains performance and memory usage improvements.
 
+        Setting this option to ``false`` selects the legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in dd-trace-py 5.0.0. Remove this
+        environment variable, or set it to ``true``, to use the supported default plugin.
+
      version_added:
         v4.3.0:
 
@@ -1084,7 +1088,7 @@ Sampling
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
-         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
+         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.reque?t"}]'``
 
      version_added:
         v1.4.0:
