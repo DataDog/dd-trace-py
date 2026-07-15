@@ -117,6 +117,7 @@ embeddings
 Enablement
 enqueue
 enqueuer
+enqueuing
 entrypoint
 entrypoints
 env
