@@ -531,7 +531,7 @@ class TestPrompts:
     # which resolves the same env-scoped variant server-side.
     def test_route_not_ready_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["staging"], source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["development"], source="resolve", template="Hi")
         with _ffe_enabled():
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 prompt = manager.get_prompt("greeting")
@@ -542,7 +542,7 @@ class TestPrompts:
 
     def test_route_no_flag_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["staging"], source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["development"], source="resolve", template="Hi")
         with _ffe_enabled():
             _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt", "version": "1", "template": "x"})
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
