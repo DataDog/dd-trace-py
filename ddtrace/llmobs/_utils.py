@@ -361,6 +361,32 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
+class _TrackedPromptStr(str):
+    dd_prompt: Prompt
+
+
+class _TrackedPromptList(list):
+    dd_prompt: Prompt
+
+
+def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> Union[str, list[Message]]:
+    """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
+    if not config._llmobs_enabled:
+        return rendered_value
+    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
+    tracked = tracked_cls(rendered_value)
+    tracked.dd_prompt = prompt
+    return tracked
+
+
+def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Return the managed-prompt metadata carried by any value passed into this LLM call, if any."""
+    for value in (*args, *kwargs.values()):
+        if isinstance(value, (_TrackedPromptStr, _TrackedPromptList)):
+            return value.dd_prompt
+    return None
+
+
 def get_llmobs_span_name(span: Span) -> Optional[str]:
     """Return the span name stored on a span's meta_struct."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
@@ -541,6 +567,25 @@ def get_tool_version_from_llm_span(llm_span: Span, tool_name: str) -> Optional[s
     return None
 
 
+def _sanitize_metric_key(key):
+    """Replace dots in a metric key with underscores.
+
+    LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
+    decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
+    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    """
+    if not isinstance(key, str) or "." not in key:
+        return key
+    sanitized = key.replace(".", "_")
+    log.warning(
+        "LLMObs metric key %r contains '.', which is not supported and would prevent the span from "
+        "being ingested; replacing with %r.",
+        key,
+        sanitized,
+    )
+    return sanitized
+
+
 def _annotate_llmobs_span_data(
     span: Span,
     name: Optional[str] = None,
@@ -626,7 +671,7 @@ def _annotate_llmobs_span_data(
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
         if metrics is not None:
-            llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
+            llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
             # Tag values are serialized as strings, so coerce non-string values here.
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
