@@ -3,6 +3,24 @@ from unittest import mock
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+
+
+def test_install_coverage_passes_file_level_mode(monkeypatch) -> None:
+    monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", "true")
+
+    with (
+        mock.patch("ddtrace.internal.coverage.installer.install") as mock_install,
+        mock.patch.object(ModuleCodeCollector, "start_coverage") as mock_start_coverage,
+    ):
+        install_coverage(Path("/repo/path"))
+
+    mock_install.assert_called_once_with(
+        include_paths=[Path("/repo/path")],
+        collect_import_time_coverage=True,
+        file_level_coverage=True,
+    )
+    mock_start_coverage.assert_called_once_with()
 
 
 def test_get_coverage_bitmaps() -> None:
