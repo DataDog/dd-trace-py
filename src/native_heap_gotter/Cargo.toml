@@ -1,0 +1,50 @@
+# Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
+# SPDX-License-Identifier: Apache-2.0
+
+# Thin cdylib wrapper around libdatadog's `libdd-profiling-heap-gotter-ffi`.
+#
+# Why this crate exists (rather than consuming the FFI cdylib directly):
+#   * The gotter FFI crate lives on libdatadog `main` (not in the tagged
+#     release `src/native` pins), so it is consumed as a git dependency here.
+#     `cargo build -p <git-dep>` is not possible; a local manifest is required.
+#   * Building our own cdylib lets us pick a clean `[lib] name` and so sidestep
+#     libdatadog's repo-wide `liblib*.so` double-prefix convention: the output
+#     is simply `libdd_heap_gotter.so`.
+#   * It lets us expose a stable, ddtrace-owned C ABI that returns a plain
+#     `bool` instead of the `#[repr(C)]` tagged `VoidResult` enum, so the
+#     Python ctypes activator never has to decode a tagged union.
+#
+# Phase 1 is allocation-only: the `live-heap` cargo feature of the gotter is
+# intentionally NOT enabled, so the free-path USDT (`ddheap:free`) and its
+# per-free overhead stay compiled out. Enabling live-heap later requires an
+# upstream passthrough feature on `libdd-profiling-heap-gotter-ffi`.
+[package]
+name = "ddtrace-heap-gotter"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+# Produces `libdd_heap_gotter.so` (single `lib` prefix, unlike the upstream
+# `liblibdd_profiling_heap_gotter_ffi.so`). setup.py renames it to carry the
+# Python EXT_SUFFIX before placing it under ddtrace/internal/datadog/profiling.
+name = "dd_heap_gotter"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+debug = "line-tables-only"
+codegen-units = 1
+
+[features]
+# Forwards to the FFI crate's test-support surface so integration tests can
+# assert the patched GOT hooks actually ran (hit counter) without needing a
+# live eBPF uprobe attach. Never enabled for shipped wheels.
+test-support = ["libdd-profiling-heap-gotter-ffi/test-support"]
+
+[dependencies]
+# Pinned to an immutable commit on libdatadog `main`. `default-features = false`
+# drops the `cbindgen` header-generation build dependency: we call the FFI
+# functions from Rust, so no generated C header is needed.
+libdd-profiling-heap-gotter-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "a10f667e794f72baa2c2be4d94ab63f9a1380975", default-features = false }

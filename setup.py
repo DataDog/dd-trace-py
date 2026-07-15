@@ -113,6 +113,9 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 NATIVE_CRATE = HERE / "src" / "native"
+# Standalone cdylib wrapper around libdatadog's heap-gotter FFI. Built out-of-band
+# (opt-in) because it pins libdatadog `main` rather than the tagged `src/native` rev.
+NATIVE_HEAP_GOTTER_CRATE = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
@@ -123,6 +126,14 @@ CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{s
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
+# Opt-in build of the native heap-gotter cdylib (Phase 1: allocation-only native
+# heap profiling via GOT rewriting, driven at runtime by the FH eBPF profiler).
+# Off by default so mainline wheels are not pinned to a moving libdatadog `main`
+# SHA and normal builds don't pay the extra cargo fetch/compile. The staging A/B
+# harness sets this to bake the artifact into its custom wheels; runtime install
+# is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
+BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -844,6 +855,13 @@ class CustomBuildExt(build_ext):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
+        # Build the native heap-gotter cdylib (opt-in, Linux 64-bit only). It is
+        # a standalone ctypes-loaded library with no dependency on the other
+        # extensions, so ordering relative to them does not matter.
+        if BUILD_NATIVE_HEAP_GOTTER and CURRENT_OS == "Linux" and is_64_bit_python():
+            with _time_phase("build_heap_gotter"):
+                self.build_heap_gotter()
+
         # Build all declared shared C++ dependencies before extension builds.
         with _time_phase("build_shared_deps"):
             self.build_shared_deps()
@@ -1005,6 +1023,54 @@ class CustomBuildExt(build_ext):
             print(f"Built libdd_wrapper shared library: {wrapper_name}")
         else:
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
+
+    def build_heap_gotter(self):
+        """Build the native heap-gotter cdylib via cargo and stage it for packaging.
+
+        Produces ``libdd_heap_gotter<EXT_SUFFIX>.so`` under
+        ``ddtrace/internal/datadog/profiling/`` (mirroring the ``_native`` /
+        ``libdd_wrapper`` naming so the ctypes activator can resolve it with the
+        same EXT_SUFFIX logic). The wrapper crate has no Python linkage, so a
+        single ``target/`` dir is shared across interpreter versions.
+        """
+        suffix = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
+        gotter_name = f"libdd_heap_gotter{suffix}"
+
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        gotter_library = output_dir / gotter_name
+
+        cargo_cmd = [
+            "cargo",
+            "build",
+            "--release",
+            "--manifest-path",
+            str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
+        ] + DD_CARGO_ARGS
+        subprocess.run(cargo_cmd, check=True)
+
+        # The wrapper crate's [lib] name is "dd_heap_gotter", so cargo emits a
+        # single-lib-prefixed artifact (unlike libdatadog's own liblib*.so).
+        # Glob defensively in case the extension/name assumption ever drifts.
+        release_dir = NATIVE_HEAP_GOTTER_CRATE / "target" / "release"
+        built = release_dir / "libdd_heap_gotter.so"
+        if not built.exists():
+            candidates = [c for c in release_dir.glob("libdd_heap_gotter.*") if c.suffix in (".so", ".dylib")]
+            if not candidates:
+                raise RuntimeError(f"Not able to find heap-gotter cdylib in {release_dir}")
+            built = candidates[0]
+
+        shutil.copy2(built, gotter_library)
+        print(f"Built and copied heap-gotter cdylib: {gotter_name}")
+
+        # Set SONAME so the loader records the staged name, matching build_rust.
+        if CURRENT_OS == "Linux":
+            subprocess.run(["patchelf", "--set-soname", gotter_name, gotter_library], check=True)
+        elif CURRENT_OS == "Darwin":
+            subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
 
     def build_shared_deps(self) -> None:
         """Build all shared C++ dependencies declared in SHARED_DEPS.
@@ -1750,7 +1816,9 @@ setup(
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"]
+            + (["libdd_heap_gotter*.*"] if BUILD_NATIVE_HEAP_GOTTER else [])
+            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,

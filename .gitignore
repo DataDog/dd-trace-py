@@ -223,6 +223,10 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+src/native_heap_gotter/target*
+
+# Profiling collector local CMake build dir
+ddtrace/profiling/collector/build-test/
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
