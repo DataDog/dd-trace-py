@@ -337,7 +337,9 @@ check_requirements_lockfiles:
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
       git add -A .riot/requirements requirements.csv
       # Match scripts/check-diff semantics: ignore pure-comment (#) line changes.
-      if [ -z "$(git diff --cached -G'^[^#]' -- .riot/requirements requirements.csv)" ]; then
+      # Use --quiet (implies --exit-code) so we don't buffer the (potentially
+      # large) lockfile diff into a shell string just to test for emptiness.
+      if git diff --cached --quiet -G'^[^#]' -- .riot/requirements requirements.csv; then
         echo "Lockfiles and requirements.csv are up to date."
         exit 0
       fi

@@ -194,9 +194,9 @@ Why is my CI run failing with a message about requirements files?
 by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
 when the riotfile changes. Thus, if you make changes to the riotfile, you need to rebuild them.
 
-On a pull request branch you usually do **not** need to do this by hand: when the ``check_requirements_lockfiles``
-CI job detects drift, ``commit_requirements_lockfiles`` regenerates the lockfiles (and ``requirements.csv``) and
-pushes the result back to your branch automatically, then a fresh pipeline validates it. Regeneration runs in the
+On a pull request branch you usually do **not** need to do this by hand: the ``check_requirements_lockfiles``
+CI job regenerates the lockfiles (and ``requirements.csv``) and detects drift, then ``commit_requirements_lockfiles``
+pushes the result back to your branch automatically and a fresh pipeline validates it. Regeneration runs in the
 CI image, which has every interpreter (including ``3.15-dev``), so you do not need all of them installed locally.
 
 If you prefer to regenerate locally (for faster iteration, or if the auto-commit can't push, e.g. a fork PR), run:
