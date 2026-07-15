@@ -57,6 +57,9 @@ opentracing = [
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
+openfeature = [
+    "openfeature-sdk>=0.8,<1",
+]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
@@ -103,6 +106,7 @@ lint = [
     "mypy==1.15.0",
     "coverage==7.3.0",
     "envier==0.6.1",
+    "openfeature-sdk~=0.8.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",

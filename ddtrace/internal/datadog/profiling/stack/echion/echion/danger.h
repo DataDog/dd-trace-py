@@ -53,6 +53,7 @@ struct ThreadAltStack
     void* mem = nullptr;
     size_t size = 0;
     bool ready = false;
+    bool owns_mapping = false;
 
     int ensure_installed()
     {
@@ -60,10 +61,16 @@ struct ThreadAltStack
             return 0;
         }
 
-        // If an altstack is already present, keep it.
+        // An alternate signal stack is already installed on this thread, by the
+        // application, CPython's faulthandler, or libdatadog's crashtracker (which by
+        // default creates and owns its own larger alt stack because CPython's default is
+        // too small). Adopt it rather than replacing it, and record that we do not own
+        // the mapping: the destructor must never disable or free an alt stack we did not
+        // allocate, or we would break the owner's fault handling (e.g. crashtracker).
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && !(cur.ss_flags & SS_DISABLE)) {
             ready = true;
+            owns_mapping = false;
             return 0;
         }
 
@@ -81,26 +88,35 @@ struct ThreadAltStack
         if (sigaltstack(&ss, nullptr) != 0) {
             std::cerr << "Failed to set alt stack. Memory copying may not work. "
                       << "Error: " << strerror(errno) << std::endl;
+            munmap(stack_mem, kAltStackSize);
             return -1;
         }
 
         this->mem = stack_mem;
         this->size = kAltStackSize;
         this->ready = true;
+        this->owns_mapping = true;
 
         return 0;
     }
 
     ~ThreadAltStack()
     {
-        if (!ready) {
+        // Do not disable an alternate signal stack that this ThreadAltStack did not allocate.
+        if (!ready || !owns_mapping || mem == nullptr) {
             return;
         }
 
-        // Optional cleanup: disable and free. Safe at thread exit.
-        stack_t disable{};
-        disable.ss_flags = SS_DISABLE;
-        (void)sigaltstack(&disable, nullptr);
+        // Only disable the alt stack if the one currently installed on this thread is still
+        // the one we installed. Another component (for example crashtracker) may have replaced
+        // this thread's alt stack after us; disabling in that case would strip the replacement
+        // owner's alt stack and break its fault handling. We free our own mapping regardless.
+        stack_t cur{};
+        if (sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == mem && !(cur.ss_flags & SS_DISABLE)) {
+            stack_t disable{};
+            disable.ss_flags = SS_DISABLE;
+            (void)sigaltstack(&disable, nullptr);
+        }
         munmap(mem, size);
     }
 };
