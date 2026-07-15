@@ -17,8 +17,6 @@
 // NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
-struct _traceback;
-typedef struct _traceback PyTracebackObject;
 // NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
@@ -166,15 +164,6 @@ class Sample
     // call returns. Frames obtained internally via PyFrame_GetBack() are
     // released by this function.
     void push_pyframes(PyFrameObject* frame);
-
-    // Push frames from a Python traceback chain to the sample.
-    // Walks tb -> tb_next (root->leaf) and pushes frames in leaf-to-root order,
-    // using tb_lineno for accurate exception site line numbers.
-    // Ownership: does not take ownership of `tb`; all code object references
-    // obtained via PyFrame_GetCode() are released internally.
-    // The GIL must be held when calling this function. Some of its operations,
-    // call Python APIs, such as PyFrame_GetCode()
-    void push_pytraceback(PyTracebackObject* tb);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

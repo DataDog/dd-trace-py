@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    IAST: A crash occurring when using ``uvloop`` has been fixed.
+
