@@ -310,7 +310,7 @@ def test_copy_and_shift_ranges_from_strings_writes_to_active_slot_not_earlier_sl
     finish_request_context(ctx_b)
     IAST_CONTEXT.set(None)
 
-    
+
 def test_is_pyobject_tainted_without_context_does_not_consult_native():
     """Regression for a teardown/GC crash (#18996).
 
