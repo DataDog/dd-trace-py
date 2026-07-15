@@ -1027,3 +1027,28 @@ def test_azure_streaming_completion_e2e(
     assert meta.get("model_name") == "gpt-5.2-2025-12-11"
     assert meta.get("model_name") != "gpt-5.2_2025-12-11"
     assert meta.get("model_provider") == "azure"
+
+
+@pytest.mark.skip(
+    reason="Scaffolding (PR #18985): record cassettes/completion_openrouter.yaml against OpenRouter "
+    "with usage accounting, then remove this skip."
+)
+def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_spans):
+    """OpenRouter cost (usage.cost) captured through litellm is surfaced on the span's cost metrics.
+
+    OpenRouter returns the billed cost when usage accounting is enabled; the litellm integration
+    should emit it as ``total_cost`` (plus ``input_cost``/``output_cost`` when they reconcile).
+    """
+    with request_vcr.use_cassette("completion_openrouter.yaml"):
+        litellm.completion(
+            model="openrouter/openai/gpt-4o-mini",
+            messages=[{"content": "What is the capital of France?", "role": "user"}],
+            usage={"include": True},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    metrics = get_llmobs_metrics(spans[0])
+    assert "total_cost" in metrics
+    assert metrics["total_cost"] > 0
+    if "input_cost" in metrics or "output_cost" in metrics:
+        assert metrics["input_cost"] + metrics["output_cost"] == metrics["total_cost"]

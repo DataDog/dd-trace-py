@@ -74,9 +74,8 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
-# Cost metric keys. When set on a span's metrics, the LLMObs backend treats these as user-provided
-# cost overrides (in USD) that take precedence over model-catalog cost estimation. Integrations set
-# these when a provider (e.g. OpenRouter with usage accounting) returns the actual billed cost.
+# Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
+# token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
 INPUT_COST_METRIC_KEY = "input_cost"
 OUTPUT_COST_METRIC_KEY = "output_cost"
 TOTAL_COST_METRIC_KEY = "total_cost"
