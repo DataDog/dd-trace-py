@@ -399,6 +399,21 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+# Unit tests for resolve-base-branch.sh (used above to pick the comparison
+# baseline). Reuses the testrunner image only for its bash + jq; the tests stub
+# git/curl and need no network, so we skip the heavier .testrunner setup.
+test_resolve_base_branch:
+  stage: tests
+  needs: []
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - .gitlab/scripts/resolve-base-branch.test.sh
+
 
 package-oci:
   needs:

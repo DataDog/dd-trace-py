@@ -18,12 +18,19 @@
 # Falls back to "main" whenever the branch can't be determined (e.g. no open
 # PR for the ref, or the GitHub lookup fails), rather than erroring out.
 #
-# Requires `git`, `curl` and `jq`. For the feature/PR-branch fallback it
-# queries the GitHub REST API directly (rather than shelling out to the `gh`
-# CLI, which isn't installed in every image this script runs in) against
-# GH_REPO (defaults to DataDog/dd-trace-py) — independent of whatever the
-# local `origin` remote happens to point at (e.g. a GitLab mirror). Set
-# GH_TOKEN to avoid unauthenticated GitHub API rate limits.
+# For a feature/PR branch the target is resolved in two steps:
+#   1. If the CI system already exposes the PR/MR target branch
+#      (CI_MERGE_REQUEST_TARGET_BRANCH_NAME on GitLab merge-request pipelines,
+#      GITHUB_BASE_REF on GitHub pull_request events), use it directly. This is
+#      the cheapest, most authoritative source and needs no token or network.
+#   2. Otherwise (e.g. this repo's GitLab branch pipelines, where neither var is
+#      set) query the GitHub REST API for the ref's open PR base branch.
+#
+# Requires `git`, `curl` and `jq`. The API fallback queries GitHub directly
+# (rather than shelling out to the `gh` CLI, which isn't installed in every
+# image this script runs in) against GH_REPO (defaults to DataDog/dd-trace-py) —
+# independent of whatever the local `origin` remote happens to point at (e.g. a
+# GitLab mirror). Set GH_TOKEN to avoid unauthenticated GitHub API rate limits.
 
 set -euo pipefail
 
@@ -60,6 +67,12 @@ elif [[ "${REF}" =~ ^[0-9]+\.[0-9]+$ ]]; then
 elif [[ "${REF}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
   BASE_BRANCH="${BASH_REMATCH[1]}"
   log "Ref is a GitHub merge-queue branch; extracted target branch '${BASE_BRANCH}'"
+
+elif [ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${GITHUB_BASE_REF:-}}" ]; then
+  # Fast path: the CI system already told us the PR/MR target branch, so trust
+  # it and skip the GitHub API round-trip (and its token requirement).
+  BASE_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${GITHUB_BASE_REF}}"
+  log "CI provided the PR target branch: '${BASE_BRANCH}'; using it directly"
 
 else
   GITHUB_REPO="${GH_REPO:-DataDog/dd-trace-py}"
