@@ -13,6 +13,10 @@ except Exception:
     distributions = None
 
 try:
-    __version__ = importlib.metadata.version(distributions[0] if distributions else "ddtrace")
+    # ``version()`` can return None (not raise) when stale coexisting
+    # ddtrace-*.dist-info directories are present, which would leave
+    # ``__version__`` as None and crash consumers that expect a string.
+    # Coerce any falsy result to the same fallback the except-branch uses.
+    __version__ = importlib.metadata.version(distributions[0] if distributions else "ddtrace") or "0.0.0"
 except Exception:
     __version__ = "0.0.0"
