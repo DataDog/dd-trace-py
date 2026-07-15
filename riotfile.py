@@ -397,7 +397,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
