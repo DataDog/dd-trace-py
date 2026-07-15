@@ -66,7 +66,14 @@ def _current_iast_context_id() -> Optional[int]:
 
 def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
     if context_id is None:
-        context_id = _current_iast_context_id()
+        global _CACHE_GET_IAST_CONTEXT_ID
+        if _CACHE_GET_IAST_CONTEXT_ID is None:
+            from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+
+            _CACHE_GET_IAST_CONTEXT_ID = _get_iast_context_id
+        context_id = _CACHE_GET_IAST_CONTEXT_ID()
+    if context_id is None:
+        return []
     return _native_get_ranges(string_input, context_id)
 
 
