@@ -434,7 +434,7 @@ class PromptManager:
 
             if status == 200:
                 source: Literal["registry", "resolve"] = "resolve" if req.use_resolve else "registry"
-                prompt = self._parse_prompt(body, source=source, label=req.label)
+                prompt = self._parse_prompt(body, source=source)
                 return prompt, False, ""
 
             not_found = status == 404
@@ -465,7 +465,6 @@ class PromptManager:
     def _parse_prompt(
         raw: Union[str, dict[str, Any]],
         source: Literal["registry", "ff", "resolve"],
-        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         try:
             if isinstance(raw, str):
@@ -483,10 +482,15 @@ class PromptManager:
             if not version:
                 log.warning("Failed to parse prompt response: missing version")
                 return None
+            raw_labels = data.get("labels")
+            if isinstance(raw_labels, list):
+                labels = [value for value in raw_labels if isinstance(value, str)]
+            else:
+                labels = []
             return ManagedPrompt(
                 id=prompt_id,
                 version=version,
-                label=data.get("label", label),
+                labels=labels,
                 source=source,
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),

@@ -33,7 +33,7 @@ TEXT_PROMPT_RESPONSE = {
     "prompt_uuid": "prompt-uuid-123",
     "prompt_version_uuid": "version-uuid-456",
     "version": "v1",
-    "label": "production",
+    "labels": ["development", "production"],
     "template": "Hello {name}!",
 }
 
@@ -42,7 +42,7 @@ CHAT_PROMPT_RESPONSE = {
     "prompt_uuid": "chat-uuid-123",
     "prompt_version_uuid": "chat-version-uuid-456",
     "version": "v2",
-    "label": "production",
+    "labels": ["production"],
     "template": [
         {"role": "system", "content": "You are {{persona}}."},
         {"role": "user", "content": "{{question}}"},
@@ -54,7 +54,7 @@ DEV_PROMPT_RESPONSE = {
     "prompt_uuid": "dev-prompt-uuid-789",
     "prompt_version_uuid": "dev-version-uuid-012",
     "version": "dev-v1",
-    "label": "development",
+    "labels": ["development"],
     "template": "DEBUG: Hello {name}!",
 }
 
@@ -119,6 +119,7 @@ def assert_prompt_matches_response(prompt, response, expected_source):
     """Assert prompt fields match the API response."""
     assert prompt.id == response["prompt_id"]
     assert prompt.version == response["version"]
+    assert prompt.labels == response.get("labels", [])
     assert prompt.source == expected_source
     assert prompt._uuid == response.get("prompt_uuid")
     assert prompt._version_uuid == response.get("prompt_version_uuid")
@@ -190,7 +191,7 @@ class TestPrompts:
             with pytest.warns(DDTraceDeprecationWarning):
                 prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
-        assert prod_prompt.label == "production"
+        assert prod_prompt.labels == ["development", "production"]
 
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
@@ -198,7 +199,7 @@ class TestPrompts:
             with pytest.warns(DDTraceDeprecationWarning):
                 dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
-        assert dev_prompt.label == "development"
+        assert dev_prompt.labels == ["development"]
         assert "DEBUG" in dev_prompt.format(name="Test")
 
     def test_string_fallback_on_error(self):
@@ -330,7 +331,7 @@ class TestPrompts:
                 prompt_data = get_llmobs_input_prompt(span)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
-                assert prompt_data["label"] == "production"
+                assert "label" not in prompt_data
                 assert prompt_data["variables"] == {"name": "Alice"}
                 assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
                 assert prompt_data["prompt_version_uuid"] == "version-uuid-456"
@@ -472,18 +473,24 @@ class TestPrompts:
         with _ffe_enabled():
             _deliver_prompt_flag(
                 "greeting",
-                {"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+                {
+                    "prompt_id": "greeting",
+                    "version": "ff-v1",
+                    "labels": ["development", "production"],
+                    "template": "FF Hello!",
+                },
             )
             with patch.object(manager, "_get_prompt_http") as http_mock:
                 prompt = manager.get_prompt("greeting")
         http_mock.assert_not_called()
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
+        assert prompt.labels == ["development", "production"]
         assert prompt.template == "FF Hello!"
 
     def test_route_env_agentless_to_http_resolve(self):
         manager = _make_manager(agentless=True)
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="production", source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["production"], source="resolve", template="Hi")
         with patch.object(manager, "_fetch_from_ff") as ff_mock:
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
@@ -500,7 +507,7 @@ class TestPrompts:
         ff_prompt = ManagedPrompt(
             id="greeting",
             version="ff-v1",
-            label=None,
+            labels=[],
             source="ff",
             template="Hello!",
         )
@@ -524,7 +531,7 @@ class TestPrompts:
     # which resolves the same env-scoped variant server-side.
     def test_route_not_ready_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["staging"], source="resolve", template="Hi")
         with _ffe_enabled():
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 prompt = manager.get_prompt("greeting")
@@ -535,7 +542,7 @@ class TestPrompts:
 
     def test_route_no_flag_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", labels=["staging"], source="resolve", template="Hi")
         with _ffe_enabled():
             _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt", "version": "1", "template": "x"})
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
@@ -706,7 +713,7 @@ class TestPromptManagement:
         manager = _make_manager()
         manager._hot_cache.set(
             "my-prompt:production",
-            ManagedPrompt(id="my-prompt", version="v1", label="production", source="registry", template=[]),
+            ManagedPrompt(id="my-prompt", version="v1", labels=["production"], source="registry", template=[]),
         )
         assert len(manager._hot_cache) == 1
 
@@ -804,11 +811,11 @@ class TestPromptManagement:
         manager = _make_manager()
         manager._hot_cache.set(
             "foo:production",
-            ManagedPrompt(id="foo", version="v1", label="production", source="registry", template=[]),
+            ManagedPrompt(id="foo", version="v1", labels=["production"], source="registry", template=[]),
         )
         manager._hot_cache.set(
             "foo:bar:production",
-            ManagedPrompt(id="foo:bar", version="v1", label="production", source="registry", template=[]),
+            ManagedPrompt(id="foo:bar", version="v1", labels=["production"], source="registry", template=[]),
         )
         assert len(manager._hot_cache) == 2
 
@@ -820,8 +827,8 @@ class TestPromptManagement:
     def test_warm_cache_distinct_ids_do_not_collide_on_path(self, tmp_path):
         """Regression: 'a/b' and 'a_b' must not share a cache file (lossy sanitization served wrong prompts)."""
         cache = WarmCache(cache_dir=str(tmp_path), ttl_seconds=60)
-        cache.set("a/b:", ManagedPrompt(id="a/b", version="v1", label=None, source="registry", template=[]))
-        cache.set("a_b:", ManagedPrompt(id="a_b", version="v2", label=None, source="registry", template=[]))
+        cache.set("a/b:", ManagedPrompt(id="a/b", version="v1", labels=[], source="registry", template=[]))
+        cache.set("a_b:", ManagedPrompt(id="a_b", version="v2", labels=[], source="registry", template=[]))
 
         assert cache.get("a/b:")[0].id == "a/b"
         assert cache.get("a_b:")[0].id == "a_b"
@@ -853,7 +860,7 @@ def test_hot_cache_lru_eviction():
     cache = HotCache(ttl_seconds=60, maxsize=2)
 
     def mk(v):
-        return ManagedPrompt(id=v, version="1", label=None, source="resolve", template="x")
+        return ManagedPrompt(id=v, version="1", labels=[], source="resolve", template="x")
 
     cache.set("a", mk("a"))
     cache.set("b", mk("b"))
