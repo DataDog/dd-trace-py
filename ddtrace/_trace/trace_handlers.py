@@ -64,6 +64,7 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -599,7 +600,7 @@ def _cookies_from_response_headers(response_headers):
 
 
 def _on_flask_render(template, flask_config):
-    span = core.get_span()
+    span = span_bus.get_span()
     if not span:
         return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))

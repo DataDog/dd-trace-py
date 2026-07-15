@@ -423,20 +423,3 @@ def discard_item(data_key: str) -> None:
 def discard_local_item(data_key: str) -> None:
     """Delete an item from the local context only, without traversing up the context tree."""
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
-
-
-def get_span() -> Optional["Span"]:
-    current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
-    while current is not None:
-        if current.get_item("_inner_span") is not None:
-            return current["_inner_span"]
-        current = current._parent
-    return None
-
-
-def get_root_span() -> Optional["Span"]:
-    span = get_span()
-    tracer = _CURRENT_CONTEXT.get().root().get_item("tracer")
-    if span is None:
-        return None if tracer is None else tracer.current_root_span()
-    return span._local_root or span
