@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    profiling: work offloaded by an asyncio task to a `ThreadPoolExecutor`
+    is now labeled with the originating task. The stack profiler emits `origin
+    task id` and `origin task name` labels on the executor worker thread's samples,
+    where `origin task id` matches the awaiting task's `task id`, allowing the
+    blocking work running on the worker thread to be correlated with the
+    asyncio task that submitted and is awaiting it.

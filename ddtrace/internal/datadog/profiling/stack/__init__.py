@@ -41,5 +41,17 @@ try:
             _propagated_root.span_type = span_type
             _stack.link_span(span.span_id, local_root_span_id, span_type)
 
+    def link_origin_task(task_id: int, task_name: typing.Optional[str]) -> None:
+        """
+        Record, for the current thread, the asyncio task that submitted the work now running on it.
+        """
+        _stack.link_origin_task(task_id, task_name or "")
+
+    def unlink_origin_task() -> None:
+        """
+        Clear the originating asyncio task for the current thread.
+        """
+        _stack.unlink_origin_task()
+
 except Exception as e:
     failure_msg = str(e)

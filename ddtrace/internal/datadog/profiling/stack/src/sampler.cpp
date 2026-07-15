@@ -3,6 +3,7 @@
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
+#include "origin_task_links.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -557,6 +558,9 @@ stack_postfork_cleanup()
     // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
+    // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
+    OriginTaskLinks::postfork_child();
+
     // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
@@ -576,6 +580,7 @@ stack_init()
 {
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
+    OriginTaskLinks::postfork_child();
 }
 
 void

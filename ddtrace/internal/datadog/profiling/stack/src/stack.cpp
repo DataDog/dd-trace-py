@@ -1,5 +1,6 @@
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "origin_task_links.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -105,6 +106,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
     ThreadSpanLinks::get_instance().unlink_span(id);
+    OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -148,6 +150,67 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 }
 
 PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
+
+// Records the asyncio task that offloaded work to the current (worker) thread.
+// The thread id is derived from the calling thread's state (this runs on the
+// worker thread), matching how stack_link_span_impl resolves it.
+static PyObject*
+stack_link_origin_task_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t task_id;
+    const char* task_name = nullptr;
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return NULL;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    static const char* const_kwlist[] = { "task_id", "task_name", NULL };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Kz", kwlist, &task_id, &task_name)) {
+        return NULL;
+    }
+
+    // From Python, task_name is a string or None, and when given None, it is passed as a nullptr.
+    static const std::string empty_string = "";
+    if (task_name == nullptr) {
+        task_name = empty_string.c_str();
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    OriginTaskLinks::get_instance().link_origin_task(thread_id, task_id, std::string(task_name));
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_origin_task = cast_to_pycfunction(stack_link_origin_task_impl);
+
+static PyObject*
+stack_unlink_origin_task(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return NULL;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    OriginTaskLinks::get_instance().unlink_origin_task(thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
 
 static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
@@ -827,6 +890,14 @@ static PyMethodDef stack_methods[] = {
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "link_origin_task",
+      reinterpret_cast<PyCFunction>(stack_link_origin_task),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link the originating asyncio task to the current (executor worker) thread" },
+    { "unlink_origin_task",
+      stack_unlink_origin_task,
+      METH_NOARGS,
+      "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
