@@ -875,7 +875,7 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.49.2
+      max: 2.56.0
 
 - integration_name: ray_serve
   is_external_package: true

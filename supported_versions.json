@@ -4600,26 +4600,26 @@
         "python_versions": {
             "3.11": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.56.0",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.56.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.56.0",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.56.0"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.56.0",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.56.0"
                 ]
             }
         },
