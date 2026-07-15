@@ -16,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "77e6da9b53639436525bf7bfb076723e18e102c3"
+  SYSTEM_TESTS_REF: "708e905deb860b83b23ea440b79527446a28e8e7"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -641,9 +641,9 @@ profiling_native:
         - ddtrace/internal/datadog/profiling/**/*.pyx
         - ddtrace/internal/datadog/profiling/**/*.cmake
         - ddtrace/profiling/**/*.cpp
-        - ddtrace/profiling/**/*.cc
         - ddtrace/profiling/**/*.h
         - ddtrace/profiling/**/*.hpp
+        - ddtrace/profiling/**/*.pxd
         - ddtrace/profiling/**/*.pyx
         # Build/test config files (not matchable by extension alone)
         - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
