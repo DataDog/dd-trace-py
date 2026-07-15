@@ -1,3 +1,6 @@
+from cpython.ref cimport PyObject
+from libc.stdint cimport uintptr_t
+
 from wrapt.importer import when_imported
 
 from ddtrace.internal.settings.profiling import config
@@ -25,6 +28,11 @@ cpdef initialize_gevent_support():
     when_imported("gevent")(_initialize_gevent_module)
 
 
+cpdef uintptr_t task_object_address(object task):
+    """Return the memory address of a Python object as a numeric task ID."""
+    return <uintptr_t><PyObject*>task
+
+
 cdef _asyncio_task_get_frame(task):
     coro = task._coro
     if hasattr(coro, "cr_frame"):
@@ -49,7 +57,7 @@ cpdef get_task():
     if _asyncio.get_running_loop() is not None:
         task = _asyncio.current_task()
         if task is not None:
-            task_id = id(task)
+            task_id = task_object_address(task)
             task_name = _asyncio._task_get_name(task)
             frame = _asyncio_task_get_frame(task)
 
