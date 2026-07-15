@@ -957,7 +957,7 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools_scm[toml]>=4,<10", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
