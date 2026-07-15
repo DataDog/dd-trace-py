@@ -309,7 +309,9 @@ def test_symbols_upload_enabled():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff")
+    ddtrace_run=True,
+    env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff"),
+    err=None,
 )
 def test_symbols_force_upload():
     import typing as t

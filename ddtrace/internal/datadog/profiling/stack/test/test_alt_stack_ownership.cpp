@@ -82,3 +82,41 @@ TEST(ThreadAltStackOwnership, DestructorDisablesOwnAltStack)
     ASSERT_EQ(sigaltstack(nullptr, &cur), 0);
     EXPECT_NE(cur.ss_flags & SS_DISABLE, 0);
 }
+
+// If another component (for example crashtracker) replaces this thread's alternate signal stack
+// after ThreadAltStack installed its own, the destructor must not disable that replacement; it
+// only frees our own mapping. Without the cur.ss_sp == mem guard the destructor would strip the
+// replacement owner's alt stack.
+TEST(ThreadAltStackOwnership, DestructorDoesNotDisableReplacedAltStack)
+{
+    disable_alt_stack();
+
+    void* sentinel = mmap(nullptr, kSentinelSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    ASSERT_NE(sentinel, MAP_FAILED);
+
+    {
+        ThreadAltStack alt;
+        ASSERT_EQ(alt.ensure_installed(), 0);
+        // No alt stack was present, so ThreadAltStack allocated and owns its own mapping.
+        ASSERT_TRUE(alt.owns_mapping);
+        ASSERT_NE(alt.mem, nullptr);
+
+        // Simulate another component replacing this thread's alt stack after we installed ours.
+        stack_t replacement{};
+        replacement.ss_sp = sentinel;
+        replacement.ss_size = kSentinelSize;
+        replacement.ss_flags = 0;
+        ASSERT_EQ(sigaltstack(&replacement, nullptr), 0);
+
+        // alt goes out of scope here; its destructor runs.
+    }
+
+    // The replacement must still be installed and not disabled.
+    stack_t cur{};
+    ASSERT_EQ(sigaltstack(nullptr, &cur), 0);
+    EXPECT_EQ(cur.ss_sp, sentinel);
+    EXPECT_EQ(cur.ss_flags & SS_DISABLE, 0);
+
+    disable_alt_stack();
+    munmap(sentinel, kSentinelSize);
+}
