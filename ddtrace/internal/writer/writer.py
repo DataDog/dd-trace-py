@@ -1308,25 +1308,24 @@ def create_trace_writer(
     # DEV: _DD_TRACE_NATIVE_BUFFER is a temporary feature flag used to validate
     # NativeTraceBuffer across the full test suite before it becomes the default.
     # It is intentionally undocumented and will be removed once the rollout is complete.
-    if env.get("_DD_TRACE_NATIVE_BUFFER"):
-        return NativeTraceBuffer(
-            intake_url=agent_config.trace_agent_url,
-            compute_stats_enabled=config._trace_compute_stats,
-            response_callback=response_callback,
-            stats_opt_out=asm_config._apm_opt_out,
-            otlp_endpoint=otlp_endpoint,
-            sync_mode=_use_sync_mode(),
-        )
-
-    return NativeWriter(
+    return NativeTraceBuffer(
         intake_url=agent_config.trace_agent_url,
-        dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-        sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
-        client_side_stats_obfuscation=config._client_side_stats_obfuscation,
-        report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,
         otlp_endpoint=otlp_endpoint,
-        otlp_metrics_endpoint=otlp_metrics_endpoint,
+        sync_mode=_use_sync_mode(),
     )
+
+    # return NativeWriter(
+    #     intake_url=agent_config.trace_agent_url,
+    #     dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+    #     sync_mode=_use_sync_mode(),
+    #     compute_stats_enabled=config._trace_compute_stats,
+    #     client_side_stats_obfuscation=config._client_side_stats_obfuscation,
+    #     report_metrics=not asm_config._apm_opt_out,
+    #     response_callback=response_callback,
+    #     stats_opt_out=asm_config._apm_opt_out,
+    #     otlp_endpoint=otlp_endpoint,
+    #     otlp_metrics_endpoint=otlp_metrics_endpoint,
+    # )
