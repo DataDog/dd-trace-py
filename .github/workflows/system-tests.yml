@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '00 04 * * 2-6'
 
+# AIDEV-NOTE: ddtrace 3.12 predates the OpenFeature API used by newer system-tests.
+# Keep this harness revision paired with the Agent version that it was validated against.
+env:
+  SYSTEM_TESTS_AGENT_IMAGE: datadog/agent:7.71.0
+
 jobs:
   build-wheels:
     uses: ./.github/workflows/build_python_3.yml
@@ -47,7 +52,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '708e905deb860b83b23ea440b79527446a28e8e7'
+          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -94,7 +99,12 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '708e905deb860b83b23ea440b79527446a28e8e7'
+          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
+
+      - name: Pin compatible Datadog Agent
+        run: |
+          mkdir -p binaries
+          printf '%s\n' "$SYSTEM_TESTS_AGENT_IMAGE" > binaries/agent-image
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -279,7 +289,11 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '708e905deb860b83b23ea440b79527446a28e8e7'
+          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
+      - name: Pin compatible Datadog Agent
+        run: |
+          mkdir -p binaries
+          printf '%s\n' "$SYSTEM_TESTS_AGENT_IMAGE" > binaries/agent-image
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
