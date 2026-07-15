@@ -6,6 +6,7 @@ Integration tests are in tests/test_integration.py.
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -27,6 +28,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
@@ -691,6 +693,28 @@ class TestNodeIdToTestRef:
         assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
         assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
+
+
+class TestItemToTestRef:
+    """Unit tests for item_to_test_ref."""
+
+    def test_caches_test_ref_on_item(self) -> None:
+        hook = Mock()
+        hook.pytest_ddtrace_get_item_module_name.return_value = None
+        hook.pytest_ddtrace_get_item_suite_name.return_value = None
+        hook.pytest_ddtrace_get_item_test_name.return_value = None
+        item = SimpleNamespace(
+            nodeid="tests/internal/test_example.py::test_function",
+            config=SimpleNamespace(hook=hook),
+        )
+
+        first = item_to_test_ref(t.cast(pytest.Item, item))
+        second = item_to_test_ref(t.cast(pytest.Item, item))
+
+        assert second is first
+        hook.pytest_ddtrace_get_item_module_name.assert_called_once_with(item=item)
+        hook.pytest_ddtrace_get_item_suite_name.assert_called_once_with(item=item)
+        hook.pytest_ddtrace_get_item_test_name.assert_called_once_with(item=item)
 
 
 class TestHelperFunctions:

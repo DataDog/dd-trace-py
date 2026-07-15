@@ -819,20 +819,23 @@ class TestXdistPartialFlush:
         Run 1 (no env var): the passing test's event is LOST because it was
         buffered on the same worker that crashed.
 
-        Run 2 (env var set): the passing test's event is usually SAVED because the
-        env var lowers the async flush threshold enough for the writer thread to
-        flush before the next test can crash.
+        Run 2 (env var set): the passing test's event is SAVED because the
+        env var lowers the async flush threshold and the crashing test gives the
+        writer thread enough time to flush before killing the worker.
 
         This documents the intended mitigation — same test code, same crash,
-        different flush threshold.
+        different flush threshold. Async flushing is not a hard crash-safety
+        guarantee when the process exits immediately after a test event is queued.
         """
         test_code = textwrap.dedent("""\
             import os
+            import time
 
             def test_passes_before_crash():
                 assert True
 
             def test_crashes_worker():
+                time.sleep(0.05)
                 os._exit(1)
         """)
 
@@ -876,8 +879,10 @@ class TestXdistPartialFlush:
             (test_project / f"test_crash_{i}.py").write_text(
                 textwrap.dedent(f"""\
                     import os
+                    import time
 
                     def test_crash_{i}():
+                        time.sleep(0.05)
                         os._exit(1)
                 """)
             )
