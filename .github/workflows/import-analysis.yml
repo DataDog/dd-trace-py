@@ -54,7 +54,8 @@ jobs:
         run: |
           python -m venv .venv-base
           source .venv-base/bin/activate
-          python -m pip install ./dd-trace-py
+          echo "setuptools<81" > "${RUNNER_TEMP}/base-build-constraints.txt"
+          PIP_CONSTRAINT="${RUNNER_TEMP}/base-build-constraints.txt" python -m pip install ./dd-trace-py
           python -c "import ddtrace.auto"
           deactivate
   
@@ -81,7 +82,7 @@ jobs:
           file-path: import_analysis.txt
           comment-tag: import_analysis
           mode: upsert
-        if: always()
+        if: ${{ always() && hashFiles('import_analysis.txt') != '' }}
 
   import_cycles:
     name: "Circular import analysis"
