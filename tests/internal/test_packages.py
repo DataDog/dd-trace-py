@@ -56,8 +56,22 @@ def test_get_distributions():
             importlib_pkgs.add("importlib_resources")
         elif name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
             importlib_pkgs.add("importlib-resources")
+        elif name == "openfeature-sdk" and "openfeature_sdk" in pkg_resources_ws:
+            importlib_pkgs.add("openfeature_sdk")
+        elif name == "openfeature_sdk" and "openfeature-sdk" in pkg_resources_ws:
+            importlib_pkgs.add("openfeature-sdk")
         else:
             importlib_pkgs.add(name)
+        # Fix for last zope namespace changes
+        for sub in ["interface", "event"]:
+            if f"zope-{sub}" in pkg_resources_ws and f"zope.{sub}" in importlib_pkgs:
+                pkg_resources_ws.discard(f"zope-{sub}")
+                importlib_pkgs.discard(f"zope.{sub}")
+        # Fix for jaraco namespace packages (same normalization issue as zope)
+        for sub in ["context", "functools", "classes", "text"]:
+            if f"jaraco-{sub}" in pkg_resources_ws and f"jaraco.{sub}" in importlib_pkgs:
+                pkg_resources_ws.discard(f"jaraco-{sub}")
+                importlib_pkgs.discard(f"jaraco.{sub}")
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs
