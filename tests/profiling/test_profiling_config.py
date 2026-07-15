@@ -7,6 +7,22 @@ import pytest
 from ddtrace.internal.settings.profiling import ProfilingConfig
 
 
+class TestMaxFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 601, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
+
+        assert ProfilingConfig().max_frames == 600
+
+    def test_preserves_value_below_backend_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "512")
+
+        assert ProfilingConfig().max_frames == 512
+
+
 class TestAdaptiveSamplingConfig:
     def test_defaults(self) -> None:
         config = ProfilingConfig()

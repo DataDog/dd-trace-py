@@ -9,7 +9,8 @@ constexpr unsigned int g_default_max_nframes = 64;
 
 // Maximum number of frames admissible in the Profiling backend.  If a user exceeds this number, then
 // their stacks may be silently truncated, which is unfortunate.
-constexpr unsigned int g_backend_max_nframes = 512;
+// Keep in sync with BACKEND_MAX_FRAMES in ddtrace/internal/settings/profiling.py.
+constexpr unsigned int g_backend_max_nframes = 600;
 
 // Default value for the max number of samples to keep in the StaticSamplePool
 constexpr size_t g_default_sample_pool_capacity = 4;

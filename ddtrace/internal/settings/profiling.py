@@ -118,6 +118,16 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     return tags
 
 
+# The profiling backend accepts at most this many locations per sample. Keep
+# this in sync with g_backend_max_nframes in
+# ddtrace/internal/datadog/profiling/dd_wrapper/include/constants.hpp.
+BACKEND_MAX_FRAMES = 600
+
+
+def _clamp_max_frames(value: str) -> int:
+    return min(int(value), BACKEND_MAX_FRAMES)
+
+
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
@@ -198,9 +208,11 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
-        validator=validators.range(0, t.cast(int, float("inf"))),
+        parser=_clamp_max_frames,
+        validator=validators.range(0, BACKEND_MAX_FRAMES),
         help_type="Integer",
-        help="The maximum number of frames to capture in stack execution tracing",
+        help="The maximum number of frames to capture in stack execution tracing. Values above the profiling "
+        "backend limit (%d) are clamped, since deeper stacks are truncated on ingest." % BACKEND_MAX_FRAMES,
     )
 
     ignore_profiler = DDConfig.v(

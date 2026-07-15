@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes inconsistent handling of ``DD_PROFILING_MAX_FRAMES`` by aligning the profiler with the backend's 600-location limit. Values above 600 are now clamped before collectors start, while values from 513 through 600 are no longer reduced to 512 by the native exporter.
