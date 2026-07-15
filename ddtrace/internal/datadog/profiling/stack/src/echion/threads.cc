@@ -11,7 +11,11 @@
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
-    unwind_python_stack(echion, tstate, python_stack);
+    // Asyncio stitching needs the root-side event-loop boundary and overlap
+    // metadata, so preserve Echion's existing discovery depth for task-aware
+    // stacks. Non-task thread stacks can stop at the configured reporting limit.
+    const size_t max_depth = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
+    unwind_python_stack(echion, tstate, python_stack, max_depth);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -252,15 +256,15 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
             // python_stack must be appended before coroutine frames.
             // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
-            // This preserves the previous max_frames truncation behavior while avoiding front insertion.
+            // This preserves the previous task-stack truncation behavior while avoiding front insertion.
             const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
             size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 task_stack = &it->second;
                 task_stack_size = task_stack->size();
-                if (stack.size() < max_frames) {
-                    task_frames_to_push = std::min(task_stack_size, max_frames - stack.size());
+                if (stack.size() < MAX_TASK_FRAMES) {
+                    task_frames_to_push = std::min(task_stack_size, MAX_TASK_FRAMES - stack.size());
                 }
             }
             if (task.is_on_cpu) {

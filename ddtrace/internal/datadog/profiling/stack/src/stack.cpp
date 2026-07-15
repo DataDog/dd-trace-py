@@ -317,6 +317,32 @@ stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_max_frames(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long max_frames;
+
+    if (!PyArg_ParseTuple(args, "K", &max_frames)) {
+        return NULL;
+    }
+
+    if (!Sampler::get().set_max_frames(max_frames)) {
+        PyErr_SetString(PyExc_RuntimeError, "cannot change max frames while the stack sampler is running");
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_get_frame_limits(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    const auto& sampler = Sampler::get();
+    return Py_BuildValue("KK",
+                         static_cast<unsigned long long>(sampler.max_frames()),
+                         static_cast<unsigned long long>(sampler.frame_cache_capacity()));
+}
+
+static PyObject*
 stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
 {
     uintptr_t thread_id;
@@ -860,6 +886,8 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
+    { "set_max_frames", stack_set_max_frames, METH_VARARGS, "Set the plain-stack reporting depth" },
+    { "_get_frame_limits", stack_get_frame_limits, METH_NOARGS, "Get plain-stack and frame-cache limits" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },

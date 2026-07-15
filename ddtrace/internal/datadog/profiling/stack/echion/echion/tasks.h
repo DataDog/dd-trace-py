@@ -31,7 +31,6 @@
 #include <memory>
 #include <utility>
 
-#include <echion/config.h>
 #include <echion/errors.h>
 #include <echion/frame.h>
 #include <echion/mirrors.h>

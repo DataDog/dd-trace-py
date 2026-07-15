@@ -33,7 +33,7 @@ FrameStack::render(EchionSampler& echion)
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param seen_frames: Cycle-detection set. Cleared on entry; capacity is reused
 //                     by callers (typically EchionSampler::seen_frames_scratch).
-// @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
+// @param max_depth: Maximum number of frames to add during this walk.
 // @return: Number of frames added to the stack.
 size_t
 unwind_frame(EchionSampler& echion,
@@ -46,7 +46,7 @@ unwind_frame(EchionSampler& echion,
     size_t count = 0;
 
     PyObject* current_frame_addr = frame_addr;
-    while (current_frame_addr != NULL && stack.size() < max_frames) {
+    while (current_frame_addr != NULL && stack.size() < MAX_TASK_FRAMES) {
         if (seen_frames.contains(current_frame_addr))
             break;
 
@@ -88,7 +88,7 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
 }
 
 void
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack)
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_depth)
 {
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
@@ -114,5 +114,5 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch());
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_depth);
 }
