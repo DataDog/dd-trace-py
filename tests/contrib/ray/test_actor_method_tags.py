@@ -10,6 +10,8 @@ from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_CLASS_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_MODULE_NAME
 import ddtrace.contrib.internal.ray.patch  # noqa: F401 — triggers config._add("ray", ...) registration
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
 
@@ -49,11 +51,27 @@ def _make_ctx_with_span(event):
     """Create a minimal mock context holding the event and a live span."""
 
     class _Ctx:
-        pass
+        def __init__(self):
+            self._data = {}
+
+        def get_item(self, key, default=None):
+            return self._data.get(key, default)
+
+        def find_item(self, key, default=None):
+            return self._data.get(key, default)
+
+        def set_item(self, key, value):
+            self._data[key] = value
+
+        def __getitem__(self, key):
+            return self._data[key]
 
     ctx = _Ctx()
     ctx.event = event
-    ctx.span = tracer.start_span(event.operation_name, service=event.service, resource=event.resource)
+    store_span_on_context(
+        ctx,
+        tracer.start_span(event.operation_name, service=event.service, resource=event.resource),
+    )
     return ctx
 
 
@@ -119,13 +137,13 @@ def test_submission_span_carries_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) == "MyActor"
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) == "my.module"
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) == "train_step"
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_submission_span_omits_none_actor_metadata_tags():
@@ -135,13 +153,13 @@ def test_submission_span_omits_none_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_task_submission_does_not_get_actor_metadata_tags():
@@ -162,14 +180,14 @@ def test_task_submission_does_not_get_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate actor tags on is_actor_method
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 # ---------------------------------------------------------------------------
@@ -188,13 +206,13 @@ def test_execution_span_carries_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RayExecutionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) == "MyActor"
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) == "my.module"
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) == "train_step"
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_execution_span_omits_none_actor_metadata_tags():
@@ -204,13 +222,13 @@ def test_execution_span_omits_none_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RayExecutionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_remote_task_execution_does_not_get_actor_metadata_tags():
@@ -233,11 +251,11 @@ def test_remote_task_execution_does_not_get_actor_metadata_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RayExecutionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate actor tags on is_actor_method
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
         assert span.get_tag(RAY_ACTOR_METHOD_NAME) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()

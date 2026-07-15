@@ -18,6 +18,7 @@ from ddtrace.ext import valkey as valkeyx
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
@@ -64,7 +65,7 @@ def _instrument_valkey_cmd(config_integration, instance, args):
             resource=query.split(" ")[0] if config_integration.resource_only_command else query,
             integration_config=config_integration,
         ) as ctx,
-        ctx.span as span,
+        span_from_context(ctx) as span,
     ):
         _set_span_tags(span, config_integration, args, instance, query)
         yield ctx

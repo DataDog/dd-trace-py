@@ -25,6 +25,7 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -140,8 +141,8 @@ async def traced_send(func, instance, args, kwargs):
         integration_config=config.aiokafka,
     ) as ctx:
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and ctx.span is not None:
-            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        if cluster_id and span_from_context(ctx) is not None:
+            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
 
@@ -206,8 +207,8 @@ async def traced_getone(func, instance, args, kwargs):
         integration_config=config.aiokafka,
     ) as ctx:
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and ctx.span is not None:
-            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        if cluster_id and span_from_context(ctx) is not None:
+            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
         core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
 
     if err is not None:
@@ -238,8 +239,8 @@ async def traced_getmany(func, instance, args, kwargs):
                     break
         cluster_id = await _get_cluster_id(instance._client, topic)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and ctx.span is not None:
-            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        if cluster_id and span_from_context(ctx) is not None:
+            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
         core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 

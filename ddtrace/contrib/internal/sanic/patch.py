@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import tracer
 
@@ -216,7 +217,7 @@ def _create_sanic_request_span(request):
         activate_distributed_headers=True,
         headers_case_sensitive=True,
     ) as ctx:
-        req_span = ctx.span
+        req_span = span_from_context(ctx)
 
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.sanic))

@@ -4,6 +4,7 @@ from aiohttp.web_urldispatcher import SystemRoute
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -64,7 +65,7 @@ async def trace_middleware(app, handler):
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
 
             # attach the execution context to the request
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
@@ -87,7 +88,7 @@ async def trace_middleware(app, handler):
 def finish_request_span(request, response):
     # safe-guard: discard if we don't have a request span
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or not ctx.span:
+    if not ctx or not span_from_context(ctx):
         return
 
     # default resource name

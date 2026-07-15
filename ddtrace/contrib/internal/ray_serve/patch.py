@@ -21,6 +21,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
@@ -73,7 +74,7 @@ def _get_serve_request_context_tags() -> dict[str, str]:
 
 
 def _set_deployment_method_span_metadata(ctx, deployment_name: str, method_name: str) -> None:
-    span = ctx.span
+    span = span_from_context(ctx)
     if span is None:
         return
 

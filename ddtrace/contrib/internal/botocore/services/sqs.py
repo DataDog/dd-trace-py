@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
@@ -159,7 +160,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 pin=pin,
                 integration_config=config.botocore,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             core.dispatch("botocore.patched_sqs_api_call.started", (ctx,))
 
@@ -184,7 +185,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx.span.resource].is_error_code,
+                        config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                     ),
                 )
                 raise

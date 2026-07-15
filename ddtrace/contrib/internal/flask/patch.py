@@ -16,6 +16,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 
 
@@ -564,7 +565,7 @@ def _build_render_template_wrapper(name):
                 span_type=SpanTypes.TEMPLATE,
                 integration_config=config.flask,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             return wrapped(*args, **kwargs)
 
@@ -613,7 +614,7 @@ def request_patcher(name):
                 tags={COMPONENT: config.flask.integration_name},
                 integration_config=config.flask,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
@@ -645,6 +646,6 @@ def patched_jsonify(wrapped, instance, args, kwargs):
             flask_config=config.flask,
             tags={COMPONENT: config.flask.integration_name},
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return wrapped(*args, **kwargs)

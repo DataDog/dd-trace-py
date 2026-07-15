@@ -23,7 +23,7 @@ This example shows how ``core.context_with_data`` might be used to create a node
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-        ) as ctx, ctx.span:
+        ) as ctx, span_from_context(ctx):
             return wrapped(*args, **kwargs)
 
 
@@ -321,22 +321,15 @@ class ExecutionContext(Generic[EventType]):
 
     @property
     def span(self) -> "Span":
-        if self.get_item("_inner_span") is None:
-            log.warning(
-                "No span found in %s. "
-                "This may indicate the context.started event handler did not set a span. "
-                "Creating fallback 'default' span.",
-                self,
-            )
-            tracer = self.find_item("tracer")
-            self.set_item("_inner_span", tracer.current_span() or tracer.trace("default"))
-        return self["_inner_span"]  # type: ignore
+        from ddtrace.internal.span_bus import span_from_context
+
+        return span_from_context(self)
 
     @span.setter
     def span(self, value: "Span") -> None:
-        self.set_item("_inner_span", value)
-        if "span_key" in self._data:
-            self._data[self._data["span_key"]] = value
+        from ddtrace.internal.span_bus import store_span_on_context
+
+        store_span_on_context(self, value)
 
     @property
     def event(self) -> EventType:

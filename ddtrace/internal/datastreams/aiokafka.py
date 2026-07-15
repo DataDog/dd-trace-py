@@ -9,6 +9,7 @@ from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -36,7 +37,7 @@ def dsm_aiokafka_send_start(
     if not dsm_processor:
         return
 
-    span = span_ctx.span
+    span = span_from_context(span_ctx)
 
     payload_size = 0
     payload_size += _calculate_byte_size(value)
@@ -96,7 +97,7 @@ def dsm_aiokafka_message_consume(
     if not dsm_processor or not message:
         return
 
-    span = span_ctx.span
+    span = span_from_context(span_ctx)
 
     headers = {
         key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val)

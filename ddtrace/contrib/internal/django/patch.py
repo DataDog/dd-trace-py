@@ -39,6 +39,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -194,10 +195,10 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     core.context_with_data(
                         "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
                     ) as ctx,
-                    ctx.span,
+                    span_from_context(ctx),
                 ):
                     # Don't flag the span as errored on routine ASGI cancellation (#17728).
-                    ctx.span._ignore_exception(asyncio.CancelledError)
+                    span_from_context(ctx)._ignore_exception(asyncio.CancelledError)
                     core.dispatch(
                         "django.func.wrapped",
                         (
@@ -214,7 +215,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
         with (
             core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             core.dispatch(
                 "django.func.wrapped",

@@ -18,6 +18,8 @@ from ddtrace.contrib.internal.ray.core.remote_function import _as_float
 from ddtrace.contrib.internal.ray.core.remote_function import _as_int
 from ddtrace.contrib.internal.ray.core.remote_function import _as_str
 import ddtrace.contrib.internal.ray.patch  # noqa: F401 — triggers config._add("ray", ...) registration
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
 
@@ -42,11 +44,27 @@ def _make_ctx_with_span(event):
     """Create a minimal mock context holding the event and a live span."""
 
     class _Ctx:
-        pass
+        def __init__(self):
+            self._data = {}
+
+        def get_item(self, key, default=None):
+            return self._data.get(key, default)
+
+        def find_item(self, key, default=None):
+            return self._data.get(key, default)
+
+        def set_item(self, key, value):
+            self._data[key] = value
+
+        def __getitem__(self, key):
+            return self._data[key]
 
     ctx = _Ctx()
     ctx.event = event
-    ctx.span = tracer.start_span(event.operation_name, service=event.service, resource=event.resource)
+    store_span_on_context(
+        ctx,
+        tracer.start_span(event.operation_name, service=event.service, resource=event.resource),
+    )
     return ctx
 
 
@@ -167,7 +185,7 @@ def test_submission_span_carries_scheduling_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(RAY_TASK_NUM_CPUS) == 4.0
         assert span.get_metric(RAY_TASK_NUM_GPUS) == 2.0
@@ -180,7 +198,7 @@ def test_submission_span_carries_scheduling_tags():
         # Resource tag: ray.task.resources.my_custom_gpu
         assert span.get_metric(f"{RAY_TASK_RESOURCES_PREFIX}my_custom_gpu") == 1.0
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_submission_span_omits_none_scheduling_tags():
@@ -190,7 +208,7 @@ def test_submission_span_omits_none_scheduling_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(RAY_TASK_NUM_CPUS) is None
         assert span.get_metric(RAY_TASK_NUM_GPUS) is None
@@ -201,7 +219,7 @@ def test_submission_span_omits_none_scheduling_tags():
         assert span.get_tag(RAY_TASK_FUNCTION_MODULE) is None
         assert span.get_tag(RAY_TASK_FUNCTION_QUALNAME) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_actor_method_submission_does_not_get_task_tags():
@@ -221,13 +239,13 @@ def test_actor_method_submission_does_not_get_task_tags():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate task tags on is_task_submission
         assert span.get_metric(RAY_TASK_NUM_CPUS) is None
         assert span.get_metric(RAY_TASK_NUM_GPUS) is None
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()
 
 
 def test_submission_span_resources_multiple_keys():
@@ -239,9 +257,9 @@ def test_submission_span_resources_multiple_keys():
     ctx = _make_ctx_with_span(event)
     try:
         RaySubmissionSubscriber.on_started(ctx)
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(f"{RAY_TASK_RESOURCES_PREFIX}accelerator_v100") == 2.0
         assert span.get_metric(f"{RAY_TASK_RESOURCES_PREFIX}custom_memory") == 4.0
     finally:
-        ctx.span.finish()
+        span_from_context(ctx).finish()

@@ -29,6 +29,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -147,8 +148,11 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
                 ctx.event.suspended = True
                 # Workflow is pausing; another invocation will resume it. This
                 # is the only branch where it's worth persisting trace context.
-                if ctx.span is not None and config.aws_durable_execution_sdk_python.cross_invocation_tracing:
-                    maybe_save_trace_context_checkpoint(durable_context, ctx.span)
+                if (
+                    span_from_context(ctx) is not None
+                    and config.aws_durable_execution_sdk_python.cross_invocation_tracing
+                ):
+                    maybe_save_trace_context_checkpoint(durable_context, span_from_context(ctx))
                 ctx.dispatch_ended_event()
                 raise
 

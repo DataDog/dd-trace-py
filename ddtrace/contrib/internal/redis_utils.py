@@ -13,6 +13,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import stringify_cache_args
 
 
@@ -163,7 +164,7 @@ def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
         integration_config=config_integration,
     ) as ctx:
         core.dispatch("redis.execute_pipeline", (ctx, config_integration, None, instance, cmd_string))
-        yield ctx.span
+        yield span_from_context(ctx)
 
 
 @contextmanager
