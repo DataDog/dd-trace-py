@@ -228,8 +228,8 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
 #endif
 }
 
-size_t
-TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
+TaskUnwindResult
+TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop, size_t max_depth)
 {
     // TODO: Check for running task.
     (void)echion;
@@ -250,11 +250,10 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         }
     }
 
-    // Total number of frames added to the Stack
-    size_t count = 0;
+    TaskUnwindResult result{ 0, coro_frames.size() };
 
-    // Unwind the coro frames
-    while (!coro_frames.empty()) {
+    // Unwind only the frames that can contribute to this task's output.
+    while (!coro_frames.empty() && result.retained < max_depth) {
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
@@ -275,11 +274,12 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         // Skip the uvloop wrapper frame if present (only at the outermost level of the top-level Task)
         if (!stack.empty() && is_uvloop_wrapper_frame(echion, using_uvloop, stack.back())) {
             stack.pop_back();
+            result.depth--;
             continue;
         }
 
-        count += 1;
+        result.retained++;
     }
 
-    return count;
+    return result;
 }

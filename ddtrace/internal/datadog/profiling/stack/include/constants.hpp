@@ -15,5 +15,8 @@ constexpr double g_target_overhead = 0.01; // 1% overhead
 // 0 means no limit (sample all threads).
 constexpr unsigned int g_default_max_threads_per_sample = 25;
 
-// Echion maintains a cache of frames--the size of this cache is specified up-front.
-constexpr unsigned int g_default_echion_frame_cache_size = 1024;
+// Echion retains recently rendered frames across stack walks. Scale the cache with
+// the configured stack depth while bounding both churn and retained memory.
+constexpr unsigned int g_min_echion_frame_cache_size = 256;
+constexpr unsigned int g_max_echion_frame_cache_size = 1024;
+constexpr unsigned int g_echion_frame_cache_size_multiplier = 4;

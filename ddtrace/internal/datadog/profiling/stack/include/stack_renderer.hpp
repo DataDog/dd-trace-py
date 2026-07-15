@@ -81,6 +81,7 @@ class StackRenderer
                              unsigned long native_id);
     void render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id);
     void render_frame(Frame& frame);
+    void render_omitted_frames(size_t count);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();

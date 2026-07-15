@@ -5,14 +5,30 @@
 
 #include "dd_wrapper/include/profiler_state.hpp"
 
+size_t
+rendered_location_count(const Frame& frame)
+{
+    if (frame.code_object == 0 || frame.lasti < 0) {
+        return 1;
+    }
+
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
+    const int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+    return registry.lookup(frame.code_object, offset_bytes, frame.first_lineno) ? 2 : 1;
+}
+
 void
-FrameStack::render(EchionSampler& echion)
+FrameStack::render(EchionSampler& echion, size_t omission_index, size_t omitted_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
-    for (auto it = this->begin(); it != this->end(); ++it) {
-        auto& frame = *it;
+    for (size_t i = 0; i < size(); ++i) {
+        if (i == omission_index) {
+            renderer.render_omitted_frames(omitted_frames);
+        }
+
+        auto& frame = (*this)[i];
 
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
@@ -27,6 +43,10 @@ FrameStack::render(EchionSampler& echion)
         }
 
         renderer.render_frame(frame);
+    }
+
+    if (omission_index == size()) {
+        renderer.render_omitted_frames(omitted_frames);
     }
 }
 
@@ -46,7 +66,7 @@ unwind_frame(EchionSampler& echion,
     size_t count = 0;
 
     PyObject* current_frame_addr = frame_addr;
-    while (current_frame_addr != NULL && stack.size() < MAX_TASK_FRAMES) {
+    while (current_frame_addr != NULL && stack.size() < MAX_STACK_DISCOVERY_DEPTH) {
         if (seen_frames.contains(current_frame_addr))
             break;
 

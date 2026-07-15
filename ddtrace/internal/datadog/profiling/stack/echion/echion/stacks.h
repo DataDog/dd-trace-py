@@ -30,8 +30,11 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    void render(EchionSampler& echion);
+    void render(EchionSampler& echion, size_t omission_index = SIZE_MAX, size_t omitted_frames = 0);
 };
+
+[[nodiscard]] size_t
+rendered_location_count(const Frame& frame);
 
 // Forward declaration
 class EchionSampler;
@@ -46,13 +49,16 @@ unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
-             size_t max_depth = MAX_TASK_FRAMES);
+             size_t max_depth = MAX_STACK_DISCOVERY_DEPTH);
 
 // Convenience variant that owns a local scratch set, for callers that have no
 // reusable scratch to share (fuzz harnesses and other callers outside the
 // sampling thread). Prefer the primary overload above on the sampling thread.
 size_t
-unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = MAX_TASK_FRAMES);
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             size_t max_depth = MAX_STACK_DISCOVERY_DEPTH);
 
 // ----------------------------------------------------------------------------
 void
@@ -69,6 +75,8 @@ class StackInfo
     uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
+    size_t omission_index = SIZE_MAX;
+    size_t omitted_frames = 0;
 
     StackInfo(TaskName task_name, bool on_cpu, uint64_t task_id)
       : task_name(std::move(task_name))
