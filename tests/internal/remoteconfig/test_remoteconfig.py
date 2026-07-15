@@ -962,6 +962,26 @@ def test_send_request_retries_once_on_oserror():
     assert result == {"ok": True}
 
 
+def test_reset_at_fork_clears_cached_target_files():
+    """A fresh client id must not carry over cache claims from the pre-fork identity.
+
+    Otherwise the backend, trusting the client's own cached_target_files declaration, skips
+    resending target_files for configs this "new" client never actually applied.
+    """
+    client = RemoteConfigClient()
+    client.cached_target_files = [
+        {
+            "path": "datadog/2/LIVE_DEBUGGING_SYMBOL_DB/symDb/config",
+            "length": 1,
+            "hashes": [{"algorithm": "sha256", "hash": "x"}],
+        }
+    ]
+
+    client.reset_at_fork()
+
+    assert client.cached_target_files == []
+
+
 def test_online_tolerates_transient_failures_before_bouncing(remote_config_worker):
     """_online should stay in _online for N-1 consecutive failures, and bounce on the Nth."""
     worker = RemoteConfigPoller()

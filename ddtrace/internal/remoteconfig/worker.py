@@ -99,7 +99,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """Client Id needs to be refreshed when application forks"""
         self._enable = False
         log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
-        self._client.renew_id()
+        self._client.reset_at_fork()
 
         # Restart the global subscriber if needed and if there are registered products
         if self._client._product_callbacks:

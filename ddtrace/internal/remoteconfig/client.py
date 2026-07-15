@@ -397,11 +397,19 @@ class RemoteConfigClient:
             applied.apply_state = apply_state
             applied.apply_error = apply_error
 
-    def renew_id(self):
-        # called after the process is forked to declare a new id
+    def reset_at_fork(self):
+        """Reset all state scoped to the client id after the process forks.
+
+        A fork starts a new client identity, so nothing tied to the old id
+        (applied configs, cached_target_files) may carry over. In particular,
+        cached_target_files declares to the agent/backend which target files
+        this client already has; if it survived under a new id, the backend
+        would skip resending files this "new" client never actually applied.
+        """
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
         self._applied_configs.clear()
+        self.cached_target_files.clear()
 
     def register_callback(
         self,
