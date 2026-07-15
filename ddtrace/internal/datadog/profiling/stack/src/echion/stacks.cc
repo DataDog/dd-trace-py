@@ -18,10 +18,7 @@ rendered_location_count(const Frame& frame)
 }
 
 void
-FrameStack::render(EchionSampler& echion,
-                   TruncationStatus truncation,
-                   size_t omission_index,
-                   size_t omitted_frames)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
@@ -71,7 +68,7 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation)
 {
     seen_frames.clear();
-    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
+    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_STACK_DISCOVERY_DEPTH)) {
         return UnwindResult{};
     }
 
@@ -79,9 +76,9 @@ unwind_frame(EchionSampler& echion,
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
-        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_DISCOVERY_DEPTH;
         if (at_limit) {
-            if (!detect_truncation || frames_probed_after_limit >= MAX_TASK_FRAMES) {
+            if (!detect_truncation || frames_probed_after_limit >= MAX_STACK_DISCOVERY_DEPTH) {
                 return result;
             }
             frames_probed_after_limit++;
