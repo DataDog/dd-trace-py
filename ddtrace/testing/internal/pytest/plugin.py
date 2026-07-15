@@ -408,7 +408,11 @@ class TestOptPlugin:
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
-        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+        # Also handle test-level deselection: when all tests are deselected at the item level,
+        # pytest still returns NO_TESTS_COLLECTED, so check if any tests were skipped.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and (
+            self._itr_ignored_suite_paths or self.session.tests_skipped_by_itr
+        ):
             session.exitstatus = pytest.ExitCode.OK
 
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
