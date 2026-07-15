@@ -11,7 +11,6 @@ from moto import mock_sns
 from moto import mock_sqs
 import pytest
 
-from ddtrace._trace.utils_botocore import span_tags
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
@@ -48,13 +47,6 @@ class BotocoreDSMTest(TracerTestCase):
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
         super(BotocoreDSMTest, self).setUp()
-
-        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
-        # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
-        # config.botocore.payload_tagging_request
-        # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
-        # config.botocore.payload_tagging_response
-        span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
         super(BotocoreDSMTest, self).tearDown()

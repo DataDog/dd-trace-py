@@ -68,20 +68,35 @@ class AWSPayloadTagging:
 
     def __init__(self):
         self.current_tag_count = 0
-        self.validated = False
-        self.request_redaction_paths = None
-        self.response_redaction_paths = None
+        self._paths_compiled = False
+        # These hold precompiled jsonpath_ng expressions, not path strings.
+        # jsonpath_ng.parse() is expensive, so the expressions are compiled once
+        # and reused. The payload tagging config is remote-config controlled, so
+        # the setting values used at compile time are tracked and the expressions
+        # are recompiled whenever those settings change.
+        self.compiled_request_redaction_paths = None
+        self.compiled_response_redaction_paths = None
+        self._compiled_request_setting = None
+        self._compiled_response_setting = None
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
         Expands the JSON payload from various AWS services into tags and sets them on the Span.
         """
-        if not self.validated:
-            self.request_redaction_paths = self._get_redaction_paths_request()
-            self.response_redaction_paths = self._get_redaction_paths_response()
-            self.validated = True
+        current_request = config.botocore.get("payload_tagging_request")
+        current_response = config.botocore.get("payload_tagging_response")
+        if (
+            not self._paths_compiled
+            or self._compiled_request_setting != current_request
+            or self._compiled_response_setting != current_response
+        ):
+            self.compiled_request_redaction_paths = self._get_compiled_redaction_paths_request()
+            self.compiled_response_redaction_paths = self._get_compiled_redaction_paths_response()
+            self._compiled_request_setting = current_request
+            self._compiled_response_setting = current_response
+            self._paths_compiled = True
 
-        if not self.request_redaction_paths and not self.response_redaction_paths:
+        if not self.compiled_request_redaction_paths and not self.compiled_response_redaction_paths:
             return
 
         if not result:
@@ -90,10 +105,10 @@ class AWSPayloadTagging:
         # we will be redacting at least one of request/response
         redacted_dict = copy.deepcopy(result)
         self.current_tag_count = 0
-        if self.request_redaction_paths:
-            self._redact_json(redacted_dict, span, self.request_redaction_paths)
-        if self.response_redaction_paths:
-            self._redact_json(redacted_dict, span, self.response_redaction_paths)
+        if self.compiled_request_redaction_paths:
+            self._redact_json(redacted_dict, span, self.compiled_request_redaction_paths)
+        if self.compiled_response_redaction_paths:
+            self._redact_json(redacted_dict, span, self.compiled_response_redaction_paths)
 
         # flatten the payload into span tags
         for key2, value in redacted_dict.items():
@@ -132,18 +147,18 @@ class AWSPayloadTagging:
 
         return True
 
-    def _redact_json(self, data: dict[str, Any], span: Span, paths: list) -> None:
+    def _redact_json(self, data: dict[str, Any], span: Span, expressions: list) -> None:
         """
-        Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
+        Redact sensitive data in the JSON payload using precompiled JSONPath expressions.
         """
-        for path in paths:
-            expression = parse(path)
+        for expression in expressions:
             for match in expression.find(data):
                 match.context.value[match.path.fields[0]] = "redacted"
 
-    def _get_redaction_paths_response(self) -> list:
+    def _get_compiled_redaction_paths_response(self) -> list:
         """
-        Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
+        Get compiled redaction JSONPath expressions for the response, combining
+        defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_response"):
             return []
@@ -151,16 +166,21 @@ class AWSPayloadTagging:
         response_redaction = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
-                return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
-            return (
-                self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + response_redaction.split(",")
-            )
+                paths = self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+            else:
+                paths = (
+                    self._RESPONSE_REDACTION_PATHS_DEFAULTS
+                    + self._REDACTION_PATHS_DEFAULTS
+                    + response_redaction.split(",")
+                )
+            return [parse(path) for path in paths]
 
         return []
 
-    def _get_redaction_paths_request(self) -> list:
+    def _get_compiled_redaction_paths_request(self) -> list:
         """
-        Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
+        Get compiled redaction JSONPath expressions for the request, combining
+        defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_request"):
             return []
@@ -168,10 +188,14 @@ class AWSPayloadTagging:
         request_redaction = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
-                return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
-            return (
-                self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + request_redaction.split(",")
-            )
+                paths = self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+            else:
+                paths = (
+                    self._REQUEST_REDACTION_PATHS_DEFAULTS
+                    + self._REDACTION_PATHS_DEFAULTS
+                    + request_redaction.split(",")
+                )
+            return [parse(path) for path in paths]
 
         return []
 

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    botocore: fixes a latency regression in AWS payload tagging
+    (``DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING`` and
+    ``DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING``), where the redaction JSONPath
+    expressions were re-parsed on every instrumented AWS call and added
+    significant overhead to each request. The expressions are now compiled once
+    and reused, and are recompiled only when the configuration changes.
