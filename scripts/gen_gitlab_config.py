@@ -205,6 +205,7 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
+            print("  timeout: 30m", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
