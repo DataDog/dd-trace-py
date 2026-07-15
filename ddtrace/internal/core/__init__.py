@@ -145,8 +145,6 @@ import contextvars
 
 _MISSING = object()
 
-tracer = None
-
 log = logging.getLogger(__name__)
 
 
@@ -324,7 +322,7 @@ class ExecutionContext(Generic[EventType]):
         return current
 
     @property
-    def span(self) -> "Span":
+    def span(self) -> Optional["Span"]:
         if self._inner_span is None:
             log.warning(
                 "No span found in %s. "
@@ -332,7 +330,8 @@ class ExecutionContext(Generic[EventType]):
                 "Creating fallback 'default' span.",
                 self,
             )
-            self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
+            if tracer := self.get_item("tracer")
+                self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
     @span.setter
@@ -439,6 +438,7 @@ def get_span() -> Optional["Span"]:
 
 def get_root_span() -> Optional["Span"]:
     span = get_span()
+    tracer = _CURRENT_CONTEXT.get().root().get_item("tracer")
     if span is None:
         return None if tracer is None else tracer.current_root_span()
     return span._local_root or span
