@@ -391,16 +391,44 @@ def audio_mime_type_from_format(fmt: str) -> str:
     return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
-    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
+def _parse_base64_image_data_url(url: str) -> Optional[tuple[str, str]]:
+    """Parse a ``data:<mime>;base64,<payload>`` image URL into ``(mime_type, base64_payload)``.
+
+    Returns ``None`` for anything we do not inline: non-``data:`` URLs (remote http(s) images and
+    ``file_id`` references are not fetched -- capture is bytes-only), non-base64 data URLs, non-image
+    MIME types, or an empty payload.
+    """
+    if not isinstance(url, str) or not url.startswith("data:"):
+        return None
+    header, _, payload = url[len("data:") :].partition(",")
+    if not payload or ";base64" not in header:
+        return None
+    mime_type = header.split(";", 1)[0].strip().lower()
+    if not mime_type.startswith("image/"):
+        return None
+    return mime_type, payload
+
+
+def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[ImagePart]]:
+    """Extract readable text, audio, and image segments from multimodal content parts (text + image + audio)."""
     extracted = []
     audio_parts: list[AudioPart] = []
+    image_parts: list[ImagePart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append(IMAGE_FALLBACK_MARKER)
+            image_url = _get_attr(part, "image_url", {}) or {}
+            parsed = _parse_base64_image_data_url(_get_attr(image_url, "url", "") or "")
+            if parsed is not None:
+                # An inline image is captured as a structured image_part, so no text marker is needed.
+                # Only fall back to "[image]" when there's no inline image to capture (e.g. an http(s)
+                # URL or file_id reference we do not fetch).
+                mime_type, encoded = parsed
+                image_parts.append(format_image_part(encoded, mime_type))
+            else:
+                extracted.append(IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
             input_audio = _get_attr(part, "input_audio", {}) or {}
             data = _get_attr(input_audio, "data", "")
@@ -414,7 +442,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
                 extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted), audio_parts
+    return "\n".join(extracted), audio_parts, image_parts
 
 
 def openai_set_meta_tags_from_chat(
@@ -425,8 +453,9 @@ def openai_set_meta_tags_from_chat(
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
         audio_parts: list[AudioPart] = []
+        image_parts: list[ImagePart] = []
         if isinstance(raw_content, list):
-            content, audio_parts = _extract_content_parts(raw_content)
+            content, audio_parts, image_parts = _extract_content_parts(raw_content)
         elif raw_content is None:
             content = ""
         else:
@@ -435,6 +464,8 @@ def openai_set_meta_tags_from_chat(
         processed_message: Message = Message(content=content, role=role)
         if audio_parts:
             processed_message["audio_parts"] = audio_parts
+        if image_parts:
+            processed_message["image_parts"] = image_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))

@@ -6,6 +6,7 @@ from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instr
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import _parse_base64_image_data_url
 from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import format_image_part
@@ -53,7 +54,7 @@ def test_audio_mime_type_from_format():
 
 def test_extract_content_parts_collects_audio():
     """Captured input_audio becomes an AudioPart and leaves no '[audio]' text marker behind."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, image_parts = _extract_content_parts(
         [
             {"type": "text", "text": "what is said here?"},
             {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
@@ -61,11 +62,12 @@ def test_extract_content_parts_collects_audio():
     )
     assert text == "what is said here?"
     assert audio_parts == [{"mime_type": "audio/mpeg", "content": "AAECAw=="}]
+    assert image_parts == []
 
 
 def test_extract_content_parts_multiple_audio_only():
     """A message with only input_audio parts captures each as an AudioPart and has empty text."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, image_parts = _extract_content_parts(
         [
             {"type": "input_audio", "input_audio": {"data": "AAA=", "format": "wav"}},
             {"type": "input_audio", "input_audio": {"data": "BBB=", "format": "mp3"}},
@@ -76,11 +78,12 @@ def test_extract_content_parts_multiple_audio_only():
         {"mime_type": "audio/wav", "content": "AAA="},
         {"mime_type": "audio/mpeg", "content": "BBB="},
     ]
+    assert image_parts == []
 
 
 def test_extract_content_parts_audio_marker_fallback_when_no_data():
     """When an input_audio part carries no data, fall back to the '[audio]' text marker."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, image_parts = _extract_content_parts(
         [
             {"type": "text", "text": "listen:"},
             {"type": "input_audio", "input_audio": {"format": "wav"}},
@@ -88,11 +91,52 @@ def test_extract_content_parts_audio_marker_fallback_when_no_data():
     )
     assert text == "listen:\n[audio]"
     assert audio_parts == []
+    assert image_parts == []
+
+
+def test_extract_content_parts_collects_image():
+    """A base64 ``data:`` image_url is captured as an ImagePart and leaves no '[image]' text marker behind."""
+    text, audio_parts, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "what is in this image?"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}},
+        ]
+    )
+    assert text == "what is in this image?"
+    assert image_parts == [{"mime_type": "image/png", "content": "iVBORw0KGgo="}]
+    assert audio_parts == []
+
+
+def test_extract_content_parts_image_marker_fallback_for_url():
+    """Remote http(s) image_urls are not fetched (capture is bytes-only): '[image]' marker, no ImagePart."""
+    text, audio_parts, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/x.png"}},
+        ]
+    )
+    assert text == "hello\n[image]"
+    assert image_parts == []
+    assert audio_parts == []
+
+
+def test_extract_content_parts_mixed_text_image_audio():
+    """Mixed content captures both an image and audio part while keeping only text in the content string."""
+    text, audio_parts, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "describe:"},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,QUJD"}},
+            {"type": "input_audio", "input_audio": {"data": "AAA=", "format": "wav"}},
+        ]
+    )
+    assert text == "describe:"
+    assert image_parts == [{"mime_type": "image/jpeg", "content": "QUJD"}]
+    assert audio_parts == [{"mime_type": "audio/wav", "content": "AAA="}]
 
 
 def test_extract_content_parts_no_audio():
-    """Text/image-only content yields no audio parts."""
-    text, audio_parts = _extract_content_parts(
+    """Text/image-only content yields no audio parts; a remote image_url falls back to the '[image]' marker."""
+    text, audio_parts, image_parts = _extract_content_parts(
         [
             {"type": "text", "text": "hello"},
             {"type": "image_url", "image_url": "http://example.com/x.png"},
@@ -100,6 +144,18 @@ def test_extract_content_parts_no_audio():
     )
     assert text == "hello\n[image]"
     assert audio_parts == []
+    assert image_parts == []
+
+
+def test_parse_base64_image_data_url():
+    """Only base64 ``data:`` image URLs are parsed; remote and malformed URLs return None (bytes-only)."""
+    assert _parse_base64_image_data_url("data:image/png;base64,iVBORw0KGgo=") == ("image/png", "iVBORw0KGgo=")
+    assert _parse_base64_image_data_url("data:image/jpeg;base64,QUJD") == ("image/jpeg", "QUJD")
+    assert _parse_base64_image_data_url("https://example.com/x.png") is None  # remote, not fetched
+    assert _parse_base64_image_data_url("data:audio/wav;base64,QUJD") is None  # non-image mime
+    assert _parse_base64_image_data_url("data:image/png,notbase64") is None  # not base64-encoded
+    assert _parse_base64_image_data_url("data:image/png;base64,") is None  # empty payload
+    assert _parse_base64_image_data_url("") is None
 
 
 def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):

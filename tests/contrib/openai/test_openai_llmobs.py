@@ -490,6 +490,49 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def test_chat_completion_multimodal_image_parts(self, openai, openai_llmobs, test_spans):
+        """An inline base64 data: image is captured as image_parts; a remote image URL stays a '[image]' marker."""
+        data_url = "data:image/jpeg;base64,QUJDRA=="
+        remote_url = (
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+            ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+        )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                            {"type": "image_url", "image_url": {"url": remote_url}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What’s in this image?\n[image]",
+                    "image_parts": [{"mime_type": "image/jpeg", "content": "QUJDRA=="}],
+                }
+            ],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
     def test_chat_completion_multimodal_lazy_iterator(self, openai, openai_llmobs, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
         consumes it, so post-call tag extraction still sees the content.
