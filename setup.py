@@ -23,9 +23,9 @@ from setuptools import Distribution, Extension, find_packages, setup  # isort: s
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
-from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-from distutils.dep_util import newer_group
+from distutils.dep_util import newer_group  # isort: skip
+from distutils.util import get_platform  # isort: skip
 
 
 try:
@@ -263,7 +263,7 @@ class LibraryDownload:
             return
 
         for arch in cls.available_releases[CURRENT_OS]:
-            if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
+            if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
             elif CURRENT_OS == "Darwin":
