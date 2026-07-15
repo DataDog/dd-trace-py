@@ -503,7 +503,7 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
+        elif not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
             selected = []
             deselected = []
             for item in items:
