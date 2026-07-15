@@ -36,7 +36,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _settings_attributes() -> dict:
+def _settings_attributes() -> dict[str, t.Any]:
     """The ``attributes`` block returned by the settings endpoint.
 
     This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
@@ -187,7 +187,7 @@ class MockCIVisibilityServer:
     @property
     def recorded_payloads(self) -> list[dict[str, t.Any]]:
         assert self.server is not None
-        return self.server.recorded_payloads  # type: ignore[attr-defined]
+        return t.cast("list[dict[str, t.Any]]", self.server.recorded_payloads)  # type: ignore[attr-defined]
 
     def get_all_events(self) -> list[dict[str, t.Any]]:
         """Return a flat list of all events across all recorded payloads."""
@@ -315,7 +315,7 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # Tests
 # ---------------------------------------------------------------------------
 
-# AIDEV-NOTE: These tests use subprocess to run pytest with xdist, pointing at
+# NOTE: These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
 
@@ -639,8 +639,9 @@ class TestXdistWorkerCrashRestart:
         worker.
 
         This test documents the current behavior — it is a known limitation.
-        AIDEV-NOTE: If the writer is changed to flush after each test, or to
-        use a non-daemon thread with proper shutdown, this test should be updated.
+        NOTE: If the default async flush threshold is lowered enough to flush
+        this small batch before the crash, or if the writer uses a non-daemon thread
+        with proper shutdown, this test should be updated.
         """
         # Use -n 1 so there is only one worker. Put a passing test and a
         # crashing test in the same file (guaranteeing same worker). Disable
@@ -720,7 +721,7 @@ class TestXdistWorkerCrashRestart:
 
         # Some or all healthy tests may be lost too if they shared a worker
         # with a crash test (their events were buffered but not flushed).
-        # AIDEV-NOTE: This documents real data loss. The number of surviving
+        # NOTE: This documents real data loss. The number of surviving
         # ok tests depends on scheduling luck. We only assert the session
         # event (from the main process) is always present.
         session_events = mock_server.get_session_events()
@@ -818,11 +819,12 @@ class TestXdistPartialFlush:
         Run 1 (no env var): the passing test's event is LOST because it was
         buffered on the same worker that crashed.
 
-        Run 2 (env var set): the passing test's event is SAVED because the
-        writer flushed it synchronously before the next test could crash.
+        Run 2 (env var set): the passing test's event is usually SAVED because the
+        env var lowers the async flush threshold enough for the writer thread to
+        flush before the next test can crash.
 
-        This is the definitive proof that the workaround fixes the data-loss
-        issue — same test code, same crash, different outcome.
+        This documents the intended mitigation — same test code, same crash,
+        different flush threshold.
         """
         test_code = textwrap.dedent("""\
             import os
