@@ -1030,20 +1030,22 @@ def test_azure_streaming_completion_e2e(
 
 
 @pytest.mark.skip(
-    reason="Scaffolding (PR #18985): record cassettes/completion_openrouter.yaml against OpenRouter "
-    "with usage accounting, then remove this skip."
+    reason="Scaffolding (PR #18985): record cassettes/completion_openrouter.yaml against OpenRouter, "
+    "then remove this skip."
 )
 def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_spans):
     """OpenRouter cost (usage.cost) captured through litellm is surfaced on the span's cost metrics.
 
-    OpenRouter returns the billed cost when usage accounting is enabled; the litellm integration
-    should emit it as ``total_cost`` (plus ``input_cost``/``output_cost`` when they reconcile).
+    OpenRouter returns the billed cost in every response; the litellm integration should emit it as
+    ``total_cost`` (plus ``input_cost``/``output_cost`` when they reconcile). Note: the
+    ``openrouter/openai/*`` model string is the case where litellm may defer to the openai
+    integration via ``_has_downstream_openai_span`` — this test also documents whether a span is
+    emitted at all for that route.
     """
     with request_vcr.use_cassette("completion_openrouter.yaml"):
         litellm.completion(
             model="openrouter/openai/gpt-4o-mini",
             messages=[{"content": "What is the capital of France?", "role": "user"}],
-            usage={"include": True},
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1

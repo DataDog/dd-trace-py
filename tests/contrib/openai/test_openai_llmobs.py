@@ -3248,15 +3248,14 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
 
 @pytest.mark.skip(
     reason="Scaffolding (PR #18985): record cassettes/v1/chat_completion_openrouter.yaml against "
-    "OpenRouter with usage accounting, then remove this skip."
+    "OpenRouter, then remove this skip."
 )
 class TestLLMObsOpenAIOpenRouter:
     """OpenRouter cost capture through the OpenAI-compatible client.
 
     OpenRouter returns the billed cost on ``usage.cost`` (plus a ``usage.cost_details`` breakdown)
-    when the request enables usage accounting via ``extra_body={"usage": {"include": True}}``. The
-    integration should surface it on the span's ``total_cost`` metric, adding ``input_cost``/
-    ``output_cost`` only when the upstream breakdown reconciles with the billed total.
+    in every response. The integration should surface it on the span's ``total_cost`` metric, adding
+    ``input_cost``/``output_cost`` only when the upstream breakdown reconciles with the billed total.
     """
 
     def test_chat_completion_openrouter_cost(self, openai, openai_llmobs, test_spans):
@@ -3265,7 +3264,6 @@ class TestLLMObsOpenAIOpenRouter:
             client.chat.completions.create(
                 model="openai/gpt-4o-mini",
                 messages=[{"role": "user", "content": "What is the capital of France?"}],
-                extra_body={"usage": {"include": True}},
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -3276,16 +3274,3 @@ class TestLLMObsOpenAIOpenRouter:
         # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
         if "input_cost" in metrics or "output_cost" in metrics:
             assert metrics["input_cost"] + metrics["output_cost"] == metrics["total_cost"]
-
-    def test_chat_completion_without_usage_accounting_has_no_cost(self, openai, openai_llmobs, test_spans):
-        """Without usage accounting OpenRouter returns no cost, so no cost metrics are emitted."""
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter_no_usage.yaml"):
-            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
-            client.chat.completions.create(
-                model="openai/gpt-4o-mini",
-                messages=[{"role": "user", "content": "What is the capital of France?"}],
-            )
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        metrics = get_llmobs_metrics(spans[0])
-        assert "total_cost" not in metrics

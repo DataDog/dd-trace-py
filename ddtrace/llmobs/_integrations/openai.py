@@ -242,8 +242,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
-            # OpenRouter (OpenAI-compatible) returns billed cost on `usage.cost` when usage
-            # accounting is enabled; surface it so the backend uses it instead of catalog estimation.
+            # OpenRouter (OpenAI-compatible) returns billed cost on `usage.cost`; surface it so cost
+            # is taken from the response instead of estimated from tokens.
             metrics.update(get_openrouter_cost_metrics(token_usage))
             return metrics
         elif kwargs.get("stream") and resp is not None:

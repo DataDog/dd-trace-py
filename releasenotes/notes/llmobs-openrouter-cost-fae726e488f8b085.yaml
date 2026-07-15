@@ -3,4 +3,4 @@ fixes:
   - |
     LLM Observability: Resolves an issue where the OpenAI and LiteLLM integrations were missing cost data when using OpenRouter as a provider.
     This resulted in cost estimation using token counts which can differ from what OpenRouter charges.
-    These integrations now capture the cost returned by OpenRouter when usage accounting is enabled via ``extra_body={"usage": {"include": True}}`` on the request.
+    These integrations now capture the cost that OpenRouter returns in each response.

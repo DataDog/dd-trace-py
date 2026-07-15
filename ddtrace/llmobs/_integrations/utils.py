@@ -206,8 +206,8 @@ def parse_llmobs_metric_args(metrics):
 def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
     """Extract OpenRouter's returned cost (USD) from an OpenAI-compatible ``usage`` object.
 
-    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) when
-    usage accounting is enabled. Returns an empty dict for responses without a cost.
+    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
+    every response. Returns an empty dict for responses without a cost (e.g. other providers).
     """
     cost = _get_attr(token_usage, "cost", None)
     if not isinstance(cost, (int, float)):
