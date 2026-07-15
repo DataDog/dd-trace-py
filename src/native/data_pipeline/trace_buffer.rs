@@ -1,7 +1,7 @@
 use std::fmt;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 
 use libdd_capabilities_impl::NativeCapabilities;
@@ -21,6 +21,23 @@ use crate::shared_runtime::SharedRuntimePy;
 use crate::span::SpanData;
 
 use super::agent_response::AgentResponsePy;
+
+// `ddtrace.internal._encoding.packb`, cached to avoid a module import + getattr on every
+// send_chunk (per-request) call. Only actually used when a span carries meta_struct.
+static PACKB: OnceLock<Py<PyAny>> = OnceLock::new();
+
+fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
+    if let Some(v) = PACKB.get() {
+        return Some(v);
+    }
+    let packb = py
+        .import("ddtrace.internal._encoding")
+        .and_then(|m| m.getattr("packb"))
+        .ok()?
+        .unbind();
+    let _ = PACKB.set(packb);
+    PACKB.get()
+}
 
 /// Implements [Export] for [Span]<[PyTraceData]> by forwarding to a [TraceExporter].
 ///
@@ -265,14 +282,12 @@ impl NativeTraceBufferPy {
     /// libdatadog `Span<PyTraceData>` for encoding.  The `SpanData` fields are left
     /// intact so callers can still read span attributes after the chunk is sent.
     fn send_chunk(&self, py: Python<'_>, spans: Vec<Py<SpanData>>) -> PyResult<()> {
-        let packb = py
-            .import("ddtrace.internal._encoding")
-            .and_then(|m| m.getattr("packb"))
-            .ok();
+        // Cached OnceLock read instead of a module import + getattr on every call.
+        let packb = get_packb(py).map(|p| p.bind(py));
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
             let span_ref = span.bind(py).borrow();
-            chunk.push(span_ref.build_v04_span(py, packb.as_ref()));
+            chunk.push(span_ref.build_v04_span(py, packb));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
         // the tokio worker can pick up the chunk, export it, and fire on_export_complete
