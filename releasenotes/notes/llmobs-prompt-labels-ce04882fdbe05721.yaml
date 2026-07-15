@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: Managed prompts now expose all labels associated with the selected version through ``ManagedPrompt.labels``.
+    LLM Observability: Managed prompts no longer expose deprecated deployment label metadata.

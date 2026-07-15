@@ -24,12 +24,11 @@ class ManagedPrompt:
         - to_annotation_dict(**vars) -> dict[str, Any]
 
     INTERNAL (may change):
-        - All fields (id, version, labels, source, template)
+        - All fields (id, version, source, template)
     """
 
     id: str
     version: str
-    labels: list[str]
     source: Literal["registry", "cache", "fallback", "ff", "resolve"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
@@ -87,16 +86,13 @@ class ManagedPrompt:
         return result
 
     def __repr__(self) -> str:
-        return (
-            f"ManagedPrompt(id={self.id!r}, version={self.version!r}, labels={self.labels!r}, source={self.source!r})"
-        )
+        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, source={self.source!r})"
 
     def _serialize(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
             "version": self.version,
-            "labels": self.labels,
             "source": self.source,
             "template": self.template,
             "_uuid": self._uuid,
@@ -109,7 +105,6 @@ class ManagedPrompt:
         return cls(
             id=data["id"],
             version=data["version"],
-            labels=data["labels"],
             source=data.get("source", "cache"),
             template=data["template"],
             _uuid=data.get("_uuid"),
@@ -135,7 +130,7 @@ class ManagedPrompt:
             fallback: A string, message list, Prompt dict, or callable returning any of those.
 
         Returns:
-            A ManagedPrompt with source="fallback" and no labels.
+            A ManagedPrompt with source="fallback".
         """
         template: Union[str, list[Message]] = ""
         version = "fallback"
@@ -151,7 +146,6 @@ class ManagedPrompt:
         return cls(
             id=prompt_id,
             version=version,
-            labels=[],
             source="fallback",
             template=template,
         )

@@ -482,15 +482,9 @@ class PromptManager:
             if not version:
                 log.warning("Failed to parse prompt response: missing version")
                 return None
-            raw_labels = data.get("labels")
-            if isinstance(raw_labels, list):
-                labels = [value for value in raw_labels if isinstance(value, str)]
-            else:
-                labels = []
             return ManagedPrompt(
                 id=prompt_id,
                 version=version,
-                labels=labels,
                 source=source,
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
