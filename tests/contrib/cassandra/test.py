@@ -17,7 +17,7 @@ from ddtrace.contrib.internal.cassandra.patch import unpatch
 from ddtrace.contrib.internal.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer

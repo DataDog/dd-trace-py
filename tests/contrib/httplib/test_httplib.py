@@ -16,7 +16,7 @@ from ddtrace.contrib.internal.httplib.patch import should_skip_request
 from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

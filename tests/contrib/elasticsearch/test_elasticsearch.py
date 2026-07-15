@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.elasticsearch.patch import get_versions
 from ddtrace.contrib.internal.elasticsearch.patch import patch
 from ddtrace.contrib.internal.elasticsearch.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase

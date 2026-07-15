@@ -3,7 +3,7 @@ import valkey
 
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.contrib.config import VALKEY_CLUSTER_CONFIG
 from tests.utils import DummyTracer

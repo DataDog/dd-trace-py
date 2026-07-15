@@ -4,7 +4,7 @@ from flask import Flask
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 from ddtrace.ext import net
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset

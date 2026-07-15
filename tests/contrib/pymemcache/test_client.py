@@ -12,7 +12,7 @@ import wrapt
 from ddtrace.contrib.internal.pymemcache.client import WrappedClient
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 
 # project
 from ddtrace.trace import Pin

@@ -69,7 +69,7 @@ import pytest
 import asyncio
 from tests.conftest import *
 from tests.contrib.aiohttp.conftest import *
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 
 def test(app_tracer, loop, aiohttp_client):
     async def async_test(app_tracer, aiohttp_client):

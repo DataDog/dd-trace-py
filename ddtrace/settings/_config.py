@@ -31,7 +31,7 @@ from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.logger import get_logger
-from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ..internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool

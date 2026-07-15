@@ -16,7 +16,7 @@ from ddtrace.contrib.internal.requests.connection import _extract_query_string
 from ddtrace.contrib.internal.requests.patch import patch
 from ddtrace.contrib.internal.requests.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
