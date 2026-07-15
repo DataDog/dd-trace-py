@@ -330,7 +330,7 @@ class ExecutionContext(Generic[EventType]):
                 "Creating fallback 'default' span.",
                 self,
             )
-            if tracer := self.get_item("tracer")
+            if tracer := self.get_item("tracer"):
                 self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
