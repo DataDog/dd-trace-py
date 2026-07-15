@@ -1,8 +1,12 @@
+import gc
+
 from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
@@ -81,11 +85,10 @@ def test_taint_object_with_no_context_is_noop():
     assert _num_objects_tainted_in_request() == 0
 
     # taint with ranges is also a no-op returning False
-    from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 
     res = taint_pyobject_with_ranges(
         arg,
-        [TaintRange(0, len(arg), TaintRangeSource(arg, "request_body", OriginType.PARAMETER), [])],
+        (TaintRange(0, len(arg), TaintRangeSource(arg, "request_body", OriginType.PARAMETER), []),),
     )
     assert res is False
 
@@ -108,23 +111,35 @@ def test_get_tainted_ranges_returns_empty_without_context():
     assert get_tainted_ranges("xyz") == tuple()
 
 
-def test_in_taint_map_scans_container_across_active_maps():
+def test_is_pyobject_tainted_is_scoped_to_active_slot():
+    """Taint queries resolve only within the active request slot."""
     clear_all_request_context_slots()
     _end_iast_context_and_oce()
 
-    # Start two independent maps
     ctx1 = start_request_context()
     ctx2 = start_request_context()
     assert ctx1 is not None and ctx2 is not None and ctx1 != ctx2
 
-    target = "TAINT_ME"
-    # Taint the string into ctx1 explicitly without setting ContextVar
-    target_tainted1 = _taint_pyobject_base(target, "p", target, OriginType.PARAMETER, contextid=ctx1)
-    target_tainted2 = _taint_pyobject_base(target, "p", target, OriginType.PARAMETER, contextid=ctx2)
+    # Distinct values -> distinct objects, so each lives in exactly one slot.
+    tainted_in_1 = _taint_pyobject_base("TAINT_ONE", "p", "TAINT_ONE", OriginType.PARAMETER, contextid=ctx1)
+    tainted_in_2 = _taint_pyobject_base("TAINT_TWO", "p", "TAINT_TWO", OriginType.PARAMETER, contextid=ctx2)
 
-    assert is_pyobject_tainted(target) is False
-    assert is_pyobject_tainted(target_tainted1) is True
-    assert is_pyobject_tainted(target_tainted2) is True
+    IAST_CONTEXT.set(ctx1)
+    assert is_pyobject_tainted(tainted_in_1) is True
+    assert is_pyobject_tainted(tainted_in_2) is False
+
+    IAST_CONTEXT.set(ctx2)
+    assert is_pyobject_tainted(tainted_in_2) is True
+    assert is_pyobject_tainted(tainted_in_1) is False
+
+    # No active request => queries short-circuit to False (native is not consulted).
+    IAST_CONTEXT.set(None)
+    assert is_pyobject_tainted(tainted_in_1) is False
+    assert is_pyobject_tainted(tainted_in_2) is False
+
+    finish_request_context(ctx1)
+    finish_request_context(ctx2)
+    IAST_CONTEXT.set(None)
 
 
 def test_num_objects_tainted_is_per_current_context():
@@ -161,8 +176,6 @@ def test_is_pyobject_tainted_false_for_non_taintable_types_without_context():
 def test_copy_ranges_to_string_without_context_is_noop():
     clear_all_request_context_slots()
     _end_iast_context_and_oce()
-
-    from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 
     src_val = "abc"
     ranges = [TaintRange(0, len(src_val), TaintRangeSource(src_val, "param", OriginType.PARAMETER), [])]
@@ -203,7 +216,6 @@ def test_is_pyobject_tainted_does_not_leak_across_request_slots():
 
 def test_get_ranges_public_api_does_not_leak_across_request_slots():
     """The public ``get_ranges`` (used by sinks and aspects) must also be slot-scoped."""
-    from ddtrace.appsec._iast._taint_tracking import get_ranges
 
     clear_all_request_context_slots()
     _end_iast_context_and_oce()
@@ -228,4 +240,73 @@ def test_get_ranges_public_api_does_not_leak_across_request_slots():
 
     finish_request_context(ctx_a)
     finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
+
+
+def test_is_pyobject_tainted_without_context_does_not_consult_native():
+    """Regression for a teardown/GC crash (#18996).
+
+    With no active request context the query must return False without
+    entering native code.
+    """
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx = start_request_context()
+    assert ctx is not None
+    tainted = _taint_pyobject_base(
+        "http://dummy.location.com",
+        "location",
+        "http://dummy.location.com",
+        OriginType.PARAMETER,
+        contextid=ctx,
+    )
+    IAST_CONTEXT.set(ctx)
+    assert is_pyobject_tainted(tainted) is True  # sanity: visible within its own slot
+
+    # Detach the context, as happens once the request finishes but the tainted
+    # object is still referenced by a soon-to-be-finalized structure.
+    IAST_CONTEXT.set(None)
+    assert is_pyobject_tainted(tainted) is False
+    assert get_tainted_ranges(tainted) == tuple()
+
+    finish_request_context(ctx)
+    IAST_CONTEXT.set(None)
+
+
+def test_taint_query_from_finalizer_without_context_is_safe():
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+    IAST_CONTEXT.set(None)
+
+    results = []
+
+    class _QueriesTaintOnDel:
+        def __init__(self, value):
+            self.value = value
+
+        def __del__(self):
+            results.append(is_pyobject_tainted(self.value))
+
+    obj = _QueriesTaintOnDel("some-tainted-looking-string")
+    del obj
+    gc.collect()
+
+    assert results == [False]
+
+
+def test_get_ranges_public_api_returns_empty_without_context():
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx = start_request_context()
+    assert ctx is not None
+    tainted = _taint_pyobject_base("secret", "p", "secret", OriginType.PARAMETER, contextid=ctx)
+
+    # The tainted object lives in a real slot, but with no active context the
+    # public wrapper must not consult the native multi-slot resolver.
+    IAST_CONTEXT.set(None)
+    assert list(get_ranges(tainted)) == []
+
+    finish_request_context(ctx)
     IAST_CONTEXT.set(None)

@@ -5,6 +5,7 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -29,6 +30,8 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.llmobs.test_prompts import CHAT_PROMPT_RESPONSE
+from tests.llmobs.test_prompts import mock_api
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -1555,6 +1558,42 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def test_chat_completion_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
+        """Test that cache write token metrics are captured for models that report them.
+
+        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
+        ``usage.prompt_tokens_details`` for the chat completions API.
+        """
+        model = "gpt-5.6-sol"
+        client = openai.OpenAI()
+        base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_5_6_cache_write.yaml"):
+            resp = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metrics={
+                "input_tokens": 1220,
+                "output_tokens": 100,
+                "total_tokens": 1320,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 1217,
+                "reasoning_output_tokens": 100,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
     def test_embedding_string(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
@@ -2302,6 +2341,45 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
+        """Test that cache write token metrics are captured for the responses API.
+
+        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
+        ``usage.input_tokens_details`` for the responses API.
+        """
+        client = openai.OpenAI()
+        model = "gpt-5.6-sol"
+        base_instructions = "You are an expert software engineer " * 200
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write.yaml"):
+            resp = client.responses.create(
+                model=model,
+                instructions=base_instructions,
+                input="What are the best practices for API design?",
+                max_output_tokens=100,
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            metrics={
+                "input_tokens": 1220,
+                "output_tokens": 100,
+                "total_tokens": 1320,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 1217,
+                "reasoning_output_tokens": 54,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_responses_stream_prompt_caching(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
@@ -2708,6 +2786,32 @@ MUL: "*"
                     "role": "user",
                     "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
                 },
+            ],
+        )
+
+    def test_chat_completion_managed_prompt_auto_tracking(self, openai, openai_llmobs, test_spans):
+        """A managed prompt rendered with .format() and passed straight into chat.completions.create
+        auto-tags the resulting LLM span, with no annotation_context.
+        """
+        with mock_api(200, CHAT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("assistant")
+        messages = prompt.format(persona="helpful assistant", question="What is Python?")
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion.yaml"):
+            client = openai.OpenAI()
+            client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_prompt_tracking(
+            span_event=_get_llmobs_data_metastruct(spans[0]),
+            prompt_id="assistant",
+            prompt_version="v2",
+            variables={"persona": "helpful assistant", "question": "What is Python?"},
+            expected_chat_template=CHAT_PROMPT_RESPONSE["template"],
+            expected_messages=[
+                {"role": "system", "content": "You are helpful assistant."},
+                {"role": "user", "content": "What is Python?"},
             ],
         )
 
@@ -3128,11 +3232,14 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     response.usage.completion_tokens = 10
     response.usage.total_tokens = 60
     response.usage.prompt_tokens_details.cached_tokens = 12
+    response.usage.prompt_tokens_details.cache_write_tokens = 34
     # responses-API style fallback: input_tokens_details.cached_tokens
     response.usage.input_tokens_details.cached_tokens = 12
+    response.usage.input_tokens_details.cache_write_tokens = 34
 
     with tracer.trace("openai.request") as span:
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12
+    assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34
