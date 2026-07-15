@@ -426,9 +426,10 @@ detect_circular_imports:
     - cat cycles-pr.json
     - |
       cd dd-trace-py
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
+      # resolve-base-branch.sh only needs a GitHub token for its API-fallback
+      # path and mints one itself (via dd-octo-sts) when required, so we no
+      # longer acquire a token unconditionally here -- that would fail the job
+      # even when the base is resolved without any API call.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
       MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
@@ -520,6 +521,21 @@ check_added_file_size:
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
+
+# Unit tests for resolve-base-branch.sh (used above to pick the comparison
+# baseline). Reuses the testrunner image only for its bash + jq; the tests stub
+# git/curl and need no network, so we skip the heavier .testrunner setup.
+test_resolve_base_branch:
+  stage: tests
+  needs: []
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - .gitlab/scripts/resolve-base-branch.test.sh
 
 
 "summarize failures":
