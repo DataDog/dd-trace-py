@@ -25,10 +25,39 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
+from ddtrace.llmobs.types import PromptAPIError
+from ddtrace.llmobs.types import PromptAuthError
+from ddtrace.llmobs.types import PromptConflictError
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptNotFoundError
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptServerError
+from ddtrace.llmobs.types import PromptValidationError
+from ddtrace.llmobs.types import PromptVersionResponse
 
 
 log = get_logger(__name__)
+
+_STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
+    400: PromptValidationError,
+    401: PromptAuthError,
+    403: PromptAuthError,
+    404: PromptNotFoundError,
+    409: PromptConflictError,
+}
+
+
+def _normalize_response_ids(data: Any) -> Any:
+    def normalize_item(item: Any) -> Any:
+        if isinstance(item, dict) and "ID" in item and "id" not in item:
+            item["id"] = item.pop("ID")
+        return item
+
+    if isinstance(data, list):
+        return [normalize_item(item) for item in data]
+    return normalize_item(data)
 
 
 @dataclass(frozen=True)
@@ -114,6 +143,8 @@ class PromptManager:
         **attributes: Any,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry or by environment resolution."""
+        if not self._headers.get("DD-API-KEY"):
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         if label is not None and (targeting_key is not None or attributes):
             warnings.warn(
                 "get_prompt() received 'label' alongside 'targeting_key' or other attributes. "
@@ -193,6 +224,8 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
+        if not self._headers.get("DD-API-KEY"):
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         req = _PromptRequest(prompt_id=prompt_id, label=label, env=None if label is not None else config.env)
         prompt, _ = self._fetch_and_cache(req, evict_on_not_found=True)
         return prompt
@@ -272,6 +305,25 @@ class PromptManager:
             threads = list(self._refresh_threads.values())
         for thread in threads:
             thread.join(timeout=self._timeout)
+
+    def _http_request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[bytes] = None,
+        headers: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> tuple[int, str]:
+        """Low-level HTTP transport. Returns (status, response_body)."""
+        conn = None
+        try:
+            conn = get_connection(self._base_url, timeout=timeout or self._timeout)
+            conn.request(method, path, body=body, headers=headers or self._headers)
+            response = conn.getresponse()
+            return response.status, response.read().decode("utf-8")
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _ensure_ffe_rc(self) -> None:
         """Lazily enable FFE Remote Config so flag configurations are delivered."""
@@ -401,9 +453,6 @@ class PromptManager:
         except Exception as e:
             log.warning("Prompt fetch exception: prompt_id=%s scope=%s: %s", req.prompt_id, scope, e)
             return None, False, str(e)
-        finally:
-            if conn is not None:
-                conn.close()
 
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the absolute request path for fetching a prompt from the static registry."""
@@ -461,3 +510,157 @@ class PromptManager:
             raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
+
+    # --- Prompt CRUD API methods ---
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        require_app_key: bool = True,
+    ) -> Any:
+        try:
+            if not self._headers.get("DD-API-KEY"):
+                raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
+            if require_app_key and not self._app_key:
+                raise PromptAuthError(0, "DD_APP_KEY is required for prompt write operations")
+
+            headers = {
+                **self._headers,
+                "Content-Type": "application/json",
+            }
+            if self._app_key:
+                headers["DD-APPLICATION-KEY"] = self._app_key
+
+            encoded_body = json.dumps(body).encode("utf-8") if body else None
+            try:
+                status, response_body = self._http_request(
+                    method, path, body=encoded_body, headers=headers, timeout=timeout
+                )
+            except Exception as e:
+                raise PromptAPIError(0, str(e))
+
+            if 200 <= status < 300:
+                if not response_body:
+                    return {}
+                try:
+                    return _normalize_response_ids(json.loads(response_body))
+                except (json.JSONDecodeError, ValueError):
+                    raise PromptServerError(status, "invalid JSON in response body")
+
+            detail = extract_error_detail(response_body)
+            exc_cls = _STATUS_EXCEPTIONS.get(status)
+            if exc_cls is None:
+                exc_cls = PromptServerError if status >= 500 else PromptAPIError
+            raise exc_cls(status, detail)
+        except PromptAPIError as e:
+            telemetry.record_prompt_crud_error(method, type(e).__name__, e.status)
+            raise
+
+    def _evict_prompt_caches(self, prompt_id: str) -> None:
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
+
+    def create_prompt(
+        self,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptResponse:
+        body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
+        if title:
+            body["title"] = title
+        if description:
+            body["description"] = description
+        if user_version:
+            body["user_version"] = user_version
+        if labels is not None:
+            body["labels"] = labels
+        result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
+        self._evict_prompt_caches(prompt_id)
+        return result
+
+    def create_prompt_version(
+        self,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptVersionResponse:
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {"template": template}
+        if description:
+            body["description"] = description
+        if user_version:
+            body["user_version"] = user_version
+        if labels is not None:
+            body["labels"] = labels
+        result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
+        self._evict_prompt_caches(prompt_id)
+        return result
+
+    def update_prompt(
+        self,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        if title is None and description is None:
+            raise PromptValidationError(0, "At least one of title or description must be provided")
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {}
+        if title is not None:
+            body["title"] = title
+        if description is not None:
+            body["description"] = description
+        result: PromptResponse = self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
+        self._evict_prompt_caches(prompt_id)
+        return result
+
+    def update_prompt_version(
+        self,
+        prompt_id: str,
+        version: int,
+        *,
+        labels: Optional[list[str]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        if labels is None and description is None:
+            raise PromptValidationError(0, "At least one of labels or description must be provided")
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {}
+        if labels is not None:
+            body["labels"] = labels
+        if description is not None:
+            body["description"] = description
+        result: PromptVersionResponse = self._request(
+            "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
+        )
+        self._evict_prompt_caches(prompt_id)
+        return result
+
+    def delete_prompt(self, prompt_id: str) -> DeletedPromptResponse:
+        escaped_id = quote(prompt_id, safe="")
+        result: DeletedPromptResponse = self._request("DELETE", f"{PROMPTS_ENDPOINT}/{escaped_id}")
+        self._evict_prompt_caches(prompt_id)
+        return result
+
+    def list_prompts(self) -> list[PromptResponse]:
+        result: list[PromptResponse] = self._request("GET", PROMPTS_ENDPOINT, require_app_key=False)
+        return result
+
+    def list_prompt_versions(self, prompt_id: str) -> list[PromptVersionResponse]:
+        escaped_id = quote(prompt_id, safe="")
+        result: list[PromptVersionResponse] = self._request(
+            "GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", require_app_key=False
+        )
+        return result

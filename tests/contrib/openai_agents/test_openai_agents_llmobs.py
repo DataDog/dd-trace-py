@@ -1,8 +1,10 @@
 from typing import Optional
 
 import mock
+import openai
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
@@ -451,6 +453,10 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
     )
 
 
+@pytest.mark.skipif(
+    parse_version(openai.__version__) >= (2, 0, 0),
+    reason="hosted WebSearchTool serializes as 'web_search' on openai>=2 vs the recorded 'web_search_preview'",
+)
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_ootb_tools(
     agents, openai_agents_llmobs, test_spans, request_vcr, weather_agent
@@ -774,5 +780,4 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             instance=None,
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
-            agent_index=0,
         )

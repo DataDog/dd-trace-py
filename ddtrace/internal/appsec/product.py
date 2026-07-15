@@ -32,9 +32,9 @@ def start():
         load_appsec(reconfigure_tracer=False)
 
     if ai_guard_config._ai_guard_enabled:
-        from ddtrace.appsec._ai_guard import init_ai_guard
+        from ddtrace.aiguard._initialization import load_ai_guard
 
-        init_ai_guard()
+        load_ai_guard()
 
 
 def restart(join=False):
