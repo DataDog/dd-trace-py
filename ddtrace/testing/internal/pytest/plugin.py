@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import contextlib
 from functools import lru_cache
 import inspect
 from io import StringIO
@@ -344,6 +345,9 @@ class TestOptPlugin:
         self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
+
+    def _outer_protocol_context(self) -> t.ContextManager[t.Optional[TestContext]]:
+        return trace_context(self.enable_ddtrace_trace_filter)
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -690,13 +694,18 @@ class TestOptPlugin:
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
-        with trace_context(self.enable_ddtrace_trace_filter) as context:
+        with self._outer_protocol_context() as context:
             TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
             TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
-        if not test.test_runs:
+        if not test.test_runs and context is None:
+            with trace_context(self.enable_ddtrace_trace_filter) as fallback_context:
+                self._record_fallback_test_run(item, test, fallback_context)
+        elif not test.test_runs:
+            if context is None:
+                raise RuntimeError("fallback test run requires a test context")
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
             # `flaky` or `rerunfailures`) did it instead, or if there is a user-defined `pytest_runtest_protocol` in
             # `conftest.py`. In this case, we create a test run now with the test results of the plugin run as a
@@ -706,14 +715,7 @@ class TestOptPlugin:
                 "perhaps some plugin or conftest.py has overridden it",
                 item.nodeid,
             )
-            test_run = test.make_test_run()
-            test_run.start(start_ns=test.start_ns)
-            self._set_test_run_data(test_run, item, context)
-            test_run.finish()
-            final_status = test_run.get_status()
-            test_run.set_final_status(final_status)
-            test.set_status(final_status)
-            self.manager.writer.put_item(test_run)
+            self._record_fallback_test_run(item, test, context)
 
         test.finish()
 
@@ -738,6 +740,16 @@ class TestOptPlugin:
             test_module.finish()
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    def _record_fallback_test_run(self, item: pytest.Item, test: Test, context: TestContext) -> None:
+        test_run = test.make_test_run()
+        test_run.start(start_ns=test.start_ns)
+        self._set_test_run_data(test_run, item, context)
+        test_run.finish()
+        final_status = test_run.get_status()
+        test_run.set_final_status(final_status)
+        test.set_status(final_status)
+        self.manager.writer.put_item(test_run)
 
     if _HOOKIMPL_SUPPORTS_SPECNAME:
         pytest_runtest_protocol_wrapper = pytest.hookimpl(
@@ -1182,6 +1194,13 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     the base class is registered instead, so the external plugin drives retries while the wrapper hook still handles
     span bookkeeping.
     """
+
+    def _outer_protocol_context(self) -> t.ContextManager[t.Optional[TestContext]]:
+        # The normal TestOptPluginWithProtocol path creates the test trace context inside
+        # _do_test_runs(), around runtestprotocol(). Avoid creating a second root test span
+        # from the outer hookwrapper; the base plugin still needs that outer context when
+        # another plugin owns pytest_runtest_protocol and we fall back to one test run.
+        return contextlib.nullcontext(None)
 
     def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
         """Apply test management markers for the plugin that drives retries itself.
