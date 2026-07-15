@@ -87,6 +87,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
+        self._import_time_coverage_cache: dict[str, dict[str, CoverageLines]] = {}
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -139,7 +140,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             ctx_lines.add(line)
 
         if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
+            import_names = self._import_names_by_path[path]
+            if import_name not in import_names:
+                import_names.add(import_name)
+                self._import_time_coverage_cache.clear()
 
     @classmethod
     def inject_coverage(
@@ -198,27 +202,36 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return covered_lines
 
-    def _add_import_time_lines(self, covered_lines):
-        """Modify given covered_lines in place and add lines that were covered at import time"""
+    def _get_import_time_lines_for_path(self, path: str) -> dict[str, CoverageLines]:
+        cached = self._import_time_coverage_cache.get(path)
+        if cached is not None:
+            return cached
+
+        imported_lines: dict[str, CoverageLines] = {}
         visited_paths = set()
-        to_visit_paths = set(covered_lines.keys())
+        to_visit_paths = {path}
 
         while to_visit_paths:
-            path = to_visit_paths.pop()
+            current_path = to_visit_paths.pop()
 
-            if path in visited_paths:
+            if current_path in visited_paths:
                 continue
 
-            visited_paths.add(path)
+            visited_paths.add(current_path)
 
-            if path not in self._import_time_covered:
+            if current_path in self._import_time_coverage_cache:
+                cached_dependency = self._import_time_coverage_cache[current_path]
+                imported_lines.update(cached_dependency)
+                visited_paths.update(cached_dependency)
                 continue
 
-            imported_module_lines = self._import_time_covered[path]
-            covered_lines[path].update(imported_module_lines)
+            if current_path not in self._import_time_covered:
+                continue
+
+            imported_lines[current_path] = self._import_time_covered[current_path]
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
-            for dependencies in self._import_names_by_path.get(path, set()):
+            for dependencies in self._import_names_by_path.get(current_path, set()):
                 package, modules = dependencies
                 for module in modules:
                     dep_fqdn = f"{package}.{module}" if package else module
@@ -241,6 +254,19 @@ class ModuleCodeCollector(ModuleWatchdog):
                         if parent_package_str == package:
                             break
                         parent_package = parent_package[:-1]
+
+        self._import_time_coverage_cache[path] = imported_lines
+        return imported_lines
+
+    def _add_import_time_lines(self, covered_lines):
+        """Modify given covered_lines in place and add lines that were covered at import time"""
+        updated_paths: set[str] = set()
+        for path in list(covered_lines.keys()):
+            for imported_path, imported_module_lines in self._get_import_time_lines_for_path(path).items():
+                if imported_path in updated_paths:
+                    continue
+                covered_lines[imported_path].update(imported_module_lines)
+                updated_paths.add(imported_path)
 
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
@@ -388,7 +414,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
 
         if self._collect_import_coverage:
-            self._import_time_name_to_path[_module.__name__] = code.co_filename
+            if self._import_time_name_to_path.get(_module.__name__) != code.co_filename:
+                self._import_time_name_to_path[_module.__name__] = code.co_filename
+                self._import_time_coverage_cache.clear()
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
@@ -410,6 +438,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_coverage_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
@@ -423,6 +452,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_coverage_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 

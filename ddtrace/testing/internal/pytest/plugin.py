@@ -63,9 +63,13 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percen
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
+from ddtrace.testing.internal.utils import PlainTestContext
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import _get_async_flush_events
+
+
+_PRECISE_TEST_SOURCE_LINES = asbool(env.get("_DD_CIVISIBILITY_PRECISE_TEST_SOURCE_LINES", "false"))
 
 
 try:
@@ -221,10 +225,17 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.
         if relative_path is None:
             raise ValueError(f"{item_path!r} is not under workspace {workspace_path!r}")
 
-        # Try to get precise source line information
-        start_line, end_line = _get_source_lines(item, item_path)
+        if _PRECISE_TEST_SOURCE_LINES:
+            start_line, end_line = _get_source_lines(item, item_path)
+            return relative_path, start_line, end_line
 
-        return relative_path, start_line, end_line
+        # Fast path: pytest already computes the item's source location during collection. Avoid
+        # inspect/linecache work here; that cost is paid once per executed test in the hot path.
+        location = getattr(item, "location", None)
+        if location is not None and len(location) > 1:
+            return relative_path, location[1] or 0, 0
+
+        return relative_path, 0, 0
 
     except (ValueError, OSError, Exception):
         # Fallback to pytest's reportinfo
@@ -326,6 +337,7 @@ class TestOptPlugin:
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
@@ -347,7 +359,9 @@ class TestOptPlugin:
         self._osr_candidates: list[pytest.Item] = []
 
     def _outer_protocol_context(self) -> t.ContextManager[t.Optional[TestContext]]:
-        return trace_context(self.enable_ddtrace_trace_filter)
+        if self.enable_ddtrace_trace_filter:
+            return trace_context(True)
+        return contextlib.nullcontext(PlainTestContext())
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -696,10 +710,14 @@ class TestOptPlugin:
         self._apply_test_management_markers(item, test)
 
         with self._outer_protocol_context() as context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            if self.manager.settings.coverage_enabled:
+                TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+                with coverage_collection() as coverage_data:
+                    yield
+                TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+            else:
+                coverage_data = None
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs and context is None:
             with trace_context(self.enable_ddtrace_trace_filter) as fallback_context:
@@ -720,14 +738,15 @@ class TestOptPlugin:
 
         test.finish()
 
-        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
-            self.manager.coverage_writer.put_suite_coverage(
-                test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-            )
-        else:
-            self.manager.coverage_writer.put_coverage(
-                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-            )
+        if coverage_data is not None:
+            if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+                self.manager.coverage_writer.put_suite_coverage(
+                    test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+                )
+            else:
+                self.manager.coverage_writer.put_coverage(
+                    test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+                )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
@@ -1065,8 +1084,8 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        self.reports_by_nodeid[item.nodeid][call.when] = report
-        self.excinfo_by_report[report] = call.excinfo
+        if not report.passed or getattr(report, "wasxfail", None):
+            self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
@@ -1086,40 +1105,51 @@ class TestOptPlugin:
 
         return None
 
+    def _update_test_outcome(
+        self,
+        nodeid: str,
+        report: pytest.TestReport,
+        excinfo: t.Optional[pytest.ExceptionInfo[t.Any]],
+    ) -> None:
+        status, tags = self.outcomes_by_nodeid.get(nodeid, (TestStatus.PASS, {}))
+
+        if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
+            tags[TestTag.XFAIL_REASON] = str(wasxfail)
+            tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
+        # Preserve the first failing/skipping phase as the test outcome. Later teardown reports should not override it.
+        if status in (TestStatus.FAIL, TestStatus.SKIP):
+            self.outcomes_by_nodeid[nodeid] = (status, tags)
+            return
+
+        if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif report.skipped:
+            status = TestStatus.SKIP
+            reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+            tags[TestTag.SKIP_REASON] = reason
+
+        self.outcomes_by_nodeid[nodeid] = (status, tags)
+
     def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
-        """
-        Return test status and tags with exception/skip information for a given executed test.
+        """Return and consume test status/tags for a given executed test."""
+        if outcome := self.outcomes_by_nodeid.pop(nodeid, None):
+            return outcome
 
-        This methods consumes the test reports and exception information for the specified test, and removes them from
-        the dictionaries.
-        """
+        # Compatibility fallback for callers/tests that still populate the old report dictionaries directly.
         status = TestStatus.PASS
-        tags = {}
-
+        tags: dict[str, str] = {}
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
-
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
-
-            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
-                tags[TestTag.XFAIL_REASON] = str(wasxfail)
-                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
-
-            excinfo = self.excinfo_by_report.pop(report, None)
-
-            if report.failed:
-                status = TestStatus.FAIL
-                tags.update(_get_exception_tags(excinfo))
+            self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
+            status, tags = self.outcomes_by_nodeid[nodeid]
+            if status in (TestStatus.FAIL, TestStatus.SKIP):
                 break
-
-            if report.skipped:
-                status = TestStatus.SKIP
-                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
-                tags[TestTag.SKIP_REASON] = reason
-                break
-
+        self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
@@ -1265,18 +1295,25 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            if self.manager.settings.coverage_enabled:
+                TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+                with coverage_collection() as coverage_data:
+                    item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+                    self._do_test_runs(item, nextitem)
+                    item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+                TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+            else:
+                coverage_data = None
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        if coverage_data is not None:
+            self.manager.coverage_writer.put_coverage(
+                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
@@ -1567,6 +1604,7 @@ def pytest_configure(config: pytest.Config) -> None:
     dd_retries_enabled = (
         session_manager.settings.auto_test_retries.enabled or session_manager.settings.early_flake_detection.enabled
     )
+    dd_protocol_ownership_required = dd_retries_enabled or session_manager.settings.test_management.enabled
     plugin_class: type[TestOptPlugin]
     if detected_rerun_plugins and dd_retries_enabled:
         for plugin_name in detected_rerun_plugins:
@@ -1591,8 +1629,10 @@ def pytest_configure(config: pytest.Config) -> None:
                     _EXTERNAL_RERUN_PLUGINS[plugin_name],
                 )
         plugin_class = TestOptPlugin
-    else:
+    elif dd_protocol_ownership_required:
         plugin_class = TestOptPluginWithProtocol
+    else:
+        plugin_class = TestOptPlugin
 
     try:
         plugin = plugin_class(session_manager=session_manager)

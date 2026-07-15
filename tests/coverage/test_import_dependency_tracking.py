@@ -23,6 +23,51 @@ import sys
 
 import pytest
 
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+
+def _coverage_lines(*lines: int) -> CoverageLines:
+    coverage = CoverageLines()
+    for line in lines:
+        coverage.add(line)
+    return coverage
+
+
+def test_import_time_coverage_cache_is_invalidated_for_new_dependencies():
+    from collections import defaultdict
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    try:
+        collector = ModuleCodeCollector()
+        collector._collect_import_coverage = True
+
+        path_a = "/repo/pkg/a.py"
+        path_b = "/repo/pkg/b.py"
+        path_c = "/repo/pkg/c.py"
+        collector._import_time_name_to_path.update({"pkg.b": path_b, "pkg.c": path_c})
+        collector._import_time_covered[path_a].update(_coverage_lines(1))
+        collector._import_time_covered[path_b].update(_coverage_lines(2))
+        collector._import_time_covered[path_c].update(_coverage_lines(3))
+        collector._import_names_by_path[path_a].add(("pkg", ("b",)))
+
+        covered = defaultdict(CoverageLines)
+        covered[path_a].update(_coverage_lines(10))
+        collector._add_import_time_lines(covered)
+        assert covered[path_b].to_sorted_list() == [2]
+        assert path_c not in covered
+        assert collector._import_time_coverage_cache
+
+        collector.hook((0, path_b, ("pkg", ("c",))))
+        assert not collector._import_time_coverage_cache
+
+        covered = defaultdict(CoverageLines)
+        covered[path_a].update(_coverage_lines(10))
+        collector._add_import_time_lines(covered)
+        assert covered[path_c].to_sorted_list() == [3]
+    finally:
+        ModuleCodeCollector.uninstall()
+
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})

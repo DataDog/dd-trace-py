@@ -1,7 +1,8 @@
 """Unit tests for plugin class selection logic in pytest_configure.
 
 Tests that:
-- TestOptPluginWithProtocol is registered when no external rerun plugin is present.
+- TestOptPlugin is registered when no feature requires Datadog to own pytest_runtest_protocol.
+- TestOptPluginWithProtocol is registered when Datadog retries or test management are enabled.
 - TestOptPluginWithProtocol is registered when an external rerun plugin is present AND DD retries are enabled
   (DD retries take precedence).
 - TestOptPlugin (base, without pytest_runtest_protocol) is registered when an external rerun plugin is present
@@ -47,16 +48,30 @@ def _make_mock_config(plugin_names=(), atr_enabled=False, efd_enabled=False, atf
 class TestPluginClassSelection:
     """Tests that pytest_configure picks the right plugin class based on installed rerun plugins and DD settings."""
 
-    def test_no_external_plugin_registers_with_protocol(self):
+    def test_no_external_plugin_without_protocol_features_registers_base(self):
         config, session_manager = _make_mock_config()
 
         with (
             mock.patch(f"{_PLUGIN_MODULE}.TestOptPluginWithProtocol") as MockWithProtocol,
-            mock.patch(f"{_PLUGIN_MODULE}.TestOptPlugin"),
+            mock.patch(f"{_PLUGIN_MODULE}.TestOptPlugin") as MockBase,
+        ):
+            pytest_configure(config)
+
+        MockBase.assert_called_once_with(session_manager=session_manager)
+        MockWithProtocol.assert_not_called()
+
+    @pytest.mark.parametrize("setting", ["atr_enabled", "efd_enabled", "atf_enabled"])
+    def test_no_external_plugin_with_protocol_features_registers_with_protocol(self, setting):
+        config, session_manager = _make_mock_config(**{setting: True})
+
+        with (
+            mock.patch(f"{_PLUGIN_MODULE}.TestOptPluginWithProtocol") as MockWithProtocol,
+            mock.patch(f"{_PLUGIN_MODULE}.TestOptPlugin") as MockBase,
         ):
             pytest_configure(config)
 
         MockWithProtocol.assert_called_once_with(session_manager=session_manager)
+        MockBase.assert_not_called()
 
     @pytest.mark.parametrize("plugin_name", ["rerunfailures", "flaky"])
     def test_external_plugin_without_dd_retries_registers_base(self, plugin_name):

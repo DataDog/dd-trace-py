@@ -972,16 +972,37 @@ class TestHelperFunctions:
             assert end_line == 0
 
     def test_get_test_location_info_success(self) -> None:
-        """Test _get_test_location_info with successful path extraction."""
+        """Test _get_test_location_info with fast path location extraction."""
         from pathlib import Path
 
         mock_item = Mock()
         # Mock path as a string that will be converted to Path by the function
         mock_item.path = "/workspace/tests/test_file.py"
+        mock_item.location = ("tests/test_file.py", 10, "test_function")
 
         workspace_path = Path("/workspace")
 
         with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+            relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+            assert relative_path == "tests/test_file.py"
+            assert start_line == 10
+            assert end_line == 0
+            mock_get_lines.assert_not_called()
+
+    def test_get_test_location_info_precise_source_lines_opt_in(self) -> None:
+        """Test precise source line extraction remains available behind opt-in."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item.path = "/workspace/tests/test_file.py"
+
+        workspace_path = Path("/workspace")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin._PRECISE_TEST_SOURCE_LINES", True),
+            patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines,
+        ):
             mock_get_lines.return_value = (10, 20)
 
             relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
@@ -1001,13 +1022,12 @@ class TestHelperFunctions:
         workspace_path = Path("/workspace")
 
         with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
-            mock_get_lines.return_value = (15, 0)
-
             relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
 
             assert relative_path == "tests/test_file.py"
-            assert start_line == 15
+            assert start_line == 0
             assert end_line == 0
+            mock_get_lines.assert_not_called()
 
     def test_get_test_location_info_reportinfo_fallback(self) -> None:
         """Test _get_test_location_info falls back to reportinfo on path exception."""

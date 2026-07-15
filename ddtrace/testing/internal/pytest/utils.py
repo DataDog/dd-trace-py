@@ -36,6 +36,29 @@ def nodeid_to_names(nodeid: str) -> tuple[str, str, str]:
 
 
 _CACHED_TEST_REF_ATTR = "_ddtrace_test_ref"
+_CACHED_HAS_CUSTOM_NAME_HOOKS_ATTR = "_ddtrace_has_custom_name_hooks"
+
+
+def _hook_has_impls(hookcaller: t.Any) -> bool:
+    get_hookimpls = getattr(hookcaller, "get_hookimpls", None)
+    if get_hookimpls is None:
+        # Unit-test/simple hook doubles do not expose pluggy internals. Treat them as implemented.
+        return True
+    return bool(get_hookimpls())
+
+
+def _has_custom_name_hooks(config: pytest.Config) -> bool:
+    cached = getattr(config, _CACHED_HAS_CUSTOM_NAME_HOOKS_ATTR, None)
+    if cached is not None:
+        return t.cast(bool, cached)
+
+    has_hooks = bool(
+        _hook_has_impls(config.hook.pytest_ddtrace_get_item_module_name)
+        or _hook_has_impls(config.hook.pytest_ddtrace_get_item_suite_name)
+        or _hook_has_impls(config.hook.pytest_ddtrace_get_item_test_name)
+    )
+    setattr(config, _CACHED_HAS_CUSTOM_NAME_HOOKS_ATTR, has_hooks)
+    return has_hooks
 
 
 def item_to_test_ref(item: pytest.Item) -> TestRef:
@@ -43,11 +66,14 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
     if cached_test_ref is not None:
         return t.cast(TestRef, cached_test_ref)
 
-    custom_module = item.config.hook.pytest_ddtrace_get_item_module_name(item=item)
-    custom_suite = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
-    custom_test = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
-
     default_module, default_suite, default_test = nodeid_to_names(item.nodeid)
+
+    if _has_custom_name_hooks(item.config):
+        custom_module = item.config.hook.pytest_ddtrace_get_item_module_name(item=item)
+        custom_suite = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
+        custom_test = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+    else:
+        custom_module = custom_suite = custom_test = None
 
     module_ref = ModuleRef(custom_module or default_module)
     suite_ref = SuiteRef(module_ref, custom_suite or default_suite)
