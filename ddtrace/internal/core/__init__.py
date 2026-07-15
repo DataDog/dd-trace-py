@@ -119,9 +119,9 @@ after the ``with`` block exits. For example::
         return future
 """
 
+import contextvars
 import logging
 import types
-import typing
 from typing import Any  # noqa:F401
 from typing import Generic
 from typing import Optional  # noqa:F401
@@ -135,12 +135,6 @@ from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 from .events import EventType
-
-
-if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
-
-import contextvars
 
 
 _MISSING = object()
@@ -318,18 +312,6 @@ class ExecutionContext(Generic[EventType]):
         while current._parent is not None:
             current = current._parent
         return current
-
-    @property
-    def span(self) -> "Span":
-        from ddtrace.internal.span_bus import span_from_context
-
-        return span_from_context(self)
-
-    @span.setter
-    def span(self, value: "Span") -> None:
-        from ddtrace.internal.span_bus import store_span_on_context
-
-        store_span_on_context(self, value)
 
     @property
     def event(self) -> EventType:
