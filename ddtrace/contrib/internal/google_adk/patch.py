@@ -2,7 +2,7 @@ import sys
 from typing import Any
 from typing import Union
 
-from _ddtrace_internal import check_module_path
+from _ddtrace_internal.modules import check_module_path
 import google.adk as adk
 
 from ddtrace import config
