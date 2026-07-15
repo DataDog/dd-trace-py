@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    LLM Observability: Managed prompts no longer expose deprecated deployment label metadata.
