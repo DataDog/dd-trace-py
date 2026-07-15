@@ -411,7 +411,7 @@ class TestOptPlugin:
         # Also handle test-level deselection: when all tests are deselected at the item level,
         # pytest still returns NO_TESTS_COLLECTED, so check if any tests were skipped.
         if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and (
-            self._itr_ignored_suite_paths or self.session.tests_skipped_by_itr
+            self._itr_ignored_suite_paths or self.session.tests_skipped_by_itr > 0
         ):
             session.exitstatus = pytest.ExitCode.OK
 
@@ -503,7 +503,9 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-        elif not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
+        elif (
+            not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+        ):
             selected = []
             deselected = []
             for item in items:
