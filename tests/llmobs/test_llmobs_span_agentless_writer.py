@@ -105,9 +105,7 @@ def test_send_completion_bad_api_key(mock_writer_logs):
     server_thread.start()
     mock_url = "http://localhost:%d" % server.server_address[1]
 
-    llmobs_span_writer = LLMObsSpanWriter(
-        1, 1, is_agentless=True, _override_url=mock_url, _api_key="<bad-api-key>"
-    )
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _override_url=mock_url, _api_key="<bad-api-key>")
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
     server.shutdown()
