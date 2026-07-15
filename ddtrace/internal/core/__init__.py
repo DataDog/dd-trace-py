@@ -158,7 +158,6 @@ class ExecutionContext(Generic[EventType]):
         "_event",
         "_suppress_exceptions",
         "_parent",
-        "_inner_span",
         "_token",
         "_dispatch_end_event",
         "_end_event_dispatched",
@@ -178,7 +177,6 @@ class ExecutionContext(Generic[EventType]):
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
-        self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
@@ -323,7 +321,7 @@ class ExecutionContext(Generic[EventType]):
 
     @property
     def span(self) -> "Span":
-        if self._inner_span is None:
+        if self.get_item("_inner_span") is None:
             log.warning(
                 "No span found in %s. "
                 "This may indicate the context.started event handler did not set a span. "
@@ -331,12 +329,12 @@ class ExecutionContext(Generic[EventType]):
                 self,
             )
             tracer = self.get_item("tracer")
-            self._inner_span = tracer.current_span() or tracer.trace("default")
-        return self._inner_span
+            self.set_item("_inner_span", tracer.current_span() or tracer.trace("default"))
+        return self["_inner_span"]
 
     @span.setter
     def span(self, value: "Span") -> None:
-        self._inner_span = value
+        self.set_item("_inner_span", value)
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
 
@@ -430,8 +428,8 @@ def discard_local_item(data_key: str) -> None:
 def get_span() -> Optional["Span"]:
     current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
     while current is not None:
-        if current._inner_span is not None:
-            return current._inner_span
+        if current.get_item("_inner_span") is not None:
+            return current["_inner_span"]
         current = current._parent
     return None
 
