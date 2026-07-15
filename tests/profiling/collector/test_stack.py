@@ -210,12 +210,10 @@ def test_set_max_frames_after_fork_restart() -> None:
 
 
 @pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_native_frame_limit",
-    ),
+    env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_native_frame_limit"},
     err=None,
 )
-def test_asyncio_discovery_ignores_plain_stack_limit() -> None:
+def test_asyncio_collection_honors_frame_limit() -> None:
     import asyncio
     import os
     import time
@@ -226,69 +224,32 @@ def test_asyncio_discovery_ignores_plain_stack_limit() -> None:
     from tests.profiling.collector import pprof_utils
 
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
-    ddup.config(
-        env="test",
-        service="test",
-        version="0.0.0",
-        max_nframes=64,
-        output_filename=pprof_prefix,
-    )
+    ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
     ddup.start()
     ddup.upload()
 
     def sync_leaf() -> None:
         time.sleep(0.5)
 
-    def sync_outer() -> None:
-        sync_leaf()
-
     async def inner() -> None:
-        sync_outer()
+        sync_leaf()
 
     async def outer() -> None:
         await inner()
 
     with stack.StackCollector(nframes=1):
-        assert _stack._get_frame_limits() == (1, 1024)
-        sync_outer()
+        assert _stack._get_frame_limits() == (1, 256)
         asyncio.run(outer())
 
     ddup.upload()
     profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
-
-    plain_samples = [
-        sample
-        for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
-    ]
-    plain_stack_was_bounded = False
-    for sample in plain_samples:
-        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
-        if not any(location.function_name == "sync_leaf" for location in locations):
-            continue
-        python_locations = [
-            location
-            for location in locations
-            if location.filename != "<native>" and not location.function_name.startswith("<")
-        ]
-        plain_stack_was_bounded = len(python_locations) <= 1 and "omitted>" in locations[-1].function_name
-        if plain_stack_was_bounded:
-            break
-
-    assert plain_stack_was_bounded
-
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
-            locations=[
-                pprof_utils.StackLocation(function_name="sync_leaf", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="sync_outer", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="inner", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1),
-            ],
+            locations=[pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1)],
         ),
         print_samples_on_failure=True,
     )

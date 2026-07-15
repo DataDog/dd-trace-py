@@ -34,7 +34,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     auto maybe_task = TaskInfo::create(echion_sampler, reinterpret_cast<TaskObj*>(p0));
     if (maybe_task) {
         FrameStack stack;
-        (void)(*maybe_task)->unwind(echion_sampler, stack, using_uvloop);
+        (void)(*maybe_task)->unwind(echion_sampler, stack, using_uvloop, MAX_STACK_DISCOVERY_DEPTH);
     }
 
     g_data = nullptr;

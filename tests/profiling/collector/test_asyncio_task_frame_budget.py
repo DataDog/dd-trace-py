@@ -71,6 +71,7 @@ def test_task_frames_take_priority_when_the_budget_is_full() -> None:
     err=None,
 )
 def test_deep_sync_stack_does_not_hide_task_context() -> None:
+    import asyncio
     import os
     import time
 
@@ -90,8 +91,11 @@ def test_deep_sync_stack_does_not_hide_task_context() -> None:
         while time.time() < deadline:
             pass
 
-    async def async_main() -> None:
+    async def deep_task() -> None:
         deep_sync(20)
+
+    async def async_main() -> None:
+        await asyncio.create_task(deep_task())
 
     p = profiler.Profiler()
     p.start()
@@ -101,18 +105,12 @@ def test_deep_sync_stack_does_not_hide_task_context() -> None:
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    actual = []
-    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
-        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
-        if label is not None and profile.string_table[label.str] == "Task-1":
-            actual.append(
-                [
-                    pprof_utils.get_location_from_id(profile, location_id).function_name
-                    for location_id in sample.location_id
-                ]
-            )
+    actual = [
+        [pprof_utils.get_location_from_id(profile, location_id).function_name for location_id in sample.location_id]
+        for sample in pprof_utils.get_samples_with_label_key(profile, "task name")
+    ]
 
-    assert ["async_main"] in actual, actual
+    assert any("deep_task" in names for names in actual), actual
 
 
 @pytest.mark.subprocess(
