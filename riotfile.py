@@ -503,6 +503,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                        # pkg_resources was removed in setuptools 82.
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
