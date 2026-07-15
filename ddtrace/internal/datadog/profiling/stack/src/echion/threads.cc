@@ -268,7 +268,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 const auto& cached = it->second;
                 const size_t frames_to_push = std::min(cached.frames.size(), max_frames - task_frames.size());
-                task_frames.insert(task_frames.end(), cached.frames.begin(), cached.frames.begin() + frames_to_push);
+                task_frames.insert(task_frames.end(),
+                                   cached.frames.begin(),
+                                   cached.frames.begin() + static_cast<FrameStack::difference_type>(frames_to_push));
                 if (task.is_on_cpu) {
                     has_on_cpu_task = true;
                     on_cpu_task_depth = cached.depth;
@@ -325,7 +327,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         size_t task_locations = 0;
         const size_t task_to_keep = select_frame_prefix(task_frames, 0, task_frames.size(), max_frames, task_locations);
         const bool task_truncated = task_collection_full || task_to_keep < task_frames.size();
-        task_frames.erase(task_frames.begin() + task_to_keep, task_frames.end());
+        task_frames.erase(task_frames.begin() + static_cast<FrameStack::difference_type>(task_to_keep),
+                          task_frames.end());
 
         // Task frames receive the reporting budget first. If capacity remains,
         // fill it with physical context. For an on-CPU task, split that context
@@ -359,24 +362,26 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 if ((leaf_truncated || runtime_truncated) && locations >= max_frames) {
                     if (runtime_to_keep > 0) {
                         runtime_to_keep--;
-                        locations -= rendered_location_count(python_stack[runtime_start + runtime_to_keep]);
                     } else if (leaf_to_keep > 0) {
                         leaf_to_keep--;
-                        locations -= rendered_location_count(python_stack[leaf_to_keep]);
                     }
                     leaf_truncated = leaf_depth > leaf_to_keep;
                     runtime_truncated = runtime_available > runtime_to_keep;
                 }
 
-                stack.insert(stack.end(), python_stack.begin(), python_stack.begin() + leaf_to_keep);
+                stack.insert(stack.end(),
+                             python_stack.begin(),
+                             python_stack.begin() + static_cast<FrameStack::difference_type>(leaf_to_keep));
                 if (leaf_truncated) {
                     stack_info->omission_index = stack.size();
                     stack_info->omitted_frames = leaf_depth - leaf_to_keep;
                 }
                 stack.insert(stack.end(), task_frames.begin(), task_frames.end());
+                const auto runtime_begin =
+                  python_stack.begin() + static_cast<FrameStack::difference_type>(runtime_start);
                 stack.insert(stack.end(),
-                             python_stack.begin() + runtime_start,
-                             python_stack.begin() + runtime_start + runtime_to_keep);
+                             runtime_begin,
+                             runtime_begin + static_cast<FrameStack::difference_type>(runtime_to_keep));
                 if (!leaf_truncated && runtime_truncated) {
                     stack_info->omission_index = stack.size();
                     stack_info->omitted_frames = runtime_available - runtime_to_keep;
@@ -387,11 +392,12 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 bool sync_truncated = python_stack.size() > sync_to_keep;
                 if (sync_truncated && locations >= max_frames && sync_to_keep > 0) {
                     sync_to_keep--;
-                    locations -= rendered_location_count(python_stack[sync_to_keep]);
                 }
 
                 stack = std::move(task_frames);
-                stack.insert(stack.end(), python_stack.begin(), python_stack.begin() + sync_to_keep);
+                stack.insert(stack.end(),
+                             python_stack.begin(),
+                             python_stack.begin() + static_cast<FrameStack::difference_type>(sync_to_keep));
                 if (sync_truncated) {
                     stack_info->omission_index = stack.size();
                     stack_info->omitted_frames = python_stack.size() - sync_to_keep;

@@ -50,7 +50,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         tstate.datastack_chunk = reinterpret_cast<_PyStackChunk*>(p2);
 #endif
         FrameStack fuzz_stack;
-        unwind_python_stack(echion_sampler, &tstate, fuzz_stack, MAX_TASK_FRAMES);
+        unwind_python_stack(echion_sampler, &tstate, fuzz_stack, MAX_STACK_DISCOVERY_DEPTH);
     }
 
     g_data = nullptr;
