@@ -8,10 +8,10 @@ if t.TYPE_CHECKING:
 
 
 def get_span() -> t.Optional["Span"]:
-    current: t.Optional[core.ExecutionContext] = core.current
+    current: t.Optional[core.ExecutionContext[t.Any]] = core.current
     while current is not None:
         if current.get_item("_inner_span") is not None:
-            return current["_inner_span"]
+            return current["_inner_span"]  # type: ignore
         current = current._parent
     return None
 

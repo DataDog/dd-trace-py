@@ -330,7 +330,7 @@ class ExecutionContext(Generic[EventType]):
             )
             tracer = self.get_item("tracer")
             self.set_item("_inner_span", tracer.current_span() or tracer.trace("default"))
-        return self["_inner_span"]
+        return self["_inner_span"]  # type: ignore
 
     @span.setter
     def span(self, value: "Span") -> None:
