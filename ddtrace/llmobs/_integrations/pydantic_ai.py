@@ -118,6 +118,18 @@ def _dedupe_by_id(fns: list[Any]) -> list[Any]:
     return unique
 
 
+def _dedupe_pairs(pairs: list[tuple[Any, bool]]) -> list[tuple[Any, bool]]:
+    """Dedupe ``(fn, flag)`` pairs by function ``id`` (first-seen wins), preserving order."""
+    seen: set[int] = set()
+    unique: list[tuple[Any, bool]] = []
+    for fn, flag in pairs:
+        if id(fn) in seen:
+            continue
+        seen.add(id(fn))
+        unique.append((fn, flag))
+    return unique
+
+
 def _sorted_definition_list(items: list[dict[str, Any]], keys: tuple[str, ...]) -> list[dict[str, Any]]:
     """Sort an order-incidental definition list into a total, deterministic (reversal-invariant) order.
 
@@ -138,23 +150,23 @@ def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     the callables by ``id`` captures the dynamic functions on every version.
     """
     static_texts: list[str] = []
-    dynamic_fns: list[Any] = []
+    dynamic: list[tuple[Any, bool]] = []  # (fn, reevaluated); instructions rebuild every request -> True
     instructions = getattr(agent, "_instructions", None)
     if isinstance(instructions, (list, tuple)):
         for entry in instructions:
             if isinstance(entry, str):
                 static_texts.append(entry)
             elif callable(entry):
-                dynamic_fns.append(entry)
+                dynamic.append((entry, True))
     elif isinstance(instructions, str):
         static_texts.append(instructions)
     elif callable(instructions):
-        dynamic_fns.append(instructions)
+        dynamic.append((instructions, True))
     for runner in getattr(agent, "_instructions_functions", None) or []:
         fn = getattr(runner, "function", runner)
         if callable(fn):
-            dynamic_fns.append(fn)
-    return static_texts, _dedupe_by_id(dynamic_fns)
+            dynamic.append((fn, True))
+    return static_texts, _dedupe_pairs(dynamic)
 
 
 def _collect_system_prompts(agent: Any) -> tuple[list[str], list[Any]]:
@@ -164,15 +176,15 @@ def _collect_system_prompts(agent: Any) -> tuple[list[str], list[Any]]:
     ``SystemPromptRunner`` wrappers (unwrap ``.function``) on every supported version.
     """
     static_texts: list[str] = []
-    dynamic_fns: list[Any] = []
+    dynamic: list[tuple[Any, bool]] = []  # (fn, reevaluated); dynamic=True system prompts re-run each step
     for entry in getattr(agent, "_system_prompts", None) or ():
         if isinstance(entry, str):
             static_texts.append(entry)
     for runner in getattr(agent, "_system_prompt_functions", None) or []:
         fn = getattr(runner, "function", runner)
         if callable(fn):
-            dynamic_fns.append(fn)
-    return static_texts, _dedupe_by_id(dynamic_fns)
+            dynamic.append((fn, bool(getattr(runner, "dynamic", False))))
+    return static_texts, _dedupe_pairs(dynamic)
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
@@ -330,10 +342,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _build_agent_manifest(self, agent: Any) -> dict[str, Any]:
         """Build the agent manifest from a pydantic-ai ``Agent``.
 
-        ``framework`` / ``name`` identify the agent; the remaining keys are the agent's captured
-        configuration (prompts, tools, capabilities, handoffs, guardrails, tool transforms, model config,
-        settings, memory), emitted as flat top-level fields; ``metadata`` is display-only. Fields are omitted
-        when empty.
+        ``framework`` / ``name`` identify the agent (not versioned). The remaining keys are the agent's
+        captured definition: ``model`` config; ``instructions`` / ``system_prompts`` (static text + dynamic
+        parts); a typed ``capabilities`` list; ``handoffs``; ``guardrails``; ``output_type``; and a
+        ``behaviors`` block (memory / tool transforms / settings). ``metadata`` is display-only. Fields are
+        omitted when empty.
         """
         manifest: dict[str, Any] = {"framework": "PydanticAI"}
         manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
@@ -349,52 +362,50 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if model_settings is not None:
             manifest["model_settings"] = model_settings
 
-        # Prompts emit as flat fields: ``<key>`` (static text), ``<key>_is_dynamic`` (a callable resolves it
-        # per run), and ``<key>_functions`` (structured descriptors of the dynamic functions). The flat text
-        # is what the definition panel renders; the sidecar detail is what a prompt *change* is detectable
-        # from, for versioning.
-        self._set_prompt_fields(manifest, "instructions", _collect_instructions(agent))
-        self._set_prompt_fields(manifest, "system_prompts", _collect_system_prompts(agent))
+        # Prompts: ``{static?, dynamic?}``. Presence of ``dynamic`` marks a runtime-resolved prompt (no
+        # separate flag); each dynamic part carries ``reevaluated`` (re-run each step). Registration order
+        # preserved (semantic).
+        instructions = self._build_prompt_group(_collect_instructions(agent))
+        if instructions:
+            manifest["instructions"] = instructions
+        system_prompts = self._build_prompt_group(_collect_system_prompts(agent))
+        if system_prompts:
+            manifest["system_prompts"] = system_prompts
 
-        # Sort the order-incidental lists (tools/capabilities/handoffs); prompt ``functions`` and
-        # ``history_processors`` keep registration order (semantic -- see their helpers).
-        tools = _sorted_definition_list(self._get_agent_tools(agent), ("name",))
-        if tools:
-            manifest["tools"] = tools
+        # Capabilities: one typed list of everything the agent can invoke (function / mcp / builtin /
+        # sub_agent); a delegating tool is single-homed as ``sub_agent``. Order-incidental -> sorted.
+        capabilities = _sorted_definition_list(self._get_agent_capabilities(agent), ("type", "name"))
+        if capabilities:
+            manifest["capabilities"] = capabilities
+
+        # Handoffs (control transfer to another agent): a distinct first-class component.
+        handoffs = _sorted_definition_list(self._get_agent_handoffs(agent), ("name",))
+        if handoffs:
+            manifest["handoffs"] = handoffs
+
+        # Guardrails (``@agent.output_validator``): a distinct first-class component. Full descriptors
+        # (name/signature/doc/source) so a guardrail *change* is versionable; names are derivable.
+        guardrails = _sorted_definition_list(self._get_guardrails(agent), ("name",))
+        if guardrails:
+            manifest["guardrails"] = guardrails
 
         output_type = self._get_agent_output_type(agent)
         if output_type:
             manifest["output_type"] = output_type
 
-        agent_settings = self._get_agent_settings(agent)
-        if agent_settings:
-            manifest["agent_settings"] = agent_settings
-
-        capabilities = _sorted_definition_list(self._get_agent_capabilities(agent), ("kind", "name"))
-        if capabilities:
-            manifest["capabilities"] = capabilities
-
-        handoffs = _sorted_definition_list(self._get_agent_handoffs(agent), ("tool_name",))
-        if handoffs:
-            manifest["handoffs"] = handoffs
-
-        # Output guardrails (``@agent.output_validator``): ``guardrails`` is the list of names the definition
-        # panel renders; ``guardrail_details`` carries the per-function detail (signature/doc/source) that a
-        # guardrail *change* is detectable from, for versioning.
-        guardrail_details = _sorted_definition_list(self._get_guardrails(agent), ("name",))
-        if guardrail_details:
-            manifest["guardrails"] = [g["name"] for g in guardrail_details]
-            manifest["guardrail_details"] = guardrail_details
-
-        # Per-run tool-set rewriters (``prepare_tools`` / ``prepare_output_tools``): they change which tools
-        # the agent may use per run, so they are part of the definition.
+        # Behaviors: tunables + nice-to-haves, grouped; omitted when empty.
+        behaviors: dict[str, Any] = {}
+        memory = self._get_history_processors(agent)  # message-history / memory policy
+        if memory:
+            behaviors["memory"] = memory
         tool_transforms = self._get_tool_transforms(agent)
         if tool_transforms:
-            manifest["tool_transforms"] = tool_transforms
-
-        history_processors = self._get_history_processors(agent)
-        if history_processors:
-            manifest["history_processors"] = history_processors
+            behaviors["tool_transforms"] = tool_transforms
+        settings = self._get_agent_settings(agent)
+        if settings:
+            behaviors["settings"] = settings
+        if behaviors:
+            manifest["behaviors"] = behaviors
 
         # Display-only. Re-parse via json.loads(serialized) rather than aliasing _metadata: the Agent is
         # reused across runs, so sharing the (possibly nested-mutable) dict would let a later mutation
@@ -446,22 +457,26 @@ class PydanticAIIntegration(BaseLLMIntegration):
             described.append(entry)
         return described
 
-    def _set_prompt_fields(self, manifest: dict[str, Any], key: str, collected: tuple[list[str], list[Any]]) -> None:
-        """Emit a prompt as flat fields: ``<key>`` (static text), ``<key>_is_dynamic``, ``<key>_functions``.
+    def _build_prompt_group(self, collected: tuple[list[str], list[Any]]) -> Optional[dict[str, Any]]:
+        """Shape ``(static_texts, [(fn, reevaluated)])`` into ``{static?, dynamic?}`` (``None`` if empty).
 
-        ``<key>`` is the static text only; each dynamic (callable) prompt's definition lives once in
-        ``<key>_functions`` (single-homed). ``<key>_functions`` keeps registration order -- dynamic prompts
-        concatenate in order, so it is semantic. Fields are omitted when empty.
+        ``static`` is the static prompt text; ``dynamic`` describes each runtime resolver
+        (name/signature/doc/source + ``reevaluated``). Presence of ``dynamic`` marks a resolved-at-runtime
+        prompt -- there is no separate flag. Registration order preserved (semantic).
         """
-        static_texts, dynamic_fns = collected
+        static_texts, dynamic = collected
+        group: dict[str, Any] = {}
         text = " ".join(t for t in static_texts if t)
         if text:
-            manifest[key] = text
-        if dynamic_fns:
-            manifest[f"{key}_is_dynamic"] = True
-        described = self._describe_prompt_functions(dynamic_fns)
+            group["static"] = text
+        described: list[dict[str, Any]] = []
+        for fn, reevaluated in dynamic:
+            for entry in self._describe_prompt_functions([fn]):
+                entry["reevaluated"] = reevaluated
+                described.append(entry)
         if described:
-            manifest[f"{key}_functions"] = described
+            group["dynamic"] = described
+        return group or None
 
     @classmethod
     def _get_history_processors(cls, agent: Any) -> list[dict[str, Any]]:
@@ -475,31 +490,24 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fns = _dedupe_by_id([fn for fn in processors if callable(fn)])
         return cls._describe_prompt_functions(fns)
 
-    def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """Shape the agent's function tools (from ``_iter_agent_tools``) into ``{name, description?, parameters}``."""
-        formatted_tools = []
-        for tool_name, tool_instance, _ in _iter_agent_tools(agent):
-            tool_dict: dict[str, Any] = {}
-            tool_dict["name"] = tool_name
-            if hasattr(tool_instance, "description"):
-                tool_dict["description"] = tool_instance.description
-            function_schema = getattr(tool_instance, "function_schema", {})
-            json_schema = getattr(function_schema, "json_schema", {})
-            required_params = {param: True for param in json_schema.get("required", [])}
-            parameters: dict[str, dict[str, Any]] = {}
-            for param, schema in json_schema.get("properties", {}).items():
-                param_dict: dict[str, Any] = {}
-                if "type" in schema:
-                    param_dict["type"] = schema["type"]
-                if param in required_params:
-                    param_dict["required"] = True
-                parameters[param] = param_dict
-            tool_dict["parameters"] = parameters
-            formatted_tools.append(tool_dict)
-        return formatted_tools
+    @staticmethod
+    def _tool_parameters(tool_instance: Any) -> dict[str, dict[str, Any]]:
+        """Extract ``{param: {type?, required?}}`` from a tool's ``function_schema.json_schema``."""
+        function_schema = getattr(tool_instance, "function_schema", {})
+        json_schema = getattr(function_schema, "json_schema", {})
+        required_params = {param: True for param in json_schema.get("required", [])}
+        parameters: dict[str, dict[str, Any]] = {}
+        for param, schema in json_schema.get("properties", {}).items():
+            param_dict: dict[str, Any] = {}
+            if "type" in schema:
+                param_dict["type"] = schema["type"]
+            if param in required_params:
+                param_dict["required"] = True
+            parameters[param] = param_dict
+        return parameters
 
     def _get_agent_settings(self, agent: Any) -> dict[str, Any]:
-        """Build ``agent_settings`` (only fields present on the agent).
+        """Build the agent's ``settings`` (emitted under ``behaviors.settings``); only fields present.
 
         ``retries`` is the output-validation retry budget (``_max_result_retries``/``_max_output_retries``);
         ``tool_retries`` is the distinct per-tool retry budget (``_max_tool_retries``).
@@ -590,17 +598,31 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return transforms
 
     def _get_agent_capabilities(self, agent: Any) -> list[dict[str, Any]]:
-        """List the typed capability surface (``builtin`` / ``mcp`` / ``sub-agent`` / ``custom``).
+        """List the unified, typed capability surface -- everything the agent can invoke.
 
-        Plain function tools are excluded -- they already live in ``manifest["tools"]``.
+        ``type`` is one of ``function`` / ``sub_agent`` / ``builtin`` / ``mcp`` / ``custom``. Function tools
+        and sub-agents share one pass over ``_iter_agent_tools``: a tool that delegates to another ``Agent``
+        is single-homed as ``sub_agent`` (carrying its parameters), everything else is ``function``.
         """
         capabilities: list[dict[str, Any]] = []
+        for tool_name, tool_instance, fn in _iter_agent_tools(agent):
+            entry: dict[str, Any] = {"name": tool_name}
+            if hasattr(tool_instance, "description"):
+                entry["description"] = tool_instance.description
+            entry["parameters"] = self._tool_parameters(tool_instance)
+            agent_name = self._referenced_agent_name(fn) if callable(fn) else None
+            if agent_name is not None:
+                entry["type"] = "sub_agent"
+                if agent_name:
+                    entry["agent"] = agent_name
+            else:
+                entry["type"] = "function"
+            capabilities.append(entry)
         for tool in getattr(agent, "_builtin_tools", None) or []:
             kind = getattr(tool, "kind", None) or type(tool).__name__
             if kind:
-                capabilities.append({"kind": "builtin", "name": kind, "provider": "pydantic_ai"})
+                capabilities.append({"type": "builtin", "name": kind})
         capabilities.extend(self._get_mcp_servers(agent))
-        capabilities.extend(self._get_sub_agents(agent))
         capabilities.extend(self._get_custom_toolsets(agent))
         return capabilities
 
@@ -634,7 +656,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return getattr(toolset, "id", None) or type(toolset).__name__
 
     def _get_mcp_servers(self, agent: Any) -> list[dict[str, Any]]:
-        """List MCP servers as ``{kind: 'mcp', name, uri?}``.
+        """List MCP servers as ``{type: 'mcp', name, uri?}``.
 
         Only an HTTP ``.url`` is emitted (redacted); a stdio ``.command`` (basename can be a secret) is never emitted.
         """
@@ -645,32 +667,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         for toolset in getattr(agent, "_user_toolsets", None) or []:
             if not isinstance(toolset, mcp_cls):
                 continue
-            entry: dict[str, Any] = {"kind": "mcp", "name": self._toolset_name(toolset)}
+            entry: dict[str, Any] = {"type": "mcp", "name": self._toolset_name(toolset)}
             uri = _redact_mcp_uri(getattr(toolset, "url", None))
             if uri:
                 entry["uri"] = uri
             servers.append(entry)
         return servers
 
-    def _get_sub_agents(self, agent: Any) -> list[dict[str, Any]]:
-        """List function tools delegating to another ``Agent`` as ``{kind: 'sub-agent', name, agent_name?}``.
-
-        Detection caveats are documented on ``_referenced_agent_name``.
-        """
-        sub_agents: list[dict[str, Any]] = []
-        for tool_name, _, fn in _iter_agent_tools(agent):
-            if not callable(fn):
-                continue
-            agent_name = self._referenced_agent_name(fn)
-            if agent_name is not None:
-                entry: dict[str, Any] = {"kind": "sub-agent", "name": tool_name}
-                if agent_name:
-                    entry["agent_name"] = agent_name
-                sub_agents.append(entry)
-        return sub_agents
-
     def _get_custom_toolsets(self, agent: Any) -> list[dict[str, Any]]:
-        """List non-MCP, non-function user toolsets as ``{kind: 'custom', name}`` so none is silently dropped."""
+        """List non-MCP, non-function user toolsets as ``{type: 'custom', name}`` so none is silently dropped."""
         mcp_cls = self._mcp_server_cls()
         fn_cls = self._function_toolset_cls()
         custom: list[dict[str, Any]] = []
@@ -679,26 +684,26 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 continue
             if fn_cls is not None and isinstance(toolset, fn_cls):
                 continue
-            custom.append({"kind": "custom", "name": self._toolset_name(toolset)})
+            custom.append({"type": "custom", "name": self._toolset_name(toolset)})
         return custom
 
     def _get_agent_handoffs(self, agent: Any) -> list[dict[str, Any]]:
         """List every output-function callable in ``agent.output_type`` as a handoff.
 
-        Entry ``{tool_name, handoff_description?, agent_name?}``, per
-        ``openai_agents._extract_handoffs_from_agent``.
+        Entry ``{name, description?, agent?}`` -- ``name`` is the output function, ``agent`` the target it
+        delegates to (when statically resolvable).
         """
         if not hasattr(agent, "output_type"):
             return []
         handoffs: list[dict[str, Any]] = []
         for marker, fn in self._iter_output_functions(agent.output_type):
-            handoff: dict[str, Any] = {"tool_name": getattr(fn, "__name__", None) or "output_function"}
+            handoff: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "output_function"}
             description = getattr(marker, "description", None) or getattr(fn, "__doc__", None)
             if description:
-                handoff["handoff_description"] = description
+                handoff["description"] = description
             agent_name = self._referenced_agent_name(fn)
             if agent_name:
-                handoff["agent_name"] = agent_name
+                handoff["agent"] = agent_name
             handoffs.append(handoff)
         return handoffs
 

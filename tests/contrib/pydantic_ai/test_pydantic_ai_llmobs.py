@@ -52,8 +52,8 @@ class TestLLMObsPydanticAI:
             metadata=expected_agent_metadata(
                 instructions=instructions,
                 model_settings=model_settings,
-                tools=expected_calculate_square_tool(),
-                # The agent sets a static ``system_prompt`` -> system_prompts.text.
+                # Function tools are unified into ``capabilities`` (type=function).
+                capabilities=expected_calculate_square_tool(),
                 system_prompts=system_prompt,
             ),
             tags=PYDANTIC_AI_TAGS,
@@ -210,7 +210,7 @@ class TestLLMObsPydanticAI:
     async def test_agent_run_with_deps_type_in_agent_settings(
         self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
     ):
-        """The dependency-injection deps type is captured into ``manifest.agent_settings.deps_type``."""
+        """The dependency-injection deps type is captured into ``manifest.behaviors.settings.deps_type``."""
 
         class SupportDeps:
             pass
@@ -227,7 +227,7 @@ class TestLLMObsPydanticAI:
             input_value="Hello, world!",
             output_value=result.output,
             metadata=expected_agent_metadata(
-                agent_settings={"retries": 1, "tool_retries": 1, "end_strategy": "early", "deps_type": "SupportDeps"},
+                settings={"retries": 1, "tool_retries": 1, "end_strategy": "early", "deps_type": "SupportDeps"},
             ),
             tags=PYDANTIC_AI_TAGS,
         )
@@ -245,7 +245,7 @@ class TestLLMObsPydanticAI:
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", builtin_tools=[WebSearchTool()])
         capabilities = integration._get_agent_capabilities(agent)
-        assert {"kind": "builtin", "name": "web_search", "provider": "pydantic_ai"} in capabilities
+        assert {"type": "builtin", "name": "web_search"} in capabilities
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output_type/markers verified on pydantic-ai >=1.63.0")
     def test_agent_run_with_structured_output_type(self, pydantic_ai, pydantic_ai_llmobs):
@@ -287,8 +287,8 @@ class TestLLMObsPydanticAI:
         http_server = mcp.MCPServerStreamableHTTP(url="https://example.com/mcp", id="http-mcp")
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[stdio_server, http_server])
         assert integration._get_agent_capabilities(agent) == [
-            {"kind": "mcp", "name": "stdio-mcp"},
-            {"kind": "mcp", "name": "http-mcp", "uri": "https://example.com"},
+            {"type": "mcp", "name": "stdio-mcp"},
+            {"type": "mcp", "name": "http-mcp", "uri": "https://example.com"},
         ]
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
@@ -425,7 +425,7 @@ class TestLLMObsPydanticAI:
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[leaky])
 
         capabilities = integration._get_agent_capabilities(agent)
-        assert capabilities == [{"kind": "custom", "name": "LeakyToolset"}], capabilities
+        assert capabilities == [{"type": "custom", "name": "LeakyToolset"}], capabilities
         for secret in ("AKIA_CUSTOMSECRET", "hunter2"):
             assert secret not in capabilities[0]["name"], (secret, capabilities)
 
@@ -470,12 +470,12 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="sub-agent introspection verified on pydantic-ai >=1.63.0"
     )
     def test_manifest_sub_agent_capability(self, pydantic_ai, pydantic_ai_llmobs):
-        """A function tool that delegates to another Agent is captured as a ``sub-agent``.
+        """A function tool that delegates to another Agent is captured as a ``sub_agent`` capability.
 
         Driven through the builder (not a live run) so no model call is needed. ``sub_worker`` is
-        closure-captured by ``delegate_to_sub_agent``, which the bytecode walk resolves;
-        ``calculate_square_tool`` is a plain tool and must NOT appear as a capability (function tools
-        stay in ``manifest["tools"]``).
+        closure-captured by ``delegate_to_sub_agent``, which the bytecode walk resolves. Plain function
+        tools (``calculate_square_tool``) are ``type: function`` in the same unified ``capabilities`` list;
+        a delegating tool is single-homed as ``type: sub_agent`` (carrying its parameters + target agent).
         """
         integration = pydantic_ai._datadog_integration
         sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
@@ -488,7 +488,19 @@ class TestLLMObsPydanticAI:
             model="gpt-4o", name="test_agent", tools=[calculate_square_tool, delegate_to_sub_agent]
         )
         assert integration._get_agent_capabilities(agent) == [
-            {"kind": "sub-agent", "name": "delegate_to_sub_agent", "agent_name": "sub_worker"}
+            {
+                "type": "function",
+                "name": "calculate_square_tool",
+                "description": "Calculates the square of a number",
+                "parameters": {"x": {"type": "integer", "required": True}},
+            },
+            {
+                "type": "sub_agent",
+                "name": "delegate_to_sub_agent",
+                "description": "Delegate the query to the sub agent.",
+                "parameters": {"query": {"type": "string", "required": True}},
+                "agent": "sub_worker",
+            },
         ]
 
     @pytest.mark.skipif(
@@ -511,9 +523,9 @@ class TestLLMObsPydanticAI:
         assert integration._get_agent_output_type(agent) == {}
         assert integration._get_agent_handoffs(agent) == [
             {
-                "tool_name": "route_to_sub_agent",
-                "handoff_description": "Route the request to the sub agent.",
-                "agent_name": "sub_worker",
+                "name": "route_to_sub_agent",
+                "description": "Route the request to the sub agent.",
+                "agent": "sub_worker",
             }
         ]
 
@@ -561,8 +573,8 @@ class TestLLMObsPydanticAI:
             handoffs = integration._get_agent_handoffs(agent)
             # The wrapped callable is a handoff, not an output type.
             assert output_type == {}, (marker_cls.__name__, output_type)
-            assert [h["tool_name"] for h in handoffs] == ["route"], (marker_cls.__name__, handoffs)
-            assert handoffs[0].get("agent_name") == "sub_worker", (marker_cls.__name__, handoffs)
+            assert [h["name"] for h in handoffs] == ["route"], (marker_cls.__name__, handoffs)
+            assert handoffs[0].get("agent") == "sub_worker", (marker_cls.__name__, handoffs)
             # No memory-address string leaks onto the span via output_type.
             assert "0x" not in safe_json(output_type), (marker_cls.__name__, output_type)
 
@@ -640,8 +652,8 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="dynamic instructions verified on pydantic-ai >=1.63.0"
     )
     async def test_agent_run_with_dynamic_instructions(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """A dynamic (callable) instructions function flips ``instructions_is_dynamic`` and is captured as a
-        structured ``instructions_functions`` descriptor (name / signature / doc / source).
+        """A dynamic (callable) instructions function is captured under ``instructions.dynamic`` as a
+        structured descriptor (name / signature / doc / source / reevaluated).
         """
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -664,19 +676,20 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
         manifest = span_data["meta"]["metadata"]["_dd"]["agent_manifest"]
-        assert manifest["instructions_is_dynamic"] is True
-        functions = manifest["instructions_functions"]
+        instructions = manifest["instructions"]
+        functions = instructions["dynamic"]
         assert len(functions) == 1
         descriptor = functions[0]
         assert descriptor["name"] == "dynamic_instructions"
         assert descriptor["signature"] == "(ctx) -> str"
         assert descriptor["doc"] == "Resolved per run."
+        assert descriptor["reevaluated"] is True
         # ``source`` is the full definition (asserted by substring, not byte-for-byte, so the test does
         # not break on indentation); ``getsource`` includes the ``@agent.instructions`` decorator line.
         assert "def dynamic_instructions(ctx) -> str:" in descriptor["source"]
         assert "@agent.instructions" in descriptor["source"]
-        # Single-home: a dynamic-only agent has no static ``instructions`` text key.
-        assert "instructions" not in manifest
+        # Single-home: a dynamic-only agent has no static text.
+        assert "static" not in instructions
 
     def test_manifest_restores_system_prompts_and_omits_dependencies(self, pydantic_ai, pydantic_ai_llmobs):
         """Regression: a static ``system_prompt`` is now RESTORED to the manifest (it was dropped by the
@@ -692,11 +705,11 @@ class TestLLMObsPydanticAI:
             model="gpt-4o", name="test_agent", system_prompt="you are a bot", deps_type=SupportDeps
         )
         manifest = integration._build_agent_manifest(agent)
-        # system_prompts is restored (static-only -> a flat string, no dynamic flag / functions).
-        assert manifest["system_prompts"] == "you are a bot"
-        # The removed dependencies block stays gone; deps_type surfaces under agent_settings.
+        # system_prompts is restored (static-only -> ``{static: ...}``, no dynamic parts).
+        assert manifest["system_prompts"] == {"static": "you are a bot"}
+        # The removed dependencies block stays gone; deps_type surfaces under behaviors.settings.
         assert "dependencies" not in manifest
-        assert manifest["agent_settings"].get("deps_type") == "SupportDeps"
+        assert manifest["behaviors"]["settings"].get("deps_type") == "SupportDeps"
 
     def test_manifest_captures_dynamic_instructions_all_versions(self, pydantic_ai, pydantic_ai_llmobs):
         """Regression (whole matrix): a dynamic ``@agent.instructions`` function is captured on EVERY
@@ -718,24 +731,24 @@ class TestLLMObsPydanticAI:
             return "computed instructions"
 
         manifest = integration._build_agent_manifest(agent)
-        assert manifest["instructions_is_dynamic"] is True
-        functions = manifest["instructions_functions"]
+        instructions = manifest["instructions"]
+        functions = instructions["dynamic"]
         assert len(functions) == 1
         descriptor = functions[0]
         assert descriptor["name"] == "dynamic_instructions"
         assert descriptor["signature"] == "(ctx) -> str"
         assert descriptor["doc"] == "Resolved per run."
         assert "def dynamic_instructions(ctx) -> str:" in descriptor["source"]
-        # Single-home: a dynamic-only agent has no static ``instructions`` text key.
-        assert "instructions" not in manifest
+        # Single-home: a dynamic-only agent has no static text.
+        assert "static" not in instructions
 
     def test_manifest_captures_static_and_dynamic_system_prompts(self, pydantic_ai, pydantic_ai_llmobs):
         """A static ``system_prompt`` plus a dynamic ``@agent.system_prompt`` function are BOTH captured.
 
         Builder-driven (runs on every pin -- ``_system_prompts`` / ``_system_prompt_functions`` are stable
-        across versions). The static string lands in the flat ``system_prompts`` field and the dynamic
-        function is described in ``system_prompts_functions`` with ``system_prompts_is_dynamic`` set --
-        single-homed, so the source is not mirrored into the static string.
+        across versions). The static string lands in ``system_prompts.static`` and the dynamic function is
+        described in ``system_prompts.dynamic`` (each part carries ``reevaluated``) -- single-homed, so the
+        source is not mirrored into the static string.
         """
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", system_prompt="You are a bot.")
@@ -746,19 +759,20 @@ class TestLLMObsPydanticAI:
             return "computed system prompt"
 
         manifest = integration._build_agent_manifest(agent)
-        # Single-home: ``system_prompts`` is the static string ONLY; the dynamic source lives in
-        # ``system_prompts_functions``.
-        assert manifest["system_prompts"] == "You are a bot."
-        assert manifest["system_prompts_is_dynamic"] is True
-        functions = manifest["system_prompts_functions"]
+        system_prompts = manifest["system_prompts"]
+        # ``static`` is the static string ONLY; the dynamic source lives in ``dynamic``.
+        assert system_prompts["static"] == "You are a bot."
+        functions = system_prompts["dynamic"]
         assert len(functions) == 1
         descriptor = functions[0]
         assert descriptor["name"] == "dynamic_system_prompt"
         assert descriptor["signature"] == "(ctx) -> str"
         assert descriptor["doc"] == "Adds the user name."
         assert "@agent.system_prompt" in descriptor["source"]
+        # A plain ``@agent.system_prompt`` runs once (not re-evaluated each step).
+        assert descriptor["reevaluated"] is False
         # The dynamic source is NOT mirrored into the static string.
-        assert "def dynamic_system_prompt" not in manifest["system_prompts"]
+        assert "def dynamic_system_prompt" not in system_prompts["static"]
 
     def test_manifest_prompt_source_is_bounded(self, pydantic_ai, pydantic_ai_llmobs):
         """Regression: a dynamic-prompt source over the byte budget is dropped (flagged) rather than emitted.
@@ -848,13 +862,13 @@ class TestLLMObsPydanticAI:
         assert any(callable(entry) for entry in agent._instructions)
 
         manifest = integration._build_agent_manifest(agent)
-        # Single-home: ``instructions`` is the static string ONLY (the dynamic source is not appended).
-        assert manifest["instructions"] == "You are a helpful assistant."
-        assert "def dynamic_instructions" not in manifest["instructions"]
-        assert manifest["instructions_is_dynamic"] is True
+        instructions = manifest["instructions"]
+        # Single-home: ``static`` is the static string ONLY (the dynamic source is not appended).
+        assert instructions["static"] == "You are a helpful assistant."
+        assert "def dynamic_instructions" not in instructions["static"]
         # De-duped: the single callable is described exactly once despite any dual storage.
-        assert len(manifest["instructions_functions"]) == 1
-        assert manifest["instructions_functions"][0]["name"] == "dynamic_instructions"
+        assert len(instructions["dynamic"]) == 1
+        assert instructions["dynamic"][0]["name"] == "dynamic_instructions"
 
     def test_manifest_agent_settings_retries_version_tolerant(self, pydantic_ai, pydantic_ai_llmobs):
         """Regression: ``retries`` survives the post-1.63.0 rename of ``_max_result_retries``.
@@ -884,14 +898,14 @@ class TestLLMObsPydanticAI:
         settings = integration._get_agent_settings(agent)
         assert settings["retries"] == 2, settings
         manifest = integration._build_agent_manifest(agent)
-        agent_settings = manifest["agent_settings"]
-        assert agent_settings["retries"] == 2, agent_settings
+        settings = manifest["behaviors"]["settings"]
+        assert settings["retries"] == 2, settings
         # The per-tool budget is emitted separately as ``tool_retries`` and is NOT crossed with output.
-        assert agent_settings["tool_retries"] == 7, agent_settings
+        assert settings["tool_retries"] == 7, settings
 
-    def test_manifest_flat_fields(self, pydantic_ai, pydantic_ai_llmobs):
-        """Every field is emitted as a flat top-level key (no wrapper); ``framework`` / ``name`` identify
-        the agent. Builder-driven (runs on every pin).
+    def test_manifest_top_level_shape(self, pydantic_ai, pydantic_ai_llmobs):
+        """The manifest's top-level shape: identity + model + prompts + capabilities + output_type +
+        behaviors -- no legacy ``definition`` wrapper and no separate ``tools`` key. Builder-driven.
         """
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(
@@ -903,16 +917,26 @@ class TestLLMObsPydanticAI:
         assert manifest["name"] == "test_agent"
         assert manifest["model"] == "gpt-4o"
         assert manifest["model_provider"] == "openai"
-        assert manifest["instructions"] == "You are helpful."
-        assert [t["name"] for t in manifest["tools"]] == ["calculate_square_tool"]
+        assert manifest["instructions"] == {"static": "You are helpful."}
+        # Function tools are unified into ``capabilities`` (typed); there is no separate ``tools`` key.
+        assert "tools" not in manifest
+        caps = manifest["capabilities"]
+        assert [c["name"] for c in caps] == ["calculate_square_tool"]
+        assert caps[0]["type"] == "function"
         assert manifest["output_type"] == {"name": "str"}
-        # Flat: no ``definition`` wrapper.
+        # ``settings`` is grouped under ``behaviors``; retry budgets are 1/1 on every supported pin
+        # (``end_strategy`` / ``deps_type`` defaults vary by version, so only assert their presence/shape).
+        settings = manifest["behaviors"]["settings"]
+        assert settings["retries"] == 1
+        assert settings["tool_retries"] == 1
+        assert "end_strategy" in settings
+        # No legacy ``definition`` wrapper.
         assert "definition" not in manifest
 
     def test_manifest_captures_guardrails(self, pydantic_ai, pydantic_ai_llmobs):
-        """``@agent.output_validator`` functions are captured as guardrails: sorted ``guardrails`` names
-        (for the definition panel) plus structured ``guardrail_details`` (name / signature / doc / source)
-        that a guardrail *change* is detectable from, for versioning. Order-incidental -> names are sorted.
+        """``@agent.output_validator`` functions are captured as ``guardrails`` -- full descriptors
+        (name / signature / doc / source) so a guardrail *change* is detectable, for versioning. The names
+        are derivable from the descriptors. Order-incidental -> sorted by name.
         """
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -928,10 +952,10 @@ class TestLLMObsPydanticAI:
             return output
 
         manifest = integration._build_agent_manifest(agent)
-        assert manifest["guardrails"] == ["reject_ungrounded", "strip_pii"]
-        details = {d["name"]: d for d in manifest["guardrail_details"]}
-        assert details["reject_ungrounded"]["doc"] == "Reject ungrounded output."
-        assert "def strip_pii(ctx, output):" in details["strip_pii"]["source"]
+        guardrails = {g["name"]: g for g in manifest["guardrails"]}
+        assert [g["name"] for g in manifest["guardrails"]] == ["reject_ungrounded", "strip_pii"]
+        assert guardrails["reject_ungrounded"]["doc"] == "Reject ungrounded output."
+        assert "def strip_pii(ctx, output):" in guardrails["strip_pii"]["source"]
 
     def test_manifest_captures_tool_transforms(self, pydantic_ai, pydantic_ai_llmobs):
         """``prepare_tools`` / ``prepare_output_tools`` are captured as ``tool_transforms`` with a ``scope``
@@ -954,7 +978,7 @@ class TestLLMObsPydanticAI:
             prepare_output_tools=prepare_output_tools,
         )
         manifest = integration._build_agent_manifest(agent)
-        scopes = {t["name"]: t["scope"] for t in manifest["tool_transforms"]}
+        scopes = {t["name"]: t["scope"] for t in manifest["behaviors"]["tool_transforms"]}
         assert scopes == {"prepare_tools": "tools", "prepare_output_tools": "output_tools"}
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no Agent metadata")
@@ -967,7 +991,7 @@ class TestLLMObsPydanticAI:
 
     def test_manifest_history_processors_captured(self, pydantic_ai, pydantic_ai_llmobs):
         """An agent's ``history_processors`` (its memory / history policy) are captured under
-        ``history_processors`` and described like any prompt function.
+        ``behaviors.memory`` and described like any prompt function.
 
         Builder-driven: ``agent.history_processors`` is a public list of bare callables on every supported
         version (0.8.1 / 1.0.0 / 1.63.0), so no cassette and no ``.function`` unwrap are needed.
@@ -979,17 +1003,17 @@ class TestLLMObsPydanticAI:
             return messages[-1:]
 
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", history_processors=[keep_last_message])
-        processors = integration._build_agent_manifest(agent)["history_processors"]
+        processors = integration._build_agent_manifest(agent)["behaviors"]["memory"]
         assert len(processors) == 1
         assert processors[0]["name"] == "keep_last_message"
         assert processors[0]["doc"] == "Trim history to the most recent message."
         assert "def keep_last_message(messages):" in processors[0]["source"]
 
     def test_manifest_history_processors_omitted_when_absent(self, pydantic_ai, pydantic_ai_llmobs):
-        """An agent with no ``history_processors`` emits no ``history_processors`` key."""
+        """An agent with no history processors emits no ``memory`` entry under ``behaviors``."""
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-        assert "history_processors" not in integration._build_agent_manifest(agent)
+        assert "memory" not in integration._build_agent_manifest(agent)["behaviors"]
 
     def test_manifest_history_processors_order_is_preserved(self, pydantic_ai, pydantic_ai_llmobs):
         """History processors run as a pipeline, so their order is SEMANTIC and must NOT be sorted:
@@ -1009,12 +1033,12 @@ class TestLLMObsPydanticAI:
         m_ba = integration._build_agent_manifest(
             pydantic_ai.Agent(model="gpt-4o", name="test_agent", history_processors=[beta, alpha])
         )
-        assert [p["name"] for p in m_ab["history_processors"]] == ["alpha", "beta"]
-        assert [p["name"] for p in m_ba["history_processors"]] == ["beta", "alpha"]
+        assert [p["name"] for p in m_ab["behaviors"]["memory"]] == ["alpha", "beta"]
+        assert [p["name"] for p in m_ba["behaviors"]["memory"]] == ["beta", "alpha"]
 
-    def test_manifest_tools_sorted_deterministically(self, pydantic_ai, pydantic_ai_llmobs):
-        """Tool order is INCIDENTAL (tools are dispatched by name), so the builder sorts it -- two agents
-        that register the same tools in reversed order produce byte-identical serialized manifests.
+    def test_manifest_capabilities_sorted_deterministically(self, pydantic_ai, pydantic_ai_llmobs):
+        """Capability order is INCIDENTAL (tools are dispatched by name), so the builder sorts it -- two
+        agents that register the same tools in reversed order produce byte-identical serialized manifests.
         Builder-driven.
         """
         integration = pydantic_ai._datadog_integration
@@ -1024,7 +1048,7 @@ class TestLLMObsPydanticAI:
         manifest_ba = integration._build_agent_manifest(
             pydantic_ai.Agent(model="gpt-4o", name="test_agent", tools=[foo_tool, calculate_square_tool])
         )
-        assert [t["name"] for t in manifest_ab["tools"]] == ["calculate_square_tool", "foo_tool"]
+        assert [c["name"] for c in manifest_ab["capabilities"]] == ["calculate_square_tool", "foo_tool"]
         assert safe_json(manifest_ab) == safe_json(manifest_ba)
 
     def test_sorted_definition_list_total_order_breaks_ties(self, pydantic_ai, pydantic_ai_llmobs):
@@ -1176,7 +1200,7 @@ class TestLLMObsPydanticAI:
             name="test_agent",
             input_value="What is the square of 2?",
             output_value=output,
-            metadata=expected_agent_metadata(instructions=instructions, tools=expected_calculate_square_tool()),
+            metadata=expected_agent_metadata(instructions=instructions, capabilities=expected_calculate_square_tool()),
             tags=PYDANTIC_AI_TAGS,
         )
         assert_llmobs_span_data(
@@ -1224,7 +1248,7 @@ class TestLLMObsPydanticAI:
             input_value="What is the square of 2?",
             output_value=safe_json(output[0].parts[0].args, ensure_ascii=False),
             metadata=expected_agent_metadata(
-                instructions=instructions, tools=expected_calculate_square_tool(), output_type={"name": "Output"}
+                instructions=instructions, capabilities=expected_calculate_square_tool(), output_type={"name": "Output"}
             ),
             tags=PYDANTIC_AI_TAGS,
         )
@@ -1317,7 +1341,7 @@ class TestLLMObsPydanticAI:
             name="test_agent",
             input_value="Hello, world!",
             output_value=result.output,
-            metadata=expected_agent_metadata(tools=expected_calculate_square_tool() + expected_foo_tool()),
+            metadata=expected_agent_metadata(capabilities=expected_calculate_square_tool() + expected_foo_tool()),
             tags=PYDANTIC_AI_TAGS,
         )
 

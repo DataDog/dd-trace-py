@@ -1,22 +1,9 @@
 ---
 features:
   - |
-    LLM Observability: The ``pydantic_ai`` integration now captures a richer agent manifest on each
-    ``kind="agent"`` span -- the agent's prompts, tools, model, capabilities, handoffs, guardrails, tool
-    transforms, settings, and history/memory policy -- emitted as flat top-level fields alongside the
-    agent's display-only ``metadata``. It captures: ``model`` and ``model_provider``; ``instructions`` and
-    ``system_prompts`` as flat static-text strings, each with a ``<field>_is_dynamic`` flag and
-    ``<field>_functions`` descriptors (name, signature, docstring, and size-bounded source) when the prompt
-    is resolved by callables; a structured ``output_type`` (its name plus a size-bounded JSON schema for
-    Pydantic models -- this schema includes any ``Field`` descriptions, examples, and default values
-    declared on the model, so sensitive values should not be placed in those annotations); an
-    ``agent_settings`` block (``retries`` output-validation budget, ``tool_retries`` per-tool budget, end
-    strategy, and the dependency-injection type); a typed ``capabilities`` list (builtin tools such as web
-    search, configured MCP servers -- HTTP servers with their connection target scrubbed to
-    ``scheme://host``, stdio servers by name only -- and sub-agents delegated to from a function tool);
-    ``handoffs`` declared as output functions; ``guardrails`` (the names of the agent's output validators)
-    with ``guardrail_details`` describing each validator (name, signature, docstring, and size-bounded
-    source); ``tool_transforms`` describing the ``prepare_tools`` / ``prepare_output_tools`` callables; and
-    ``history_processors`` describing the agent's message-history/memory policy. The agent's configured
-    ``metadata`` dict is captured verbatim as a size-bounded copy (dropped when it exceeds the size bound),
-    so sensitive values should not be placed in agent metadata.
+    LLM Observability: the ``pydantic_ai`` integration now captures a richer agent manifest on each
+    ``kind="agent"`` span -- the agent's model, prompts, capabilities (tools / MCP servers / builtins /
+    sub-agents), handoffs, guardrails, output type, memory, and settings -- as the raw material for agent
+    definition and versioning. MCP connection targets are scrubbed to ``scheme://host`` and captured
+    schemas and function sources are size-bounded, so avoid placing secrets in ``Field`` annotations,
+    dynamic-prompt / guardrail function bodies, or agent ``metadata``.
