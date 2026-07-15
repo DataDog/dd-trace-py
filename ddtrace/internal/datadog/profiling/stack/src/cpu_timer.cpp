@@ -66,6 +66,7 @@ static_assert(std::atomic<uint64_t>::is_always_lock_free, "CPU timer handler req
 static_assert(std::atomic<uint32_t>::is_always_lock_free, "CPU timer handler requires lock-free uint32 atomics");
 
 constexpr uint64_t kDefaultIntervalMs = 10;
+constexpr microsecond_t kDrainIntervalUs = 10'000;
 // AIDEV-NOTE: Keep the effective minimum above 1ms. Ecosystem stress with
 // AnyIO/httpcore on Trio showed that 1ms SIGPROF delivery can livelock
 // condition/event-loop handoff paths even with SA_RESTART. The setting remains
@@ -1369,13 +1370,10 @@ Engine::configured_enabled() const
 }
 
 microsecond_t
-Engine::interval_us() const
+Engine::drain_interval_us() const
 {
 #if DD_CPU_TIMER_SUPPORTED
-    if (!g_state.active.load(std::memory_order_acquire)) {
-        return 0;
-    }
-    return static_cast<microsecond_t>(g_state.interval_ms.load(std::memory_order_acquire) * 1000ULL);
+    return g_state.active.load(std::memory_order_acquire) ? kDrainIntervalUs : 0;
 #else
     return 0;
 #endif

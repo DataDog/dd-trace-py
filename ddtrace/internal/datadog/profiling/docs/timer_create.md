@@ -27,9 +27,62 @@ This document describes the design of the Linux `timer_create`-based CPU stack p
 4. Architecture overview
 ------------------------
 
+Each prepared Python thread owns a Linux per-thread CPU timer and a preallocated
+single-producer, single-consumer ring. `SIGEV_THREAD_ID` delivers `SIGPROF` to
+the thread that consumed CPU. The signal handler captures raw physical Python
+frame metadata into that thread's ring without allocating or locking. The
+sampler thread later validates the raw code pointers, reconstructs frames,
+stitches logical task or greenlet stacks, and renders the CPU sample.
+
+Wall sampling and CPU timer draining share the existing sampler thread but use
+independent deadlines. Wall-stack collection keeps its adaptive interval. CPU
+rings drain every 10 ms while the CPU timer engine is active, independently of
+the configured CPU timer signal interval. Keeping one sampler thread avoids a
+second profile writer, additional fork synchronization, and new shutdown
+lifetime concerns.
+
+CPU timer profiling has priority within the profiler overhead budget. The CPU
+timer signal interval and 10 ms drain cadence remain fixed during the initial
+experiment. Adaptive sampling controls only wall-stack collection, so it can
+reduce wall sampling frequency to compensate for CPU timer drain and rendering
+cost.
+
 
 5. Core implementation details
 ------------------------------
+
+### 5.1 Sampling and drain cadence
+
+The configured CPU timer interval controls how often a continuously running
+thread receives a CPU-time signal. It does not control wall-stack collection or
+ring draining. The sampler thread tracks separate wall and CPU-drain deadlines:
+
+- The wall deadline uses the existing adaptive `sample_interval_us`, up to the
+  configured 100 ms maximum.
+- The CPU-drain deadline is fixed at 10 ms while the engine is active.
+- The sampler sleeps until the earlier deadline and performs only the work that
+  is due. When both are due, it drains CPU rings before starting the wall-stack
+  walk so wall collection does not add avoidable ring latency.
+
+A 10 ms drain period bounds deferred raw-pointer and async-stitching latency. At
+the private 2 ms minimum timer interval, a continuously CPU-active thread
+normally accumulates about five samples between drains, well below the ring's
+63 usable slots.
+
+Adaptive sampling continues to compare total sampler-thread CPU against process
+CPU. Total sampler CPU includes both wall collection and CPU drain/render work,
+but only the wall interval is adjusted. CPU processing therefore forms a fixed
+overhead floor, and wall sampling backs off first. Internal profile metadata
+reports the total together with `wall_sample_capture_cpu_time_us` and
+`cpu_timer_drain_cpu_time_us` components. Signal-handler CPU executes on the
+profiled application threads and is not included in the sampler-thread
+components.
+
+If fixed CPU processing alone exceeds the overhead target after wall sampling
+reaches its maximum interval, the initial private experiment preserves CPU
+sampling accuracy and reports the component costs for evaluation. A later
+rollout may widen the CPU timer interval as a last resort, but it must not
+silently claim that the overhead target was met.
 
 
 6. Thread discovery and uvicorn worker fix

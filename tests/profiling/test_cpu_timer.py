@@ -56,6 +56,60 @@ def test_cpu_timer_profiler_emits_cpu_samples():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_independent_drain_cadence",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "2",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_drain_cadence_does_not_override_wall_interval():
+    import glob
+    import json
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    stack.set_interval(0.1)
+
+    deadline = time.thread_time_ns() + 500_000_000
+    while time.thread_time_ns() < deadline:
+        pass
+
+    p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    metadata_files = glob.glob(output_filename + ".*.internal_metadata.json")
+    assert metadata_files
+
+    sampling_event_count = 0
+    total_cpu_time_us = 0
+    wall_cpu_time_us = 0
+    cpu_drain_time_us = 0
+    for filename in metadata_files:
+        with open(filename) as fp:
+            metadata = json.load(fp)
+        sampling_event_count += metadata["sampling_event_count"]
+        total_cpu_time_us += metadata["sample_capture_cpu_time_us"]
+        wall_cpu_time_us += metadata["wall_sample_capture_cpu_time_us"]
+        cpu_drain_time_us += metadata["cpu_timer_drain_cpu_time_us"]
+
+    # A 100 ms wall interval should produce only a handful of wall collection
+    # events during this run. Coupling the full loop to the 2 ms CPU timer would
+    # instead produce roughly 250 events.
+    assert 2 <= sampling_event_count <= 15, sampling_event_count
+    assert wall_cpu_time_us > 0
+    assert cpu_drain_time_us > 0
+    assert total_cpu_time_us >= wall_cpu_time_us + cpu_drain_time_us
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_overrun_accounting",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",

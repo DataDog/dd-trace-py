@@ -64,7 +64,7 @@ class Engine
 
     bool replaces_wall_sampler_cpu_time() const;
     bool configured_enabled() const;
-    microsecond_t interval_us() const;
+    microsecond_t drain_interval_us() const;
 
     DebugStats debug_stats() const;
     void debug_set_fault_injection(bool enabled);
