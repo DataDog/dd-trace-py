@@ -182,6 +182,7 @@ class SessionManagerMockBuilder:
         mock_manager.itr_skipping_level = self._itr_skipping_level
         mock_manager.session = MagicMock()
         mock_manager.session.metrics = {}
+        mock_manager.session.tests_skipped_by_itr = 0
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
