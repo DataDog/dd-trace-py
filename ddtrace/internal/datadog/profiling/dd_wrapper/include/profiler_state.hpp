@@ -92,6 +92,19 @@ class ProfilerState
     std::atomic<ddog_CancellationToken> upload_cancel{ { .inner = nullptr } };
     std::atomic<uint64_t> upload_seq{ 0 };
 
+    // Process-static fast-copy configuration snapshot. ProfilerStats is swapped on
+    // every upload, so metadata serialization falls back to this when per-window
+    // stats have not been seeded yet (e.g. heap upload before a sampling cycle).
+    struct FastCopyProfilerMetadata
+    {
+        bool snapshot_initialized = false;
+        bool user_disabled = false;
+        bool capable = false;
+        bool syscall_fallback = false;
+        bool enabled = false;
+    };
+    FastCopyProfilerMetadata fast_copy_metadata{};
+
     // ========================================================================
     // Interned string caches
     // ========================================================================

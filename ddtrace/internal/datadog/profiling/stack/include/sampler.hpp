@@ -19,6 +19,8 @@ class EchionSampler;
 
 namespace Datadog {
 
+class ProfilerStats;
+
 enum class PauseResult : std::uint8_t
 {
     Paused,     // sampler was running and is now paused
@@ -124,5 +126,10 @@ class Sampler
     // Restart the sampler after fork if it was running
     void restart_after_fork();
 };
+
+// Publish the current echion fast-copy globals into ProfilerState and,
+// optionally, the active profile stats object.
+void
+publish_fast_copy_profiler_metadata(Datadog::ProfilerStats* stats = nullptr);
 
 } // namespace Datadog

@@ -32,6 +32,13 @@ def test_copy_memory_error_count_present():
             metadata = json.load(fp)
         assert "copy_memory_error_count" in metadata, f"Missing copy_memory_error_count in {f}: {metadata}"
         assert metadata["copy_memory_error_count"] >= 0, f"copy_memory_error_count must be non-negative: {metadata}"
+        assert "fast_copy_memory_user_disabled" in metadata, (
+            f"Missing fast_copy_memory_user_disabled in {f}: {metadata}"
+        )
+        assert "fast_copy_memory_capable" in metadata, f"Missing fast_copy_memory_capable in {f}: {metadata}"
+        assert "fast_copy_memory_syscall_fallback" in metadata, (
+            f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
+        )
 
 
 @pytest.mark.subprocess(
@@ -70,6 +77,8 @@ def test_fast_copy_memory_disabled():
             assert metadata["fast_copy_memory_enabled"] is False, (
                 f"Expected fast_copy_memory_enabled=false when _DD_PROFILING_STACK_FAST_COPY=false: {metadata}"
             )
+            assert metadata["fast_copy_memory_user_disabled"] is True, metadata
+            assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
 
 
 @pytest.mark.subprocess(

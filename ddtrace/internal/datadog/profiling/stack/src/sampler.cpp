@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/profiler_stats.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -22,6 +23,26 @@
 #include <thread>
 
 using namespace Datadog;
+
+void
+Datadog::publish_fast_copy_profiler_metadata(ProfilerStats* stats)
+{
+    auto& snapshot = ProfilerState::get().fast_copy_metadata;
+    snapshot.user_disabled = fast_copy_user_disabled;
+    snapshot.capable = safe_memcpy_initialized;
+    snapshot.syscall_fallback = fast_copy_syscall_fallback;
+    snapshot.enabled = fast_copy_active;
+    snapshot.snapshot_initialized = true;
+
+    if (stats == nullptr) {
+        return;
+    }
+
+    stats->set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
+    stats->set_fast_copy_memory_capable(safe_memcpy_initialized);
+    stats->set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
+    stats->set_fast_copy_memory_enabled(fast_copy_active);
+}
 
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
@@ -196,6 +217,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
         set_fast_copy_enabled(false);
     }
 
+    publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
     // Track upload sequence to clear ephemeral string table entries periodically.
     // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
     // churning entries for long-lived tasks while still bounding growth.
@@ -246,6 +269,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // syscall copy (already active from warmup) for the life of
                         // the process.
                         handler_fallback_done = true;
+                        mark_fast_copy_syscall_fallback();
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                      "handler; keeping the syscall-based memory copy to avoid crashing."
                                   << std::endl;
@@ -258,6 +282,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
+                mark_fast_copy_syscall_fallback();
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing."
                           << std::endl;
@@ -370,7 +395,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
         Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
-        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
+        publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
         Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
         {
             const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());

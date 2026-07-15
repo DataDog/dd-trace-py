@@ -1,5 +1,6 @@
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/sample.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -24,6 +25,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
+        publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -724,6 +726,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     set_fast_copy_enabled(static_cast<bool>(enabled));
+    publish_fast_copy_profiler_metadata();
 
     Py_RETURN_NONE;
 }
