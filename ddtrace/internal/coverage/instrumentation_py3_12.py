@@ -235,20 +235,20 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
     hook, path, import_names = hook_data
 
     if _USE_FILE_LEVEL_COVERAGE:
-        # Report file-level coverage using line 0 as a sentinel value
-        # Line 0 indicates "file was executed" without specific line information
+        # Report file-level coverage using line 0 as a sentinel value and emit this code object's pre-extracted import
+        # dependency metadata. This keeps dependency tracking tied to executed code objects without parsing bytecode in
+        # the hot callback.
         hook((0, path, None))
-
-        # Report any import dependencies (extracted at instrumentation time from bytecode)
-        # This ensures import tracking works even though we don't fire on individual lines
-        for line_num, import_name in import_names.items():
-            hook((line_num, path, import_name))
+        for import_name in set(import_names.values()):
+            hook((None, path, import_name))  # type: ignore[arg-type]
+        if _use_disable_optimization:
+            return sys.monitoring.DISABLE
     else:
         import_name = import_names.get(line, None)
         hook((line, path, import_name))
+        if _use_disable_optimization:
+            return sys.monitoring.DISABLE
 
-    if _use_disable_optimization:
-        return sys.monitoring.DISABLE
     return None
 
 
