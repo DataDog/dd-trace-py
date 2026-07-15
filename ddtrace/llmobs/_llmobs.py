@@ -2760,6 +2760,8 @@ class LLMObs(Service):
                                         optional keys: "name", "tool_id", "type" for function calling scenarios.
                                         "audio_parts" is an optional list of audio dictionaries, each with a required
                                         "mime_type" and one of "content" (base64-encoded audio) or "attachment_key".
+                                        "image_parts" is an optional list of image dictionaries, each with a required
+                                        "mime_type" and one of "content" (base64-encoded image) or "attachment_key".
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
@@ -2769,7 +2771,9 @@ class LLMObs(Service):
                                         of tool call dictionaries with required keys: "name", "arguments", and optional
                                         keys: "tool_id", "type" for function calling scenarios. "audio_parts" is an
                                         optional list of audio dictionaries, each with a required "mime_type" and one of
-                                        "content" (base64-encoded audio) or "attachment_key".
+                                        "content" (base64-encoded audio) or "attachment_key". "image_parts" is an
+                                        optional list of image dictionaries, each with a required "mime_type" and one of
+                                        "content" (base64-encoded image) or "attachment_key".
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.

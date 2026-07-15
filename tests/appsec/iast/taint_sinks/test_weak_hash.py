@@ -395,6 +395,42 @@ def test_weak_hash_symbol_db_not_reported(iast_context_defaults):
     assert span_report is None
 
 
+def test_weak_hash_symbol_db_resolves_sha1_at_call_time(iast_context_defaults):
+    """Regression test for APPSEC-68795 (import-ordering variant).
+
+    When Symbol Database is enabled at startup, ``symbol_db/symbols.py`` is
+    imported before ``patch_iast()`` runs. A module-level ``from hashlib import
+    sha1`` would freeze a stale, unwrapped reference, so ``sha1(usedforsecurity
+    =False)`` would bypass IAST's wrapped constructor and the object would never
+    be tracked as safe. ``symbols`` must resolve ``hashlib.sha1`` at call time so
+    the call always goes through whatever constructor is currently installed.
+    """
+    import hashlib
+    from pathlib import Path
+
+    from ddtrace.internal.module import origin
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeData
+    import tests.appsec.iast.fixtures.taint_sinks.weak_algorithms as module_to_hash
+
+    # Rebind hashlib.sha1 *after* symbols has been imported. If symbols captured
+    # the constructor at import time this spy is never seen; call-time resolution
+    # routes through it.
+    original_sha1 = hashlib.sha1
+    called = []
+
+    def spy_sha1(*args, **kwargs):
+        called.append(kwargs)
+        return original_sha1(*args, **kwargs)
+
+    module_origin = origin(module_to_hash)
+    with mock.patch("hashlib.sha1", side_effect=spy_sha1):
+        Scope._get_from(module_to_hash, ScopeData(origin=Path(str(module_origin)), seen=set()))
+
+    assert called, "symbol_db must resolve hashlib.sha1 at call time, not via a frozen import binding"
+    assert called[0].get("usedforsecurity") is False
+
+
 def test_parametrized_weak_hash_no_exception():
     """Verify that parametrized_weak_hash doesn't raise any exceptions."""
     try:
