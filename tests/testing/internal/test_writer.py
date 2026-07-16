@@ -360,14 +360,17 @@ class TestTestOptWriter:
 
         payload = mock_packb.call_args.args[0]
         metadata = payload["metadata"]["*"]
-        meta = payload["events"][0]["content"]["meta"]
+        payload_event_content = t.cast(dict[str, t.Any], payload["events"][0]["content"])
+        meta = payload_event_content["meta"]
         assert metadata["long_metadata"] == "m" * MAX_META_TAG_VALUE_LENGTH
         assert metadata["exact_metadata"] == exact_metadata_value
         assert meta["long_meta"] == "x" * MAX_META_TAG_VALUE_LENGTH
         assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
         assert meta["numeric_meta"] == 123
         assert writer.metadata["*"]["long_metadata"] == long_metadata_value
-        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
+        event_content = t.cast(dict[str, t.Any], event["content"])
+        event_meta = t.cast(dict[str, t.Any], event_content["meta"])
+        assert event_meta["long_meta"] == long_event_meta_value
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
@@ -497,6 +500,60 @@ class TestTestCoverageWriter:
         assert event["test_suite_id"] == 456
         assert event["span_id"] == 789
         assert len(event["files"]) == 2
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.writer.TelemetryAPI.get")
+    def test_put_coverage_records_telemetry_on_flush(
+        self, mock_telemetry_get: Mock, mock_backend_connector: Mock
+    ) -> None:
+        """Coverage telemetry is deferred out of the per-test put_coverage hot path."""
+        mock_telemetry = Mock()
+        mock_telemetry_get.return_value = mock_telemetry
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200), elapsed_seconds=0.1)
+
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+
+        test_run = Mock()
+        test_run.session.item_id = 123
+        test_run.suite.item_id = 456
+        test_run.span_id = 789
+
+        writer.put_coverage(test_run, {"file1.py": b"coverage1", "file2.py": b"coverage2"}.items())
+
+        mock_telemetry.record_coverage_files.assert_not_called()
+        mock_telemetry.record_coverage_is_empty.assert_not_called()
+
+        writer.flush()
+
+        mock_telemetry.record_coverage_files.assert_called_once_with(2)
+        mock_telemetry.record_coverage_is_empty.assert_not_called()
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.writer.TelemetryAPI.get")
+    def test_empty_coverage_records_telemetry_on_flush_without_event(
+        self, mock_telemetry_get: Mock, mock_backend_connector: Mock
+    ) -> None:
+        mock_telemetry = Mock()
+        mock_telemetry_get.return_value = mock_telemetry
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+
+        test_run = Mock()
+        writer.put_coverage(test_run, [])
+
+        assert writer.events == []
+        mock_telemetry.record_coverage_files.assert_not_called()
+        mock_telemetry.record_coverage_is_empty.assert_not_called()
+
+        writer.flush()
+
+        mock_telemetry.record_coverage_files.assert_called_once_with(0)
+        mock_telemetry.record_coverage_is_empty.assert_called_once_with()
+        mock_connector.post_files.assert_not_called()
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("ddtrace.testing.internal.writer.msgpack_packb")
