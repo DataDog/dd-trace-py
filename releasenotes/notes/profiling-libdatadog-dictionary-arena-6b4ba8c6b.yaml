@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Bumps libdatadog dependency to commit ``6b4ba8c6b475ce272e386aa1eb420d48308474d6`` to reduce the profiling dictionary arena footprint.
