@@ -401,10 +401,8 @@ detect_circular_imports:
     - cat cycles-pr.json
     - |
       cd dd-trace-py
-      # resolve-base-branch.sh only needs a GitHub token for its API-fallback
-      # path and mints one itself (via dd-octo-sts) when required, so we no
-      # longer acquire a token unconditionally here -- that would fail the job
-      # even when the base is resolved without any API call.
+      # resolve-base-branch.sh mints its own token only if it hits the API,
+      # so don't acquire one unconditionally here.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
       git checkout --detach FETCH_HEAD
@@ -421,9 +419,8 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
-# Unit tests for resolve-base-branch.sh (used above to pick the comparison
-# baseline). Reuses the testrunner image only for its bash + jq; the tests stub
-# git/curl and need no network, so we skip the heavier .testrunner setup.
+# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
+# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
 test_resolve_base_branch:
   stage: tests
   needs: []
