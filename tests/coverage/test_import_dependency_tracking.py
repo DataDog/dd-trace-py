@@ -342,3 +342,46 @@ def test_import_time_name_to_path_mapping():
             break
 
     assert found_lib, f"_import_time_name_to_path should contain import_time_lib, got: {list(name_to_path.keys())}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "true"})
+def test_file_level_coverage_tracks_package_dependency_for_already_imported_submodule():
+    """
+    Test that file-level coverage preserves a submodule's dependency on its package.
+
+    Scenario: a package submodule is imported before coverage starts, and then code in
+    that already-imported submodule executes without explicit imports.
+    Expected: include_imported=True pulls in the package __init__.py.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.rpa import function_only
+
+    ModuleCodeCollector.start_coverage()
+    function_only.called_after_import()
+    ModuleCodeCollector.stop_coverage()
+
+    covered_no_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False)
+    )
+    covered_with_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    )
+
+    submodule_path = "tests/coverage/included_path/rpa/function_only.py"
+    package_path = "tests/coverage/included_path/rpa/__init__.py"
+
+    assert submodule_path in covered_no_imports
+    assert package_path not in covered_no_imports
+    assert package_path in covered_with_imports

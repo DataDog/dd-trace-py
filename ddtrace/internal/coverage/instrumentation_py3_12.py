@@ -47,7 +47,7 @@ _IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
 EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
+_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -193,8 +193,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Instrument code for coverage tracking using Python 3.12's monitoring API.
 
     This function supports two modes based on _DD_COVERAGE_FILE_LEVEL:
-    - Line-level (default): Uses LINE events for detailed line-by-line coverage
-    - File-level: Uses PY_START events for faster file-level coverage
+    - Line-level: Uses LINE events for detailed line-by-line coverage
+    - File-level (default): Uses PY_START events for faster file-level coverage
 
     Args:
         code: The code object to instrument
@@ -341,13 +341,14 @@ def _extract_lines_and_imports(
             if offset in linestarts:
                 line = linestarts[offset]
                 # Skip if line is None (bytecode that doesn't map to a specific source line)
-                if line is not None and track_lines:
-                    lines.add(line)
-
+                if line is not None:
                     # Make sure that the current module is marked as depending on its own package by instrumenting the
-                    # first executable line
-                    if code.co_name == "<module>" and len(lines) == 1 and package is not None:
-                        import_names[line] = (package, ("",))
+                    # first executable line. In file-level mode, line 0 is the sentinel for the executed module.
+                    if code.co_name == "<module>" and not import_names and package is not None:
+                        import_names[0 if _USE_FILE_LEVEL_COVERAGE else line] = (package, ("",))
+
+                    if track_lines:
+                        lines.add(line)
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
