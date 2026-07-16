@@ -2,8 +2,4 @@
 fixes:
   - |
     kombu: This fix resolves an issue where messages published to the RabbitMQ default (unnamed)
-    exchange were not linked to their consumers in the Data Streams Monitoring map. Because the
-    default exchange has an empty name, the produce checkpoint carried an empty ``exchange`` tag and
-    no ``topic`` tag, leaving the producer disconnected and dropped from the map. Produces to the
-    default exchange now tag the checkpoint with the routing key as the ``topic``, matching the
-    destination queue so producers and consumers are correctly connected.
+    exchange were not linked to their consumers in the Data Streams Monitoring map.
