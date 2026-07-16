@@ -13,14 +13,20 @@ _PROFILING_STACK_MODULE = "ddtrace.internal.datadog.profiling.stack"
 
 def _profiling_stack() -> Optional[ModuleType]:
     """
-    Return the profiling stack module iff it is already loaded and available.
+    Return the profiling stack module iff OriginTaskLinks is enabled.
 
-    We deliberately dont import it: when the profiler is disabled the module is
-    never loaded, and the futures integration (enabled by default) won't pull in native
-    extension
+    We deliberately don't import it. The futures patch stays on for APM even when
+    profiling is off; settings.profiling may still import the stack module to
+    probe availability, so is_available alone is not enough. OriginTaskLinks is
+    enabled after stack sampler start (Profiler.start() / DD_PROFILING_ENABLED)
+    and disabled on stop.
     """
     stack = sys.modules.get(_PROFILING_STACK_MODULE)
-    if stack is not None and getattr(stack, "is_available", False):
+    if (
+        stack is not None
+        and getattr(stack, "is_available", False)
+        and getattr(stack, "is_origin_task_linking_enabled", lambda: False)()
+    ):
         return stack
     return None
 

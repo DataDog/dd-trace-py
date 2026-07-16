@@ -27,6 +27,11 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
+        // Enable only after start() succeeds so one_time_setup() has completed
+        // before executor work can mutate the origin-task map.
+        Py_BEGIN_ALLOW_THREADS;
+        OriginTaskLinks::get_instance().enable();
+        Py_END_ALLOW_THREADS;
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -36,21 +41,33 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 PyCFunction stack_start = cast_to_pycfunction(stack_start_impl);
 
 static PyObject*
+stack_is_origin_task_linking_enabled(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (OriginTaskLinks::get_instance().is_enabled()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    Sampler::get().stop();
-
     Py_BEGIN_ALLOW_THREADS; // Release GIL
 
-    // Explicitly clear ThreadSpanLinks / OriginTaskLinks. The memory should be
-    // cleared up when the program exits as these are static singleton instances.
+    // Disable origin-task linking before stopping the sampler so in-flight
+    // executor workers cannot re-populate the map during shutdown.
+    OriginTaskLinks::get_instance().disable_and_reset();
+
+    Sampler::get().stop();
+
+    // Explicitly clear ThreadSpanLinks. The memory should be cleared up
+    // when the program exits as ThreadSpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
     ThreadSpanLinks::get_instance().reset();
-    OriginTaskLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
-    // Sampler at the beginning of this function.
+    // Sampler above.
     ProfilerState::get().native_call_registry.reset();
 
     Py_END_ALLOW_THREADS; // Re-acquire GIL
@@ -878,6 +895,10 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
+    { "is_origin_task_linking_enabled",
+      stack_is_origin_task_linking_enabled,
+      METH_NOARGS,
+      "Return whether OriginTaskLinks is enabled (stack sampler has been started)" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },

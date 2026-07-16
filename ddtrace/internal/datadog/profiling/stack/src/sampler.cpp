@@ -527,14 +527,15 @@ Sampler::postfork_parent()
     // parity invariant used by prefork(), and cause a data race on EchionSampler state.
 }
 
-void
+bool
 Sampler::restart_after_fork()
 {
     // Restart the sampler if it was running before fork.
     // We use the saved flag because prefork changed the thread_seq_num parity.
     if (was_running_at_fork_) {
-        start();
+        return start();
     }
+    return false;
 }
 
 static void
@@ -572,7 +573,11 @@ stack_atfork_child()
     stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
-    Sampler::get().restart_after_fork();
+    // OriginTaskLinks was left disabled in postfork_child; re-enable when the
+    // child sampler is started again.
+    if (Sampler::get().restart_after_fork()) {
+        OriginTaskLinks::get_instance().enable();
+    }
 }
 
 __attribute__((constructor)) void

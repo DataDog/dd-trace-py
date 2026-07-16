@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -27,7 +28,11 @@ struct OriginTask
 
 // Per-(worker)-thread registry of the asyncio task that offloaded the work
 // currently running on that thread. Populated by the futures integration for
-// the duration of an executor job and accessed by stack renderer
+// the duration of an executor job and accessed by stack renderer.
+//
+// Lifecycle matches the stack sampler: enable() after Sampler::start() succeeds,
+// disable_and_reset() before Sampler::stop(). While disabled, link/unlink/get
+// are no-ops so the default-on futures patch is cheap when profiling is off.
 class OriginTaskLinks
 {
   public:
@@ -40,14 +45,18 @@ class OriginTaskLinks
     OriginTaskLinks(OriginTaskLinks const&) = delete;
     OriginTaskLinks& operator=(OriginTaskLinks const&) = delete;
 
+    void enable();
+    void disable_and_reset();
+    bool is_enabled() const { return enabled_.load(std::memory_order_acquire); }
+
     void link_origin_task(uint64_t thread_id, uint64_t task_id, std::string task_name);
     const std::optional<OriginTask> get_origin_task(uint64_t thread_id);
     void unlink_origin_task(uint64_t thread_id);
-    void reset();
 
     static void postfork_child();
 
   private:
+    std::atomic<bool> enabled_{ false };
     std::mutex mtx;
     std::unordered_map<uint64_t, OriginTask> thread_id_to_origin_task;
 
