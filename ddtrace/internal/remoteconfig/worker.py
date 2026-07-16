@@ -92,6 +92,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         )
 
     def periodic(self) -> None:
+        # Run product housekeeping every cycle, before the fetch, so stale-state
+        # timeouts still fire when the agent is down or a fetch fails.
+        self._client.run_periodic()
         return self._state()
 
     def enable(self) -> bool:
@@ -101,14 +104,13 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if self.status == ServiceStatus.RUNNING:
                 return True
 
-            self.start()
-
-            # Lazily prepare cross-process SHM: the hook fires before the
-            # first fork and creates the shared-memory segment (no SHM in a pure
-            # single-process app).
             if not self._before_fork_registered:
+                # Initialize early to avoid race-conditions with forking operations.
+                self._client.ensure_native()
                 forksafe.register_before_fork(self._before_fork)
                 self._before_fork_registered = True
+
+            self.start()
 
             return True
         return False
