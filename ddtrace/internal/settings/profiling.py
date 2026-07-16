@@ -212,7 +212,7 @@ class ProfilingConfig(DDConfig):
         validator=validators.range(0, BACKEND_MAX_FRAMES),
         help_type="Integer",
         help="The maximum number of frames to capture in stack execution tracing. Values above the profiling "
-        "backend limit (%d) are clamped, since deeper stacks are truncated on ingest." % BACKEND_MAX_FRAMES,
+        f"backend limit ({BACKEND_MAX_FRAMES}) are clamped, since deeper stacks are truncated on ingest.",
     )
 
     ignore_profiler = DDConfig.v(
