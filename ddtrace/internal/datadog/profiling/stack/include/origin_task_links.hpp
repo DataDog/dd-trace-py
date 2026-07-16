@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -10,7 +9,7 @@
 namespace Datadog {
 
 // Identity of the asyncio task that submitted work to a ThreadPoolExecutor.
-// task_id is the task object's address (id(task) in Python
+// task_id is the task object's address (id(task) in Python)
 struct OriginTask
 {
     uint64_t task_id;
@@ -38,12 +37,11 @@ class OriginTaskLinks
         return instance;
     }
 
-    // Delete Copy constructor and assignment operator to prevent copies
     OriginTaskLinks(OriginTaskLinks const&) = delete;
     OriginTaskLinks& operator=(OriginTaskLinks const&) = delete;
 
     void link_origin_task(uint64_t thread_id, uint64_t task_id, std::string task_name);
-    const std::optional<OriginTask> get_origin_task_from_thread_id(uint64_t thread_id);
+    const std::optional<OriginTask> get_origin_task(uint64_t thread_id);
     void unlink_origin_task(uint64_t thread_id);
     void reset();
 
@@ -51,7 +49,7 @@ class OriginTaskLinks
 
   private:
     std::mutex mtx;
-    std::unordered_map<uint64_t, std::unique_ptr<OriginTask>> thread_id_to_origin_task;
+    std::unordered_map<uint64_t, OriginTask> thread_id_to_origin_task;
 
     // Private Constructor/Destructor
     OriginTaskLinks() = default;

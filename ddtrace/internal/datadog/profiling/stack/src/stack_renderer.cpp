@@ -60,8 +60,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     // If this thread is a ThreadPoolExecutor worker running work offloaded by an
     // asyncio task, record the originating task so the sample can be correlated
     // back to it
-    const std::optional<OriginTask> origin_task =
-      OriginTaskLinks::get_instance().get_origin_task_from_thread_id(thread_id);
+    const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_id);
     if (origin_task) {
         sample->push_origin_task_id(origin_task->task_id);
         sample->push_origin_task_name(std::string_view(origin_task->task_name));
@@ -108,8 +107,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
             sample->push_trace_type(std::string_view(active_span->span_type));
         }
 
-        const std::optional<OriginTask> origin_task =
-          OriginTaskLinks::get_instance().get_origin_task_from_thread_id(thread_state.id);
+        const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
         if (origin_task) {
             sample->push_origin_task_id(origin_task->task_id);
             sample->push_origin_task_name(std::string_view(origin_task->task_name));

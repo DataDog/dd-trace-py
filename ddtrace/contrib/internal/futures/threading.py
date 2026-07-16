@@ -25,7 +25,7 @@ def _profiling_stack() -> Optional[ModuleType]:
     return None
 
 
-def _current_origin_task() -> "tuple[Optional[int], Optional[str]]":
+def _current_origin_task() -> tuple[Optional[int], Optional[str]]:
     """
     Identity of the asyncio task submitting this work, as (task_id, task_name).
 
@@ -36,16 +36,20 @@ def _current_origin_task() -> "tuple[Optional[int], Optional[str]]":
     if _profiling_stack() is None:
         return None, None
     asyncio = sys.modules.get("asyncio")
+
     if asyncio is None:
         # Not an asyncio application; there is no task to attribute this work to.
         return None, None
+
     try:
         task = asyncio.current_task()
     except RuntimeError:
         # No running event loop on the submitting thread.
         return None, None
+
     if task is None:
         return None, None
+
     return id(task), task.get_name()
 
 
