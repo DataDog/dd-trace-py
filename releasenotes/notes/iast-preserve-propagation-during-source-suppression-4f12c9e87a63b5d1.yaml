@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    IAST: Fixes a crash during request teardown while preserving taint propagation when AppSec temporarily suppresses new taint sources.
