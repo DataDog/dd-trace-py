@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 from unittest.mock import Mock
@@ -8,6 +9,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import test
 from ddtrace.testing.internal.pytest.bdd import STEP_KIND
@@ -17,7 +19,6 @@ from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
-from tests.utils import scoped_tracer
 
 
 _SIMPLE_SCENARIO = """
@@ -29,11 +30,27 @@ Feature: Simple feature
 """
 
 
-def _step_spans(spans):
-    return [span for span in spans if span.span_type == STEP_KIND]
+@contextmanager
+def _capture_step_spans():
+    step_spans = []
+    original_start_span = ddtrace.tracer.start_span
+
+    def start_span(*args, **kwargs):
+        span = original_start_span(*args, **kwargs)
+        if kwargs.get("span_type") == STEP_KIND:
+            step_spans.append(span)
+        return span
+
+    with patch.object(ddtrace.tracer, "start_span", side_effect=start_span):
+        yield step_spans
 
 
 class TestPytestBdd:
+    @pytest.fixture(autouse=True)
+    def clear_xdist_worker_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
+
     @pytest.mark.xfail(raises=ConnectionRefusedError, reason="test agent is down")
     def test_and_emit_get_version(self) -> None:
         plugin = BddTestOptPlugin(Mock())
@@ -96,7 +113,7 @@ class TestPytestBdd:
         )
         file_name = os.path.basename(str(py_file))
         with (
-            scoped_tracer() as tracer,
+            _capture_step_spans() as step_spans,
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
@@ -105,11 +122,9 @@ class TestPytestBdd:
             EventCapture.capture() as event_capture,
         ):
             pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
-            spans = tracer._span_aggregator.writer.pop()
 
         events = list(event_capture.events())
         test_events = [event for event in events if event["type"] == "test"]
-        step_spans = _step_spans(spans)
 
         assert len(test_events) == 3
         assert [event["content"]["meta"].get(test.STATUS) for event in test_events] == ["pass", "fail", "pass"]
@@ -155,7 +170,7 @@ class TestPytestBdd:
         )
         file_name = os.path.basename(str(py_file))
         with (
-            scoped_tracer() as tracer,
+            _capture_step_spans() as step_spans,
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
@@ -164,11 +179,9 @@ class TestPytestBdd:
             EventCapture.capture() as event_capture,
         ):
             pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
-            spans = tracer._span_aggregator.writer.pop()
 
         events = list(event_capture.events())
         test_events = [event for event in events if event["type"] == "test"]
-        step_spans = _step_spans(spans)
 
         assert len(test_events) == 1
         assert test_events[0]["content"]["meta"].get("test.name") == "Simple scenario"
@@ -211,7 +224,7 @@ class TestPytestBdd:
         )
         file_name = os.path.basename(str(py_file))
         with (
-            scoped_tracer() as tracer,
+            _capture_step_spans() as step_spans,
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
@@ -220,11 +233,9 @@ class TestPytestBdd:
             EventCapture.capture() as event_capture,
         ):
             pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
-            spans = tracer._span_aggregator.writer.pop()
 
         events = list(event_capture.events())
         test_events = [event for event in events if event["type"] == "test"]
-        step_spans = _step_spans(spans)
 
         assert len(test_events) == 1
         assert test_events[0]["content"]["meta"].get(ERROR_MSG) == "assert 0 == -1"
@@ -252,7 +263,7 @@ class TestPytestBdd:
         )
         file_name = os.path.basename(str(py_file))
         with (
-            scoped_tracer() as tracer,
+            _capture_step_spans() as step_spans,
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
@@ -261,13 +272,12 @@ class TestPytestBdd:
             EventCapture.capture() as event_capture,
         ):
             pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
-            spans = tracer._span_aggregator.writer.pop()
 
         events = list(event_capture.events())
 
         assert len(events) == 4
         assert "Step definition is not found" in events[0]["content"]["meta"].get(ERROR_MSG)
-        assert _step_spans(spans) == []
+        assert step_spans == []
 
     def test_get_step_func_args_json_empty(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("ddtrace.testing.internal.pytest.bdd._extract_step_func_args", lambda *args: None)
