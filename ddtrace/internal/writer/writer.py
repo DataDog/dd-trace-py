@@ -24,8 +24,8 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils import _human_size
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
