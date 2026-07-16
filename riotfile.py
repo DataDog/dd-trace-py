@@ -3676,7 +3676,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' --count 100 {cmdargs} tests/profiling/collector/test_exception.py -k 'test_generatorexit_not_sampled or test_raise_fires_once_per_exception'",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
@@ -3695,6 +3695,7 @@ venv = Venv(
                 "py-cpuinfo": "~=8.0.0",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+                "pytest-repeat": latest,
                 "numpy": latest,
             },
             venvs=[
