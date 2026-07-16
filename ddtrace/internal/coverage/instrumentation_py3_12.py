@@ -47,7 +47,7 @@ _IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
 EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
+_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
