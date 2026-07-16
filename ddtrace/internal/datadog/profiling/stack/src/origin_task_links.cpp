@@ -39,6 +39,13 @@ OriginTaskLinks::unlink_origin_task(uint64_t thread_id)
 }
 
 void
+OriginTaskLinks::reset()
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    thread_id_to_origin_task.clear();
+}
+
+void
 OriginTaskLinks::postfork_child()
 {
     auto& instance = get_instance();
