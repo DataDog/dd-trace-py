@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
 
-# AIDEV-NOTE: Keep source suppression separate from IAST_CONTEXT. Clearing the
+# Keep source suppression separate from IAST_CONTEXT. Clearing the
 # request context id disables request-scoped taint queries and propagation and
 # can send no-context queries through unsafe native fallback paths.
 _IAST_TAINT_SOURCES_SUPPRESSED: contextvars.ContextVar[bool] = contextvars.ContextVar(
