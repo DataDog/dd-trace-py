@@ -1440,6 +1440,51 @@ class TestXdistPlugin:
 class TestOutcomeProcessing:
     """Test test outcome processing methods."""
 
+    def test_passing_makereport_does_not_store_report(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        call = Mock(when="call", excinfo=None)
+        report = test_report(nodeid="test_id", outcome="passed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
+    def test_failing_makereport_stores_aggregate_outcome(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        excinfo = Mock()
+        excinfo.type = ValueError
+        excinfo.value = ValueError("boom")
+        excinfo.tb = None
+        call = Mock(when="call", excinfo=excinfo)
+        report = test_report(nodeid="test_id", outcome="failed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        status, tags = plugin._get_test_outcome("test_id")
+        assert status == TestStatus.FAIL
+        assert tags[TestTag.ERROR_TYPE] == "builtins.ValueError"
+        assert tags[TestTag.ERROR_MESSAGE] == "boom"
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+
     def test_get_test_outcome_pass(self) -> None:
         """Test _get_test_outcome for passing test."""
         mock_manager = session_manager_mock().build_mock()
