@@ -35,6 +35,22 @@ else:
     _activate_contextvar = _DD_CONTEXTVAR.set  # type: ignore[assignment]
 
 
+if sys.platform == "linux":
+    from ddtrace.internal.native._native import update_otel_thread_context
+
+    def _on_activate_update_otel_thread_context(ctx: Optional[ActiveTrace]):
+        if type(ctx) is Span:
+            update_otel_thread_context(
+                ctx.trace_id,
+                ctx.span_id,
+                ctx._local_root.span_id,
+            )
+        else:
+            update_otel_thread_context(None, None, None)
+
+    core.on("ddtrace.context_provider.activate", _on_activate_update_otel_thread_context)
+
+
 class BaseContextProvider(metaclass=abc.ABCMeta):
     """
     A ``ContextProvider`` is an interface that provides the blueprint

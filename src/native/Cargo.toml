@@ -49,6 +49,10 @@ pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = ["otel-thread-ctx"]}
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = ["sanity-check"] }
+
 [build-dependencies]
 pyo3-build-config = "0.28"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = [

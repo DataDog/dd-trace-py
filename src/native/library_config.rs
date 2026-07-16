@@ -127,6 +127,8 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_version: data.service_version.clone(),
         process_tags: data.process_tags.clone(),
         container_id: data.container_id.clone(),
+        #[cfg(target_os = "linux")]
+        threadlocal_attribute_keys: Some(vec![]),
     };
 
     let res = store_tracer_metadata(&metadata);
@@ -136,5 +138,28 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
             let err_msg = format!("Failed to store the tracer configuration: {e:?}");
             Err(PyException::new_err(err_msg))
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[pyfunction]
+pub fn update_otel_thread_context(
+    trace_id: Option<u128>,
+    span_id: Option<u64>,
+    local_root_span_id: Option<u64>,
+) {
+    use libdd_otel_thread_ctx::linux::ThreadContext;
+
+    if let (Some(trace_id), Some(span_id), Some(local_root_span_id)) =
+        (trace_id, span_id, local_root_span_id)
+    {
+        ThreadContext::update(
+            trace_id.to_be_bytes(),
+            span_id.to_be_bytes(),
+            local_root_span_id.to_be_bytes(),
+            &[],
+        );
+    } else {
+        ThreadContext::detach();
     }
 }
