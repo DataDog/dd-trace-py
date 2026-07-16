@@ -16,6 +16,7 @@ from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instr
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -33,6 +34,19 @@ def test_format_audio_part_from_base64_string():
     """An already-encoded base64 string is passed through unchanged."""
     part = format_audio_part("AAECAw==", "audio/mp3")
     assert part == {"mime_type": "audio/mp3", "content": "AAECAw=="}
+
+
+def test_format_image_part_from_bytes():
+    """Raw bytes are base64-encoded into an ImagePart with the given mime type."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_image_part(raw, "image/png")
+    assert part == {"mime_type": "image/png", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_image_part_from_base64_string():
+    """An already-encoded base64 string is passed through unchanged."""
+    part = format_image_part("AAECAw==", "image/jpeg")
+    assert part == {"mime_type": "image/jpeg", "content": "AAECAw=="}
 
 
 def test_audio_mime_type_from_format():

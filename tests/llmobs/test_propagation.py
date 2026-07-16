@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import pytest
@@ -13,12 +14,14 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
 from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.trace import Context
@@ -56,6 +59,65 @@ def test_inject_llmobs_ml_app_override(llmobs):
     with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
+
+
+def test_inject_llmobs_agent_service_uses_ml_app_key(llmobs):
+    with llmobs.workflow(name="LLMObs span", agent_service="test-agent-service") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-agent-service"
+    assert "_dd.p.llmobs_agent_service" not in span.context._meta
+
+
+def test_inject_llmobs_session_id(llmobs):
+    with llmobs.workflow(name="LLMObs span", session_id="test-session-id") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session-id"
+
+
+def test_inject_llmobs_no_session_id(llmobs):
+    with llmobs.workflow(name="LLMObs span") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None
+
+
+def test_session_id_trace_default_fills_sibling_gap(llmobs):
+    """The first session set in a trace becomes the default; a sibling under a session-less parent inherits it."""
+    with llmobs.workflow(name="root"):  # no session on the root
+        with llmobs.llm(name="first", session_id="trace-session") as first:
+            pass
+        with llmobs.llm(name="second") as second:  # sibling, no explicit session
+            pass
+    assert get_llmobs_session_id(first) == "trace-session"
+    assert get_llmobs_session_id(second) == "trace-session"
+
+
+def test_session_id_local_override_beats_trace_default(llmobs):
+    """An explicit session_id overrides the trace default locally; gap spans still get the default."""
+    with llmobs.workflow(name="root", session_id="trace-session"):
+        with llmobs.llm(name="override", session_id="other-session") as override_span:
+            pass
+        with llmobs.llm(name="default") as default_span:  # no explicit session
+            pass
+    assert get_llmobs_session_id(override_span) == "other-session"
+    assert get_llmobs_session_id(default_span) == "trace-session"
+
+
+def test_injection_propagates_trace_default_session_not_override(llmobs):
+    """Injecting while an override child is active propagates the trace default, not the override,
+    and does not corrupt the trace default for later spans.
+    """
+    with llmobs.workflow(name="root"):  # no session on the root
+        with llmobs.llm(name="first", session_id="trace-session"):  # establishes the trace default
+            pass
+        with llmobs.llm(name="override", session_id="override-session") as override_span:
+            headers = llmobs.inject_distributed_headers({}, span=override_span)
+        with llmobs.llm(name="later") as later_span:  # sibling created after the override
+            pass
+    tags = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_sid=trace-session" in tags
+    assert "_dd.p.llmobs_sid=override-session" not in tags
+    # the override must not have replaced the trace default for later spans
+    assert get_llmobs_session_id(later_span) == "trace-session"
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
@@ -346,6 +408,94 @@ print(json.dumps(headers))
         assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
 
 
+def test_activate_distributed_headers_for_session_id(ddtrace_run_python_code_in_subprocess, llmobs):
+    """A session_id set on service A's root LLMObs span is inherited by service B's LLMObs child span."""
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "session-from-service-a"
+
+
+def test_activate_distributed_headers_local_session_id_wins(ddtrace_run_python_code_in_subprocess, llmobs):
+    """An explicit session_id on service B's span overrides the session propagated from service A."""
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model", session_id="local-session") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "local-session"
+
+
+def test_activate_distributed_headers_propagates_trace_default_over_override(
+    ddtrace_run_python_code_in_subprocess, llmobs
+):
+    """When an override child is active at injection time, service B inherits the trace default
+    (the first session set in the trace), not the active override.
+    """
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="root"):  # no session; the first child sets the trace default
+    with LLMObs.llm(name="first", session_id="trace-session"):
+        pass
+    with LLMObs.llm(name="override", session_id="override-session"):
+        with tracer.trace("Non-LLMObs span") as child_span:
+            headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "trace-session"
+
+
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
     ddtrace_run_python_code_in_subprocess, llmobs
 ):
@@ -602,6 +752,24 @@ def test_activate_distributed_context_without_sample_rate(llmobs):
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     active_ctx = llmobs._instance._llmobs_context_provider.active()
     assert PROPAGATED_SAMPLE_RATE not in active_ctx._meta
+
+
+def test_activate_distributed_context_root_sentinel_no_warning(llmobs, caplog):
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = ROOT_PARENT_ID
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.llmobs._llmobs"):
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert "Failed to parse LLMObs parent ID from request headers." not in caplog.text
+
+
+def test_activate_distributed_context_garbage_parent_id_still_warns(llmobs, caplog):
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = "not-a-number"
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._llmobs"):
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert "Failed to parse LLMObs parent ID from request headers." in caplog.text
 
 
 def test_propagated_sample_rate_stored_in_meta_struct(llmobs):

@@ -58,7 +58,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
+StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id)
 {
     static bool failed = false;
     if (failed) {
@@ -76,7 +76,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
             return;
         }
 
-        // Add the thread context into the sample
+        // Add thread context into the sample
         sample->push_threadinfo(
           static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
         sample->push_walltime(thread_state.wall_time_ns, 1);
@@ -99,6 +99,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
     }
 
     sample->push_task_name(task_name);
+    sample->push_task_id(task_id);
 }
 
 void
