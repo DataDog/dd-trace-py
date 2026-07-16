@@ -168,9 +168,9 @@ def test_realtime_state_audio_turn_carries_timing_anchors():
 
     timing = integration.responses[0]["audio_timing"]
     assert timing is not None
-    input_start = timing["dd.llmobs.audio.input.start_time_unix_nano"]
-    speech_end = timing["dd.llmobs.audio.input.speech_end_time_unix_nano"]
-    output_start = timing["dd.llmobs.audio.output.start_time_unix_nano"]
+    input_start = timing["_dd.llmobs.audio.input.start_time_unix_nano"]
+    speech_end = timing["_dd.llmobs.audio.input.speech_end_time_unix_nano"]
+    output_start = timing["_dd.llmobs.audio.output.start_time_unix_nano"]
     assert all(isinstance(v, int) for v in (input_start, speech_end, output_start))
     # Captured on our own clock in event order: user audio starts, user speech ends (commit), then
     # the agent's audio starts.

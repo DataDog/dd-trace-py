@@ -598,16 +598,17 @@ def _audio_timing(turn: "_ResponseTurn") -> Optional[dict[str, int]]:
 
     These let the full-conversation-playback UI place each segment and compute time-to-response.
     Captured on our own clock when the audio was observed, so they are provider-agnostic. Emitted as
-    span metadata (not tags — timestamps are high-cardinality). Keys are omitted when the segment has
-    no audio (a text-only or tool-only turn carries none of them).
+    span metadata under the ``_dd.`` prefix (not tags — timestamps are high-cardinality) so they are
+    treated as internal and hidden from the metadata UI. Keys are omitted when the segment has no
+    audio (a text-only or tool-only turn carries none of them).
     """
     timing: dict[str, int] = {}
     if turn.input.audio.start_ns is not None:
-        timing["dd.llmobs.audio.input.start_time_unix_nano"] = turn.input.audio.start_ns
+        timing["_dd.llmobs.audio.input.start_time_unix_nano"] = turn.input.audio.start_ns
     if turn.audio.start_ns is not None:
-        timing["dd.llmobs.audio.output.start_time_unix_nano"] = turn.audio.start_ns
+        timing["_dd.llmobs.audio.output.start_time_unix_nano"] = turn.audio.start_ns
     if turn.input.speech_end_ns is not None:
-        timing["dd.llmobs.audio.input.speech_end_time_unix_nano"] = turn.input.speech_end_ns
+        timing["_dd.llmobs.audio.input.speech_end_time_unix_nano"] = turn.input.speech_end_ns
     return timing or None
 
 

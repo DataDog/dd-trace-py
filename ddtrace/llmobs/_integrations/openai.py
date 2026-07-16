@@ -188,7 +188,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
         conversation in the UI (there is no parent session span). ``audio_timing`` carries absolute
-        (unix ns) anchors for the turn's audio segments (``dd.llmobs.audio.*``) and is merged into
+        (unix ns) anchors for the turn's audio segments (``_dd.llmobs.audio.*``) and is merged into
         metadata so the full-conversation-playback UI can place each segment and compute latency.
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
