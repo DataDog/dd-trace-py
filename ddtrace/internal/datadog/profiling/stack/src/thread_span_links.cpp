@@ -52,9 +52,10 @@ ThreadSpanLinks::reset()
 void
 ThreadSpanLinks::postfork_child()
 {
+    auto& instance = get_instance();
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&get_instance().mtx) std::mutex();
-    get_instance().reset();
+    new (&instance.mtx) std::mutex();
+    new (&instance.thread_id_to_span) std::unordered_map<uint64_t, std::unique_ptr<Span>>();
 }
 
 } // namespace Datadog
