@@ -1847,3 +1847,28 @@ def test_output_suppressed_on_plain_error():
         span.error = 1
         integration._llmobs_set_tags(span, [], kwargs, None, "")
         assert _anthropic_output_contents(span) == [""]
+
+
+def test_anthropic_kill_switch_enabled_registers_listeners():
+    """DD_AI_GUARD_ANTHROPIC_ENABLED defaults to true: Anthropic listeners register."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_anthropic_enabled=True)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._anthropic_listen(Mock())
+            # before + after evaluation listeners plus patch/unpatch (streaming buffers).
+            assert mock_on.call_count == 4
+
+
+def test_anthropic_kill_switch_disabled_skips_listeners():
+    """DD_AI_GUARD_ANTHROPIC_ENABLED=false: no Anthropic listeners are registered."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_anthropic_enabled=False)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._anthropic_listen(Mock())
+            mock_on.assert_not_called()
