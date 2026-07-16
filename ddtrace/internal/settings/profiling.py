@@ -118,14 +118,16 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     return tags
 
 
-# The profiling backend accepts at most this many locations per sample. Keep
-# this in sync with g_backend_max_nframes in
-# ddtrace/internal/datadog/profiling/dd_wrapper/include/constants.hpp.
-BACKEND_MAX_FRAMES = 600
+# The profiling backend accepts at most this many locations per sample.
+BACKEND_MAX_LOCATIONS = 600
+# AIDEV-NOTE: Reserve one location for the synthetic "<N frames omitted>" frame
+# emitted when a stack is truncated. Keep these constants in sync with
+# g_backend_max_nlocations and g_backend_max_nframes in constants.hpp.
+MAX_FRAMES = BACKEND_MAX_LOCATIONS - 1
 
 
 def _clamp_max_frames(value: str) -> int:
-    return min(int(value), BACKEND_MAX_FRAMES)
+    return min(int(value), MAX_FRAMES)
 
 
 class ProfilingConfig(DDConfig):
@@ -209,10 +211,11 @@ class ProfilingConfig(DDConfig):
         "max_frames",
         default=64,
         parser=_clamp_max_frames,
-        validator=validators.range(0, BACKEND_MAX_FRAMES),
+        validator=validators.range(0, MAX_FRAMES),
         help_type="Integer",
-        help="The maximum number of frames to capture in stack execution tracing. Values above the profiling "
-        f"backend limit ({BACKEND_MAX_FRAMES}) are clamped, since deeper stacks are truncated on ingest.",
+        help="The maximum number of frames to capture in stack execution tracing. Values above "
+        f"{MAX_FRAMES} are clamped so that truncated stacks, including the omitted-frame indicator, stay within "
+        f"the profiling backend's {BACKEND_MAX_LOCATIONS}-location limit.",
     )
 
     ignore_profiler = DDConfig.v(
