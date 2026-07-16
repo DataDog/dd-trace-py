@@ -39,18 +39,11 @@ OriginTaskLinks::unlink_origin_task(uint64_t thread_id)
 }
 
 void
-OriginTaskLinks::reset()
-{
-    std::lock_guard<std::mutex> lock(mtx);
-    thread_id_to_origin_task.clear();
-}
-
-void
 OriginTaskLinks::postfork_child()
 {
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&get_instance().mtx) std::mutex();
-    get_instance().reset();
+    auto& instance = get_instance();
+    new (&instance.mtx) std::mutex();
+    new (&instance.thread_id_to_origin_task) std::unordered_map<uint64_t, OriginTask>();
 }
 
 } // namespace Datadog
