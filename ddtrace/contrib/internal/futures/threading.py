@@ -91,7 +91,12 @@ def _wrap_submit(func, args, kwargs):
     return func(self, _wrap_execution, (current_ctx, llmobs_ctx, origin_task_id, origin_task_name), fn, fn_args, kwargs)
 
 
-def _wrap_execution(ctx: "tuple[Optional[Context], Optional[Context], Optional[int], Optional[str]]", fn, args, kwargs):
+def _wrap_execution(
+    ctx: tuple[Optional[Context], Optional[Context], Optional[int], Optional[str]],
+    fn,
+    args,
+    kwargs,
+):
     """
     Intermediate target function that is executed in a new thread;
     it receives the original function with arguments and keyword
