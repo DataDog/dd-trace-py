@@ -182,6 +182,10 @@ microbenchmarks:
       - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
     strategy: depend
+    # Forward pipeline variables so an external orchestrator can pass
+    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
+    forward:
+      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
@@ -210,6 +214,10 @@ macrobenchmarks:
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
+    # Forward pipeline variables so an external orchestrator can pass
+    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
+    forward:
+      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
