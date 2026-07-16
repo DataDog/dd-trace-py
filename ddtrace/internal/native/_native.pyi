@@ -1,5 +1,6 @@
 import contextvars
 from enum import Enum
+import sys
 from typing import Any
 from typing import Iterable
 from typing import Iterator
@@ -166,6 +167,18 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     :param data: The tracer configuration to store.
     """
     ...
+
+if sys.platform == "linux":
+    def update_otel_thread_context(
+        trace_id: Optional[int], span_id: Optional[int], local_root_span_id: Optional[int]
+    ) -> None:
+        """
+        Update the OTel thread context with the current active trace_id, span_id and local_root_span_id
+        :param trace_id: The id of the active trace
+        :param span_id: The id of the active span
+        :param local_root_span_id: The id of the root span of the local trace chunk
+        """
+        ...
 
 class SharedRuntime:
     """

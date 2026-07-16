@@ -692,6 +692,7 @@ profiling_native:
         # against generated FFI headers from src/native/target/.../include/)
         - src/native/**/*.rs
         - src/native/**/*.toml
+        - src/native/**/*.txt
         - src/native/**/Cargo.lock
         # Top-level build config
         - setup.py
