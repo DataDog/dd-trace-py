@@ -1,5 +1,4 @@
 use libdd_capabilities_impl::NativeCapabilities;
-use libdd_data_pipeline::trace_buffer::BufferSize;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
@@ -237,14 +236,9 @@ impl TraceExporterBuilderPy {
     ///
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
-    ///
-    /// `max_size` / `max_item_size` bound the native span buffer in estimated bytes: total
-    /// budget across all buffered chunks, and cap per chunk.
     fn build(
         &mut self,
         shared_runtime: PyRef<'_, SharedRuntimePy>,
-        max_size: usize,
-        max_item_size: usize,
     ) -> PyResult<TraceExporterPy> {
         let shared_runtime = shared_runtime.as_arc().clone();
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
@@ -258,11 +252,6 @@ impl TraceExporterBuilderPy {
             ),
             buffer: Mutex::new(TraceBuffer {
                 chunks: Vec::new(),
-                est_bytes: 0,
-                max_size,
-                // Clamp so an item can never exceed the buffer budget: oversized-item drops
-                // report as ItemTooLarge rather than BufferFull.
-                max_item_size: max_item_size.min(max_size),
             }),
         };
         Ok(exporter)
@@ -276,24 +265,18 @@ impl TraceExporterBuilderPy {
 /// Native buffer of converted libdatadog v0.4 spans awaiting flush.
 ///
 /// Holds `Vec<Vec<Span<PyTraceData>>>` — a list of trace chunks, each a list of spans —
-/// exactly the shape [`TraceExporter::send_trace_chunks`] consumes. `est_bytes` tracks the
-/// approximate serialized size (via [`BufferSize::byte_size`]) for `max_size` enforcement.
+/// exactly the shape [`TraceExporter::send_trace_chunks`] consumes. No size or count limits
+/// are enforced here; bounding the buffered data is libdatadog's responsibility.
 struct TraceBuffer {
     chunks: Vec<Vec<Span<PyTraceData>>>,
-    est_bytes: usize,
-    max_size: usize,
-    max_item_size: usize,
 }
 
-/// Outcome of [`TraceExporterPy::put_trace`], mirroring the Cython encoder's drop reasons
-/// so the Python writer can emit the same `buffer.dropped.*` metrics without exceptions on
-/// the hot path.
+/// Outcome of [`TraceExporterPy::put_trace`]: the trace was buffered, or it had no encodable
+/// spans. Size/count-based drops were removed — buffering limits belong to libdatadog now.
 #[pyclass(name = "PutOutcome", eq, eq_int, skip_from_py_object)]
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum PutOutcome {
     Accepted,
-    BufferFull,
-    ItemTooLarge,
     NoEncodableSpans,
 }
 
@@ -355,9 +338,9 @@ impl TraceExporterPy {
         spans: Vec<Py<SpanData>>,
         dd_origin: Option<Bound<'_, PyString>>,
         encode_links_events_as_json: bool,
-    ) -> PyResult<(PutOutcome, usize)> {
+    ) -> PyResult<PutOutcome> {
         if spans.is_empty() {
-            return Ok((PutOutcome::NoEncodableSpans, 0));
+            return Ok(PutOutcome::NoEncodableSpans);
         }
 
         let origin = match dd_origin {
@@ -369,7 +352,6 @@ impl TraceExporterPy {
         let packb = get_packb(py);
 
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
-        let mut item_bytes: usize = 0;
         for span in &spans {
             // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
             // build_v04_span's doc comment.
@@ -395,21 +377,11 @@ impl TraceExporterPy {
                         .insert(key, Bytes::from_py_bytes(py_bytes));
                 }
             }
-            // Summed here rather than a second pass over `chunk` after the loop.
-            item_bytes += v04_span.byte_size();
             chunk.push(v04_span);
         }
 
-        let mut buf = self.lock_buffer();
-        if item_bytes > buf.max_item_size {
-            return Ok((PutOutcome::ItemTooLarge, item_bytes));
-        }
-        if buf.est_bytes + item_bytes > buf.max_size {
-            return Ok((PutOutcome::BufferFull, item_bytes));
-        }
-        buf.chunks.push(chunk);
-        buf.est_bytes += item_bytes;
-        Ok((PutOutcome::Accepted, item_bytes))
+        self.lock_buffer().chunks.push(chunk);
+        Ok(PutOutcome::Accepted)
     }
 
     /// Drain the buffered trace chunks and send them directly to the agent via
@@ -422,7 +394,6 @@ impl TraceExporterPy {
     fn flush(&self, py: Python<'_>) -> PyResult<(usize, Option<String>)> {
         let chunks = {
             let mut buf = self.lock_buffer();
-            buf.est_bytes = 0;
             std::mem::take(&mut buf.chunks)
         };
         let n = chunks.len();
@@ -447,11 +418,6 @@ impl TraceExporterPy {
     /// Number of trace chunks currently buffered (replaces ``len(encoder)`` for drop-rate).
     fn buffered_traces(&self) -> usize {
         self.lock_buffer().chunks.len()
-    }
-
-    /// Estimated bytes currently buffered (replaces ``encoder.size``).
-    fn buffered_bytes(&self) -> usize {
-        self.lock_buffer().est_bytes
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {

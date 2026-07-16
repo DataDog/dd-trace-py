@@ -864,7 +864,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime(), self._buffer_size, self._max_payload_size)
+        return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -982,29 +982,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         dd_origin = ctx.dd_origin if ctx is not None else None
 
         # v0.5 has no wire fields for span links/events, so JSON-encode them into meta instead.
-        outcome, item_bytes = self._exporter.put_trace(
+        # Buffer size/count limits were removed — libdatadog owns any bounding — so put_trace
+        # only reports whether the trace was buffered or had no encodable spans.
+        outcome = self._exporter.put_trace(
             spans, dd_origin, encode_links_events_as_json=self._api_version == "v0.5"
         )
-        if outcome == native.PutOutcome.ItemTooLarge:
-            _safelog(
-                log.warning,
-                "trace (%db) larger than payload buffer item limit (%db), dropping",
-                item_bytes,
-                self._max_payload_size,
-            )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-        elif outcome == native.PutOutcome.BufferFull:
-            _safelog(
-                log.warning,
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                self._exporter.buffered_traces(),
-                self._exporter.buffered_bytes(),
-                self._buffer_size,
-                item_bytes,
-                self.status.value,
-            )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-        elif outcome == native.PutOutcome.NoEncodableSpans:
+        if outcome == native.PutOutcome.NoEncodableSpans:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)

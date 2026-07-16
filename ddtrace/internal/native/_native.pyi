@@ -212,7 +212,7 @@ class TraceExporter:
         spans: Sequence["SpanData"],
         dd_origin: Optional[str] = None,
         encode_links_events_as_json: bool = False,
-    ) -> tuple["PutOutcome", int]:
+    ) -> "PutOutcome":
         """
         Convert one trace chunk to libdatadog v0.4 spans and buffer it for the next flush.
         :param spans: The spans of one trace chunk (each a SpanData / Span).
@@ -220,7 +220,7 @@ class TraceExporter:
         :param encode_links_events_as_json: When True (v0.5 output), JSON-encode span
             links/events into meta["_dd.span_links"]/meta["events"] instead of the native
             v0.4 span_links/span_events fields, matching the historical v0.5 encoder.
-        :return: (whether the chunk was buffered or why it was dropped, encoded size in bytes of this trace).
+        :return: whether the chunk was buffered (Accepted) or had no encodable spans.
         """
         ...
     def flush(self) -> tuple[int, Optional[str]]:
@@ -231,9 +231,6 @@ class TraceExporter:
         ...
     def buffered_traces(self) -> int:
         """Number of trace chunks currently buffered."""
-        ...
-    def buffered_bytes(self) -> int:
-        """Estimated bytes currently buffered."""
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """
@@ -447,13 +444,11 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime, max_size: int, max_item_size: int) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
-        :param max_size: Total native span buffer budget in (estimated) bytes.
-        :param max_item_size: Per-trace-chunk cap in (estimated) bytes.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -467,8 +462,6 @@ class TraceExporterBuilder:
 
 class PutOutcome(Enum):
     Accepted = ...
-    BufferFull = ...
-    ItemTooLarge = ...
     NoEncodableSpans = ...
 
 class AgentResponse:
