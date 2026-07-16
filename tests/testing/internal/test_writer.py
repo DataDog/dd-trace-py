@@ -18,6 +18,8 @@ from ddtrace.testing.internal.writer import BaseWriter
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace.testing.internal.writer import _calculate_async_flush_events
+from ddtrace.testing.internal.writer import _get_async_flush_events
 from ddtrace.testing.internal.writer import _get_min_flush_events
 from ddtrace.testing.internal.writer import serialize_module
 from ddtrace.testing.internal.writer import serialize_session
@@ -40,60 +42,100 @@ class _ConcreteWriter(BaseWriter):
         self,
         min_flush_events: t.Optional[int] = None,
         max_buffer_events: t.Optional[int] = None,
+        async_flush_events: t.Optional[int] = None,
         fail_sends: bool = False,
     ) -> None:
-        super().__init__(min_flush_events=min_flush_events, max_buffer_events=max_buffer_events)
+        super().__init__(
+            min_flush_events=min_flush_events,
+            max_buffer_events=max_buffer_events,
+            async_flush_events=async_flush_events,
+        )
         self.sent_batches: list[list[Event]] = []
+        self.sent_event = threading.Event()
         self.fail_sends = fail_sends
 
     def _send_events(self, events: list[Event]) -> bool:
         self.sent_batches.append(events)
+        self.sent_event.set()
         return not self.fail_sends
 
     def _encode_events(self, events: list[Event]) -> bytes:
         return b"x" * len(events)
 
 
-class TestBaseWriterMinFlushEvents:
-    """Tests for BaseWriter.min_flush_events threshold flush."""
+class TestBaseWriterAsyncFlushEvents:
+    """Tests for BaseWriter.async_flush_events threshold flush."""
 
-    def test_no_flush_when_disabled(self) -> None:
-        writer = _ConcreteWriter(min_flush_events=None)
+    def test_no_async_flush_when_disabled(self) -> None:
+        writer = _ConcreteWriter(async_flush_events=None)
         writer.put_event(Event(n=1))
         writer.put_event(Event(n=2))
 
         assert len(writer.events) == 2
-        assert writer.sent_batches == []
+        assert not writer._flush_now.is_set()
 
-    def test_flush_on_every_event_with_threshold_1(self) -> None:
-        writer = _ConcreteWriter(min_flush_events=1)
+    def test_signal_background_flush_on_threshold(self) -> None:
+        writer = _ConcreteWriter(async_flush_events=2)
+        writer.flush_interval_seconds = 60
+        writer.start()
+        try:
+            writer.put_event(Event(n=1))
+            assert writer.sent_batches == []
+
+            writer.put_event(Event(n=2))
+
+            assert writer.sent_event.wait(timeout=5), "background writer did not flush after async threshold"
+            assert len(writer.events) == 0
+            assert len(writer.sent_batches) == 1
+            assert len(writer.sent_batches[0]) == 2
+        finally:
+            writer.signal_finish()
+            writer.wait_finish(timeout=5)
+
+    def test_shutdown_drains_events_added_during_in_flight_flush(self) -> None:
+        class _BlockingWriter(_ConcreteWriter):
+            def __init__(self) -> None:
+                super().__init__(async_flush_events=1)
+                self.first_send_started = threading.Event()
+                self.unblock_first_send = threading.Event()
+
+            def _send_events(self, events: list[Event]) -> bool:
+                self.sent_batches.append(events)
+                if len(self.sent_batches) == 1:
+                    self.first_send_started.set()
+                    self.unblock_first_send.wait(timeout=5)
+                self.sent_event.set()
+                return True
+
+        writer = _BlockingWriter()
+        writer.flush_interval_seconds = 60
+        writer.start()
+
+        writer.put_event(Event(n=1))
+        assert writer.first_send_started.wait(timeout=5), "first flush did not start"
+
+        writer.put_event(Event(n=2))
+        writer.signal_finish()
+        writer.unblock_first_send.set()
+        writer.wait_finish(timeout=5)
+
+        assert not writer.task.is_alive()
+        assert len(writer.events) == 0
+        assert [[event["n"] for event in batch] for batch in writer.sent_batches] == [[1], [2]]
+
+    def test_set_async_flush_events(self) -> None:
+        writer = _ConcreteWriter(async_flush_events=None)
+        writer.set_async_flush_events(2)
+
+        assert writer.async_flush_events == 2
+
+    def test_explicit_min_flush_events_stays_synchronous(self) -> None:
+        writer = _ConcreteWriter(min_flush_events=1, async_flush_events=100)
         writer.put_event(Event(n=1))
 
         assert len(writer.events) == 0
-        assert len(writer.sent_batches) == 1
-        assert writer.sent_batches[0] == [{"n": 1}]
-
-    def test_flush_on_threshold_3(self) -> None:
-        writer = _ConcreteWriter(min_flush_events=3)
-        writer.put_event(Event(n=1))
-        writer.put_event(Event(n=2))
-        assert len(writer.events) == 2
-        assert writer.sent_batches == []
-
-        writer.put_event(Event(n=3))
-        assert len(writer.events) == 0
-        assert len(writer.sent_batches) == 1
-        assert len(writer.sent_batches[0]) == 3
-
-    def test_multiple_flush_cycles(self) -> None:
-        writer = _ConcreteWriter(min_flush_events=2)
-        writer.put_event(Event(n=1))
-        writer.put_event(Event(n=2))
-        assert len(writer.sent_batches) == 1
-
-        writer.put_event(Event(n=3))
-        writer.put_event(Event(n=4))
-        assert len(writer.sent_batches) == 2
+        assert writer.sent_batches == [[{"n": 1}]]
+        assert not writer._flush_now.is_set()
 
 
 class TestBaseWriterMaxBufferEvents:
@@ -128,15 +170,6 @@ class TestBaseWriterMaxBufferEvents:
         writer.put_event(Event(n=4))
         assert len(writer.events) == 1
         assert writer._dropped_events == 1  # counter not reset
-
-    def test_max_buffer_events_compatible_with_min_flush(self) -> None:
-        """Both min_flush_events and max_buffer_events can coexist."""
-        writer = _ConcreteWriter(min_flush_events=2, max_buffer_events=5)
-        writer.put_event(Event(n=1))
-        writer.put_event(Event(n=2))
-        # min_flush_events triggers a sync flush after 2 events.
-        assert len(writer.sent_batches) == 1
-        assert len(writer.events) == 0
 
 
 class TestWaitFinishTimeout:
@@ -191,48 +224,44 @@ class TestWaitFinishTimeout:
         writer.task.join(timeout=5)
 
 
-class TestGetMinFlushEvents:
-    """Tests for _get_min_flush_events env var parsing."""
+class TestGetAsyncFlushEvents:
+    """Tests for _get_async_flush_events env var parsing."""
 
-    def test_default_is_none(self) -> None:
+    def test_default_is_100_without_selected_count(self) -> None:
         with patch.dict("os.environ", {}, clear=False):
-            # Remove both vars if they exist
             import os
 
             os.environ.pop("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", None)
             os.environ.pop("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
-            assert _get_min_flush_events() is None
+            assert _get_async_flush_events() == 100
 
-    def test_reads_private_env_var(self) -> None:
-        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "5"}):
-            assert _get_min_flush_events() == 5
+    def test_calculates_from_selected_tests_with_bounds(self) -> None:
+        assert _calculate_async_flush_events(100) == 100
+        assert _calculate_async_flush_events(4956) == 495
+        assert _calculate_async_flush_events(20000) == 1000
 
-    def test_reads_legacy_env_var(self) -> None:
+    def test_explicit_partial_flush_env_var_uses_sync_flush(self) -> None:
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "25"}):
+            assert _get_min_flush_events() == 25
+            assert _get_async_flush_events(selected_tests_count=20000) is None
+
+    def test_reads_legacy_partial_flush_env_var_for_sync_flush(self) -> None:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5"}):
             assert _get_min_flush_events() == 5
+            assert _get_async_flush_events() is None
 
-    def test_private_env_var_takes_priority(self) -> None:
+    def test_private_partial_flush_env_var_takes_priority(self) -> None:
         with patch.dict(
             "os.environ",
             {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "3", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "99"},
         ):
             assert _get_min_flush_events() == 3
+            assert _get_async_flush_events() is None
 
-    def test_value_1(self) -> None:
-        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"}):
-            assert _get_min_flush_events() == 1
-
-    def test_negative_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
+    def test_invalid_explicit_value_disables_threshold_flushing(self) -> None:
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "not-a-number"}):
             assert _get_min_flush_events() is None
-
-    def test_zero_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "0"}):
-            assert _get_min_flush_events() is None
-
-    def test_invalid_value_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
-            assert _get_min_flush_events() is None
+            assert _get_async_flush_events() is None
 
 
 class TestEvent:
@@ -367,7 +396,9 @@ class TestTestOptWriter:
         assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
         assert meta["numeric_meta"] == 123
         assert writer.metadata["*"]["long_metadata"] == long_metadata_value
-        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
+        event_content = t.cast(dict[str, t.Any], event["content"])
+        event_meta = t.cast(dict[str, t.Any], event_content["meta"])
+        assert event_meta["long_meta"] == long_event_meta_value
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
@@ -417,11 +448,9 @@ class TestTestOptWriter:
         thread-local connectors.
 
         ``BackendConnector`` subclasses ``threading.local`` so each thread gets its own
-        HTTP connection via ``__init__``.  Two connections can exist:
-
-        * **background thread** — opened when the periodic task calls ``_send_events``
-        * **caller thread** — opened when ``min_flush_events`` triggers a sync flush via
-          ``put_event`` → ``flush`` on the test/caller thread
+        HTTP connection via ``__init__``. The background thread opens one when the
+        periodic task calls ``_send_events``; ``wait_finish()`` also closes the caller
+        thread's connector defensively in case that thread ever opened one.
 
         Without explicit ``close()`` calls on both threads the underlying sockets are
         left open, producing ``ResourceWarning: unclosed socket``.
