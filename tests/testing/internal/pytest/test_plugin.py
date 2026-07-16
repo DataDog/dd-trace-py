@@ -27,6 +27,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
@@ -885,6 +886,73 @@ class TestNodeIdToTestRef:
         assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
         assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
+
+
+class TestItemToTestRef:
+    """Unit tests for item_to_test_ref helper."""
+
+    class _HookCaller:
+        def __init__(self, value: t.Optional[str] = None, has_impls: bool = False) -> None:
+            self.value = value
+            self.has_impls = has_impls
+            self.calls = 0
+
+        def __call__(self, item: t.Any) -> t.Optional[str]:
+            self.calls += 1
+            return self.value
+
+        def get_hookimpls(self) -> list[object]:
+            return [object()] if self.has_impls else []
+
+    class _Hook:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.pytest_ddtrace_get_item_module_name = TestItemToTestRef._HookCaller("custom.module", has_impls)
+            self.pytest_ddtrace_get_item_suite_name = TestItemToTestRef._HookCaller("custom_suite.py", has_impls)
+            self.pytest_ddtrace_get_item_test_name = TestItemToTestRef._HookCaller("custom_test", has_impls)
+
+    class _Config:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.hook = TestItemToTestRef._Hook(has_impls)
+
+    class _Item:
+        def __init__(self, nodeid: str, config: "TestItemToTestRef._Config") -> None:
+            self.nodeid = nodeid
+            self.config = config
+
+    def test_skips_custom_name_hooks_when_none_registered(self) -> None:
+        config = self._Config(has_impls=False)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "test_function"
+        assert test_ref.suite.name == "test_example.py"
+        assert test_ref.suite.module.name == "tests.internal"
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 0
+
+    def test_caches_test_ref_on_item(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        first_ref = item_to_test_ref(item)
+        second_ref = item_to_test_ref(item)
+
+        assert second_ref is first_ref
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 1
+
+    def test_uses_custom_name_hooks_when_registered(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "custom_test"
+        assert test_ref.suite.name == "custom_suite.py"
+        assert test_ref.suite.module.name == "custom.module"
 
 
 class TestHelperFunctions:
