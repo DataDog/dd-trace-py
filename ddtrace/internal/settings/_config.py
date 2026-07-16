@@ -918,27 +918,16 @@ class Config(object):
 
     _CONFIG_FACT_ATTRS = frozenset(
         {
-            "_trace_writer_interval_seconds",
-            "_trace_writer_connection_reuse",
             "_health_metrics_enabled",
-            "_trace_writer_log_err_payload",
-            "_trace_writer_buffer_size",
-            "_trace_writer_payload_size",
-            "_trace_api",
             "_report_hostname",
             "service",
             "env",
             "version",
-            "_otel_semantics_enabled",
-            "_telemetry_enabled",
-            "_telemetry_heartbeat_interval",
             "_debug_mode",
             "_dd_site",
             "_dd_api_key",
-            "_otel_stats_computation_enabled",
             "_otel_metrics_enabled",
             "_trace_compute_stats",
-            "_client_side_stats_obfuscation",
             "_llmobs_enabled",
         }
     )

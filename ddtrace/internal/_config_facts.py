@@ -11,51 +11,25 @@ ddtrace.internal.settings) and has no dependencies of its own, so it can sit
 underneath both without closing import loops: _config.py sets the values once
 during Config construction (and on subsequent updates), and consumers read
 them directly.
+
+Values that are read directly from environment variables are not stored here;
+see ddtrace.internal.settings.env.
 """
 
 from typing import Optional
 
 
-_trace_writer_interval_seconds: Optional[float] = None
-_trace_writer_connection_reuse: Optional[bool] = None
 _health_metrics_enabled: Optional[bool] = None
-_trace_writer_log_err_payload: Optional[bool] = None
-_trace_writer_buffer_size: Optional[int] = None
-_trace_writer_payload_size: Optional[int] = None
-_llmobs_enabled: Optional[bool] = None
-_trace_api: Optional[str] = None
 _report_hostname: Optional[bool] = None
 _service: Optional[str] = None
 _env: Optional[str] = None
 _version: Optional[str] = None
-_otel_semantics_enabled: Optional[bool] = None
-_telemetry_enabled: Optional[bool] = None
-_telemetry_heartbeat_interval: Optional[float] = None
 _debug_mode: Optional[bool] = None
 _dd_site: Optional[str] = None
 _dd_api_key: Optional[str] = None
-_otel_stats_computation_enabled: Optional[bool] = None
 _otel_metrics_enabled: Optional[bool] = None
 _trace_compute_stats: Optional[bool] = None
-_client_side_stats_obfuscation: Optional[bool] = None
-
-
-def set_trace_writer_interval_seconds(value: float) -> None:
-    global _trace_writer_interval_seconds
-    _trace_writer_interval_seconds = value
-
-
-def trace_writer_interval_seconds() -> float:
-    return _trace_writer_interval_seconds  # type: ignore[return-value]
-
-
-def set_trace_writer_connection_reuse(value: bool) -> None:
-    global _trace_writer_connection_reuse
-    _trace_writer_connection_reuse = value
-
-
-def trace_writer_connection_reuse() -> bool:
-    return bool(_trace_writer_connection_reuse)
+_llmobs_enabled: Optional[bool] = None
 
 
 def set_health_metrics_enabled(value: bool) -> None:
@@ -65,51 +39,6 @@ def set_health_metrics_enabled(value: bool) -> None:
 
 def health_metrics_enabled() -> bool:
     return bool(_health_metrics_enabled)
-
-
-def set_trace_writer_log_err_payload(value: bool) -> None:
-    global _trace_writer_log_err_payload
-    _trace_writer_log_err_payload = value
-
-
-def trace_writer_log_err_payload() -> bool:
-    return bool(_trace_writer_log_err_payload)
-
-
-def set_trace_writer_buffer_size(value: int) -> None:
-    global _trace_writer_buffer_size
-    _trace_writer_buffer_size = value
-
-
-def trace_writer_buffer_size() -> int:
-    return _trace_writer_buffer_size  # type: ignore[return-value]
-
-
-def set_trace_writer_payload_size(value: int) -> None:
-    global _trace_writer_payload_size
-    _trace_writer_payload_size = value
-
-
-def trace_writer_payload_size() -> int:
-    return _trace_writer_payload_size  # type: ignore[return-value]
-
-
-def set_llmobs_enabled(value: bool) -> None:
-    global _llmobs_enabled
-    _llmobs_enabled = value
-
-
-def llmobs_enabled() -> bool:
-    return bool(_llmobs_enabled)
-
-
-def set_trace_api(value: Optional[str]) -> None:
-    global _trace_api
-    _trace_api = value
-
-
-def trace_api() -> Optional[str]:
-    return _trace_api
 
 
 def set_report_hostname(value: bool) -> None:
@@ -148,33 +77,6 @@ def version() -> Optional[str]:
     return _version
 
 
-def set_otel_semantics_enabled(value: bool) -> None:
-    global _otel_semantics_enabled
-    _otel_semantics_enabled = value
-
-
-def otel_semantics_enabled() -> bool:
-    return bool(_otel_semantics_enabled)
-
-
-def set_telemetry_enabled(value: bool) -> None:
-    global _telemetry_enabled
-    _telemetry_enabled = value
-
-
-def telemetry_enabled() -> bool:
-    return bool(_telemetry_enabled)
-
-
-def set_telemetry_heartbeat_interval(value: float) -> None:
-    global _telemetry_heartbeat_interval
-    _telemetry_heartbeat_interval = value
-
-
-def telemetry_heartbeat_interval() -> float:
-    return _telemetry_heartbeat_interval  # type: ignore[return-value]
-
-
 def set_debug_mode(value: bool) -> None:
     global _debug_mode
     _debug_mode = value
@@ -202,15 +104,6 @@ def dd_api_key() -> Optional[str]:
     return _dd_api_key
 
 
-def set_otel_stats_computation_enabled(value: Optional[bool]) -> None:
-    global _otel_stats_computation_enabled
-    _otel_stats_computation_enabled = value
-
-
-def otel_stats_computation_enabled() -> Optional[bool]:
-    return _otel_stats_computation_enabled
-
-
 def set_otel_metrics_enabled(value: bool) -> None:
     global _otel_metrics_enabled
     _otel_metrics_enabled = value
@@ -229,10 +122,10 @@ def trace_compute_stats() -> bool:
     return bool(_trace_compute_stats)
 
 
-def set_client_side_stats_obfuscation(value: bool) -> None:
-    global _client_side_stats_obfuscation
-    _client_side_stats_obfuscation = value
+def set_llmobs_enabled(value: bool) -> None:
+    global _llmobs_enabled
+    _llmobs_enabled = value
 
 
-def client_side_stats_obfuscation() -> bool:
-    return bool(_client_side_stats_obfuscation)
+def llmobs_enabled() -> bool:
+    return bool(_llmobs_enabled)
