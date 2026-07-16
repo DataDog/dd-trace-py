@@ -7,6 +7,7 @@ import ddtrace.llmobs as llmobs_pkg
 from ddtrace.llmobs._inline_experiment import _REGISTRY
 from ddtrace.llmobs._inline_experiment import Mode
 from ddtrace.llmobs._inline_experiment import _ExperimentStop
+from ddtrace.llmobs._inline_experiment import _replaying
 from ddtrace.llmobs._inline_experiment import _reset
 from ddtrace.llmobs._inline_experiment import _set_mode
 from ddtrace.llmobs._inline_experiment import _set_trace
@@ -101,6 +102,38 @@ def test_replay_unwinds_at_end_before_side_effects():
         ingest("x")
     assert excinfo.value.output == "x"
     assert side_effects == []  # stop-point unwound before emit ran
+
+
+def test_replay_ignores_end_marker_of_a_different_subject():
+    # Subject A's call tree passes through subject B's end marker. Only A's OWN end marker
+    # should unwind A's replay; B (nested, not under test) must run through so A completes
+    # with its own output — otherwise A would be aborted and report B's output as its result.
+    b_ran = []
+
+    @experiment_start(name="a")
+    def a_start(q):
+        b_start(q)  # A calls into a different registered subject B ...
+        return end_a("a-out:%s" % q)
+
+    @experiment_end(name="a")
+    def end_a(result):
+        return result
+
+    @experiment_start(name="b")
+    def b_start(q):
+        return end_b("b-out:%s" % q)
+
+    @experiment_end(name="b")
+    def end_b(result):
+        b_ran.append(result)  # ... whose end marker must NOT unwind A's replay
+        return result
+
+    _set_mode(Mode.REPLAY)
+    with _replaying("a"):
+        with pytest.raises(_ExperimentStop) as excinfo:
+            a_start("x")
+    assert excinfo.value.output == "a-out:x"  # A's own end unwound, not B's
+    assert b_ran == ["b-out:x"]  # B's end ran through to completion
 
 
 def test_async_capture_single_function_unit():

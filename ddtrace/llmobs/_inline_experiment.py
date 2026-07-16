@@ -66,6 +66,16 @@ _current_case: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.Co
     "_llmobs_experiment_case", default=None
 )
 
+# The subject currently being REPLAYed, set by the runner around each ``_invoke``. When a
+# replayed subject's call tree passes through the end marker of a DIFFERENT registered
+# subject, that inner marker must NOT unwind the replay (it would abort the outer subject
+# and report the inner subject's output as the result); only the subject under replay stops
+# at its own end. ``None`` means "not driven by a subject-scoped runner" -> preserve the
+# legacy behavior of stopping at any end marker.
+_replay_subject: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_llmobs_experiment_replay_subject", default=None
+)
+
 
 class _ExperimentStop(BaseException):
     """Raised at the end marker during REPLAY to unwind back to the runner.
@@ -94,6 +104,21 @@ def _get_mode() -> Mode:
 def _set_trace(on: bool) -> None:
     global _trace
     _trace = on
+
+
+@contextlib.contextmanager
+def _replaying(name: str) -> Iterator[None]:
+    """Scope a REPLAY invocation to subject ``name`` so only its own end marker unwinds.
+
+    The runner wraps each ``_invoke`` in this; the value propagates down the call tree
+    (and, via ``copy_context``, into ``asyncio.run``), so an end marker for a nested,
+    different subject is ignored rather than aborting the outer replay.
+    """
+    token = _replay_subject.set(name)
+    try:
+        yield
+    finally:
+        _replay_subject.reset(token)
 
 
 def _reset() -> None:
@@ -398,6 +423,9 @@ def experiment_end(
         def _handle(args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             out = _end_output(output, args, kwargs)
             if _mode is Mode.REPLAY:
+                active = _replay_subject.get()
+                if active is not None and active != name:
+                    return  # a nested, different subject's end marker -> let it run through
                 raise _ExperimentStop(out)  # capture + unwind before side effects
             case = _current_case.get()  # CAPTURE
             if case is not None:

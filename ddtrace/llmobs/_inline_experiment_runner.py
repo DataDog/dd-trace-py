@@ -21,6 +21,7 @@ from typing import Optional
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._inline_experiment import _REGISTRY
 from ddtrace.llmobs._inline_experiment import _ExperimentStop
+from ddtrace.llmobs._inline_experiment import _replaying
 from ddtrace.llmobs._inline_experiment import _start_output
 
 
@@ -385,7 +386,8 @@ def replay(
         recorded = _normalize(case["output"])
         row: dict[str, Any] = {"input": case["input"], "recorded": recorded, "new": None, "exec": "NO_END", "evals": []}
         try:
-            ret = _invoke(spec, case["input"])
+            with _replaying(name):  # only THIS subject's end marker unwinds the replay
+                ret = _invoke(spec, case["input"])
         except _ExperimentStop as stop:  # emit shape: end unwound with the output
             new = stop.output
         except Exception as e:  # noqa: BLE001 - surface task errors as a row rather than abort

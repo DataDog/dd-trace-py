@@ -21,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._inline_experiment import _REGISTRY
 from ddtrace.llmobs._inline_experiment import Mode
 from ddtrace.llmobs._inline_experiment import _ExperimentStop
+from ddtrace.llmobs._inline_experiment import _replaying
 from ddtrace.llmobs._inline_experiment import _set_mode
 from ddtrace.llmobs._inline_experiment import _start_output
 from ddtrace.llmobs._inline_experiment_runner import _invoke
@@ -66,7 +67,8 @@ def _make_task(name: str) -> Callable[..., Any]:
 
     def task(input_data: Any, config: Any) -> Any:
         try:
-            ret = _invoke(spec, input_data)
+            with _replaying(name):  # only THIS subject's end marker unwinds the replay
+                ret = _invoke(spec, input_data)
         except _ExperimentStop as stop:  # emit shape: end unwound with the output
             return stop.output
         if has_end:
