@@ -115,10 +115,18 @@ class BaseWriter(ABC):
         self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
+        self._telemetry_api: t.Optional[TelemetryAPI] = None
         # Connectors registered here are closed from both the background thread
         # (via _task_teardown) and the caller thread (via wait_finish), covering
         # all thread-local HTTPConnections opened via BackendConnector.
         self._connectors: list[t.Any] = []
+
+    @property
+    def telemetry_api(self) -> TelemetryAPI:
+        telemetry_api = self._telemetry_api
+        if telemetry_api is None:
+            telemetry_api = self._telemetry_api = TelemetryAPI.get()
+        return telemetry_api
 
     def put_event(self, event: Event) -> None:
         with self.lock:
@@ -375,7 +383,8 @@ class TestOptWriter(BaseWriter):
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
-        TelemetryAPI.get().record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
+        telemetry_api = self.telemetry_api
+        telemetry_api.record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
 
         for pack in packs:
             result = self.connector.request(
@@ -386,7 +395,7 @@ class TestOptWriter(BaseWriter):
                 send_gzip=True,
             )
 
-            TelemetryAPI.get().record_event_payload(
+            telemetry_api.record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
                 request_seconds=result.elapsed_seconds,
@@ -430,13 +439,40 @@ class TestCoverageWriter(BaseWriter):
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
         self._connectors = [self.connector]
+        self._coverage_files_counts: list[int] = []
+        self._coverage_empty_count = 0
+
+    def _record_coverage_files_for_flush(self, files_count: int) -> None:
+        with self.lock:
+            self._coverage_files_counts.append(files_count)
+            if files_count == 0:
+                self._coverage_empty_count += 1
+
+    def _flush_coverage_telemetry(self) -> None:
+        with self.lock:
+            coverage_files_counts = self._coverage_files_counts
+            coverage_empty_count = self._coverage_empty_count
+            self._coverage_files_counts = []
+            self._coverage_empty_count = 0
+
+        if not coverage_files_counts:
+            return
+
+        telemetry_api = self.telemetry_api
+        for files_count in coverage_files_counts:
+            telemetry_api.record_coverage_files(files_count)
+        for _ in range(coverage_empty_count):
+            telemetry_api.record_coverage_is_empty()
+
+    def flush(self) -> None:
+        self._flush_coverage_telemetry()
+        super().flush()
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
-        TelemetryAPI.get().record_coverage_files(len(files))
+        self._record_coverage_files_for_flush(len(files))
 
         if not files:
-            TelemetryAPI.get().record_coverage_is_empty()
             return
 
         event = Event(
@@ -455,10 +491,9 @@ class TestCoverageWriter(BaseWriter):
         the JS tracer.
         """
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
-        TelemetryAPI.get().record_coverage_files(len(files))
+        self._record_coverage_files_for_flush(len(files))
 
         if not files:
-            TelemetryAPI.get().record_coverage_is_empty()
             return
 
         event = {
@@ -475,7 +510,8 @@ class TestCoverageWriter(BaseWriter):
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
-        TelemetryAPI.get().record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
+        telemetry_api = self.telemetry_api
+        telemetry_api.record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
 
         for pack in packs:
             files = [
@@ -495,7 +531,7 @@ class TestCoverageWriter(BaseWriter):
 
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
-            TelemetryAPI.get().record_event_payload(
+            telemetry_api.record_event_payload(
                 endpoint="code_coverage",
                 payload_size=len(pack),
                 request_seconds=result.elapsed_seconds,
