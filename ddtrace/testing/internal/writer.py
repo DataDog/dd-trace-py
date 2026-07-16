@@ -36,11 +36,26 @@ _MAX_META_TAG_VALUE_LENGTH = 5000
 
 
 def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
-    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
+    truncated: t.Optional[dict[str, t.Any]] = None
+    for key, value in meta.items():
+        if isinstance(value, str) and len(value) > _MAX_META_TAG_VALUE_LENGTH:
+            if truncated is None:
+                truncated = dict(meta)
+            truncated[key] = value[:_MAX_META_TAG_VALUE_LENGTH]
+
+    return meta if truncated is None else truncated
 
 
 def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
-    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+    truncated: t.Optional[dict[str, dict[str, t.Any]]] = None
+    for event_type, event_metadata in metadata.items():
+        truncated_event_metadata = _truncate_meta_string_values(event_metadata)
+        if truncated_event_metadata is not event_metadata:
+            if truncated is None:
+                truncated = dict(metadata)
+            truncated[event_type] = truncated_event_metadata
+
+    return t.cast(dict[str, dict[str, t.Any]], metadata) if truncated is None else truncated
 
 
 def _truncate_event_meta(event: Event) -> Event:
@@ -52,17 +67,29 @@ def _truncate_event_meta(event: Event) -> Event:
     if not isinstance(meta, dict):
         return event
 
+    truncated_meta = _truncate_meta_string_values(meta)
+    if truncated_meta is meta:
+        return event
+
     return {
         **event,
         "content": {
             **content,
-            "meta": _truncate_meta_string_values(meta),
+            "meta": truncated_meta,
         },
     }
 
 
 def _truncate_events_meta(events: list[Event]) -> list[Event]:
-    return [_truncate_event_meta(event) for event in events]
+    truncated_events: t.Optional[list[Event]] = None
+    for index, event in enumerate(events):
+        truncated_event = _truncate_event_meta(event)
+        if truncated_event is not event:
+            if truncated_events is None:
+                truncated_events = list(events)
+            truncated_events[index] = truncated_event
+
+    return events if truncated_events is None else truncated_events
 
 
 class BaseWriter(ABC):

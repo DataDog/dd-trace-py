@@ -19,6 +19,8 @@ from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 from ddtrace.testing.internal.writer import _get_min_flush_events
+from ddtrace.testing.internal.writer import _truncate_events_meta
+from ddtrace.testing.internal.writer import _truncate_payload_metadata
 from ddtrace.testing.internal.writer import serialize_module
 from ddtrace.testing.internal.writer import serialize_session
 from ddtrace.testing.internal.writer import serialize_suite
@@ -252,6 +254,55 @@ class TestEvent:
         assert len(event) == 1
 
 
+class TestMetadataTruncation:
+    def test_payload_metadata_returns_original_when_no_values_truncated(self) -> None:
+        metadata = {"*": {"short": "value", "exact": "e" * MAX_META_TAG_VALUE_LENGTH}}
+
+        truncated = _truncate_payload_metadata(metadata)
+
+        assert truncated is metadata
+        assert truncated["*"] is metadata["*"]
+
+    def test_payload_metadata_copies_only_when_truncating(self) -> None:
+        long_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        metadata = {"*": {"short": "value", "long": long_value}}
+
+        truncated = _truncate_payload_metadata(metadata)
+
+        assert truncated is not metadata
+        assert truncated["*"] is not metadata["*"]
+        assert truncated["*"]["short"] == "value"
+        assert truncated["*"]["long"] == "m" * MAX_META_TAG_VALUE_LENGTH
+        assert metadata["*"]["long"] == long_value
+
+    def test_events_meta_returns_original_when_no_values_truncated(self) -> None:
+        event = Event(type="test", content={"meta": {"short": "value"}})
+        events = [event]
+
+        truncated = _truncate_events_meta(events)
+
+        assert truncated is events
+        assert truncated[0] is event
+
+    def test_events_meta_copies_only_truncated_events(self) -> None:
+        long_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        unchanged_event = Event(type="test", content={"meta": {"short": "value"}})
+        truncated_event = Event(type="test", content={"meta": {"long": long_value}})
+        events = [unchanged_event, truncated_event]
+
+        truncated = _truncate_events_meta(events)
+
+        assert truncated is not events
+        assert truncated[0] is unchanged_event
+        assert truncated[1] is not truncated_event
+        truncated_content = t.cast(dict[str, t.Any], truncated[1]["content"])
+        truncated_meta = t.cast(dict[str, t.Any], truncated_content["meta"])
+        original_content = t.cast(dict[str, t.Any], truncated_event["content"])
+        original_meta = t.cast(dict[str, t.Any], original_content["meta"])
+        assert truncated_meta["long"] == "x" * MAX_META_TAG_VALUE_LENGTH
+        assert original_meta["long"] == long_value
+
+
 class TestTestOptWriter:
     """Tests for TestOptWriter class."""
 
@@ -367,7 +418,9 @@ class TestTestOptWriter:
         assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
         assert meta["numeric_meta"] == 123
         assert writer.metadata["*"]["long_metadata"] == long_metadata_value
-        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
+        event_content = t.cast(dict[str, t.Any], event["content"])
+        event_meta = t.cast(dict[str, t.Any], event_content["meta"])
+        assert event_meta["long_meta"] == long_event_meta_value
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
