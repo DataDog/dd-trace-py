@@ -1,8 +1,11 @@
+import gc
+
 from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
