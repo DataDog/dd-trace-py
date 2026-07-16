@@ -15,7 +15,7 @@ from ddtrace.contrib.internal.httplib.patch import patch
 from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer

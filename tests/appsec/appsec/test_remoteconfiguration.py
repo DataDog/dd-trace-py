@@ -169,6 +169,45 @@ def test_rc_activation_capabilities(tracer, rc_poller, env_rules, expected):
         assert _appsec_rc_capabilities() == expected
 
 
+def test_rc_capabilities_updated_after_one_click_activation(tracer, rc_poller):
+    """Regression test for capabilities not being advertised after one-click activation.
+
+    Capabilities are computed once at registration time (while AppSec is still disabled
+    for a remotely-activated service) and the RC client only accumulates them. Before the
+    fix, the client kept advertising only ASM_ACTIVATION after a one-click activation, so
+    the backend reported "UPDATE REQUIRED" for blocking even though it was fully functional.
+    The client bitmask must reflect the live ASM state after activation and deactivation.
+    """
+    from ddtrace.appsec._capabilities import _ALL_ASM_BLOCKING
+    from ddtrace.appsec._capabilities import Flags
+    from ddtrace.appsec._capabilities import _rc_capabilities
+
+    enable_config = [build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")]
+    disable_config = [build_payload("ASM_FEATURES", {"asm": {}}, "config")]
+
+    with override_global_config(dict(_remote_config_enabled=True, _asm_enabled=False, _asm_can_be_enabled=True)):
+        enable_appsec_rc()
+
+        # AppSec is not enabled yet (remote activation pending): no blocking capabilities.
+        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == 0
+        assert rc_poller._client._capabilities & int(Flags.ASM_ACTIVATION)
+
+        # One-click activation: blocking (and RASP) capabilities must now be advertised.
+        _appsec_callback(enable_config)
+        assert asm_config._asm_enabled
+        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == int(_ALL_ASM_BLOCKING)
+        assert rc_poller._client._capabilities == int(_rc_capabilities())
+
+        # One-click deactivation: blocking capabilities must be dropped again.
+        _appsec_callback(disable_config)
+        assert not asm_config._asm_enabled
+        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == 0
+        assert rc_poller._client._capabilities & int(Flags.ASM_ACTIVATION)
+        assert rc_poller._client._capabilities == int(_rc_capabilities())
+
+    disable_appsec_rc()
+
+
 def test_rc_activation_validate_products(tracer, rc_poller):
     with override_global_config(dict(_asm_enabled=False, _remote_config_enabled=True, api_version="v0.4")):
         assert not rc_poller._worker

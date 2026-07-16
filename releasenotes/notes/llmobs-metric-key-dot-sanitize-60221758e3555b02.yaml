@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where annotating a span with a metric key
+    containing a dot (e.g. ``anomaly.query_count``) prevented the span from being ingested.
+    Dots in metric keys are now replaced with underscores.
