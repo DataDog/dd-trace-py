@@ -1004,3 +1004,27 @@ def test_streamed_llm_block_emits_ai_guard_and_llm_spans(
             pass
 
     _assert_langchain_block_spans(test_spans, decision)
+
+
+def test_langchain_kill_switch_enabled_registers_listeners():
+    """DD_AI_GUARD_LANGCHAIN_ENABLED defaults to true: LangChain listeners register."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_langchain_enabled=True)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._langchain_listen(Mock())
+            assert mock_on.call_count > 0
+
+
+def test_langchain_kill_switch_disabled_skips_listeners():
+    """DD_AI_GUARD_LANGCHAIN_ENABLED=false: no LangChain listeners are registered."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_langchain_enabled=False)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._langchain_listen(Mock())
+            mock_on.assert_not_called()

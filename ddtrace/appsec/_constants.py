@@ -499,6 +499,8 @@ class AI_GUARD(metaclass=Constant_Class):
     # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
     # false to disable AI Guard auto-instrumentation for that specific provider.
     ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
+    ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
+    ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
 
 
 class SCA(metaclass=Constant_Class):

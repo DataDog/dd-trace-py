@@ -645,6 +645,29 @@ AI Guard
        disable AI Guard instrumentation for OpenAI only, without affecting other providers or
        requiring a tracer version rollback.
 
+   DD_AI_GUARD_ANTHROPIC_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the Anthropic SDK. Behaves like
+       ``DD_AI_GUARD_OPENAI_ENABLED`` but scoped to Anthropic: set to ``False`` to disable AI Guard
+       instrumentation for Anthropic only, without affecting other providers or requiring a rollback.
+
+   DD_AI_GUARD_LANGCHAIN_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-framework kill switch for AI Guard auto-instrumentation of LangChain. Set to ``False`` to
+       disable AI Guard instrumentation for LangChain only, without affecting other integrations or
+       requiring a tracer version rollback.
+
+       Note: this disables only the LangChain framework-level integration; other integrations remain
+       active. If your LangChain models run on an instrumented provider SDK, its integration will
+       still evaluate those calls — so you must disable that provider's switch too. For example, with
+       ``ChatOpenAI`` also set ``DD_AI_GUARD_OPENAI_ENABLED=false``, and with ``ChatAnthropic`` also
+       set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
+       provider, set ``DD_AI_GUARD_ENABLED=false``.
+
 Code Security
 -------------
 
