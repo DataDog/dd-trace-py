@@ -1049,4 +1049,4 @@ def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_s
     assert "total_cost" in metrics
     assert metrics["total_cost"] > 0
     if "input_cost" in metrics or "output_cost" in metrics:
-        assert metrics["input_cost"] + metrics["output_cost"] == metrics["total_cost"]
+        assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

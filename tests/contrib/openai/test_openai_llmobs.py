@@ -3269,4 +3269,4 @@ class TestLLMObsOpenAIOpenRouter:
         assert metrics["total_cost"] > 0
         # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
         if "input_cost" in metrics or "output_cost" in metrics:
-            assert metrics["input_cost"] + metrics["output_cost"] == metrics["total_cost"]
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
