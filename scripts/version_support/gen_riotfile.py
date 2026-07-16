@@ -297,10 +297,10 @@ def _build_base_venvs_job(all_python_versions: set[str]) -> str:
     """Render the shared build-base-venvs template for version-support."""
     python_versions = ", ".join(f'"{py}"' for py in _sort_python_versions(all_python_versions))
     needs = "\n    - job: prepare_version_support_riot\n      artifacts: true"
-    current_month = datetime.datetime.now().month
+    current_week = datetime.datetime.now().isocalendar().week
     image_hash = _testrunner_image_hash()
     cached_testrunner = _render_template(
-        "cached-testrunner", testrunner_image_hash=image_hash, current_month=current_month
+        "cached-testrunner", testrunner_image_hash=image_hash, current_week=current_week
     )
     build_base_venvs = _render_template(
         "build-base-venvs",
