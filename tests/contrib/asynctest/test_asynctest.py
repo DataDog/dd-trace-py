@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.ext import test
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -44,4 +45,13 @@ class TestPytest:
             rec = self.testdir.inline_run("--ddtrace", file_name)
 
         rec.assertoutcome(passed=1)
-        assert event_capture.event_by_test_name("test_asynctest")["content"]["meta"].get("test.status") == "pass"
+        events = list(event_capture.events())
+        assert sorted(event["type"] for event in events) == [
+            "test",
+            "test_module_end",
+            "test_session_end",
+            "test_suite_end",
+        ]
+
+        test_event = event_capture.event_by_test_name("test_asynctest")
+        assert test_event["content"]["meta"][test.STATUS] == test.Status.PASS.value
