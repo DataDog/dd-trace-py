@@ -1,3 +1,4 @@
+import importlib.util
 import logging
 from typing import Optional
 
@@ -28,6 +29,7 @@ class NativeRuntime(SharedRuntime):
         forksafe.register_after_parent(self.after_fork_parent)
         forksafe.register(self.after_fork_child)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
 
     def _atexit(self) -> None:
         try:
@@ -43,7 +45,11 @@ class NativeRuntime(SharedRuntime):
                 If None, waits indefinitely — only safe if all workers have
                 already been stopped (e.g. via TraceExporter.shutdown).
         """
-        super().shutdown(timeout_ms=timeout_ms)
+        using_uwsgi = importlib.util.find_spec("uwsgi") is not None
+        if not using_uwsgi:
+            super().shutdown(timeout_ms=timeout_ms)
+        else:
+            super().shutdown_in_thread(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
         forksafe.unregister_before_fork(self.before_fork)
         forksafe.unregister_parent(self.after_fork_parent)
