@@ -89,8 +89,8 @@ class HotCache:
             self._cache.clear()
 
     def evict_prompt(self, prompt_id: str) -> None:
-        # Keys are f"{prompt_id}:{label}"; rsplit recovers the exact prompt_id
-        # (prompt_id may contain colons, label never does), avoiding over-eviction.
+        # Keys are f"{prompt_id}:{selector_hash}"; rsplit recovers the exact prompt_id
+        # even when it contains colons, avoiding over-eviction.
         with self._lock:
             keys_to_remove = [k for k in self._cache if k.rsplit(":", 1)[0] == prompt_id]
             for k in keys_to_remove:
@@ -150,10 +150,10 @@ class WarmCache:
         return self._cache_dir / quote(prompt_id, safe="")
 
     def _key_to_path(self, key: str) -> Path:
-        # cache_key() = f"{prompt_id}:{label or ''}"; label never contains ':'.
-        # quote() is injective (unlike replace), so distinct keys never collide on a path.
-        prompt_id, _, label = key.rpartition(":")
-        filename = quote(label, safe="") if label else "_default"
+        # cache_key() = f"{prompt_id}:{selector_hash}". quote() is injective
+        # (unlike replace), so distinct prompt IDs never collide on a path.
+        prompt_id, _, selector_hash = key.rpartition(":")
+        filename = quote(selector_hash, safe="") if selector_hash else "_default"
         return self._safe_dir(prompt_id) / f"{filename}.json"
 
     def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:

@@ -94,7 +94,6 @@ extern "C"
                          uint64_t address,
                          int64_t line);
     void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
-    void ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 

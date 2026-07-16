@@ -16,7 +16,7 @@ class TestLongRunningSpan(TracerTestCase):
     def setUp(self):
         super().setUp()
         # Override timing values to make tests run quickly
-        self.original_long_running_flush_interval = getattr(config, "_long_running_span_submission_interval", 120.0)
+        self.original_long_running_flush_interval = config._long_running_flush_interval
         self.original_long_running_initial_flush_interval = getattr(
             config, "_long_running_initial_flush_interval", 10.0
         )
@@ -27,6 +27,8 @@ class TestLongRunningSpan(TracerTestCase):
 
         # Clear any existing spans from the job manager
         with _ray_span_manager._lock:
+            for timer in _ray_span_manager._timers.values():
+                timer.cancel()
             _ray_span_manager._job_spans.clear()
             _ray_span_manager._root_spans.clear()
             _ray_span_manager._timers.clear()
