@@ -6,14 +6,12 @@ from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 
 
-def test_install_coverage_passes_file_level_mode(monkeypatch) -> None:
-    monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", "true")
-
+def test_install_coverage_passes_file_level_mode() -> None:
     with (
         mock.patch("ddtrace.internal.coverage.installer.install") as mock_install,
         mock.patch.object(ModuleCodeCollector, "start_coverage") as mock_start_coverage,
     ):
-        install_coverage(Path("/repo/path"))
+        install_coverage(Path("/repo/path"), file_level_coverage=True)
 
     mock_install.assert_called_once_with(
         include_paths=[Path("/repo/path")],

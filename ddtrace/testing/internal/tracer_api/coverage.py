@@ -18,23 +18,18 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 import ddtrace.internal.coverage.installer
-from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 
 log = logging.getLogger(__name__)
 
 
-log = logging.getLogger(__name__)
-
-
-def install_coverage(workspace_path: Path) -> None:
+def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
-        file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")),
+        file_level_coverage=file_level_coverage,
     )
     ModuleCodeCollector.start_coverage()
 
