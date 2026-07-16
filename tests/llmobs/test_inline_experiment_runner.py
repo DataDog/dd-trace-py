@@ -731,6 +731,23 @@ def test_rows_pairs_reads_dict_result_and_skips_only_real_errors():
     assert sdk._rows_pairs(result) == [({"q": 1}, "a"), ({"q": 2}, "b")]
 
 
+def test_publish_inputs_explicit_empty_module_inputs_beats_stale_baseline(tmp_path):
+    # A module that explicitly cleared its publish cases (INPUTS = []) must win over any prior
+    # baseline, so the CLI reports "no inputs" instead of refreshing a paid experiment over
+    # stale cases. Absent INPUTS still falls back to the baseline.
+    p = str(tmp_path / "b.json")
+    runner.write_baseline_cases(p, "e", [({"x": 1}, 11)])  # a prior baseline exists on disk
+
+    class _ModEmpty:
+        INPUTS: list = []
+
+    class _ModAbsent:
+        pass
+
+    assert cli._publish_inputs("e", _ModEmpty, p, runner) == []  # explicit [] wins -> no inputs
+    assert cli._publish_inputs("e", _ModAbsent, p, runner) == [{"x": 1}]  # absent -> baseline
+
+
 def test_evaluate_one_reports_publish_only_evaluators(monkeypatch):
     # deepeval / pydantic-evals adapters aren't scorable locally; the engine wraps them on
     # --publish. evaluate_one should report them as publish-only rather than crashing.

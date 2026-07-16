@@ -247,7 +247,10 @@ def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> 
     a prior offline baseline's inputs. INPUTS wins so editing the module drives the refresh.
     """
     module_inputs = getattr(mod, "INPUTS", None)
-    if module_inputs:
+    if module_inputs is not None:
+        # An explicit INPUTS (even an empty list) is authoritative: if the user cleared their
+        # publish cases we must NOT silently fall back to a stale baseline and refresh a paid
+        # experiment over old inputs — return it as-is so the caller reports "no inputs".
         return list(module_inputs)
     if os.path.exists(baseline_file):
         try:
