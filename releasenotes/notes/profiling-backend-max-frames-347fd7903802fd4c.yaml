@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes inconsistent handling of ``DD_PROFILING_MAX_FRAMES`` by clamping it before stack collection so samples stay within the backend's 600-location limit.
