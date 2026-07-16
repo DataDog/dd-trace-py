@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""``ddtrace-experiment`` — run inline experiments (trace-seeded local regression).
+"""ddtrace-experiment — run inline experiments (trace-seeded local regression).
 
-The explicit, out-of-band trigger for the ``@experiment_start`` / ``@experiment_end``
-decorators. One verb, ``run``, drives the whole loop and auto-detects the phase from
-whether a baseline already exists:
+The explicit, out-of-band trigger for the @experiment_start / @experiment_end decorators.
+One verb, "run", drives the whole loop and auto-detects the phase from whether a baseline
+already exists:
 
     # 1. first run — establish a baseline from the current (known-good) code
     ddtrace-experiment run myapp:generate_traffic
@@ -11,22 +11,22 @@ whether a baseline already exists:
     # 3. run again — compare the current code against the baseline
     ddtrace-experiment run myapp --comparator structural
 
-``run`` is **offline by default**: it records or compares against a local baseline file
-(``.llmobs_experiments.json``) and sets a CI-friendly exit code, with no backend or
-credentials required. Add ``--publish`` (opt-in) to also send the run to LLM Obs
-Experiments: the first publish is the frozen **baseline** (a real run with cost + eval
-metrics over the subject's auto-managed dataset); every later publish is compared against
-it in the **compare view**. The dataset is refreshed to exactly each run's inputs.
+"run" is offline by default: it records or compares against a local baseline file
+(.llmobs_experiments.json) and sets a CI-friendly exit code, with no backend or credentials
+required. Add --publish (opt-in) to also send the run to LLM Obs Experiments: the first
+publish is the frozen baseline (a real run with cost + eval metrics over the subject's
+auto-managed dataset); every later publish is compared against it in the compare view. The
+dataset is refreshed to exactly each run's inputs.
 
-Publish conventions (module-level, optional): ``--publish`` operates on one subject over a
-set of inputs, resolved from the imported module:
-  * subject — ``--name``, else a module global ``SUBJECT``, else the sole registered subject
+Publish conventions (module-level, optional): --publish operates on one subject over a set
+of inputs, resolved from the imported module:
+  * subject — --name, else a module global SUBJECT, else the sole registered subject
     (required if several are registered).
-  * inputs — a module global ``INPUTS`` (a list; what you're testing now), else the inputs
-    from a prior offline baseline. ``INPUTS`` wins, so editing the module drives the refresh.
+  * inputs — a module global INPUTS (a list; what you're testing now), else the inputs from
+    a prior offline baseline. INPUTS wins, so editing the module drives the refresh.
 
-Activation is positive and explicit — the decorators are inert unless this command runs,
-so they are safe to leave in production code.
+Activation is positive and explicit — the decorators are inert unless this command runs, so
+they are safe to leave in production code.
 """
 
 from __future__ import annotations
