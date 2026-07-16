@@ -1,0 +1,50 @@
+defaults: &defaults
+  num_flags: 100
+  num_users: 50
+  num_context_fields: 10
+
+# Eval hot path the caller pays: finally_after hook (cheap capture + non-blocking enqueue).
+hook-enqueue-typical:
+  <<: *defaults
+  mode: hook_enqueue
+
+hook-enqueue-stress:
+  <<: *defaults
+  mode: hook_enqueue
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+
+hook-enqueue-scale:
+  <<: *defaults
+  mode: hook_enqueue
+  num_flags: 2500
+  num_users: 500
+  num_context_fields: 20
+
+# Background worker hot path: canonical key + two-tier aggregation.
+aggregate-typical:
+  <<: *defaults
+  mode: aggregate
+
+aggregate-stress:
+  <<: *defaults
+  mode: aggregate
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+
+aggregate-scale:
+  <<: *defaults
+  mode: aggregate
+  num_flags: 2500
+  num_users: 500
+  num_context_fields: 20
+
+# End-to-end per-flush shape: N enqueues followed by drain + aggregate.
+hook-plus-drain-scale:
+  <<: *defaults
+  mode: hook_plus_drain
+  num_flags: 2500
+  num_users: 500
+  num_context_fields: 20

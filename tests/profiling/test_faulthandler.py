@@ -5,6 +5,12 @@ Validates that:
 - faulthandler's traceback output works when our SIGSEGV handler is installed
 - The pause/resume mechanism works correctly for safe handler swapping
 - Edge cases like stop-while-paused and fork-after-enable are handled
+
+These tests drive the native sampler directly via stack.start(), which
+bypasses StackCollector (the only place that reads
+_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED and calls
+stack.set_adaptive_sampling). Each test therefore disables adaptive
+sampling explicitly before starting the sampler.
 """
 
 import sys
@@ -27,6 +33,7 @@ def test_faulthandler_manual_enable_after_profiler_start() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         faulthandler.enable()
@@ -53,6 +60,7 @@ def test_faulthandler_manual_enable_before_profiler_start() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         from ddtrace.profiling import _faulthandler  # noqa: F401
@@ -77,6 +85,7 @@ def test_faulthandler_manual_multiple_enables() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         for _ in range(10):
@@ -111,6 +120,7 @@ def test_pythonfaulthandler_env_after_profiler_start() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         assert faulthandler.is_enabled()
@@ -141,6 +151,7 @@ def test_pythonfaulthandler_env_with_multiple_manual_enables() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         for _ in range(10):
@@ -215,6 +226,7 @@ def test_pause_resume_while_running() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         time.sleep(0.05)
@@ -240,6 +252,7 @@ def test_stop_while_paused() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     time.sleep(0.05)
     assert stack.pause_sampling() is True
@@ -263,6 +276,7 @@ def test_faulthandler_enable_during_sampling() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         time.sleep(0.1)
@@ -293,6 +307,7 @@ def test_faulthandler_with_fork() -> None:
     ddup.start()
 
     faulthandler.enable()
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         pid = os.fork()
@@ -374,6 +389,7 @@ def test_faulthandler_enable_concurrent_threads() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         errors: list[BaseException] = []
@@ -454,6 +470,7 @@ def test_faulthandler_disable_pauses_sampler_when_running() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         time.sleep(0.05)
@@ -526,6 +543,7 @@ def test_faulthandler_enable_disable_cycle_during_sampling() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         time.sleep(0.05)
@@ -559,6 +577,8 @@ def test_faulthandler_disable_concurrent_with_enable() -> None:
     ddup.config(env="test", service="test", version="0.0.0")
     ddup.start()
 
+    # Keep pause_sampling() fast; see module docstring.
+    stack.set_adaptive_sampling(False)
     stack.start()
     try:
         errors: list[BaseException] = []
@@ -578,8 +598,9 @@ def test_faulthandler_disable_concurrent_with_enable() -> None:
         for t in threads:
             t.start()
         for t in threads:
-            # 80 serialized calls through _enable_lock; each pause_sampling()
-            # can block up to 3 s on timeout, so give generous headroom.
+            # 160 pause/resume cycles serialized through _enable_lock (80 enable
+            # + 80 disable). With adaptive sampling disabled these are fast, but
+            # keep generous headroom for CPU-starved CI runners.
             t.join(timeout=30)
 
         still_alive = [t for t in threads if t.is_alive()]
