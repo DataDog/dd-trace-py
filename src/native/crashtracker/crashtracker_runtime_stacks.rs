@@ -25,24 +25,38 @@ unsafe fn gil_is_held() -> bool {
 }
 
 /************************************************************
- Emit runtime stacktrace as string using _Py_DumpTracebackThreads
+ Emit runtime stacktrace as string using _Py_DumpTracebackThreads /
+ PyUnstable_DumpTracebackThreads
 ************************************************************/
 
-// Function pointer type for _Py_DumpTracebackThreads
+// CPython 3.15 renamed _Py_DumpTracebackThreads to PyUnstable_DumpTracebackThreads
+// and added a 4th `max_threads` parameter.  We use the 4-arg signature universally:
+// on older CPython the extra register argument is harmless (x86_64 SysV / ARM64 AAPCS
+// pass the first >=4 integer args in registers), and on 3.15+ passing 0 means
+// "use the default limit".
 type PyDumpTracebackThreadsFn = unsafe extern "C" fn(
     fd: c_int,
     interp: *mut pyo3_ffi::PyInterpreterState,
     current_tstate: *mut pyo3_ffi::PyThreadState,
+    max_threads: isize,
 ) -> *const c_char;
 
-// Cached function pointer to avoid dlsym during crash
+// Function pointer type for PyFrame_GetBack
+type PyFrameGetBackFn =
+    unsafe extern "C" fn(*mut pyo3_ffi::PyFrameObject) -> *mut pyo3_ffi::PyFrameObject;
+
+// Cached function pointers to avoid dlsym during crash
 static mut DUMP_TRACEBACK_FN: Option<PyDumpTracebackThreadsFn> = None;
 static DUMP_TRACEBACK_INIT: Once = Once::new();
+static mut FRAME_GET_BACK_FN: Option<PyFrameGetBackFn> = None;
+static FRAME_GET_BACK_INIT: Once = Once::new();
 
 const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
 
-// Attempt to resolve _Py_DumpTracebackThreads at runtime
-// Try to link once during registration
+// Attempt to resolve the CPython traceback-dump function at runtime.
+// CPython <= 3.14 exports `_Py_DumpTracebackThreads` (3 args).
+// CPython >= 3.15 replaced it with `PyUnstable_DumpTracebackThreads` (4 args, adds max_threads).
+// We try the new name first, then fall back to the old one.
 pub unsafe fn init_dump_traceback_fn() {
     DUMP_TRACEBACK_INIT.call_once(|| {
         #[cfg(unix)]
@@ -56,7 +70,13 @@ pub unsafe fn init_dump_traceback_fn() {
 
             const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
 
-            let symbol_ptr = dlsym(RTLD_DEFAULT, c"_Py_DumpTracebackThreads".as_ptr());
+            // Try the CPython 3.15+ public unstable name first.
+            let mut symbol_ptr = dlsym(RTLD_DEFAULT, c"PyUnstable_DumpTracebackThreads".as_ptr());
+
+            // Fall back to the private name used through CPython 3.14.
+            if symbol_ptr.is_null() {
+                symbol_ptr = dlsym(RTLD_DEFAULT, c"_Py_DumpTracebackThreads".as_ptr());
+            }
 
             if !symbol_ptr.is_null() {
                 DUMP_TRACEBACK_FN =
@@ -74,6 +94,45 @@ pub unsafe fn init_dump_traceback_fn() {
 // Get the cached function pointer; should only be called after init_dump_traceback_fn
 pub unsafe fn get_cached_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
     DUMP_TRACEBACK_FN
+}
+
+// PyFrame_GetBack is in CPython's public C API through 3.14+,
+// but is absent from the limited API (Py_LIMITED_API). Rather than using compile-time
+// cfg guards that break under PYO3_USE_ABI3_FORWARD_COMPATIBILITY, we resolve the symbol
+// at runtime by using dlsym. This is safe because init runs at crashtracker registration time,
+// not during the crash signal handler.
+pub unsafe fn init_frame_get_back_fn() {
+    FRAME_GET_BACK_INIT.call_once(|| {
+        #[cfg(unix)]
+        {
+            extern "C" {
+                fn dlsym(
+                    handle: *mut std::ffi::c_void,
+                    symbol: *const std::ffi::c_char,
+                ) -> *mut std::ffi::c_void;
+            }
+
+            const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
+
+            let symbol_ptr = dlsym(RTLD_DEFAULT, c"PyFrame_GetBack".as_ptr());
+
+            if !symbol_ptr.is_null() {
+                FRAME_GET_BACK_FN = Some(std::mem::transmute::<*mut c_void, PyFrameGetBackFn>(
+                    symbol_ptr,
+                ));
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            // FRAME_GET_BACK_FN remains None on non-Unix platforms
+        }
+    });
+}
+
+#[cfg(Py_LIMITED_API)]
+unsafe fn get_cached_frame_get_back_fn() -> Option<PyFrameGetBackFn> {
+    FRAME_GET_BACK_FN
 }
 
 unsafe fn dump_python_traceback_as_string(
@@ -116,7 +175,8 @@ unsafe fn dump_python_traceback_as_string(
     }
 
     // Use null thread state for signal-safety; CPython will dump all threads.
-    let error_msg = dump_fn(write_fd, ptr::null_mut(), ptr::null_mut());
+    // max_threads=0 tells CPython 3.15+ to use its default limit.
+    let error_msg = dump_fn(write_fd, ptr::null_mut(), ptr::null_mut(), 0);
 
     // Ignore close return: EINTR cannot occur on Linux for close, and
     // any other error means the fd is already gone — nothing to recover.
@@ -232,7 +292,18 @@ unsafe fn advance_frame(frame: *mut pyo3_ffi::PyFrameObject) -> *mut pyo3_ffi::P
     if frame.is_null() {
         return ptr::null_mut();
     }
+    // PyFrame_GetBack is absent from pyo3-ffi's stable/limited-API bindings (Py_LIMITED_API),
+    // which is activated for Python 3.15+ via PYO3_USE_ABI3_FORWARD_COMPATIBILITY.
+    // On Py_LIMITED_API builds the crashtracker captures only the top frame rather than the full stack.
+    #[cfg(not(Py_LIMITED_API))]
     let back = pyo3_ffi::PyFrame_GetBack(frame);
+
+    #[cfg(Py_LIMITED_API)]
+    let back = match get_cached_frame_get_back_fn() {
+        Some(get_back) => get_back(frame),
+        None => ptr::null_mut(),
+    };
+
     pyo3_ffi::Py_DecRef(frame as *mut pyo3_ffi::PyObject);
     back
 }
@@ -252,7 +323,7 @@ unsafe fn emit_python_frame(
     #[cfg(not(Py_3_11))]
     let function_view = get_code_attr_utf8_view(frame, b"co_name\0");
 
-    // For verions 3.11+, we should use qualified name
+    // For versions 3.11+, we should use qualified name
     #[cfg(Py_3_11)]
     let function_view = get_code_attr_utf8_view(frame, b"co_qualname\0");
 
