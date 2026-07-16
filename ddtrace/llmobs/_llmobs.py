@@ -3481,7 +3481,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
-propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
             # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
             # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
             propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
@@ -3501,7 +3501,7 @@ propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
-if propagated_session_id is not None:
+                if propagated_session_id is not None:
                     llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
                 if propagated_agent_id is not None:
                     llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
@@ -3516,7 +3516,7 @@ if propagated_session_id is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
-if propagated_session_id is not None:
+            if propagated_session_id is not None:
                 llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
             if propagated_agent_id is not None:
                 llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
