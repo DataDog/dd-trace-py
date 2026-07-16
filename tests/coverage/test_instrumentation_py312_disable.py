@@ -37,7 +37,7 @@ def test_event_handler_returns_disable():
         calls.append(line_info)
 
     # Register the code object with our hook
-    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {})
+    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {}, (0, "/test/path.py", None), ())
 
     # Pin the DISABLE optimisation on: this test is specifically about the DISABLE-returning
     # behavior, not about how the flag gets computed. Outside this test, the real coverage
@@ -229,7 +229,7 @@ def test_update_disable_optimization_rearmed_on_transition():
     # Set up a real code object and register it in _CODE_HOOKS
     code_obj = compile("x = 1", "<test_rearm>", "exec")
     calls: list[object] = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {})
+    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {}, (0, "/test/rearm.py", None), ())
     sys.monitoring.set_local_events(m._DD_TOOL_ID, code_obj, m.EVENT)
 
     # Start in DISABLE mode (default)
@@ -285,7 +285,7 @@ def test_event_handler_returns_none_when_other_tool_present():
     # Set up a code hook
     code_obj = compile("x = 1", "<test>", "exec")
     calls = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {})
+    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, (0, "/test/path.py", None), ())
 
     try:
         # Update the flag based on detected tools
