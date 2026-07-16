@@ -1,8 +1,16 @@
+from functools import lru_cache
 from http import HTTPStatus
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.runtime import container
+
+
+@lru_cache(maxsize=64)
+def _build_client(base_url: str, timeout_ms: int) -> Any:
+    from ddtrace.internal.http_client import HTTPClient
+
+    return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False)
 
 
 class _CaseInsensitiveHeaders:
@@ -55,10 +63,9 @@ class NativeHTTPConnection:
 
     The class shares ``HTTPClient`` instances across calls for the same
     (base_url, timeout_ms) pair so that connection pooling still applies.
+    Instances are built and cached by :func:`_build_client`, an ``lru_cache``-
+    wrapped function — thread-safe and bounded (LRU-evicted) for free.
     """
-
-    # Class-level cache: (base_url, timeout_ms) -> HTTPClient
-    _client_cache: dict[tuple[str, int], Any] = {}
 
     def __init__(self, base_url: str, timeout: float) -> None:
         self._base_url = base_url
@@ -69,16 +76,7 @@ class NativeHTTPConnection:
         self._pending_headers: list[tuple[str, str]] = []
 
     def _get_client(self) -> Any:
-        from ddtrace.internal.http_client import HTTPClient
-
-        key = (self._base_url, self._timeout_ms)
-        if key not in NativeHTTPConnection._client_cache:
-            NativeHTTPConnection._client_cache[key] = HTTPClient(
-                self._base_url,
-                timeout_ms=self._timeout_ms,
-                treat_http_errors_as_errors=False,
-            )
-        return NativeHTTPConnection._client_cache[key]
+        return _build_client(self._base_url, self._timeout_ms)
 
     def request(self, method: str, url: str, body: Any = None, headers: Any = {}) -> None:
         self._method = method.lower()
