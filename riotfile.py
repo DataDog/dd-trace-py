@@ -609,6 +609,8 @@ venv = Venv(
                 # Ray Serve cloudpickles objects that reference the global config
                 # (which holds forksafe locks); test_forksafe.py exercises that path.
                 "cloudpickle": latest,
+                # exercises the module-cloning regression test for yaml/_yaml
+                "PyYAML": latest,
             },
             venvs=[
                 Venv(
