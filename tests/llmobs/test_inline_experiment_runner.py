@@ -741,24 +741,6 @@ def test_sdk_task_replays_async_subject():
     assert task({"x": 7}, None) == {"v": 7}
 
 
-def test_smells_like_prod_one_way_gate(monkeypatch):
-    import sys as _sys
-
-    from ddtrace.internal.settings import env as _env
-
-    # no TTY AND DD_ENV=prod -> refuse
-    monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
-    monkeypatch.setattr(_env, "get", lambda k, d="": "prod" if k == "DD_ENV" else d)
-    assert cli._smells_like_prod() is True
-    # an interactive TTY never trips it, even in prod (the gate can only tighten)
-    monkeypatch.setattr(_sys.stdout, "isatty", lambda: True, raising=False)
-    assert cli._smells_like_prod() is False
-    # a non-prod env never trips it
-    monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
-    monkeypatch.setattr(_env, "get", lambda k, d="": d)
-    assert cli._smells_like_prod() is False
-
-
 def test_publish_run_aborts_before_experiment_when_push_fails(monkeypatch):
     ran = {"experiment": False}
 

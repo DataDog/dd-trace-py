@@ -26,8 +26,7 @@ set of inputs, resolved from the imported module:
     from a prior offline baseline. ``INPUTS`` wins, so editing the module drives the refresh.
 
 Activation is positive and explicit — the decorators are inert unless this command runs,
-so they are safe to leave in production code. As a one-way fail-safe this command also
-refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).
+so they are safe to leave in production code.
 """
 
 from __future__ import annotations
@@ -45,18 +44,6 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def _smells_like_prod() -> bool:
-    # ``env`` (not ``os.environ``) is the repo-mandated accessor; imported lazily so this
-    # one-way fail-safe still runs before the user's app/LLMObs is imported.
-    from ddtrace.internal.settings import env
-
-    try:
-        not_a_tty = not sys.stdout.isatty()
-    except Exception:
-        not_a_tty = False
-    return not_a_tty and env.get("DD_ENV", "").lower() in ("prod", "production")
 
 
 def _load_env_file(path: str) -> int:
@@ -447,19 +434,15 @@ def main() -> None:
     parser = _build_arg_parser()
     args = parser.parse_args()
 
-    # Load a local .env first — before the prod fail-safe reads config and before the
-    # app/LLM Obs are imported — so DD_*/OPENAI_API_KEY needn't be exported. Real env wins.
+    # Load a local .env first — before the app/LLM Obs are imported — so DD_*/OPENAI_API_KEY
+    # needn't be exported. Real env wins.
     env_file = args.env_file or ".env"
     if os.path.exists(env_file):
         loaded = _load_env_file(env_file)
         if loaded:
             print("ddtrace-experiment: loaded %d var(s) from %s" % (loaded, env_file))
 
-    if _smells_like_prod():
-        print("ddtrace-experiment: refusing to run — looks like production (no TTY and DD_ENV=prod).", file=sys.stderr)
-        sys.exit(2)
-
-    # Imported lazily so the prod fail-safe runs before any user/ddtrace code is imported.
+    # Imported lazily (after arg parsing) so `--help` stays fast and doesn't import ddtrace.
     from ddtrace.llmobs import _inline_experiment as ie
     from ddtrace.llmobs import _inline_experiment_runner as runner
 
