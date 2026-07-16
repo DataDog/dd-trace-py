@@ -120,9 +120,9 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
 
 # The profiling backend accepts at most this many locations per sample.
 BACKEND_MAX_LOCATIONS = 600
-# AIDEV-NOTE: Reserve one location for the synthetic "<N frames omitted>" frame
-# emitted when a stack is truncated. Keep these constants in sync with
-# g_backend_max_nlocations and g_backend_max_nframes in constants.hpp.
+# Reserve one location for the synthetic "<N frames omitted>" frame emitted when
+# a stack is truncated. Keep these constants in sync with g_backend_max_nlocations
+# and g_backend_max_nframes in constants.hpp.
 MAX_FRAMES = BACKEND_MAX_LOCATIONS - 1
 
 
