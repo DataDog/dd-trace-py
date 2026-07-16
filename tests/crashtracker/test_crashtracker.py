@@ -678,6 +678,9 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import config_str
+
     service = "test_crashtracker_set_tag_profiler_config"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -696,8 +699,6 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         report = utils.get_crash_report(client, service=service)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
-        from ddtrace.internal.settings.profiling import config as profiling_config
-        from ddtrace.internal.settings.profiling import config_str
 
         profiler_config = config_str(profiling_config)
         assert profiler_config.encode() in report["body"]

@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    profiling: This enables exception profiling by default when the profiler is active on Python 3.12+.
+    profiling: Exception profiling is now enabled by default when the profiler is active on Python 3.12+.
     Exception profiling samples raised exceptions to help identify error hotspots in your application.
-    On Python < 3.12 and free-threaded builds, exception profiling is not available.
+    Exception profiling is not available on Python < 3.12 and free-threaded builds.
