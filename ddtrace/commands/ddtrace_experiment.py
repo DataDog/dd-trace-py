@@ -35,6 +35,7 @@ import argparse
 import asyncio
 import importlib
 import inspect
+import json
 import os
 import sys
 from typing import Any
@@ -126,8 +127,6 @@ def _flush_llmobs() -> None:
 
 
 def _trunc(v: Any, n: int = 34) -> str:
-    import json
-
     s = v if isinstance(v, str) else json.dumps(v, default=str)
     return s if len(s) <= n else s[: n - 1] + "…"
 
@@ -218,8 +217,6 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
         print("run: no baseline cases for %s in %s." % (which, baseline_file), file=sys.stderr)
         sys.exit(2)
     if args.report:
-        import json
-
         with open(args.report, "w") as f:
             json.dump(report, f, default=str, indent=2)
         print("full report (untruncated input/recorded/new + evals) -> %s" % os.path.abspath(args.report))
