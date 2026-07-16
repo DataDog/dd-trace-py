@@ -194,8 +194,10 @@ stack_link_origin_task_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
+    // Format "z" yields nullptr when the optional arg is omitted or None.
     Py_BEGIN_ALLOW_THREADS;
-    OriginTaskLinks::get_instance().link_origin_task(thread_id, task_id, std::string(task_name));
+    OriginTaskLinks::get_instance().link_origin_task(
+      thread_id, task_id, task_name ? std::string(task_name) : std::string());
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
