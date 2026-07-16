@@ -236,10 +236,7 @@ impl TraceExporterBuilderPy {
     ///
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
-    fn build(
-        &mut self,
-        shared_runtime: PyRef<'_, SharedRuntimePy>,
-    ) -> PyResult<TraceExporterPy> {
+    fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
         let shared_runtime = shared_runtime.as_arc().clone();
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
@@ -250,9 +247,7 @@ impl TraceExporterBuilderPy {
                     .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
-            buffer: Mutex::new(TraceBuffer {
-                chunks: Vec::new(),
-            }),
+            buffer: Mutex::new(TraceBuffer { chunks: Vec::new() }),
         };
         Ok(exporter)
     }
