@@ -192,6 +192,9 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._store_metadata()
+
+    def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=__version__,
@@ -405,6 +408,7 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:

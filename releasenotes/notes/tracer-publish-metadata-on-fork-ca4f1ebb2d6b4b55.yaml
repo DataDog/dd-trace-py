@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where forked child processes did not
+    republish tracer metadata, the context was inherited from the parent and
+    contained stale metadata.

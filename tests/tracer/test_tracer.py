@@ -1873,6 +1873,25 @@ def test_fork_pid():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_fork_republishes_tracer_metadata():
+    import os
+    from unittest import mock
+
+    import ddtrace.auto  # noqa
+
+    with mock.patch("ddtrace._trace.tracer.store_metadata") as mock_store_metadata:
+        pid = os.fork()
+
+        if pid == 0:
+            mock_store_metadata.assert_called()
+            os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
 @pytest.mark.subprocess
 def test_tracer_api_version():
     from ddtrace.internal.encoding import MsgpackEncoderV05
