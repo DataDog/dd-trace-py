@@ -146,6 +146,10 @@ def patch():
 
     openai.__datadog_patch = True
 
+    # Notify AI Guard (and any other plugin) that wrapping is complete so they
+    # can install their own outermost wrappers on the same targets.
+    core.dispatch("openai.patch", tuple())
+
 
 def unpatch():
     if not getattr(openai, "__datadog_patch", False):
@@ -156,6 +160,10 @@ def unpatch():
         return
 
     openai.__datadog_patch = False
+
+    # Notify AI Guard first so it can peel its outermost wrappers before the
+    # contrib's own unwrap calls restore the layer below.
+    core.dispatch("openai.unpatch", tuple())
 
     if OPENAI_VERSION >= (1, 8, 0):
         unwrap(openai._base_client.SyncAPIClient, "_process_response")

@@ -145,6 +145,13 @@
         "default": "false"
       }
     ],
+    "DD_AI_GUARD_ANTHROPIC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -166,6 +173,13 @@
         "default": null
       }
     ],
+    "DD_AI_GUARD_LANGCHAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_MAX_CONTENT_SIZE": [
       {
         "implementation": "A",
@@ -178,6 +192,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_AI_GUARD_OPENAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_TIMEOUT": [
@@ -290,6 +311,14 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_APPSEC_AGENTIC_ONBOARDING": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
@@ -1577,6 +1606,14 @@
         "experimental": true
       }
     ],
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "experimental": true
+      }
+    ],
     "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": [
       {
         "implementation": "B",
@@ -1645,6 +1682,14 @@
         "implementation": "A",
         "type": "decimal",
         "default": "1.0"
+      }
+    ],
+    "DD_FLAGGING_EVALUATION_COUNTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
       }
     ],
     "DD_FLASK_CACHE_SERVICE": [
@@ -2472,6 +2517,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_MISTRALAI_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_MISTRALAI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MLFLOW_SERVICE": [
@@ -4399,6 +4454,13 @@
         "default": null
       }
     ],
+    "DD_TRACE_MISTRALAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_MLFLOW_ENABLED": [
       {
         "implementation": "A",
@@ -4477,6 +4539,13 @@
       }
     ],
     "DD_TRACE_OTEL_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5528,6 +5597,13 @@
         "default": null
       }
     ],
+    "OTEL_TRACES_SPAN_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
@@ -6013,6 +6089,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],

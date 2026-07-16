@@ -78,3 +78,7 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+
+dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
+# ThreadAltStack lives in the vendored echion header tree.
+target_include_directories(test_alt_stack_ownership PRIVATE ../echion)

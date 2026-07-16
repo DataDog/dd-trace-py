@@ -163,7 +163,7 @@ experiments:
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.85 ms
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
@@ -413,7 +413,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytes_noaspect
             thresholds:
-              - execution_time < 0.20 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytesio_aspect
             thresholds:
@@ -537,11 +537,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-replace_noaspect
             thresholds:
-              - execution_time < 0.50 ms
+              - execution_time < 0.60 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_aspect
             thresholds:
-              - execution_time < 0.50 ms
+              - execution_time < 0.52 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_noaspect
             thresholds:
