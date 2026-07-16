@@ -36,6 +36,7 @@ Known limitations (deferred by design):
 
 import importlib
 import os
+import time
 from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
@@ -112,10 +113,16 @@ class _AudioAccumulator:
         self.present: bool = False
         self.oversize: bool = False
         self._bytes: int = 0
+        # Wall-clock (unix ns) when the first chunk of this segment was observed. Anchors the segment
+        # on the shared session timeline for full-conversation playback. Set even when bytes are later
+        # dropped (oversize), since ``present`` still surfaces a marker.
+        self.start_ns: Optional[int] = None
 
     def append(self, b64: str) -> None:
         if not b64:
             return
+        if self.start_ns is None:
+            self.start_ns = time.time_ns()
         self.present = True
         if self.oversize:
             return
@@ -131,6 +138,7 @@ class _AudioAccumulator:
         self.present = False
         self.oversize = False
         self._bytes = 0
+        self.start_ns = None
 
 
 class _InputTurn:
@@ -141,6 +149,9 @@ class _InputTurn:
         self.text: str = ""
         self.transcript: str = ""
         self.item_id: Optional[str] = None
+        # Wall-clock (unix ns) when the user's input audio was committed (~ end of user speech). Used
+        # to measure response latency from real speech-end rather than the padded buffer end.
+        self.speech_end_ns: Optional[int] = None
         # Tool results the app fed back (function_call_output) before the next response.
         self.tool_results: list[ToolResult] = []
 
@@ -216,6 +227,7 @@ class _RealtimeState:
                 return
             if event_type == "input_audio_buffer.committed":
                 self._pending_input.item_id = _get_attr(event, "item_id", None)
+                self._pending_input.speech_end_ns = time.time_ns()
                 return
             if event_type == "input_audio_buffer.cleared":
                 self._pending_input.audio.clear()
@@ -399,6 +411,7 @@ class _RealtimeState:
             metadata=self._session_metadata(),
             metrics=_usage_metrics(turn.usage),
             session_id=self._session_id,
+            audio_timing=_audio_timing(turn),
         )
 
     def _build_message(
@@ -578,6 +591,24 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return metrics or None
+
+
+def _audio_timing(turn: "_ResponseTurn") -> Optional[dict[str, int]]:
+    """Absolute (unix ns) anchors for this turn's audio segments on the shared session timeline.
+
+    These let the full-conversation-playback UI place each segment and compute time-to-response.
+    Captured on our own clock when the audio was observed, so they are provider-agnostic. Emitted as
+    span metadata (not tags — timestamps are high-cardinality). Keys are omitted when the segment has
+    no audio (a text-only or tool-only turn carries none of them).
+    """
+    timing: dict[str, int] = {}
+    if turn.input.audio.start_ns is not None:
+        timing["dd.llmobs.audio.input.start_time_unix_nano"] = turn.input.audio.start_ns
+    if turn.audio.start_ns is not None:
+        timing["dd.llmobs.audio.output.start_time_unix_nano"] = turn.audio.start_ns
+    if turn.input.speech_end_ns is not None:
+        timing["dd.llmobs.audio.input.speech_end_time_unix_nano"] = turn.input.speech_end_ns
+    return timing or None
 
 
 def _start_realtime_state(integration: Any, client: Any, model: Optional[str]) -> _RealtimeState:

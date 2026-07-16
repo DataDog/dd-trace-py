@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: OpenAI Realtime API turn spans now carry absolute audio-timing metadata
+    (``dd.llmobs.audio.input.start_time_unix_nano``, ``dd.llmobs.audio.output.start_time_unix_nano``,
+    and ``dd.llmobs.audio.input.speech_end_time_unix_nano``), captured on the tracer's own clock as
+    each audio segment is observed. This lets a full-conversation audio playback experience place each
+    turn's audio on one shared timeline and measure the latency between the user finishing speaking and
+    the agent responding.

@@ -182,14 +182,20 @@ class OpenAIIntegration(BaseLLMIntegration):
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
+        audio_timing: Optional[dict[str, int]] = None,
     ) -> None:
         """Tag a per-turn Realtime span (llm kind) built by the realtime state machine.
 
         Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
-        conversation in the UI (there is no parent session span).
+        conversation in the UI (there is no parent session span). ``audio_timing`` carries absolute
+        (unix ns) anchors for the turn's audio segments (``dd.llmobs.audio.*``) and is merged into
+        metadata so the full-conversation-playback UI can place each segment and compute latency.
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         model_provider = self._get_model_provider(span)
+        merged_metadata = dict(metadata or {})
+        if audio_timing:
+            merged_metadata.update(audio_timing)
         _annotate_llmobs_span_data(
             span,
             name="{}.{}".format(provider, span.resource) if span.resource else None,
@@ -198,7 +204,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider=model_provider,
             input_messages=input_messages or None,
             output_messages=output_messages or None,
-            metadata=metadata or {},
+            metadata=merged_metadata,
             metrics=metrics or None,
             session_id=session_id,
         )
