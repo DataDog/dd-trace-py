@@ -6,7 +6,9 @@ use libdd_data_pipeline::trace_exporter::{
 use libdd_shared_runtime::ForkSafeRuntime;
 use libdd_trace_utils::span::v04::Span;
 use pyo3::types::{PyBytes, PyString};
-use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use pyo3::{
+    exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes, PyTraverseError, PyVisit,
+};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 mod agent_response;
@@ -236,7 +238,13 @@ impl TraceExporterBuilderPy {
     ///
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
-    fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
+    /// `encode_links_events_as_json` is fixed for the exporter's output format (true for v0.5,
+    /// which has no wire fields for span links/events); it is applied to every span at flush.
+    fn build(
+        &mut self,
+        shared_runtime: PyRef<'_, SharedRuntimePy>,
+        encode_links_events_as_json: bool,
+    ) -> PyResult<TraceExporterPy> {
         let shared_runtime = shared_runtime.as_arc().clone();
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
@@ -248,6 +256,7 @@ impl TraceExporterBuilderPy {
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
             buffer: Mutex::new(TraceBuffer { chunks: Vec::new() }),
+            encode_links_events_as_json,
         };
         Ok(exporter)
     }
@@ -257,13 +266,20 @@ impl TraceExporterBuilderPy {
     }
 }
 
-/// Native buffer of converted libdatadog v0.4 spans awaiting flush.
+/// One buffered trace: the raw Python span objects plus the trace-level origin, kept
+/// *unconverted*. `build_v04_span` is deferred to `flush` (the background thread) so the
+/// per-request path only incref-and-stashes.
+struct BufferedChunk {
+    spans: Vec<Py<SpanData>>,
+    dd_origin: Option<Py<PyString>>,
+}
+
+/// Native buffer of unconverted trace chunks awaiting flush.
 ///
-/// Holds `Vec<Vec<Span<PyTraceData>>>` — a list of trace chunks, each a list of spans —
-/// exactly the shape [`TraceExporter::send_trace_chunks`] consumes. No size or count limits
-/// are enforced here; bounding the buffered data is libdatadog's responsibility.
+/// No size or count limits are enforced here; bounding the buffered data is libdatadog's
+/// responsibility.
 struct TraceBuffer {
-    chunks: Vec<Vec<Span<PyTraceData>>>,
+    chunks: Vec<BufferedChunk>,
 }
 
 /// Outcome of [`TraceExporterPy::put_trace`]: the trace was buffered, or it had no encodable
@@ -280,6 +296,8 @@ pub enum PutOutcome {
 pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
     buffer: Mutex<TraceBuffer>,
+    /// Fixed for the exporter's output format; applied to every span at flush.
+    encode_links_events_as_json: bool,
 }
 
 impl TraceExporterPy {
@@ -317,84 +335,81 @@ impl TraceExporterPy {
         })
     }
 
-    /// Convert one trace chunk (a Python ``list[Span]``) into libdatadog v0.4 spans and
-    /// buffer it for the next flush.
+    /// Buffer one trace chunk (a Python ``list[Span]``) for the next flush.
     ///
-    /// ``dd_origin`` is the trace-level origin, stamped as ``_dd.origin`` into every span's
-    /// meta. Returns `(outcome, item_bytes)` rather than raising, so the writer can record drop
-    /// metrics on the hot path without exception handling.
-    ///
-    /// `encode_links_events_as_json`: true for v0.5 output, which has no wire fields for span
-    /// links/events — see `SpanData::build_v04_span`.
-    #[pyo3(signature = (spans, dd_origin=None, encode_links_events_as_json=false))]
+    /// This only incref-and-stashes the raw span objects and the trace-level ``dd_origin``;
+    /// the conversion to libdatadog v0.4 spans (`build_v04_span`) is deferred to `flush`, which
+    /// runs on the background writer thread. Returns an outcome rather than raising.
+    #[pyo3(signature = (spans, dd_origin=None))]
     fn put_trace(
         &self,
-        py: Python<'_>,
         spans: Vec<Py<SpanData>>,
-        dd_origin: Option<Bound<'_, PyString>>,
-        encode_links_events_as_json: bool,
+        dd_origin: Option<Py<PyString>>,
     ) -> PyResult<PutOutcome> {
         if spans.is_empty() {
             return Ok(PutOutcome::NoEncodableSpans);
         }
-
-        let origin = match dd_origin {
-            Some(s) => Some(PyBackedString::try_from(s)?),
-            None => None,
-        };
-
-        // Packs meta_struct values; None skips meta_struct entirely.
-        let packb = get_packb(py);
-
-        let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
-        for span in &spans {
-            // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
-            // build_v04_span's doc comment.
-            let (mut v04_span, meta_struct_raw) = {
-                let span_ref = span.bind(py).borrow();
-                span_ref.build_v04_span(
-                    py,
-                    origin.as_ref(),
-                    encode_links_events_as_json,
-                    packb.is_some(),
-                )?
-            };
-            if let Some(packb) = packb {
-                for (key, value) in meta_struct_raw {
-                    let Ok(result) = packb.call1(py, (value.bind(py),)) else {
-                        continue;
-                    };
-                    let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
-                        continue;
-                    };
-                    v04_span
-                        .meta_struct
-                        .insert(key, Bytes::from_py_bytes(py_bytes));
-                }
-            }
-            chunk.push(v04_span);
-        }
-
-        self.lock_buffer().chunks.push(chunk);
+        self.lock_buffer()
+            .chunks
+            .push(BufferedChunk { spans, dd_origin });
         Ok(PutOutcome::Accepted)
     }
 
-    /// Drain the buffered trace chunks and send them directly to the agent via
-    /// [`TraceExporter::send_trace_chunks`], bypassing msgpack encode/decode entirely.
+    /// Convert the buffered spans to libdatadog v0.4 spans (`build_v04_span`, GIL held) and send
+    /// them directly to the agent via [`TraceExporter::send_trace_chunks`], bypassing msgpack
+    /// encode/decode. The conversion runs here — on the background writer thread — so the
+    /// per-request `put_trace` stays cheap; the GIL is released only for the network send.
     ///
-    /// The GIL is released for the whole send.
-    ///
-    /// Returns ``(n_traces_sent, response_body)`` where ``response_body`` is the agent's
-    /// JSON body for a changed sampling rate, else ``None``.
+    /// Returns ``(n_traces_sent, response_body)`` where ``response_body`` is the agent's JSON
+    /// body for a changed sampling rate, else ``None``.
     fn flush(&self, py: Python<'_>) -> PyResult<(usize, Option<String>)> {
-        let chunks = {
+        let buffered = {
             let mut buf = self.lock_buffer();
             std::mem::take(&mut buf.chunks)
         };
-        let n = chunks.len();
-        if n == 0 {
+        if buffered.is_empty() {
             return Ok((0, None));
         }
+
+        // Packs meta_struct values; None skips meta_struct entirely.
+        let packb = get_packb(py);
+        let as_json = self.encode_links_events_as_json;
+
+        let mut chunks: Vec<Vec<Span<PyTraceData>>> = Vec::with_capacity(buffered.len());
+        for bc in &buffered {
+            let origin: Option<PyBackedString> = match &bc.dd_origin {
+                Some(o) => PyBackedString::try_from(o.bind(py).clone()).ok(),
+                None => None,
+            };
+            let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(bc.spans.len());
+            for span in &bc.spans {
+                // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
+                // build_v04_span's doc comment.
+                let (mut v04_span, meta_struct_raw) = {
+                    let span_ref = span.bind(py).borrow();
+                    span_ref.build_v04_span(py, origin.as_ref(), as_json, packb.is_some())?
+                };
+                if let Some(packb) = packb {
+                    for (key, value) in meta_struct_raw {
+                        let Ok(result) = packb.call1(py, (value.bind(py),)) else {
+                            continue;
+                        };
+                        let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
+                            continue;
+                        };
+                        v04_span
+                            .meta_struct
+                            .insert(key, Bytes::from_py_bytes(py_bytes));
+                    }
+                }
+                chunk.push(v04_span);
+            }
+            chunks.push(chunk);
+        }
+        // Drop the buffered Python refs while the GIL is held (avoids deferring them).
+        drop(buffered);
+
+        let n = chunks.len();
         let res: PyResult<AgentResponse> = py.detach(move || {
             let exporter = self
                 .inner
@@ -407,6 +422,32 @@ impl TraceExporterPy {
         match res? {
             AgentResponse::Changed { body } => Ok((n, Some(body))),
             AgentResponse::Unchanged => Ok((n, None)),
+        }
+    }
+
+    /// Cyclic-GC traversal: the buffer holds live `Py<SpanData>`/`Py<PyString>` refs that can
+    /// close reference cycles (span → context → tracer → writer → this exporter). Best-effort:
+    /// if the buffer is momentarily locked, skip this cycle rather than risk blocking GC.
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        let guard = match self.buffer.try_lock() {
+            Ok(g) => g,
+            Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return Ok(()),
+        };
+        for chunk in &guard.chunks {
+            for span in &chunk.spans {
+                visit.call(span)?;
+            }
+            if let Some(origin) = &chunk.dd_origin {
+                visit.call(origin)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        if let Ok(buf) = self.buffer.get_mut() {
+            buf.chunks.clear();
         }
     }
 

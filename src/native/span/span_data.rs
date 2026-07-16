@@ -14,7 +14,7 @@ use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
-        SpanLink as NativeSpanLink,
+        SpanLink as NativeSpanLink, VecMap,
     },
     SpanText as _,
 };
@@ -130,6 +130,13 @@ impl SpanData {
             r#type: truncate_span_text(py, self.span_type.clone_ref(py)),
             ..Default::default()
         };
+
+        // Pre-size the VecMap-backed maps so they don't grow-and-realloc while the attribute
+        // loop below pushes. Each attribute lands in exactly one of meta/metrics; meta gets a
+        // few extras (`_dd.origin` + up to 2 v0.5 links/events JSON keys). The transient
+        // over-allocation is freed once the span is sent.
+        out.meta = VecMap::with_capacity(self.attributes.len() + 3);
+        out.metrics = VecMap::with_capacity(self.attributes.len());
 
         if encode_links_events_as_json {
             // v0.5 has no span_links/span_events wire fields; JSON-encode them into meta

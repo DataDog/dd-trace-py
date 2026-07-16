@@ -864,7 +864,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime())
+        return builder.build(get_native_runtime(), self._api_version == "v0.5")
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -981,12 +981,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         ctx = spans[0].context
         dd_origin = ctx.dd_origin if ctx is not None else None
 
-        # v0.5 has no wire fields for span links/events, so JSON-encode them into meta instead.
-        # Buffer size/count limits were removed — libdatadog owns any bounding — so put_trace
-        # only reports whether the trace was buffered or had no encodable spans.
-        outcome = self._exporter.put_trace(
-            spans, dd_origin, encode_links_events_as_json=self._api_version == "v0.5"
-        )
+        # put_trace only incref-and-stashes the spans; conversion happens on the flush thread.
+        # (v0.5-vs-v0.4 link/event encoding is fixed at build time on the exporter.)
+        outcome = self._exporter.put_trace(spans, dd_origin)
         if outcome == native.PutOutcome.NoEncodableSpans:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:

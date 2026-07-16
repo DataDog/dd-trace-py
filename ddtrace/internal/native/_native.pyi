@@ -211,15 +211,12 @@ class TraceExporter:
         self,
         spans: Sequence["SpanData"],
         dd_origin: Optional[str] = None,
-        encode_links_events_as_json: bool = False,
     ) -> "PutOutcome":
         """
-        Convert one trace chunk to libdatadog v0.4 spans and buffer it for the next flush.
+        Buffer one trace chunk for the next flush (incref-and-stash only; conversion to
+        libdatadog v0.4 spans is deferred to flush, on the background writer thread).
         :param spans: The spans of one trace chunk (each a SpanData / Span).
-        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span.
-        :param encode_links_events_as_json: When True (v0.5 output), JSON-encode span
-            links/events into meta["_dd.span_links"]/meta["events"] instead of the native
-            v0.4 span_links/span_events fields, matching the historical v0.5 encoder.
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span at flush.
         :return: whether the chunk was buffered (Accepted) or had no encodable spans.
         """
         ...
@@ -444,11 +441,13 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime, encode_links_events_as_json: bool) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
+        :param encode_links_events_as_json: Fixed for the output format (True for v0.5); applied
+            to every span at flush time.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
