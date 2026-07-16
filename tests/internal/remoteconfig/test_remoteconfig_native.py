@@ -372,3 +372,49 @@ def test_fork_of_fork_broadcast():
     assert count == "1", "grandchild must receive the full snapshot, not an empty delta"
     assert path == BASE_PATH
     assert json.loads(content) == {"asm": {"enabled": True}}
+
+
+def test_poller_runs_periodic_every_cycle_even_when_fetch_fails():
+    # Product periodic() housekeeping must run every poller cycle regardless of
+    # fetch outcome, so stale-state timeouts (e.g. tracer-flare expiry, DI
+    # status) keep firing while the agent is down. Regression guard: periodic()
+    # used to run only after a successful fetch, inside _dispatch_to_products.
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+
+    ticks = []
+
+    class _PeriodicSink(_Sink):
+        def periodic(self):
+            ticks.append(1)
+
+    poller = RemoteConfigPoller()
+    poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures] = _PeriodicSink()
+    # Simulate agent-down / failed fetch: the state machine dispatches nothing.
+    poller._state = lambda: None
+
+    poller.periodic()
+    poller.periodic()
+
+    assert ticks == [1, 1]
+
+
+def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
+    # The native client + shared Tokio runtime must be constructed at enable(),
+    # BEFORE the _before_fork hook is registered. Otherwise the runtime registers
+    # its own before_fork/after_fork hooks lazily inside _before_fork — after
+    # forksafe has snapshotted the before-fork registry — so a child forked
+    # before the first poll runs after_fork_child with no matching before_fork
+    # and inherits an unusable runtime.
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    poller = worker_mod.RemoteConfigPoller()
+    order = []
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: order.append("native"))
+    monkeypatch.setattr(poller, "start", lambda: order.append("start"))
+    monkeypatch.setattr(worker_mod.forksafe, "register_before_fork", lambda hook: order.append("before_fork"))
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        assert poller.enable() is True
+
+    assert order == ["native", "before_fork", "start"], order

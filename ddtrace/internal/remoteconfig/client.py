@@ -115,7 +115,7 @@ class RemoteConfigClient:
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
 
-    def _ensure_native(self) -> Any:
+    def ensure_native(self) -> Any:
         if self._native is None:
             from ddtrace.internal.native import RemoteConfigClient as _NativeClient
             from ddtrace.internal.native_runtime import get_native_runtime
@@ -220,11 +220,15 @@ class RemoteConfigClient:
             grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
         return grouped
 
-    def _dispatch_to_products(self, grouped: dict[Any, list[Payload]]) -> None:
-        # Copy the callbacks so registration/unregistration during dispatch is safe.
-        product_callbacks = self._product_callbacks.copy()
+    def run_periodic(self) -> None:
+        """Run every registered product's ``periodic()`` housekeeping.
 
-        for product, callback in product_callbacks.items():
+        This is intentionally decoupled from config delivery: the origin poller
+        calls it once per cycle regardless of fetch outcome (see
+        ``RemoteConfigPoller.periodic``), so stale-state timeouts keep firing
+        even while the agent is unavailable.
+        """
+        for product, callback in self._product_callbacks.copy().items():
             try:
                 with StopWatch() as sw:
                     callback.periodic()
@@ -247,6 +251,10 @@ class RemoteConfigClient:
                     product,
                     exc_info=True,
                 )
+
+    def _dispatch_payloads(self, grouped: dict[Any, list[Payload]]) -> None:
+        # Copy the callbacks so registration/unregistration during dispatch is safe.
+        product_callbacks = self._product_callbacks.copy()
 
         for product, product_payload_list in grouped.items():
             product_callback = product_callbacks.get(product)
@@ -282,6 +290,13 @@ class RemoteConfigClient:
                         exc_info=True,
                     )
 
+    def _dispatch_to_products(self, grouped: dict[Any, list[Payload]]) -> None:
+        # Run housekeeping then deliver payloads. Used by the child-process
+        # subscriber, whose own timer is the only thing that ticks periodic()
+        # in the child (a bare poll tick passes an empty ``grouped``).
+        self.run_periodic()
+        self._dispatch_payloads(grouped)
+
     def dispatch_native_changes(self, records: Sequence[Any]) -> None:
         """Build payloads from native change records and dispatch them.
 
@@ -292,12 +307,15 @@ class RemoteConfigClient:
 
     def request(self) -> bool:
         try:
-            native = self._ensure_native()
+            native = self.ensure_native()
             changes = native.poll(
                 list(self._enabled_products),
                 list(ddtrace.config._get_extra_services()),
             )
-            self._dispatch_to_products(self._build_payloads(changes))
+            # Deliver payloads only; product periodic() housekeeping is driven
+            # once per cycle by the poller (RemoteConfigPoller.periodic), so it
+            # keeps running even when a fetch fails.
+            self._dispatch_payloads(self._build_payloads(changes))
             return True
         except Exception:
             log.debug("remote configuration client request failed", exc_info=True)
@@ -306,7 +324,7 @@ class RemoteConfigClient:
     def enable_shared_memory(self) -> None:
         """Enable cross-process SHM on the master process (called before forking)."""
         try:
-            self._ensure_native().enable_shared_memory()
+            self.ensure_native().enable_shared_memory()
         except Exception:
             log.debug("failed to enable remote config broadcast", exc_info=True)
 
