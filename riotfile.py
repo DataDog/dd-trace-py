@@ -97,6 +97,9 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # DEV: TEMPORARY — enables NativeTraceBuffer across all test suites to validate
+    # behavior before it becomes the default. Remove before merging to main.
+    "_DD_TRACE_NATIVE_BUFFER": "1",
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",  # 2-second timeout
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
     # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
