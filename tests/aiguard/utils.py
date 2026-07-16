@@ -10,7 +10,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard._api_client import Message
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import TracerSpanContainer
 

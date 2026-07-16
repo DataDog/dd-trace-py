@@ -9,7 +9,7 @@ from typing import TypedDict
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
 from ddtrace.ext import http
 from ddtrace.internal import core

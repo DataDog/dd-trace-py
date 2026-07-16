@@ -4,7 +4,7 @@ from platform import system
 import sys
 from typing import Optional
 
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT

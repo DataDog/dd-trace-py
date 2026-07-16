@@ -13,7 +13,7 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.asm import ai_guard_config
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call

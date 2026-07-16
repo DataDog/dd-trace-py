@@ -9,6 +9,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
 from ddtrace.aiguard._streaming import _is_async_plain_stream
@@ -29,7 +30,6 @@ from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_af
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
-from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
