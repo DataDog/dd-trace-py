@@ -220,7 +220,9 @@ def generate_new_riot_venvs(test_spec, base_venvs):
 
     for integration_name, targets in test_spec.items():
         children = []
-        base_venv = base_venvs_by_name[integration_name]
+        base_venv = base_venvs_by_name.get(integration_name)
+        if base_venv is None:
+            raise RuntimeError(f"No Riot venv exists for version support integration {integration_name!r}")
         for target in targets:
             command, pkgs, env = _merge_base_child_defaults(base_venv, target)
             kwargs = {
