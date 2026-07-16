@@ -288,12 +288,16 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
 
     meta = None if args.record else runner.load_publish_meta(baseline_file, subject)
     baseline_id = meta.get("baseline_experiment_id") if meta else None
+    # Reuse the project the baseline was frozen in when the user omits --project on a rerun, so
+    # the current dataset/experiment land in the SAME project as the baseline (otherwise they'd
+    # be created in the default project while the compare link points at the original one).
+    project = args.project or (meta.get("project") if meta else None) or None
 
     # Every run is the same operation: sync the stable dataset to this run's inputs and run the
     # subject as one experiment (scored by the subject's own evaluators). The regression signal
     # is the compare view, not an in-experiment check.
     try:
-        published = sdk.publish_run(subject, inputs, project_name=args.project, experiment_name=args.experiment_name)
+        published = sdk.publish_run(subject, inputs, project_name=project, experiment_name=args.experiment_name)
     except sdk.PublishAbort as e:
         print("run --publish: %s" % e, file=sys.stderr)
         sys.exit(1)
@@ -321,7 +325,7 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
         )
     elif baseline_id:
         # A frozen baseline exists -> link the compare view (baseline vs this run).
-        compare = sdk.compare_url_from_ids(baseline_id, published["experiment_id"], args.project)
+        compare = sdk.compare_url_from_ids(baseline_id, published["experiment_id"], project)
         if compare:
             print("  compare    -> %s" % compare)
     else:
@@ -333,7 +337,7 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
             subject,
             dataset_name=published["dataset_name"],
             baseline_experiment_id=published["experiment_id"],
-            project=args.project or "",
+            project=project or "",
         )
         print(
             "  (this run is the frozen baseline — run `ddtrace-experiment run %s --publish` again "

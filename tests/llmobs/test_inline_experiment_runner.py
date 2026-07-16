@@ -716,6 +716,50 @@ def test_cli_run_publish_rerun_compares_to_frozen_baseline(tmp_path, monkeypatch
     assert runner.load_baselines(p)["e"] == [{"input": {"x": 1}, "output": 11}]
 
 
+def test_cli_run_publish_rerun_reuses_stored_project_when_omitted(tmp_path, monkeypatch):
+    # A baseline frozen with --project stores that project; a rerun that omits --project must
+    # reuse it, so the current dataset/experiment land in the SAME project as the baseline.
+    p = str(tmp_path / "b.json")
+    runner.save_publish_meta(
+        p, "e", dataset_name="inline-experiment-e", baseline_experiment_id="base-1", project="orig-proj"
+    )
+    runner.write_baseline_cases(p, "e", [({"x": 1}, 11)])
+    calls = {}
+    monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
+    monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+    monkeypatch.setattr(sdk, "experiment_exists", lambda eid: True)
+    monkeypatch.setattr(
+        sdk, "compare_url_from_ids", lambda b, c, proj=None: calls.setdefault("cmp_proj", proj) or "cmp"
+    )
+
+    class _Mod:
+        SUBJECT = "e"
+        INPUTS = [{"x": 2}]
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    monkeypatch.setattr(cli, "_import_target", lambda t: (_Mod, None))
+
+    def fake_run(name, inputs, project_name=None, experiment_name=None):
+        calls["run_proj"] = project_name
+        return {
+            "experiment_id": "cur-2",
+            "url": "http://c",
+            "dataset_name": "inline-experiment-e",
+            "sync": {"added": 1, "deleted": 1, "kept": 0},
+            "pairs": [({"x": 2}, 22)],
+        }
+
+    monkeypatch.setattr(sdk, "publish_run", fake_run)
+
+    args = cli._build_arg_parser().parse_args(["run", "mymod", "--publish", "--baseline-file", p])
+    cli._cmd_run(args, ie, runner)
+    assert calls["run_proj"] == "orig-proj"  # stored project reused for the current run
+    assert calls["cmp_proj"] == "orig-proj"  # ...and for the compare link
+
+
 def test_rows_pairs_reads_dict_result_and_skips_only_real_errors():
     # experiment.run() returns an ExperimentResult *dict* whose rows always carry an "error"
     # dict (present even on success, with a null message). _rows_pairs must read "rows" from
