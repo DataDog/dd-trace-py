@@ -66,6 +66,7 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
@@ -541,6 +542,10 @@ class TestOptPlugin:
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        async_flush_events = _get_async_flush_events(len(session.items))
+        self.manager.writer.set_async_flush_events(async_flush_events)
+        self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
