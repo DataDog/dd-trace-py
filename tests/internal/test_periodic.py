@@ -884,6 +884,46 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     os._exit(2 if failed else 0)
 
 
+def test_recycled_ident_dealloc_does_not_evict_live_worker():
+    """Deterministic regression test for the same registry corruption exercised
+    probabilistically by ``test_writer_recreate_fork_child_does_not_deadlock``
+    (see that test's docstring for the full root-cause narrative).
+
+    Reproducing the bug for real requires the OS to recycle a freed thread id
+    and GC to run the stale dealloc at just the right moment, which is
+    libc/timing dependent. ``ident`` is a writable attribute on PeriodicThread
+    though, so recycling can be simulated directly instead:
+
+      1. Start a real worker; it registers ``periodic_threads[ident] = live``.
+      2. Create a second, never-started worker and force its ``ident`` to match
+         the live worker's -- simulating the OS reissuing that freed id.
+      3. Drop the stale worker and force a GC pass so its ``tp_dealloc`` runs.
+
+    Pre-fix, dealloc deleted ``periodic_threads[ident]`` by ident alone,
+    evicting the live worker's entry. Post-fix, the delete is guarded by an
+    identity check, so the live worker's entry survives.
+    """
+    from ddtrace.internal._threads import periodic_threads
+
+    live = periodic.PeriodicThread(1.0, lambda: None)
+    live.start()
+    try:
+        assert periodic_threads.get(live.ident) is live
+
+        stale = periodic.PeriodicThread(1.0, lambda: None)
+        stale.ident = live.ident  # simulate the OS recycling the freed thread id
+        del stale
+        gc.collect()
+
+        assert periodic_threads.get(live.ident) is live, (
+            "live worker's periodic_threads entry was evicted by a stale worker's "
+            "dealloc after simulated thread-id recycling"
+        )
+    finally:
+        live.stop()
+        live.join()
+
+
 def test_periodic_thread_naming():
     """Test that native thread names are set correctly with various formats.
 
