@@ -421,13 +421,13 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
 def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
     """Resolve (parent_agent_name, parent_agent_span_id) from the active LLMObs parent.
 
-    ``active`` is the result of ``_llmobs_context_provider.active()``:
-      - a ``Span`` whose kind is ``"agent"``: the parent IS the agent, so attribute to it.
-      - any other ``Span``: it already resolved its own attribution when it activated, so
-        inherit its stored ``PARENT_AGENT_*`` values (one level of lookup, no walk).
-      - a ``Context`` (distributed parent): read the propagated ``_dd.p.*`` keys off
-        ``context._meta``. The name may be absent if an upstream hop ran an older SDK.
-      - ``None``: no parent, so there is no agent to attribute to.
+    active is the result of _llmobs_context_provider.active():
+      - a Span whose kind is "agent": the parent IS the agent, so attribute to it.
+      - any other Span: it already resolved its own attribution when it activated, so
+        inherit its stored PARENT_AGENT_* values (one level of lookup, no walk).
+      - a Context (distributed parent): read the propagated _dd.p.* keys off
+        context._meta. The name may be absent if an upstream hop ran an older SDK.
+      - None: no parent, so there is no agent to attribute to.
 
     An agent span never attributes itself: resolution always looks at the parent.
     """
