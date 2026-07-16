@@ -1029,10 +1029,6 @@ def test_azure_streaming_completion_e2e(
     assert meta.get("model_provider") == "azure"
 
 
-@pytest.mark.skip(
-    reason="Scaffolding (PR #18985): record cassettes/completion_openrouter.yaml against OpenRouter, "
-    "then remove this skip."
-)
 def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_spans):
     """OpenRouter cost (usage.cost) captured through litellm is surfaced on the span's cost metrics.
 
@@ -1044,7 +1040,7 @@ def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_s
     """
     with request_vcr.use_cassette("completion_openrouter.yaml"):
         litellm.completion(
-            model="openrouter/openai/gpt-4o-mini",
+            model="openrouter/openai/gpt-oss-120b",
             messages=[{"content": "What is the capital of France?", "role": "user"}],
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]

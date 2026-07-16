@@ -3246,10 +3246,6 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34
 
 
-@pytest.mark.skip(
-    reason="Scaffolding (PR #18985): record cassettes/v1/chat_completion_openrouter.yaml against "
-    "OpenRouter, then remove this skip."
-)
 class TestLLMObsOpenAIOpenRouter:
     """OpenRouter cost capture through the OpenAI-compatible client.
 
@@ -3262,7 +3258,7 @@ class TestLLMObsOpenAIOpenRouter:
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter.yaml"):
             client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
             client.chat.completions.create(
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-oss-120b",
                 messages=[{"role": "user", "content": "What is the capital of France?"}],
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
