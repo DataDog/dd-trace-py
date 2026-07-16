@@ -39,6 +39,20 @@ from tests.testing.mocks import session_manager_mock
 from tests.testing.mocks import test_report
 
 
+def test_setup_coverage_collection_passes_file_level_coverage(monkeypatch) -> None:
+    monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", "true")
+
+    with (
+        patch("ddtrace.testing.internal.pytest.plugin.get_workspace_path", return_value=Path("/repo/path")),
+        patch("ddtrace.testing.internal.pytest.plugin.install_coverage") as mock_install_coverage,
+    ):
+        from ddtrace.testing.internal.pytest.plugin import setup_coverage_collection
+
+        setup_coverage_collection()
+
+    mock_install_coverage.assert_called_once_with(Path("/repo/path"), file_level_coverage=True)
+
+
 # =============================================================================
 # HIGH-LEVEL FEATURE TESTS (organized by feature)
 # =============================================================================
