@@ -25,13 +25,11 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 log = logging.getLogger(__name__)
 
 
-log = logging.getLogger(__name__)
-
-
-def install_coverage(workspace_path: Path) -> None:
+def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
+        file_level_coverage=file_level_coverage,
     )
     ModuleCodeCollector.start_coverage()
 

@@ -107,7 +107,10 @@ class CoverageCollectingMultiprocess(BaseProcess):
             # Avoid circular import since the installer imports uses _patch_multiprocessing()
             from ddtrace.internal.coverage.installer import install
 
-            install(include_paths=self._dd_coverage_include_paths)
+            install(
+                include_paths=self._dd_coverage_include_paths,
+                file_level_coverage=self._dd_file_level_coverage,
+            )
             ModuleCodeCollector.start_coverage()
 
         # Call the original bootstrap method
@@ -130,6 +133,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
     def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
+        self._dd_file_level_coverage = False
         self._dd_coverage_include_paths: list[Path] = []
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
@@ -150,6 +154,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._dd_coverage_enabled = True
             if ModuleCodeCollector._instance is not None:
                 self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
+                self._dd_file_level_coverage = ModuleCodeCollector._instance._file_level_coverage
 
             # Capture context-level coverage dict if active (runs in the main thread)
             if ctx_coverage_enabled.get():
@@ -188,8 +193,14 @@ class Stowaway:
     ModuleCodeCollector in it leads to incomplete code coverage data.
     """
 
-    def __init__(self, include_paths: t.Optional[list[Path]] = None, dd_coverage_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        include_paths: t.Optional[list[Path]] = None,
+        dd_coverage_enabled: bool = True,
+        file_level_coverage: bool = False,
+    ) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
+        self.file_level_coverage: bool = file_level_coverage
         self.include_paths_strs: list[str] = []
         if include_paths is not None:
             self.include_paths_strs = [str(include_path) for include_path in include_paths]
@@ -198,15 +209,19 @@ class Stowaway:
         return {
             "include_paths_strs": json.dumps(self.include_paths_strs),
             "dd_coverage_enabled": self.dd_coverage_enabled,
+            "file_level_coverage": self.file_level_coverage,
         }
 
-    def __setstate__(self, state: dict[str, str]) -> None:
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
             from ddtrace.internal.coverage.installer import install
 
-            install(include_paths=include_paths)
+            install(
+                include_paths=include_paths,
+                file_level_coverage=state.get("file_level_coverage", False) is True,
+            )
             _patch_multiprocessing()
 
 
@@ -236,7 +251,10 @@ def _patch_multiprocessing():
             include_paths = (
                 [] if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._include_paths
             )
-            d["stowaway"] = Stowaway(include_paths=include_paths)
+            file_level_coverage = (
+                False if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._file_level_coverage
+            )
+            d["stowaway"] = Stowaway(include_paths=include_paths, file_level_coverage=file_level_coverage)
             return d
 
         spawn.get_preparation_data = get_preparation_data_with_stowaway

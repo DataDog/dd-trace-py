@@ -37,6 +37,7 @@ _PY_GE_313 = sys.version_info >= (3, 13)
 _PY_GE_314 = sys.version_info >= (3, 14)
 
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
@@ -60,6 +61,20 @@ def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
     return defaultdict(CoverageLines)
 
 
+def _get_ctx_covered_files() -> set[str]:
+    if ctx_coverage_enabled.get():
+        if context_stack := ctx_covered_files.get():
+            return context_stack[-1]
+        log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
+
+    if _PY_GE_314:
+        tls_covered_files = getattr(_tls_coverage, "covered_files", None)
+        if tls_covered_files is not None:
+            return tls_covered_files
+
+    return set()
+
+
 class ModuleCodeCollector(ModuleWatchdog):
     _instance: t.Optional["ModuleCodeCollector"] = None
 
@@ -76,11 +91,13 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
+        self._file_level_coverage: bool = False
         self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
         self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
         self.covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self._covered_files: set[str] = set()
 
         # Import-time coverage data
         self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -101,6 +118,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls,
         include_paths: t.Optional[list[Path]] = None,
         collect_import_time_coverage: bool = False,
+        file_level_coverage: bool = False,
     ):
         if ModuleCodeCollector.is_installed():
             return
@@ -116,17 +134,36 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
+        cls._instance._file_level_coverage = file_level_coverage
 
         if collect_import_time_coverage:
             ModuleCodeCollector.register_import_exception_hook(
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
-        line: int
+    def hook(self, arg: tuple[t.Optional[int], str, t.Optional[tuple[str, tuple[str, ...]]]]):
+        line: t.Optional[int]
         path: str
         import_name: t.Optional[tuple[str, tuple[str, ...]]]
         line, path, import_name = arg
+
+        if import_name is not None and self._collect_import_coverage:
+            self._import_names_by_path[path].add(import_name)
+
+        if line is None:
+            return
+
+        if self._file_level_coverage and line == 0:
+            if self._coverage_enabled and path not in self._covered_files:
+                self._covered_files.add(path)
+                self.covered[path].add(line)
+
+            if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
+                ctx_covered_file_paths = _get_ctx_covered_files()
+                if path not in ctx_covered_file_paths:
+                    ctx_covered_file_paths.add(path)
+                    _get_ctx_covered_lines()[path].add(line)
+            return
 
         if self._coverage_enabled:
             lines = self.covered[path]
@@ -137,9 +174,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
             ctx_lines.add(line)
-
-        if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
 
     @classmethod
     def inject_coverage(
@@ -161,11 +195,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             for path, path_lines in lines.items():
                 instance.lines[path].update(path_lines)
         if covered:
+            ctx_covered_file_paths = _get_ctx_covered_files() if ctx_coverage_enabled.get() else None
             for path, path_covered in covered.items():
                 if instance._coverage_enabled:
                     instance.covered[path].update(path_covered)
+                    if instance._file_level_coverage:
+                        instance._covered_files.add(path)
                 if ctx_coverage_enabled.get() and ctx_covered_lines is not None:
                     ctx_covered_lines[path].update(path_covered)
+                    if instance._file_level_coverage and ctx_covered_file_paths is not None:
+                        ctx_covered_file_paths.add(path)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -247,9 +286,12 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
             if ctx_covered.get() is None:
                 ctx_covered.set([])
+            if ctx_covered_files.get() is None:
+                ctx_covered_files.set([])
 
         def __enter__(self):
             ctx_covered.get().append(defaultdict(CoverageLines))
+            ctx_covered_files.get().append(set())
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -259,6 +301,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # so also store in thread-local as a fallback for the hook.
             if _PY_GE_314:
                 _tls_coverage.covered = ctx_covered.get()[-1]
+                _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
@@ -281,15 +324,19 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         def __exit__(self, *args, **kwargs):
             covered_lines_stack = ctx_covered.get()
+            covered_files_stack = ctx_covered_files.get()
             covered_lines_stack.pop()
+            covered_files_stack.pop()
 
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
                 if _PY_GE_314:
                     _tls_coverage.covered = None
+                    _tls_coverage.covered_files = None
             elif _PY_GE_314:
                 _tls_coverage.covered = covered_lines_stack[-1]
+                _tls_coverage.covered_files = covered_files_stack[-1]
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
@@ -301,6 +348,7 @@ class ModuleCodeCollector(ModuleWatchdog):
     def start_coverage(cls):
         if cls._instance is None:
             return
+        cls._instance._covered_files.clear()
         cls._instance._coverage_enabled = True
 
     @classmethod
