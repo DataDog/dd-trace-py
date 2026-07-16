@@ -145,6 +145,13 @@
         "default": "false"
       }
     ],
+    "DD_AI_GUARD_ANTHROPIC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -164,6 +171,13 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_AI_GUARD_LANGCHAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_MAX_CONTENT_SIZE": [
@@ -1584,6 +1598,14 @@
         "experimental": true
       }
     ],
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "experimental": true
+      }
+    ],
     "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": [
       {
         "implementation": "B",
@@ -1652,6 +1674,14 @@
         "implementation": "A",
         "type": "decimal",
         "default": "1.0"
+      }
+    ],
+    "DD_FLAGGING_EVALUATION_COUNTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
       }
     ],
     "DD_FLASK_CACHE_SERVICE": [
