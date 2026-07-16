@@ -742,11 +742,11 @@ def _build_base_exporter_builder(
     if _config_facts.report_hostname():
         builder.set_hostname(get_hostname())
     if _config_facts.service():
-        builder.set_service(_config_facts.service())
+        builder.set_service(_config_facts.service() or "")
     if _config_facts.env():
-        builder.set_env(_config_facts.env())
+        builder.set_env(_config_facts.env() or "")
     if _config_facts.version():
-        builder.set_app_version(_config_facts.version())
+        builder.set_app_version(_config_facts.version() or "")
     if test_session_token is not None:
         builder.set_test_session_token(test_session_token)
     # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
@@ -1202,7 +1202,7 @@ def create_trace_writer(
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,
-            api_key=_config_facts.dd_api_key(),
+            api_key=_config_facts.dd_api_key() or "",
             dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
             sync_mode=_use_sync_mode(),
             report_metrics=not asm_config._apm_opt_out,
