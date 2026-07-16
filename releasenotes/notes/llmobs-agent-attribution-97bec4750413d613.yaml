@@ -1,10 +1,7 @@
 ---
 features:
   - |
-    LLM Observability: every span generated under an agent now carries a
-    ``meta.agent_attribution`` block identifying its nearest agent ancestor
-    (``pagent_name`` and ``pagent_span_id``). The nearest agent is
-    resolved in-process at span start, and propagated across service boundaries
-    via the ``_dd.p.llmobs_pagent_span_id`` / ``_dd.p.llmobs_pagent_name``
-    distributed tags. Spans with no agent ancestor omit the block entirely. This
-    lets the backend attribute spans to their agents without an extra lookup.
+    LLM Observability: spans generated under an agent are now automatically
+    attributed to their nearest agent ancestor, both within a single process and
+    across service boundaries. This enables the Datadog backend to group and
+    display spans by the agent that produced them.
