@@ -38,7 +38,7 @@ else:
 if sys.platform == "linux":
     from ddtrace.internal.native._native import update_otel_thread_context
 
-    def _on_activate_update_otel_thread_context(ctx: Optional[ActiveTrace]):
+    def _on_activate_update_otel_thread_context(ctx: Optional[ActiveTrace]) -> None:
         if type(ctx) is Span:
             update_otel_thread_context(
                 ctx.trace_id,
