@@ -308,12 +308,6 @@ ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-su
 }
 
 void
-ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb) // cppcheck-suppress unusedFunction
-{
-    sample->push_pytraceback(tb);
-}
-
-void
 ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
 {
     sample->push_absolute_ns(timestamp_ns);
