@@ -527,6 +527,17 @@ Application & API Security
 
 .. ddtrace-configuration-options::
 
+   DD_APPSEC_AGENTIC_ONBOARDING:
+     type: String
+     description: |
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding solution when it
+       configures App & API Protection. It lets Datadog record, via
+       `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
+       that the service was onboarded through the agentic flow. Its value is never read.
+
+     version_added:
+       v4.13.0:
+
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
       default: "safe"
@@ -616,7 +627,8 @@ AI Guard
      type: Boolean
      default: False
      description: |
-       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic
+       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
+       OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
        are fully buffered before any chunk is returned to the caller. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
@@ -634,6 +646,38 @@ AI Guard
        behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
+
+   DD_AI_GUARD_OPENAI_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the OpenAI SDK. When set to
+       ``True`` (default) and AI Guard is enabled, OpenAI calls are evaluated. Set to ``False`` to
+       disable AI Guard instrumentation for OpenAI only, without affecting other providers or
+       requiring a tracer version rollback.
+
+   DD_AI_GUARD_ANTHROPIC_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the Anthropic SDK. Behaves like
+       ``DD_AI_GUARD_OPENAI_ENABLED`` but scoped to Anthropic: set to ``False`` to disable AI Guard
+       instrumentation for Anthropic only, without affecting other providers or requiring a rollback.
+
+   DD_AI_GUARD_LANGCHAIN_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-framework kill switch for AI Guard auto-instrumentation of LangChain. Set to ``False`` to
+       disable AI Guard instrumentation for LangChain only, without affecting other integrations or
+       requiring a tracer version rollback.
+
+       Note: this disables only the LangChain framework-level integration; other integrations remain
+       active. If your LangChain models run on an instrumented provider SDK, its integration will
+       still evaluate those calls — so you must disable that provider's switch too. For example, with
+       ``ChatOpenAI`` also set ``DD_AI_GUARD_OPENAI_ENABLED=false``, and with ``ChatAnthropic`` also
+       set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
+       provider, set ``DD_AI_GUARD_ENABLED=false``.
 
 Code Security
 -------------
@@ -821,6 +865,10 @@ Test Visibility
         Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
         independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
         also contains performance and memory usage improvements.
+
+        Setting this option to ``false`` selects the legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
+        environment variable, or set it to ``true``, to use the supported default plugin.
 
      version_added:
         v4.3.0:
@@ -1074,7 +1122,7 @@ Sampling
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
-         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
+         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.reque?t"}]'``
 
      version_added:
         v1.4.0:

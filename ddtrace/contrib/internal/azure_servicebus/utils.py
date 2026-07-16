@@ -25,6 +25,7 @@ def create_context(
     pin: Pin,
     operation_name: str,
     resource: Optional[str] = None,
+    integration_config: Optional[dict] = None,
 ) -> core.ExecutionContext:
     return core.context_with_data(
         context_name,
@@ -33,6 +34,7 @@ def create_context(
         resource=resource,
         service=ext_service(pin, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
+        integration_config=integration_config,
     )
 
 

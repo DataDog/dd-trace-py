@@ -152,10 +152,14 @@ TaintRangeRefs
 api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id = std::nullopt);
 
 void
-api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2);
+api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional<size_t> context_id = std::nullopt);
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int offset, int new_length);
+api_copy_and_shift_ranges_from_strings(py::handle& str_1,
+                                       py::handle& str_2,
+                                       int offset,
+                                       int new_length = -1,
+                                       std::optional<size_t> context_id = std::nullopt);
 
 PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);

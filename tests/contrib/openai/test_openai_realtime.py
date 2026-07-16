@@ -62,7 +62,7 @@ class _RecordingIntegration:
         return _FakeSpan(operation_id)
 
     def _llmobs_set_tags_from_realtime_response(
-        self, span, model_name, input_messages, output_messages, metadata, metrics, session_id=None
+        self, span, model_name, input_messages, output_messages, metadata, metrics, session_id=None, audio_timing=None
     ):
         self.responses.append(
             {
@@ -73,6 +73,7 @@ class _RecordingIntegration:
                 "metadata": metadata,
                 "metrics": metrics,
                 "session_id": session_id,
+                "audio_timing": audio_timing,
             }
         )
 
@@ -157,6 +158,41 @@ def test_realtime_state_pcm_turn_wraps_audio_as_wav():
     assert resp["metrics"] == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
     # response span finished on response.done
     assert resp["span"].finished is True
+
+
+def test_realtime_state_audio_turn_carries_timing_anchors():
+    """An audio turn carries absolute (unix ns) start anchors for its input/output segments, plus the
+    user speech-end, so the full-conversation-playback UI can place each segment and measure latency."""
+    integration, state = _new_state()
+    _drive_turn(state)
+
+    timing = integration.responses[0]["audio_timing"]
+    assert timing is not None
+    input_start = timing["_dd.llmobs.audio.input.start_time_unix_nano"]
+    speech_end = timing["_dd.llmobs.audio.input.speech_end_time_unix_nano"]
+    output_start = timing["_dd.llmobs.audio.output.start_time_unix_nano"]
+    assert all(isinstance(v, int) for v in (input_start, speech_end, output_start))
+    # Captured on our own clock in event order: user audio starts, user speech ends (commit), then
+    # the agent's audio starts.
+    assert input_start <= speech_end <= output_start
+
+
+def test_realtime_state_text_only_turn_has_no_audio_timing():
+    """A turn with no audio (text in, text out) carries none of the audio-timing keys."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": _ns(type="message", role="user", content=[_ns(type="input_text", text="hi")]),
+        }
+    )
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    state.on_server_event(_ns(type="response.output_text.delta", response_id="r", delta="hello"))
+    state.on_server_event(_ns(type="response.output_text.done", response_id="r", text="hello"))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+
+    assert integration.responses[0]["audio_timing"] is None
 
 
 def test_realtime_state_turn_carries_session_metadata_and_id():
