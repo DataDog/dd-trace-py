@@ -172,7 +172,7 @@ stack_link_origin_task_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     static const char* const_kwlist[] = { "task_id", "task_name", nullptr };
     static char** kwlist = const_cast<char**>(const_kwlist);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ks", kwlist, &task_id, &task_name)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "K|z", kwlist, &task_id, &task_name)) {
         return nullptr;
     }
 

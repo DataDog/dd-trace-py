@@ -43,7 +43,6 @@ class OriginTaskLinks
     void link_origin_task(uint64_t thread_id, uint64_t task_id, std::string task_name);
     const std::optional<OriginTask> get_origin_task(uint64_t thread_id);
     void unlink_origin_task(uint64_t thread_id);
-    void reset();
 
     static void postfork_child();
 
