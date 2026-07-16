@@ -716,6 +716,21 @@ def test_cli_run_publish_rerun_compares_to_frozen_baseline(tmp_path, monkeypatch
     assert runner.load_baselines(p)["e"] == [{"input": {"x": 1}, "output": 11}]
 
 
+def test_rows_pairs_reads_dict_result_and_skips_only_real_errors():
+    # experiment.run() returns an ExperimentResult *dict* whose rows always carry an "error"
+    # dict (present even on success, with a null message). _rows_pairs must read "rows" from
+    # the dict and treat a row as failed only when error["message"] is set — otherwise it would
+    # drop every successful row and write an empty local baseline after the frozen publish.
+    result = {
+        "rows": [
+            {"input": {"q": 1}, "output": "a", "error": {"message": None, "stack": None, "type": None}},
+            {"input": {"q": 2}, "output": "b", "error": None},
+            {"input": {"q": 3}, "output": "c", "error": {"message": "boom", "type": "X", "stack": "..."}},
+        ]
+    }
+    assert sdk._rows_pairs(result) == [({"q": 1}, "a"), ({"q": 2}, "b")]
+
+
 def test_evaluate_one_reports_publish_only_evaluators(monkeypatch):
     # deepeval / pydantic-evals adapters aren't scorable locally; the engine wraps them on
     # --publish. evaluate_one should report them as publish-only rather than crashing.

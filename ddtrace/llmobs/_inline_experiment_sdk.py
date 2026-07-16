@@ -140,10 +140,19 @@ def compare_url_from_ids(
 
 
 def _rows_pairs(run: Any) -> list[tuple[Any, Any]]:
-    """(input, output) for each non-errored row of an ExperimentRun."""
+    """(input, output) for each successful row of an experiment run.
+
+    ``experiment.run()`` returns an ``ExperimentResult`` (a dict) whose ``"rows"`` each carry
+    an ``"error"`` dict that is present even on success (``{"message": None, ...}``); a row is a
+    real failure only when ``error["message"]`` is truthy — mirror the engine's own check
+    (``Experiment._format_experiment_summary``) rather than treating the dict's presence as an
+    error, which would drop every successful row and write an empty local baseline.
+    """
+    rows = run.get("rows") if isinstance(run, dict) else getattr(run, "rows", None)
     pairs: list[tuple[Any, Any]] = []
-    for row in getattr(run, "rows", None) or []:
-        if row.get("error"):
+    for row in rows or []:
+        error = row.get("error")
+        if isinstance(error, dict) and error.get("message"):
             continue
         pairs.append((row.get("input"), row.get("output")))
     return pairs
