@@ -363,6 +363,7 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
         CITag._CI_ENV_VARS: json.dumps(
             {
                 "DD_CUSTOM_TRACE_ID": env.get("DD_CUSTOM_TRACE_ID"),
+                "DD_CUSTOM_PARENT_ID": env.get("DD_CUSTOM_PARENT_ID"),
             },
             separators=(",", ":"),
         ),

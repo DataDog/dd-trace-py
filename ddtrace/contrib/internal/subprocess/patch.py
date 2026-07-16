@@ -44,11 +44,11 @@ def _supported_versions() -> dict[str, str]:
     return {"subprocess": "*"}
 
 
-_STR_CALLBACKS: dict[str, Callable[[str], None]] = {}
-_LST_CALLBACKS: dict[str, Callable[[Union[list[str], str]], None]] = {}
+_STR_CALLBACKS: dict[str, Callable[[Union[str, bytes]], None]] = {}
+_LST_CALLBACKS: dict[str, Callable[[Union[list[str], str, bytes]], None]] = {}
 
 
-def add_str_callback(name: str, callback: Callable[[str], None]):
+def add_str_callback(name: str, callback: Callable[[Union[str, bytes]], None]):
     """Add a callback function for string commands.
 
     Args:
@@ -67,7 +67,7 @@ def del_str_callback(name: str):
     _STR_CALLBACKS.pop(name, None)
 
 
-def add_lst_callback(name: str, callback: Callable[[Union[list[str], str]], None]):
+def add_lst_callback(name: str, callback: Callable[[Union[list[str], str, bytes]], None]):
     """Add a callback function for list commands.
 
     Args:
@@ -229,7 +229,7 @@ class SubprocessCmdLine:
         "*credentials*",
         "stripetoken",
     ]
-    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
+    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_][A-Z0-9_]*=\w+")
 
     def __init__(self, shell_args: Union[str, list[str]], shell: bool = False) -> None:
         """
@@ -237,6 +237,11 @@ class SubprocessCmdLine:
         binary, and arguments. For shell=False, the first element is the binary
         and the rest are arguments.
         """
+        # decode bytes commands (valid on POSIX) so shlex and the cache keep working
+        if isinstance(shell_args, bytes):
+            shell_args = shell_args.decode("utf-8", errors="replace")
+        elif isinstance(shell_args, (list, tuple)):
+            shell_args = [a.decode("utf-8", errors="replace") if isinstance(a, bytes) else a for a in shell_args]
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -284,7 +289,7 @@ class SubprocessCmdLine:
         """
         for idx, token in enumerate(tokens):
             if re.match(self._COMPILED_ENV_VAR_REGEXP, token):
-                var, value = token.split("=")
+                var, _ = token.split("=", 1)
                 if var in self.ENV_VARS_ALLOWLIST:
                     self.env_vars.append(token)
                 else:
@@ -492,7 +497,8 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     """
     if should_trace_subprocess():
         try:
-            if isinstance(args[0], str):
+            # bytes commands are valid on POSIX and the WAF handles them natively
+            if isinstance(args[0], (str, bytes)):
                 for callback in _STR_CALLBACKS.values():
                     callback(args[0])
             shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
@@ -595,7 +601,8 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     if should_trace_subprocess():
         try:
             cmd_args = args[0] if len(args) else kwargs["args"]
-            if isinstance(cmd_args, (list, tuple, str)):
+            # bytes commands are valid on POSIX and the WAF handles them natively
+            if isinstance(cmd_args, (list, tuple, str, bytes)):
                 if kwargs.get("shell", False):
                     for callback in _STR_CALLBACKS.values():
                         callback(cmd_args)

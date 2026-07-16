@@ -40,6 +40,11 @@ _DeserializingConsumer = (
 
 log = get_logger(__name__)
 
+# Process-wide cache: bootstrap_servers -> cluster_id.
+# Populated by producers (which safely call list_topics); read by consumers
+# (which cannot call list_topics without risking a librdkafka crash).
+_cluster_id_by_bootstrap: dict[str, str] = {}
+
 config._add(
     "kafka",
     dict(
@@ -90,6 +95,11 @@ class TracedConsumerMixin:
         super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
+        self._dd_bootstrap_servers = (
+            config.get("bootstrap.servers")
+            if config.get("bootstrap.servers") is not None
+            else config.get("metadata.broker.list")
+        )
 
 
 class TracedConsumer(TracedConsumerMixin, confluent_kafka.Consumer):
@@ -134,22 +144,33 @@ def patch():
     Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
+def _safe_unwrap(cls, attr):
+    # DEV: Use vars(cls) + delattr rather than iswrapped(cls.attr) + unwrap.
+    # Accessing a wrapped C-extension attribute (e.g. TracedProducer.produce) invokes
+    # wrapt's tp_descr_get, which calls the inner cimpl method descriptor's tp_descr_get
+    # directly — bypassing CPython's wrap_descr_get that normally converts Py_None→NULL.
+    # If Py_None reaches descr_check as `obj`, CPython raises:
+    #   TypeError: descriptor 'produce' for 'cimpl.Producer' objects
+    #              doesn't apply to a 'NoneType' object
+    # vars(cls) is a plain dict lookup and delattr removes by key — neither reads the
+    # descriptor value, so neither can trigger this code path.
+    # The root cause is fixed upstream in wrapt 2.2.0rc10 (commit ae93dd71, 2026-04-17);
+    if attr in vars(cls):
+        delattr(cls, attr)
+
+
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         confluent_kafka._datadog_patch = False
 
     for producer in (TracedProducer, TracedSerializingProducer):
-        if trace_utils.iswrapped(producer.produce):
-            trace_utils.unwrap(producer, "produce")
+        _safe_unwrap(producer, "produce")
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        if trace_utils.iswrapped(consumer.poll):
-            trace_utils.unwrap(consumer, "poll")
-        if trace_utils.iswrapped(consumer.commit):
-            trace_utils.unwrap(consumer, "commit")
+        _safe_unwrap(consumer, "poll")
+        _safe_unwrap(consumer, "commit")
 
     # Consume is not implemented in deserializing consumers
-    if trace_utils.iswrapped(TracedConsumer.consume):
-        trace_utils.unwrap(TracedConsumer, "consume")
+    _safe_unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -344,6 +365,30 @@ def _get_cluster_id(instance, topic):
     if instance and getattr(instance, "_dd_cluster_id", None):
         return instance._dd_cluster_id
 
+    # Do not call list_topics on Consumer instances.  Calling the metadata API
+    # on a Consumer handle causes librdkafka to create internal topic handles
+    # (rd_kafka_topic_t) and background metadata-refresh tasks that persist
+    # even after partitions are revoked during a rebalance.  Those dangling
+    # internal references can be accessed concurrently with the consumer's own
+    # queue operations, producing a use-after-free inside
+    # rd_kafka_q_serve_rkmessages (librdkafka issue #4214).
+    # Producers are not affected by consumer-group rebalancing, so the call is
+    # safe for them.
+    #
+    # For DSM correctness we still want a real cluster ID on consumers so that
+    # offset checkpoints are stored under the same key as producer offsets.
+    # We achieve this by reading the _cluster_id_by_bootstrap cache
+    # populated by producers on the same bootstrap address.
+    if isinstance(instance, _Consumer) or (
+        _DeserializingConsumer is not None and isinstance(instance, _DeserializingConsumer)
+    ):
+        if bootstrap := getattr(instance, "_dd_bootstrap_servers", None):
+            if cached := _cluster_id_by_bootstrap.get(bootstrap):
+                instance._dd_cluster_id = cached
+                return cached
+
+        return ""
+
     # Check failure cache - skip for 5 minutes if we fail
     last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
     if time() - last_failure < 300:
@@ -356,6 +401,8 @@ def _get_cluster_id(instance, topic):
         cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
         if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
             instance._dd_cluster_id = cluster_metadata.cluster_id
+            if bootstrap := getattr(instance, "_dd_bootstrap_servers", None):
+                _cluster_id_by_bootstrap[bootstrap] = cluster_metadata.cluster_id
             return cluster_metadata.cluster_id
     except Exception:
         # Cache the failure time to avoid repeated slow calls

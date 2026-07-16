@@ -42,6 +42,73 @@ class ToolDefinition(TypedDict, total=False):
     version: str
 
 
+class ChatMessage(TypedDict):
+    """A single message in a chat prompt template."""
+
+    role: str
+    content: str
+
+
+class PromptResponse(TypedDict, total=False):
+    # Mirrors the backend PromptTemplate struct (dd-source domain/prompt.go);
+    # not all fields are populated by every CRUD route.
+    id: str
+    prompt_id: str
+    title: str
+    description: str
+    created_at: str
+    source: str
+    num_versions: int
+    in_registry: bool
+    created_from: str
+    author: str
+    ml_app: str
+    ml_apps: list[str]
+    last_version_created_at: str
+    extracted_from: str
+
+
+class PromptVersionResponse(TypedDict, total=False):
+    id: str
+    prompt_uuid: str
+    prompt_id: str
+    template: Union[str, list[ChatMessage]]
+    version: int
+    user_version: str
+    labels: list[str]
+    created_at: str
+    version_created_at: str
+    author: str
+    description: str
+    ml_app: str
+
+
+class DeletedPromptResponse(TypedDict, total=False):
+    id: str
+    prompt_id: str
+    deleted_at: str
+
+
+class AudioPart(TypedDict, total=False):
+    """An audio segment on a Message: inline base64 ``content`` or an offloaded ``attachment_key``."""
+
+    mime_type: str
+    content: str
+    attachment_key: str
+
+
+class ImagePart(TypedDict, total=False):
+    """An image on a Message: inline base64 ``content`` or an offloaded ``attachment_key``.
+     Note: inline ``content`` counts toward the 5 MB per-event size limit. When an event
+    exceeds that limit its entire input/output is replaced with a dropped-value placeholder) — there is no image-aware
+    truncation yet.
+    """
+
+    mime_type: str
+    content: str
+    attachment_key: str
+
+
 class Message(TypedDict, total=False):
     id: str
     role: str
@@ -49,6 +116,8 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    audio_parts: list[AudioPart]
+    image_parts: list[ImagePart]
 
 
 class _SpanField(TypedDict):
@@ -102,6 +171,10 @@ class _MetaIO(TypedDict, total=False):
     documents: list[Document]
 
 
+class _ToolField(TypedDict, total=False):
+    version: str
+
+
 class _Meta(TypedDict, total=False):
     model_name: str
     model_provider: str
@@ -112,6 +185,7 @@ class _Meta(TypedDict, total=False):
     output: _MetaIO
     expected_output: _MetaIO
     evaluations: Any
+    tool: _ToolField
     tool_definitions: list[ToolDefinition]
     intent: str
 
@@ -123,3 +197,42 @@ class _SpanLink(TypedDict):
 
 
 PromptFallback = Optional[Union[str, list[Message], Prompt, Callable[[], Union[str, list[Message], Prompt]]]]
+
+
+class PromptAPIError(Exception):
+    """Base exception for prompt management API errors."""
+
+    def __init__(self, status: int, detail: str) -> None:
+        self.status = status
+        self.detail = detail
+        super().__init__(f"Prompt API error ({status}): {detail}")
+
+
+class PromptAuthError(PromptAPIError):
+    """Raised on 401 Unauthorized or 403 Forbidden."""
+
+    pass
+
+
+class PromptValidationError(PromptAPIError):
+    """Raised on 400 Bad Request."""
+
+    pass
+
+
+class PromptNotFoundError(PromptAPIError):
+    """Raised on 404 Not Found."""
+
+    pass
+
+
+class PromptConflictError(PromptAPIError):
+    """Raised on 409 Conflict."""
+
+    pass
+
+
+class PromptServerError(PromptAPIError):
+    """Raised on 5xx server errors."""
+
+    pass

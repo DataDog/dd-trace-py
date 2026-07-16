@@ -1,4 +1,3 @@
-use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
@@ -12,8 +11,8 @@ use pyo3::prelude::*;
 
 mod crashtracker_runtime_stacks;
 use crashtracker_runtime_stacks::{
-    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-    native_runtime_stack_string_callback,
+    get_cached_dump_traceback_fn, init_dump_traceback_fn, init_frame_get_back_fn,
+    native_runtime_stack_frame_callback, native_runtime_stack_string_callback,
 };
 
 pub trait RustWrapper {
@@ -31,6 +30,7 @@ pub trait RustWrapper {
 #[pyclass(
     eq,
     eq_int,
+    from_py_object,
     name = "StacktraceCollection",
     module = "datadog.internal._native"
 )]
@@ -58,6 +58,7 @@ impl From<StacktraceCollectionPy> for StacktraceCollection {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerConfiguration",
     module = "datadog.internal._native"
 )]
@@ -66,25 +67,30 @@ pub struct CrashtrackerConfigurationPy {
     config: Option<CrashtrackerConfiguration>,
 }
 
-// additional_files: Vec<String>,
-// create_alt_stack: bool,
-// use_alt_stack: bool,
-// endpoint: Option<Endpoint>,
-// resolve_frames: StacktraceCollection,
-// mut signals: Vec<i32>,
-// timeout_ms: u32,
-// unix_socket_path: Option<String>,
-
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
-    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None, test_token=None))]
+    #[pyo3(signature = (
+        additional_files,
+        create_alt_stack,
+        use_alt_stack,
+        timeout_ms,
+        resolve_frames,
+        collect_all_threads,
+        max_threads,
+        endpoint=None,
+        unix_socket_path=None,
+        test_token=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         additional_files: Vec<String>,
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: u64,
         resolve_frames: StacktraceCollectionPy,
+        collect_all_threads: bool,
+        max_threads: usize,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
         test_token: Option<String>,
@@ -92,6 +98,8 @@ impl CrashtrackerConfigurationPy {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
             .additional_files(additional_files)
+            .collect_all_threads(collect_all_threads)
+            .max_threads(max_threads)
             .create_alt_stack(create_alt_stack)
             .use_alt_stack(use_alt_stack)
             .timeout(Duration::from_millis(timeout_ms))
@@ -123,6 +131,7 @@ impl RustWrapper for CrashtrackerConfigurationPy {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerReceiverConfig",
     module = "datadog.internal._native"
 )]
@@ -163,7 +172,15 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
+// TODO(py-315)(pyo3 0.28): `skip_from_py_object` opts out of the Clone-driven
+// automatic FromPyObject derive that pyo3 deprecated in 0.28. This type is
+// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
+// as an owned value, so skipping is safe.
+#[pyclass(
+    name = "CrashtrackerMetadata",
+    module = "datadog.internal._native",
+    skip_from_py_object
+)]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,
@@ -249,6 +266,7 @@ pub fn crashtracker_init<'py>(
         {
             unsafe {
                 init_dump_traceback_fn();
+                init_frame_get_back_fn();
             }
             let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
             if dump_fn_available {

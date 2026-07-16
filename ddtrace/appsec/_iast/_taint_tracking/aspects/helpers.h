@@ -201,6 +201,9 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
         if (flag_added_args > 0) {
             const Py_ssize_t num_args = PyTuple_Size(args);
             PyObject* sliced_args = PyTuple_New(num_args - flag_added_args);
+            if (sliced_args == nullptr) {
+                return nullptr;
+            }
             for (Py_ssize_t i = 0; i < num_args - flag_added_args; ++i) {
                 // PyTuple_SET_ITEM(sliced_args, i, PyTuple_GET_ITEM(args, i + flag_added_args));
                 PyObject* item = PyTuple_GetItem(args, i + flag_added_args);

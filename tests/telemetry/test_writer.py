@@ -162,7 +162,6 @@ import opentelemetry
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -213,9 +212,12 @@ import opentelemetry
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
         {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_CRASHTRACKING_COLLECT_ALL_THREADS", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
         {
             "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
             "origin": "default",
@@ -342,9 +344,11 @@ import opentelemetry
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
+        {"name": "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
         {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
+        {"name": "DD_PROFILING_PYTORCH_MAX_FRAMES", "origin": "default", "value": 128},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_STACK_NATIVE_FRAMES", "origin": "default", "value": True},
@@ -379,7 +383,6 @@ import opentelemetry
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
-        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
@@ -390,7 +393,7 @@ import opentelemetry
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
-        {"name": "DD_TRACE_INFERRED_SPANS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
         {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
@@ -400,6 +403,7 @@ import opentelemetry
         {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_OTEL_SEMANTICS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
         {
@@ -429,6 +433,7 @@ import opentelemetry
         },
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_STATS_COMPUTATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "origin": "default", "value": False},
         {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
         {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
@@ -444,21 +449,13 @@ import opentelemetry
             "origin": "env_var",
             "value": "http://localhost:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
             "origin": "default",
             "value": f"http://{get_agent_hostname()}:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_LOGS_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
             "origin": "default",
@@ -474,11 +471,7 @@ import opentelemetry
             "origin": "default",
             "value": f"http://{get_agent_hostname()}:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_METRICS_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
             "origin": "default",
@@ -504,11 +497,7 @@ import opentelemetry
             "origin": "default",
             "value": 10000,
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_TRACES_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
             "origin": "default",
@@ -530,6 +519,11 @@ import opentelemetry
             "value": 7500,
         },
         {
+            "name": "OTEL_TRACES_SPAN_METRICS_ENABLED",
+            "origin": "default",
+            "value": None,
+        },
+        {
             "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
             "origin": "default",
             "value": False,
@@ -538,6 +532,11 @@ import opentelemetry
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
+        {
+            "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
@@ -1035,6 +1034,95 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+
+
+def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
+    """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
+    non-sensitive OTLP exporter configurations are still reported.
+    """
+    code = """
+# most configurations are reported when ddtrace.auto is imported
+import ddtrace.auto
+# importing opentelemetry triggers reporting of the OTLP exporter configurations
+import opentelemetry
+    """
+
+    # Distinct, recognizable sentinels per OTLP header variant.
+    sentinels = [
+        "SENTINEL_OTLP_BASE",
+        "SENTINEL_OTLP_TRACES",
+        "SENTINEL_OTLP_METRICS",
+        "SENTINEL_OTLP_LOGS",
+    ]
+
+    env = os.environ.copy()
+    env["OTEL_EXPORTER_OTLP_HEADERS"] = "dd-api-key=SENTINEL_OTLP_BASE"
+    env["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = "dd-api-key=SENTINEL_OTLP_TRACES"
+    env["OTEL_EXPORTER_OTLP_METRICS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_METRICS"
+    env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_LOGS"
+    # Non-sensitive OTLP exporter configurations that must still be reported.
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    assert configurations, "no configuration telemetry was reported"
+
+    # Invariant: no OTLP header sentinel appears in any reported configuration value.
+    for cfg in configurations.values():
+        for sentinel in sentinels:
+            assert sentinel not in str(cfg["value"]), cfg
+
+    # Python omits the OTLP header family entirely.
+    for name in (
+        "OTEL_EXPORTER_OTLP_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+        "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+    ):
+        assert name not in configurations, configurations.get(name)
+
+    # Non-sensitive OTLP exporter configurations are still reported.
+    assert configurations["OTEL_EXPORTER_OTLP_ENDPOINT"] == {
+        "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "origin": "env_var",
+        "value": "http://localhost:4318",
+    }
+    # Sibling non-sensitive exporter configs (collected at import) remain present.
+    assert "OTEL_EXPORTER_OTLP_PROTOCOL" in configurations
+    assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
+
+
+def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
+    """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
+
+    Uses the in-process telemetry writer (forced non-agentless) because setting DD_API_KEY would
+    otherwise switch a subprocess's telemetry client into agentless mode and divert it from the
+    test agent.
+    """
+    from ddtrace.internal.telemetry import get_config
+
+    with mock.patch.dict(
+        os.environ,
+        {"DD_API_KEY": "SENTINEL_DD_API_KEY", "DD_APP_KEY": "SENTINEL_DD_APP_KEY"},
+    ):
+        # Read each sensitive key the way settings do; the value must not be queued for telemetry.
+        assert get_config("DD_API_KEY") == "SENTINEL_DD_API_KEY"
+        assert get_config("DD_APP_KEY") == "SENTINEL_DD_APP_KEY"
+        # A non-sensitive control config is still reported, proving reporting is otherwise active.
+        get_config("DD_SITE", "datadoghq.com")
+
+    queued = list(telemetry_writer._queued_configs)
+    queued_names = {c["name"] for c in queued}
+    assert "DD_API_KEY" not in queued_names, queued
+    assert "DD_APP_KEY" not in queued_names, queued
+    for cfg in queued:
+        assert "SENTINEL_DD_API_KEY" not in str(cfg["value"]), cfg
+        assert "SENTINEL_DD_APP_KEY" not in str(cfg["value"]), cfg
+    # Sanity check: the non-sensitive control config was reported.
+    assert "DD_SITE" in queued_names, queued
 
 
 def test_add_error_log(mock_time, telemetry_writer, test_agent_session):

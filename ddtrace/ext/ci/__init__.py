@@ -447,6 +447,7 @@ def extract_jenkins(environ: MutableMapping[str, str]) -> dict[str, Optional[str
         _CI_ENV_VARS: json.dumps(
             {
                 "DD_CUSTOM_TRACE_ID": environ.get("DD_CUSTOM_TRACE_ID"),
+                "DD_CUSTOM_PARENT_ID": environ.get("DD_CUSTOM_PARENT_ID"),
             },
             separators=(",", ":"),
         ),

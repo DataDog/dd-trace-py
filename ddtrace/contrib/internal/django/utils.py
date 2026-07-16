@@ -21,19 +21,14 @@ from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
-
-
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
 
 
 log = get_logger(__name__)
@@ -262,17 +257,18 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+        media_type = classify_media_type(content_type)
         headers = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.extract_body"
         ).headers.value
         try:
-            if content_type == "application/x-www-form-urlencoded":
+            if media_type is MediaType.FORM_URLENCODED:
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
-            elif content_type == "multipart/form-data":
+            elif media_type is MediaType.MULTIPART:
                 req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"), headers)
-            elif content_type in ("application/json", "text/json"):
+            elif media_type is MediaType.JSON:
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
-            elif content_type in ("application/xml", "text/xml"):
+            elif media_type is MediaType.XML:
                 req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
@@ -426,6 +422,26 @@ def _after_request_tags(pin, span: Span, request, response):
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
+
+
+def _request_path_params(request):
+    """Polymorphic Django path-params extraction.
+
+    Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
+    Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
+    case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
+    """
+    try:
+        resolver_match = getattr(request, "resolver_match", None)
+        if resolver_match is None:
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver is None:
+                return None
+            resolver_match = resolver.resolve(request.path_info)
+        return resolver_match.kwargs or resolver_match.args or None
+    except Exception:
+        log.debug("Django request_path_params extraction failed", exc_info=True)
+        return None
 
 
 class DjangoViewProxy(FunctionWrapper):

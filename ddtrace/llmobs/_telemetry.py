@@ -6,6 +6,8 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -34,6 +36,7 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_CRUD_ERROR = "prompt.crud.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
@@ -75,6 +78,7 @@ def record_llmobs_enabled(
     auto: bool,
     instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
+    sample_rate: float,
 ):
     tags = _base_tags(error)
     tags.extend(
@@ -84,6 +88,7 @@ def record_llmobs_enabled(
             ("auto", str(int(auto))),
             ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
             ("ml_app", ml_app or "N/A"),
+            ("sample_rate", str(sample_rate)),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -101,7 +106,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span):
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -111,6 +116,7 @@ def record_span_created(span: Span):
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
+    intake = export_mode.value
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -120,23 +126,11 @@ def record_span_created(span: Span):
         ("integration", integration or "N/A"),
         ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
+        ("intake", intake),
     ]
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))
     if model_provider:
-        tags.append(("model_provider", model_provider))
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
-    )
-
-
-def record_bedrock_agent_span_event_created(span_event: LLMObsSpanEvent):
-    is_root_span = span_event["parent_id"] == ROOT_PARENT_ID
-    has_session_id = any("session_id" in tag for tag in span_event["tags"])
-    tags = _get_tags_from_span_event(span_event)
-    tags.extend([("has_session_id", str(int(has_session_id))), ("is_root_span", str(int(is_root_span)))])
-    model_provider = span_event["meta"]["metadata"].get("model_provider")
-    if model_provider is not None:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
@@ -275,9 +269,9 @@ def record_activate_distributed_headers(error: Optional[str]):
     )
 
 
-def record_prompt_source(source: str):
-    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
-    tags = [("from", source)]
+def record_prompt_source(source: PromptSource):
+    """Record the source of a prompt fetch."""
+    tags = [("from", source.value)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
@@ -292,6 +286,17 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_crud_error(method: str, error_type: str, status: int):
+    """Record a prompt CRUD API error."""
+    tags = [("method", method), ("error_type", error_type), ("status", str(status))]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_CRUD_ERROR,
         value=1,
         tags=tuple(tags),
     )

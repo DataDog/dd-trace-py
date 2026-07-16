@@ -1,9 +1,44 @@
 #include "helpers.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
+
+namespace {
+
+optional<string>
+numeric_marker_id(const string& marker, const bool is_start_marker)
+{
+    string id;
+    if (is_start_marker) {
+        const string prefix{ EVIDENCE_MARKS::START_EVIDENCE };
+        if (marker.rfind(prefix, 0) != 0 or marker.size() <= prefix.size() + 2 or marker[prefix.size()] != '<' or
+            marker.back() != '>') {
+            return nullopt;
+        }
+        id = marker.substr(prefix.size() + 1, marker.size() - prefix.size() - 2);
+    } else {
+        const string suffix{ EVIDENCE_MARKS::END_EVIDENCE };
+        if (marker.size() <= suffix.size() + 2 or marker.front() != '<' or
+            marker.compare(marker.size() - suffix.size(), suffix.size(), suffix) != 0) {
+            return nullopt;
+        }
+        const auto close_tag_pos = marker.size() - suffix.size() - 1;
+        if (marker[close_tag_pos] != '>') {
+            return nullopt;
+        }
+        id = marker.substr(1, close_tag_pos - 1);
+    }
+
+    if (id.empty() or !std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isdigit(c); })) {
+        return nullopt;
+    }
+    return id;
+}
+
+} // namespace
 
 /**
  * @brief This function is used to get the taint ranges for the given text object.
@@ -135,7 +170,9 @@ api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, 
 
     const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
-
+    if (new_result == nullptr) {
+        return taint_escaped_text;
+    }
     set_ranges(new_result, get<1>(result), tx_map);
 
     return py::reinterpret_steal<py::bytearray>(new_result);
@@ -153,7 +190,9 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const 
     }
     auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
-
+    if (new_result == nullptr) {
+        return taint_escaped_text;
+    }
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
 }
@@ -213,7 +252,6 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
     optional<TaintRangeRefs> optional_ranges_orig = ranges_orig;
 
     vector<tuple<string, int>> context_stack;
-    int length = 0;
     int end = 0;
     TaintRangeRefs ranges;
 
@@ -223,22 +261,27 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
     int prev_context_pos;
     string id_evidence;
 
+    auto append_text = [&](const string& text) {
+        result += text;
+        end += py::len(StrType(text));
+        index++;
+    };
+
     for (string const& element : texts_and_marks) {
         if (index % 2 == 0) {
-            result += element;
-            length = py::len(StrType(element));
-            end += length;
-            index++;
+            append_text(element);
             continue;
         }
         if (element.rfind(startswith_element, 0) == 0) {
-            id_evidence = element.substr(4, element.length() - 5);
+            auto maybe_id_evidence = numeric_marker_id(element, true);
+            if (!maybe_id_evidence.has_value()) {
+                append_text(element);
+                continue;
+            }
+            id_evidence = *maybe_id_evidence;
             if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
                 range_by_id == nullptr) {
-                result += element;
-                length = py::len(StrType(element));
-                end += length;
-                index++;
+                append_text(element);
                 continue;
             }
 
@@ -256,26 +299,38 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
                       get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                    ranges.emplace_back(
-                      safe_allocate_taint_range(start, length, original_range->source, original_range->secure_marks));
+                    if (original_range != nullptr) {
+                        ranges.emplace_back(safe_allocate_taint_range(
+                          start, end - start, original_range->source, original_range->secure_marks));
+                    }
                 }
                 latest_end = end;
             }
-            id_evidence = element.substr(4, element.length() - 5);
+            id_evidence = *maybe_id_evidence;
             start = end;
             context_stack.emplace_back(id_evidence, start);
         } else {
-            id_evidence = element.substr(1, element.length() - 5);
+            auto maybe_id_evidence = numeric_marker_id(element, false);
+            if (!maybe_id_evidence.has_value()) {
+                append_text(element);
+                continue;
+            }
+            id_evidence = *maybe_id_evidence;
             if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
                 range_by_id == nullptr) {
-                result += element;
-                length = py::len(StrType(element));
-                end += length;
-                index++;
+                append_text(element);
+                continue;
+            }
+            if (context_stack.empty()) {
+                append_text(element);
                 continue;
             }
 
             auto context = context_stack.back();
+            if (id_evidence != get<0>(context)) {
+                append_text(element);
+                continue;
+            }
             context_stack.pop_back();
             prev_context_pos = get<1>(context);
             if (prev_context_pos > latest_end) {
@@ -288,8 +343,10 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
                   get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(
-                  safe_allocate_taint_range(start, end - start, original_range->source, original_range->secure_marks));
+                if (original_range != nullptr) {
+                    ranges.emplace_back(safe_allocate_taint_range(
+                      start, end - start, original_range->source, original_range->secure_marks));
+                }
             }
             latest_end = end;
         }

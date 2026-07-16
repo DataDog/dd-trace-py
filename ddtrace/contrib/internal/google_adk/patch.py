@@ -105,13 +105,16 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
-    integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
         logger.warning("Unable to trace google adk live tool call, could not extract agent from tool context.")
         agen = wrapped(*args, **kwargs)
         async for item in agen:
             yield item
+
+        return
+
+    integration: GoogleAdkIntegration = adk._datadog_integration
 
     provider_name, model_name = extract_provider_and_model_name(
         instance=getattr(agent, "model", {}), model_name_attr="model"
@@ -154,7 +157,7 @@ def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
-        kind="code_execute",
+        kind="tool",
         submit_to_llmobs=True,
     ) as span:
         result = None

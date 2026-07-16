@@ -24,6 +24,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
         allow_default_resource=True,
         pin=pin,
         tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
+        integration_config=config.molten,
     ):
         return wrapped(*args, **kwargs)
 
@@ -71,6 +72,6 @@ class WrapperRouter(wrapt.ObjectProxy):
         if route_and_params is not None:
             route, params = route_and_params
             route.handler = trace_func(func_name(route.handler))(route.handler)
-            core.dispatch("molten.router.match", [route])
+            core.dispatch("molten.router.match", (route,))
             return route, params
         return route_and_params

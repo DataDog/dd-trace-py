@@ -5,6 +5,7 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -29,6 +30,8 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.llmobs.test_prompts import CHAT_PROMPT_RESPONSE
+from tests.llmobs.test_prompts import mock_api
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -117,6 +120,84 @@ class TestLLMObsOpenaiV1:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "unknown"
+
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_filters_openai_sentinel_metadata(
+        self, mock_completions_post, openai, openai_llmobs, test_spans
+    ):
+        """openai.Omit / openai.NotGiven sentinels for unset params must not pollute span metadata.
+
+        Frameworks like PydanticAI forward every chat-completion parameter explicitly, defaulting
+        any the caller didn't set to ``openai.omit``. Without filtering, these sentinels are
+        serialized into span metadata as noisy repr strings (e.g. "<openai.Omit object at 0x...>"),
+        making the field unqueryable. Regression test for MLOS-693.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        # Sentinel availability varies by openai version: NotGiven was exported starting in ~1.30,
+        # Omit only in openai>=2, and neither in very old clients (e.g. 1.0.0). Only construct and
+        # exercise the sentinels this installed version actually exposes; skip if it has none.
+        not_given_cls = getattr(openai, "NotGiven", None)
+        omit_cls = getattr(openai, "Omit", None)
+        sentinel_kwargs = {}
+        if not_given_cls is not None:
+            sentinel_kwargs["presence_penalty"] = not_given_cls()
+            sentinel_kwargs["seed"] = not_given_cls()
+        if omit_cls is not None:
+            sentinel_kwargs["temperature"] = omit_cls()
+            sentinel_kwargs["frequency_penalty"] = omit_cls()
+        if not sentinel_kwargs:
+            pytest.skip("installed openai exposes no Omit/NotGiven sentinel types")
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=multi_message_input,
+            top_p=0.9,
+            **sentinel_kwargs,
+        )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        # Only the explicitly-set value should survive; the Omit/NotGiven sentinels are dropped.
+        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9}
+
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_provider_attribution_with_concurrent_openai_and_azure_clients(
+        self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
+    ):
+        """Regression test for provider mis-attribution when multiple OpenAI-family
+        clients are instantiated concurrently. Each span must reflect the client that
+        actually made the call, not whichever client was constructed last.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+
+        # Construction order: OpenAI first, then AzureOpenAI. Calling order: OpenAI, then Azure.
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "openai"
+        assert get_llmobs_model_provider(spans[1]) == "azure_openai"
+
+        # Reverse construction and call order to rule out passing-by-coincidence
+        # (e.g. fix only works when the "right" client was the most recently
+        # constructed one).
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "azure_openai"
+        assert get_llmobs_model_provider(spans[1]) == "openai"
 
     def test_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -367,7 +448,7 @@ class TestLLMObsOpenaiV1:
         )
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
-        """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
+        """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
             ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
@@ -395,7 +476,13 @@ class TestLLMObsOpenaiV1:
             name="OpenAI.createChatCompletion",
             model_name=resp.model,
             model_provider="openai",
-            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What\u2019s in this image?\n[image]",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
+                }
+            ],
             output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
             metadata={},
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
@@ -447,10 +534,51 @@ class TestLLMObsOpenaiV1:
             name="OpenAI.createChatCompletion",
             model_name=resp.model,
             model_provider="openai",
-            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What\u2019s in this image?\n[image]",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
+                }
+            ],
             output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
             metadata={},
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 45),
+        reason="audio output (ChatCompletionAudio) not supported before openai 1.45",
+    )
+    def test_chat_completion_audio_output(self, openai, openai_llmobs, test_spans):
+        """Assistant audio output is captured as audio_parts, with the transcript surfaced as content."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_audio_output.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4o-audio-preview",
+                modalities=["text", "audio"],
+                audio={"voice": "alloy", "format": "wav"},
+                messages=[{"role": "user", "content": "Say hello."}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Say hello."}],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": "Hello! How can I help you today?",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "QUJDRA=="}],
+                }
+            ],
+            metadata={},
+            metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
@@ -1430,6 +1558,42 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def test_chat_completion_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
+        """Test that cache write token metrics are captured for models that report them.
+
+        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
+        ``usage.prompt_tokens_details`` for the chat completions API.
+        """
+        model = "gpt-5.6-sol"
+        client = openai.OpenAI()
+        base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_5_6_cache_write.yaml"):
+            resp = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metrics={
+                "input_tokens": 1220,
+                "output_tokens": 100,
+                "total_tokens": 1320,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 1217,
+                "reasoning_output_tokens": 100,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
     def test_embedding_string(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
@@ -1553,6 +1717,67 @@ MUL: "*"
         assert get_llmobs_span_name(spans[0]) == "Deepseek.createChatCompletion"
         assert get_llmobs_model_provider(spans[0]) == "deepseek"
         assert get_llmobs_model_name(spans[0]) == "deepseek-chat"
+
+    def test_deepseek_streamed_reasoning_content(self, openai, openai_llmobs, test_spans):
+        """Regression test for #18257 / PR #18274: streamed ``reasoning_content`` deltas
+        from an OpenAI-compatible reasoning provider (DeepSeek) must be aggregated and
+        surfaced on the LLM Obs span as an output message with ``role="reasoning"``.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_streamed_reasoning_content.yaml"):
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
+            resp = client.chat.completions.create(
+                model="deepseek-v4-pro",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "What is 17 * 23?"},
+                ],
+                stream=True,
+                max_tokens=1024,
+                extra_body={"reasoning_effort": "high", "thinking": {"type": "enabled"}},
+            )
+            for _ in resp:
+                pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        output_messages = get_llmobs_output_messages(spans[0]) or []
+        reasoning_messages = [m for m in output_messages if m.get("role") == "reasoning"]
+        assert reasoning_messages, f"expected a reasoning output message, got: {output_messages}"
+        assert reasoning_messages[0].get("content"), "reasoning output message had empty content"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_deepseek_streamed_cumulative_usage(self, openai, openai_llmobs, test_spans):
+        """Some OpenAI-compatible providers emit a cumulative usage object on every streamed chunk
+        (a running completion_tokens count that only reaches the true total on the last chunk),
+        unlike OpenAI which emits a single trailing usage chunk. The span must record the final
+        cumulative total, not the first usage-bearing chunk.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_streamed_cumulative_tokens.yaml"):
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
+            resp = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": "What is 17 * 23?"}],
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            for _ in resp:
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="Deepseek.createChatCompletion",
+            model_name="deepseek-chat",
+            model_provider="deepseek",
+            input_messages=[{"role": "user", "content": "What is 17 * 23?"}],
+            output_messages=[{"content": "The answer is 391.", "role": "assistant"}],
+            metadata={"stream": True, "stream_options": {"include_usage": True}},
+            metrics={"input_tokens": 12, "output_tokens": 8, "total_tokens": 20},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
@@ -2116,6 +2341,45 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
+        """Test that cache write token metrics are captured for the responses API.
+
+        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
+        ``usage.input_tokens_details`` for the responses API.
+        """
+        client = openai.OpenAI()
+        model = "gpt-5.6-sol"
+        base_instructions = "You are an expert software engineer " * 200
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write.yaml"):
+            resp = client.responses.create(
+                model=model,
+                instructions=base_instructions,
+                input="What are the best practices for API design?",
+                max_output_tokens=100,
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            metrics={
+                "input_tokens": 1220,
+                "output_tokens": 100,
+                "total_tokens": 1320,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 1217,
+                "reasoning_output_tokens": 54,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_responses_stream_prompt_caching(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
@@ -2525,6 +2789,32 @@ MUL: "*"
             ],
         )
 
+    def test_chat_completion_managed_prompt_auto_tracking(self, openai, openai_llmobs, test_spans):
+        """A managed prompt rendered with .format() and passed straight into chat.completions.create
+        auto-tags the resulting LLM span, with no annotation_context.
+        """
+        with mock_api(200, CHAT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("assistant")
+        messages = prompt.format(persona="helpful assistant", question="What is Python?")
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion.yaml"):
+            client = openai.OpenAI()
+            client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_prompt_tracking(
+            span_event=_get_llmobs_data_metastruct(spans[0]),
+            prompt_id="assistant",
+            prompt_version="v2",
+            variables={"persona": "helpful assistant", "question": "What is Python?"},
+            expected_chat_template=CHAT_PROMPT_RESPONSE["template"],
+            expected_messages=[
+                {"role": "system", "content": "You are helpful assistant."},
+                {"role": "user", "content": "What is Python?"},
+            ],
+        )
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
@@ -2781,10 +3071,10 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_tool_with_deep_schema_has_schema_truncated(self, openai, openai_llmobs, test_spans):
-        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
-        replacing over-limit containers with empty containers while preserving name, description,
-        and all fields within the limit. Tools with shallow schemas are unaffected.
+    def test_tool_with_deep_schema_has_schema_stringified(self, openai, openai_llmobs, test_spans):
+        """Tool schemas that exceed the maximum nested depth are stringified at the point where
+        they exceed the limit, preserving all data as a JSON string while keeping shallower
+        structure intact. Tools with shallow schemas are unaffected.
         """
         deep_tool = {
             "type": "function",
@@ -2826,7 +3116,11 @@ MUL: "*"
                                                 "properties": {
                                                     "l4": {
                                                         "type": "object",
-                                                        "properties": {"l5": {}},
+                                                        "properties": (
+                                                            '{"l5": {"properties": {"l6": {"properties":'
+                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
+                                                            ' "type": "object"}}'
+                                                        ),
                                                     }
                                                 },
                                             }
@@ -2938,11 +3232,14 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     response.usage.completion_tokens = 10
     response.usage.total_tokens = 60
     response.usage.prompt_tokens_details.cached_tokens = 12
+    response.usage.prompt_tokens_details.cache_write_tokens = 34
     # responses-API style fallback: input_tokens_details.cached_tokens
     response.usage.input_tokens_details.cached_tokens = 12
+    response.usage.input_tokens_details.cache_write_tokens = 34
 
     with tracer.trace("openai.request") as span:
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12
+    assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34

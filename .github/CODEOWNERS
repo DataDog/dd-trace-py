@@ -13,7 +13,7 @@ tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-py
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/errortracking/                @DataDog/apm-core-python
-tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
+tests/contrib/grpc                  @DataDog/apm-idm-python
 tests/integration/                  @DataDog/apm-core-python
 
 # Files which can be approved by anyone
@@ -42,7 +42,7 @@ static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
-hatch.toml                          @DataDog/python-guild
+scripts/lint                        @DataDog/python-guild
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
@@ -134,6 +134,7 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 # Config and benchmarks
 .cursor/rules/appsec.mdc            @DataDog/asm-python
 .cursor/rules/iast.mdc              @DataDog/asm-python
+.cursor/rules/ai-guard.mdc          @DataDog/asm-python
 .gitlab/templates/appsec            @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
@@ -141,6 +142,7 @@ benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 benchmarks/bm/iast_fixtures*        @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
 # ddtrace files
+ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
@@ -149,8 +151,10 @@ ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
+ddtrace/internal/sca/               @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
 # tests files
+tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
@@ -177,7 +181,7 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
-ddtrace/contrib/internal/openai                               @DataDog/ml-observability
+ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock_agents.py  @DataDog/ml-observability
@@ -187,6 +191,7 @@ ddtrace/contrib/internal/google_adk                           @DataDog/ml-observ
 ddtrace/contrib/internal/google_generativeai                  @DataDog/ml-observability
 ddtrace/contrib/internal/google_genai                         @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                             @DataDog/ml-observability
+ddtrace/contrib/internal/mistralai                            @DataDog/ml-observability
 ddtrace/contrib/internal/langgraph                            @DataDog/ml-observability
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
@@ -211,6 +216,7 @@ tests/contrib/google_adk                                      @DataDog/ml-observ
 tests/contrib/google_generativeai                             @DataDog/ml-observability
 tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
+tests/contrib/mistralai                                       @DataDog/ml-observability
 tests/contrib/langgraph                                       @DataDog/ml-observability
 tests/contrib/crewai                                          @DataDog/ml-observability
 tests/contrib/openai_agents                                   @DataDog/ml-observability
@@ -231,6 +237,7 @@ tests/snapshots/tests.contrib.botocore.test_bedrock_agents.*  @DataDog/ml-observ
 tests/snapshots/tests.contrib.botocore.test_bedrock.*         @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_adk.*                    @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_generativeai.*           @DataDog/ml-observability
+tests/snapshots/tests.contrib.mistralai.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
@@ -270,8 +277,10 @@ ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities-python
-scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python
+scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 supported-configurations.json                     @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+.github/workflows/config-registry.yml             @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+.gitlab/config-registry.yml                       @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
 tests/internal/test_env.py                         @DataDog/apm-sdk-capabilities-python
@@ -328,10 +337,6 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @Da
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions
-supported_versions_table.csv                    @DataDog/apm-core-python @DataDog/apm-idm-python
-supported_versions_output.json                  @DataDog/apm-core-python @DataDog/apm-idm-python
+supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
-
-# Tested versions
-tested_versions.json            @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/tested_versions/*       @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python

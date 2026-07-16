@@ -83,6 +83,14 @@ def _get_spans_from_list(
     return selected_spans
 
 
+def _assert_itr_tests_skipping_enabled_tag_propagated(spans: list[ddtrace.trace.Span], expected_value: str) -> None:
+    propagated_span_types = {"test_session_end", "test_module_end", "test_suite_end", "test"}
+    selected_spans = [span for span in spans if span.get_tag("type") in propagated_span_types]
+    assert selected_spans
+    for span in selected_spans:
+        assert span.get_tag(test.ITR_TEST_SKIPPING_ENABLED) == expected_value
+
+
 def _fetch_test_to_skip_side_effect(itr_data):
     def _():
         CIVisibility._instance._itr_data = itr_data
@@ -1775,6 +1783,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
@@ -1873,6 +1882,7 @@ class PytestTestCase(PytestTestCaseBase):
                 },
             )
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
@@ -1966,6 +1976,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2052,6 +2063,7 @@ class PytestTestCase(PytestTestCaseBase):
                 },
             )
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
@@ -2264,6 +2276,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 11
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2369,6 +2382,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2462,6 +2476,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2533,6 +2548,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2858,6 +2874,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2914,6 +2931,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2990,6 +3008,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3063,6 +3082,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3167,6 +3187,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3314,6 +3335,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = _get_spans_from_list(spans, "session")[0]
@@ -3457,6 +3479,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3570,6 +3593,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]

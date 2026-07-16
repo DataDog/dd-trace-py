@@ -144,7 +144,7 @@ class JSONTree:
         def __len__(self) -> int:
             return self.end - self.start
 
-        def __lt__(self, other: Any) -> bool:
+        def __lt__(self, other: "JSONTree.Node") -> bool:
             # The Python heapq pops the smallest item, so we reverse the
             # comparison.
             return self.key > other.key

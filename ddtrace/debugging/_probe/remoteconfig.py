@@ -47,11 +47,7 @@ from ddtrace.internal.remoteconfig import RCCallback
 log = get_logger(__name__)
 
 
-def xlate_keys(d: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
-    return {mapping.get(k, k): v for k, v in d.items()}
-
-
-def _compile_segment(segment: dict) -> TemplateSegment:
+def _compile_segment(segment: dict[str, Any]) -> TemplateSegment:
     if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
@@ -87,7 +83,7 @@ class ProbeFactory(object):
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> Any:
+    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> "Probe":
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -118,8 +114,9 @@ class LogProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         take_snapshot = attribs.get("captureSnapshot", False)
+        capture_expressions = attribs.get("captureExpressions", [])
 
-        rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
+        rate = DEFAULT_SNAPSHOT_PROBE_RATE if (take_snapshot or capture_expressions) else DEFAULT_PROBE_RATE
         sampling = attribs.get("sampling")
         if sampling is not None:
             rate = sampling.get("snapshotsPerSecond", rate)
@@ -127,22 +124,10 @@ class LogProbeFactory(ProbeFactory):
         args.update(
             condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             rate=rate,
-            limits=CaptureLimits(
-                **xlate_keys(
-                    attribs["capture"],
-                    {
-                        "maxReferenceDepth": "max_level",
-                        "maxCollectionSize": "max_size",
-                        "maxLength": "max_len",
-                        "maxFieldCount": "max_fields",
-                    },
-                )
-            )
-            if "capture" in attribs
-            else DEFAULT_CAPTURE_LIMITS,
+            limits=CaptureLimits.parse(attribs["capture"]) if "capture" in attribs else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
-            capture_expressions=[CaptureExpression(**_) for _ in attribs.get("captureExpressions", [])],
+            capture_expressions=[CaptureExpression.parse(_) for _ in capture_expressions],
             template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
@@ -256,7 +241,7 @@ def build_probe(attribs: dict[str, Any]) -> Probe:
 
 
 @_filter_by_env_and_version
-def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe]:
+def get_probes(config: dict[str, Any], status_logger: ProbeStatusLogger) -> Iterable[Probe]:
     try:
         return [build_probe(config)]
     except InvalidProbeConfiguration:
@@ -367,7 +352,7 @@ class DebuggerRCCallback(RCCallback):
         log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
         for payload in payloads:
             if payload.metadata is None:
-                log.debug(
+                log.debug(  # type: ignore[unreachable]
                     "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
                     os.getpid(),
                     os.getppid(),

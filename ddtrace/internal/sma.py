@@ -1,6 +1,3 @@
-from __future__ import division
-
-
 class SimpleMovingAverage(object):
     """
     Simple Moving Average implementation.

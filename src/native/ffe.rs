@@ -4,7 +4,7 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::{collections::HashMap, sync::Arc};
+    use std::collections::HashMap;
 
     use pyo3::{exceptions::PyValueError, prelude::*};
     use tracing::debug;
@@ -22,7 +22,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, from_py_object)]
     enum FlagType {
         String,
         Integer,
@@ -49,11 +49,16 @@ pub mod ffe {
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
-        extra_logging: Option<Arc<HashMap<String, String>>>,
+        // Serial id of the selected split, surfaced for APM span enrichment
+        // (DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED). Threaded
+        // into the provider flag_metadata as __dd_split_serial_id. The libdatadog
+        // assignment field is Option<i32>; cast to i64 to match the Python stub.
+        #[pyo3(get)]
+        serial_id: Option<i64>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, skip_from_py_object)]
     enum Reason {
         Static,
         Default,
@@ -67,7 +72,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, skip_from_py_object)]
     enum ErrorCode {
         /// The type of the flag value does not match the expected type.
         TypeMismatch,
@@ -146,22 +151,12 @@ pub mod ffe {
                         .into_iter()
                         .collect(),
                     do_log: assignment.do_log,
-                    extra_logging: Some(assignment.extra_logging),
+                    serial_id: assignment.serial_id.map(|id| id as i64),
                 },
                 Err(err) => err.into(),
             };
 
             Ok(result)
-        }
-    }
-
-    #[pymethods]
-    impl ResolutionDetails {
-        // pyo3 refuses to implement IntoPyObject for Arc, so we need to do this dance with
-        // returning a reference.
-        #[getter]
-        fn extra_logging(&self) -> Option<&HashMap<String, String>> {
-            self.extra_logging.as_ref().map(|it| it.as_ref())
         }
     }
 
@@ -176,7 +171,7 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
-                extra_logging: None,
+                serial_id: None,
             }
         }
 
@@ -190,7 +185,7 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
-                extra_logging: None,
+                serial_id: None,
             }
         }
     }
@@ -202,7 +197,8 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError => {
+                EvaluationError::ConfigurationParseError
+                | EvaluationError::FlagConfigurationInvalid => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
@@ -215,6 +211,13 @@ pub mod ffe {
                 ),
                 EvaluationError::FlagDisabled => ResolutionDetails::empty(Reason::Disabled),
                 EvaluationError::DefaultAllocationNull => ResolutionDetails::empty(Reason::Default),
+                // libdatadog returns TargetingKeyMissing when a flag has shard-based
+                // allocation but no targeting key was provided (nothing to hash).
+                // See: https://github.com/DataDog/libdatadog/blob/1b7b2daf790f/datadog-ffe/src/rules_based/eval/eval_assignment.rs#L186
+                EvaluationError::TargetingKeyMissing => ResolutionDetails::error(
+                    ErrorCode::TargetingKeyMissing,
+                    "targeting key is missing",
+                ),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }
         }
@@ -238,6 +241,7 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
     }

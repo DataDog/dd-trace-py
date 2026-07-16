@@ -1,0 +1,13 @@
+issuer: https://token.actions.githubusercontent.com
+
+subject_pattern: "repo:DataDog/dd-trace-py:ref:refs/heads/.+"
+
+claim_pattern:
+  event_name: (push|workflow_dispatch)
+  ref: refs/heads/.+
+  ref_protected: "true"
+  repository: DataDog/dd-trace-py
+  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/build-windows-docker\.yml@.+
+
+permissions:
+  packages: write

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <climits>
 #include <cstdint>
 
 /* Shared line table parsing for profiling.
@@ -131,6 +132,8 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
     if (len % 2 != 0)
         return 0;
 
+    if (lasti > INT_MAX / static_cast<int>(sizeof(_Py_CODEUNIT)))
+        return 0;
     lasti *= static_cast<int>(sizeof(_Py_CODEUNIT));
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         int sdelta = table[i++];

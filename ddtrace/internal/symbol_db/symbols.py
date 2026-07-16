@@ -4,7 +4,7 @@ from dataclasses import field
 import dis
 from enum import Enum
 import gzip
-from hashlib import sha1
+import hashlib
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -44,6 +44,7 @@ from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.wrapping import get_wrapped
 
 
 log = get_logger(__name__)
@@ -53,7 +54,7 @@ EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
-def _line_ranges(lines: set[int]) -> list[dict]:
+def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
     """Convert a set of line numbers into a list of contiguous ranges."""
     if not lines:
         return []
@@ -179,12 +180,12 @@ class Scope:
     end_line: int
     symbols: list[Symbol]
     scopes: list["Scope"]
-    injectible_lines: list[dict] = field(default_factory=list)
+    injectible_lines: list[dict[str, t.Any]] = field(default_factory=list)
     has_injectible_lines: bool = False
 
-    language_specifics: dict = field(default_factory=dict)
+    language_specifics: dict[str, t.Any] = field(default_factory=dict)
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         return asdict(self)
 
     @singledispatchmethod
@@ -234,7 +235,14 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
-        source_git_hash = sha1()  # nosec B324
+        # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
+        # module source, not a security digest. It also prevents IAST from flagging
+        # this internal use as a weak-hash false positive (APPSEC-68795). Resolve
+        # hashlib.sha1 at call time (not via a module-level `from hashlib import
+        # sha1`) so the call goes through IAST's wrapped constructor when patched:
+        # symbol_db can be imported before patch_iast() runs, which would otherwise
+        # freeze a stale, unwrapped reference and leave the object untracked.
+        source_git_hash = hashlib.sha1(usedforsecurity=False)  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
         with module_origin.open("rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
@@ -386,7 +394,8 @@ class Scope:
         if not is_from_user_code(f):
             return None
 
-        code = f.__dd_wrapped__.__code__ if hasattr(f, "__dd_wrapped__") else f.__code__
+        inner = get_wrapped(f)
+        code = inner.__code__ if inner is not None else f.__code__
         code_scope = t.cast(t.Optional[Scope], cls._get_from(code, data))
         if code_scope is None:
             return None
@@ -426,7 +435,7 @@ class Scope:
 
     @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "classmethod[t.Any, t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -436,7 +445,7 @@ class Scope:
 
     @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "staticmethod[t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -543,7 +552,7 @@ class ScopeContext:
             # Set the timer to upload after a short delay.
             self._set_timer()
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         with self._scopes_lock:
             return {
                 "schema_version": 1,
@@ -555,6 +564,13 @@ class ScopeContext:
             }
 
     def upload(self) -> None:
+        with self._scopes_lock:
+            if not self._scopes:
+                return
+            payload = self.to_json()
+            n = len(self._scopes)
+            self._scopes.clear()
+
         body, headers = multipart(
             parts=[
                 FormData(
@@ -571,11 +587,6 @@ class ScopeContext:
                 ),
             ]
         )
-
-        with self._scopes_lock:
-            payload = self.to_json()
-            n = len(self._scopes)
-            self._scopes.clear()
 
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
@@ -692,7 +703,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
     @classmethod
     def update(cls) -> None:
-        instance = t.cast(SymbolDatabaseUploader, cls._instance)
+        instance = t.cast(t.Optional[SymbolDatabaseUploader], cls._instance)
         if instance is None:
             return
 

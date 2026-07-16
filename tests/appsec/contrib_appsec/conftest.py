@@ -21,6 +21,7 @@ import time  # noqa: E402
 
 import pytest  # noqa: E402
 
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402
@@ -187,12 +188,14 @@ def get_entry_span_metric(entry_span):
 
 @pytest.fixture
 def find_resource(test_spans, root_span):
-    # checking both root spans and web spans for the tag
     def find(resource_name):
         for span in test_spans.spans:
             if span.parent_id is None or span.span_type == "web":
-                res = span.resource
-                if res == resource_name:
+                if span.resource == resource_name:
+                    return True
+                # Mounted Flask sub-apps keep ``span.resource`` app-local and expose the client-hit
+                # resource on a side-channel tag for backend remapping.
+                if span.get_tag(FLASK_RESOURCE_FULL) == resource_name:
                     return True
         return False
 

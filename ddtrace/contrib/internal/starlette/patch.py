@@ -1,5 +1,6 @@
 import inspect
 from typing import Any  # noqa:F401
+from typing import Mapping
 from typing import Optional  # noqa:F401
 
 import starlette
@@ -11,7 +12,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -69,8 +71,15 @@ def _supported_versions() -> dict[str, str]:
 
 
 def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
+    mw = list(kwargs.pop("middleware", None) or [])
+    mw.insert(
+        0,
+        Middleware(
+            TraceMiddleware,
+            integration_config=config.starlette,
+            span_modifier=_set_route_resource_resolver,
+        ),
+    )
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)
@@ -124,6 +133,72 @@ def _collect_routes_from_app(app, prefix=""):
             log.debug("failed to collect endpoint for route %r", route, exc_info=True)
 
 
+def _set_route_resource_resolver(_span: Span, scope: Mapping[str, Any]) -> None:
+    datadog_context = scope.get("datadog")
+    if datadog_context is not None:
+        datadog_context[_DD_ROUTE_RESOURCE_RESOLVER] = _resolve_route_resource
+
+
+def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
+    """Resolve a Starlette route template before ASGI finishes the request span."""
+    app = scope.get("app")
+    route_match = _find_matching_route_path(getattr(app, "routes", None), scope)
+    if route_match is None:
+        return
+
+    path, is_route = route_match
+    method = scope.get("method")
+    span.resource = "{} {}".format(method, path) if method else path
+    if is_route:
+        span._set_attribute(http.ROUTE, path)
+
+
+def _find_matching_route_path(routes: Any, scope: Mapping[str, Any], prefix: str = "") -> Optional[tuple[str, bool]]:
+    if not routes:
+        return None
+
+    partial_match = None
+    for route in routes:
+        route_match = _match_route_path(route, scope, prefix)
+        if route_match is None:
+            continue
+
+        match, resolved_route = route_match
+        if match == starlette.routing.Match.FULL:
+            return resolved_route
+        if match == starlette.routing.Match.PARTIAL and partial_match is None:
+            partial_match = resolved_route
+
+    return partial_match
+
+
+def _match_route_path(route: Any, scope: Mapping[str, Any], prefix: str) -> Optional[tuple[Any, tuple[str, bool]]]:
+    host_class = getattr(starlette.routing, "Host", None)
+    is_host_route = host_class is not None and isinstance(route, host_class)
+    if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)) and not is_host_route:
+        return None
+
+    match, child_scope = route.matches(scope)
+    if match == starlette.routing.Match.NONE:
+        return None
+
+    if isinstance(route, starlette.routing.Route):
+        return match, (prefix + route.path, True)
+
+    child_routes = getattr(route.app, "routes", None)
+    if child_routes:
+        updated_scope = dict(scope)
+        updated_scope.update(child_scope)
+        path_prefix = prefix if is_host_route else prefix + route.path
+        child_match = _find_matching_route_path(child_routes, updated_scope, path_prefix)
+        if child_match is not None:
+            return match, child_match
+
+    if isinstance(route, starlette.routing.Mount):
+        return match, (prefix + route.path, False)
+    return None
+
+
 def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
@@ -164,6 +239,22 @@ def unpatch():
         _u(starlette.background.BackgroundTasks, "add_task")
 
 
+def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
+    seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
+    # Route objects are app-lifetime singletons so id() is stable for the duration of the request.
+    if id(instance) in seen_routes:
+        return True
+    seen_routes.add(id(instance))
+    return False
+
+
+def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
+    effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
+    if effective_route_context is None:
+        return None
+    return getattr(effective_route_context, "path_format", None)
+
+
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
@@ -178,16 +269,31 @@ def traced_handler(wrapped, instance, args, kwargs):
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
         return wrapped(*args, **kwargs)
 
-    # Add the path to the resource_paths list
-    if "resource_paths" not in scope["datadog"]:
-        scope["datadog"]["resource_paths"] = [instance.path]
-    else:
-        scope["datadog"]["resource_paths"].append(instance.path)
+    # FastAPI >= 0.137 calls super().handle() from APIRoute.handle, causing traced_handler to fire
+    # twice for the same route instance on a single request, which doubles resource_paths.
+    if _is_duplicate_route_call(scope, instance):
+        return wrapped(*args, **kwargs)
 
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
+
+    full_path = _get_fastapi_effective_path(scope)
+
+    # Only accumulate resource_paths for the pre-0.137 path; when full_path is available,
+    # the composed path is read directly from effective_route_context and resource_paths
+    # is never consumed.
+    if full_path is None:
+        if "resource_paths" not in scope["datadog"]:
+            scope["datadog"]["resource_paths"] = [instance.path]
+        else:
+            scope["datadog"]["resource_paths"].append(instance.path)
+
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
-    if len(request_spans) == len(resource_paths):
+    if full_path is not None:
+        if request_spans:
+            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
+            request_spans[0]._set_attribute(http.ROUTE, full_path)
+    elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):
             # We want to set the full resource name on the first request span

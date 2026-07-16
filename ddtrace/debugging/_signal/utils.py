@@ -31,7 +31,6 @@ from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.cache import cached
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
@@ -59,19 +58,8 @@ CALLABLE_TYPES = (
 )
 
 
-@cached()
-def qualname(_type: type) -> str:
-    try:
-        return _type.__qualname__
-    except AttributeError:
-        try:
-            return _type.__name__
-        except AttributeError:
-            return repr(_type)
-
-
 def _serialize_collection(
-    value: Collection, brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
+    value: Collection[Any], brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
 ) -> str:
     o, c = brackets[0], brackets[1]
     ellipsis = ", ..." if len(value) > maxsize else ""
@@ -130,7 +118,7 @@ def serialize(
     )
 
 
-def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict[str, Any]]:
     frame: Optional[FrameType] = top_frame
     stack = []
     h = 0
@@ -148,7 +136,7 @@ def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
     return stack
 
 
-def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict]:
+def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict[str, Any]]:
     stack = []
     h = 0
     _tb: Optional[TracebackType] = tb
@@ -179,12 +167,12 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
     }
 
 
-def redacted_value(v: Any) -> dict:
-    return {"type": qualname(type(v)), "notCapturedReason": "redactedIdent"}
+def redacted_value(v: Any) -> dict[str, Any]:
+    return {"type": type(v).__qualname__, "notCapturedReason": "redactedIdent"}
 
 
-def redacted_type(t: Any) -> dict:
-    return {"type": qualname(t), "notCapturedReason": "redactedType"}
+def redacted_type(t: Any) -> dict[str, Any]:
+    return {"type": t.__qualname__, "notCapturedReason": "redactedType"}
 
 
 def capture_pairs(
@@ -219,7 +207,7 @@ def capture_value(
 
         if cond(value):
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
             }
 
@@ -227,12 +215,12 @@ def capture_value(
         value_repr_len = len(value_repr)
         return (
             {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "value": value_repr,
             }
             if value_repr_len <= maxlen
             else {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "value": value_repr[:maxlen],
                 "truncated": True,
                 "size": value_repr_len,
@@ -242,31 +230,72 @@ def capture_value(
     if _type in BUILTIN_CONTAINER_TYPES:
         if level < 0:
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": "depth",
                 "size": len(value),
             }
 
         if cond(value):
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
                 "size": len(value),
             }
 
         collection: Optional[list[Any]] = None
+        concurrent_modification = False
         if _type in BUILTIN_MAPPING_TYPES:
-            # Mapping
-            collection = [
-                (
-                    capture_value(
-                        k,
-                        level=level - 1,
-                        maxlen=maxlen,
-                        maxsize=maxsize,
-                        maxfields=maxfields,
-                        stopping_cond=cond,
-                    ),
+            size = len(value)
+            # For small mappings, use dict.copy() which is atomic under the GIL.
+            # For large ones, only snapshot up to maxsize to avoid materializing
+            # the whole collection when most of it would be discarded anyway.
+            items_snapshot: Any = value.copy().items() if size <= maxsize else islice(value.items(), maxsize)
+            try:
+                collection = [
+                    (
+                        capture_value(
+                            k,
+                            level=level - 1,
+                            maxlen=maxlen,
+                            maxsize=maxsize,
+                            maxfields=maxfields,
+                            stopping_cond=cond,
+                        ),
+                        capture_value(
+                            v,
+                            level=level - 1,
+                            maxlen=maxlen,
+                            maxsize=maxsize,
+                            maxfields=maxfields,
+                            stopping_cond=cond,
+                        )
+                        if not (_isinstance(k, (str, bytes)) and redact(k))
+                        else redacted_value(v),
+                    )
+                    for k, v in takewhile(lambda _: not cond(_), items_snapshot)
+                ]
+            except RuntimeError:
+                collection = []
+                concurrent_modification = True
+            data = {
+                "type": _type.__qualname__,
+                "entries": collection,
+                "size": size,
+            }
+
+        else:
+            size = len(value)
+            # Immutable types (tuple, frozenset) are safe to iterate directly.
+            # Mutable types use .copy() for an atomic GIL-protected snapshot on
+            # the small path. For large collections only snapshot up to maxsize
+            # to avoid materializing the whole collection when most of it would
+            # be discarded anyway.
+            if size <= maxsize:
+                value_snapshot: Any = value if _type in {tuple, frozenset} else value.copy()
+            else:
+                value_snapshot = islice(value, maxsize)
+            try:
+                collection = [
                     capture_value(
                         v,
                         level=level - 1,
@@ -275,39 +304,22 @@ def capture_value(
                         maxfields=maxfields,
                         stopping_cond=cond,
                     )
-                    if not (_isinstance(k, (str, bytes)) and redact(k))
-                    else redacted_value(v),
-                )
-                for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))
-            ]
+                    for v in takewhile(lambda _: not cond(_), value_snapshot)
+                ]
+            except RuntimeError:
+                collection = []
+                concurrent_modification = True
             data = {
-                "type": qualname(_type),
-                "entries": collection,
-                "size": len(value),
-            }
-
-        else:
-            # Sequence
-            collection = [
-                capture_value(
-                    v,
-                    level=level - 1,
-                    maxlen=maxlen,
-                    maxsize=maxsize,
-                    maxfields=maxfields,
-                    stopping_cond=cond,
-                )
-                for v in takewhile(lambda _: not cond(_), islice(value, maxsize))
-            ]
-            data = {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "elements": collection,
-                "size": len(value),
+                "size": size,
             }
 
-        if len(collection) < min(maxsize, len(value)):
+        if concurrent_modification:
+            data["notCapturedReason"] = "concurrentModification"
+        elif len(collection) < min(maxsize, size):
             data["notCapturedReason"] = cond.__name__
-        elif len(value) > maxsize:
+        elif size > maxsize:
             data["notCapturedReason"] = "collectionSize"
 
         return data
@@ -315,16 +327,16 @@ def capture_value(
     # Arbitrary object
     if level < 0:
         return {
-            "type": qualname(_type),
+            "type": _type.__qualname__,
             "notCapturedReason": "depth",
         }
 
-    if redact_type(qualname(_type)):
+    if redact_type(_type.__qualname__):
         return redacted_type(_type)
 
     if cond(value):
         return {
-            "type": qualname(_type),
+            "type": _type.__qualname__,
             "notCapturedReason": cond.__name__,
         }
 
@@ -347,7 +359,7 @@ def capture_value(
         for n, v in takewhile(lambda _: not cond(_), islice(fields.copy().items(), maxfields))
     }
     data = {
-        "type": qualname(_type),
+        "type": _type.__qualname__,
         "fields": captured_fields,
     }
     if len(captured_fields) < min(maxfields, len(fields)):

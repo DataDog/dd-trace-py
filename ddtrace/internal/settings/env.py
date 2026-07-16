@@ -3,9 +3,9 @@
 This module provides a drop-in replacement for os.environ, enabling centralized
 control and validation of all environment variable access in ddtrace.
 
-All DD_* and OTEL_* environment variable accesses are validated against the
-registry in supported-configurations.json. Unregistered variables produce a
-debug log.
+All DD_*/_DD_*/OTEL_*/DATADOG_* environment variable accesses are validated
+against the registry in supported-configurations.json. Unregistered variables
+produce a debug log.
 
 Reads also honor ``CONFIGURATION_ALIASES`` from the registry: a read for a
 canonical name falls back to its registered legacy aliases if the canonical
@@ -33,12 +33,12 @@ _warned_keys: set[str] = set()
 
 
 def _validate_key(key: str) -> None:
-    """Warn if a DD_*/OTEL_* key is not in the supported-configurations registry.
+    """Warn if a DD_*/_DD_*/OTEL_*/DATADOG_* key is not in the supported-configurations registry.
 
     Keys that are registered aliases of a supported configuration are also accepted.
     Each unsupported key is warned about at most once per process.
     """
-    if not (key.startswith("DD_") or key.startswith("OTEL_")):
+    if not (key.startswith("DD_") or key.startswith("_DD_") or key.startswith("OTEL_") or key.startswith("DATADOG_")):
         return
 
     if key in _warned_keys:
@@ -59,8 +59,8 @@ class EnvConfig(MutableMapping):
     in dd-trace-py. Drop-in replacement for os.environ — supports reads, writes,
     deletes, containment checks, iteration, and all standard dict-like operations.
 
-    Validates that DD_* and OTEL_* accesses use registered configuration
-    variables from supported-configurations.json.
+    Validates that DD_*/_DD_*/OTEL_*/DATADOG_* accesses use registered
+    configuration variables from supported-configurations.json.
     """
 
     def __getitem__(self, key: str) -> str:

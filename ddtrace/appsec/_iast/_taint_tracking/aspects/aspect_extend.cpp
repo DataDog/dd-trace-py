@@ -32,12 +32,14 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
-        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        if (has_pyerr()) {
-            Py_DecRef(method_name);
+        if (method_name == nullptr) {
             return nullptr;
         }
+        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
         Py_DecRef(method_name);
+        if (has_pyerr()) {
+            return nullptr;
+        }
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
         auto to_result = safe_allocate_tainted_object_copy(to_candidate);
@@ -45,12 +47,14 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
         // Ensure no returns are done before this method call
         auto method_name = PyUnicode_FromString("extend");
-        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        if (has_pyerr()) {
-            Py_DecRef(method_name);
+        if (method_name == nullptr) {
             return nullptr;
         }
+        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
         Py_DecRef(method_name);
+        if (has_pyerr()) {
+            return nullptr;
+        }
 
         if (to_result == nullptr) {
             Py_RETURN_NONE;

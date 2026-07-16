@@ -2,7 +2,6 @@
 from functools import partial
 import sys
 from time import sleep
-import unittest
 
 import mock
 import pytest
@@ -23,18 +22,17 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.trace import Context
 
 
-class TestUtils(unittest.TestCase):
-    def test_asbool(self):
-        # ensure the value is properly cast
-        self.assertTrue(asbool("True"))
-        self.assertTrue(asbool("true"))
-        self.assertTrue(asbool("1"))
-        self.assertFalse(asbool("False"))
-        self.assertFalse(asbool("false"))
-        self.assertFalse(asbool(None))
-        self.assertFalse(asbool(""))
-        self.assertTrue(asbool(True))
-        self.assertFalse(asbool(False))
+def test_asbool():
+    # ensure the value is properly cast
+    assert asbool("True")
+    assert asbool("true")
+    assert asbool("1")
+    assert not asbool("False")
+    assert not asbool("false")
+    assert not asbool(None)
+    assert not asbool("")
+    assert asbool(True)
+    assert not asbool(False)
 
 
 _LOG_ERROR_MALFORMED_TAG = "Malformed tag in tag pair '%s' from tag string '%s'."

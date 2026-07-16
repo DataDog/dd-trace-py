@@ -30,6 +30,9 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling: bool
     adaptive_sampling_target_overhead: float
     adaptive_sampling_max_interval: int
+    adaptive_sampling_baseline: float
+    adaptive_sampling_p_stable_window_s: int
+    adaptive_sampling_p_stable_percentile: float
     max_threads: int
     native_frames: bool
     fast_copy: bool
@@ -42,6 +45,7 @@ class ProfilingConfigLock(DDConfig):
 class ProfilingConfigMemory(DDConfig):
     enabled: bool
     events_buffer: int
+    mem_domain_enabled: bool
 
 class ProfilingConfigHeap(DDConfig):
     enabled: bool
@@ -51,6 +55,7 @@ class ProfilingConfigHeap(DDConfig):
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
+    max_frames: int
 
 class ProfilingConfigException(DDConfig):
     enabled: bool

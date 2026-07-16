@@ -1,0 +1,18 @@
+SPAN_NAME_PREFIX = "aws.durable."
+
+SPAN_STEP = "aws.durable.step"
+SPAN_WAIT = "aws.durable.wait"
+SPAN_WAIT_FOR_CONDITION = "aws.durable.wait_for_condition"
+SPAN_WAIT_FOR_CALLBACK = "aws.durable.wait_for_callback"
+SPAN_CREATE_CALLBACK = "aws.durable.create_callback"
+SPAN_MAP = "aws.durable.map"
+SPAN_PARALLEL = "aws.durable.parallel"
+SPAN_CHILD_CONTEXT = "aws.durable.child_context"
+
+TAG_EXECUTION_ARN = "aws.durable.execution_arn"
+TAG_REPLAYED = "aws.durable.replayed"
+TAG_INVOCATION_STATUS = "aws.durable.invocation_status"
+TAG_INVOKE_FUNCTION_NAME = "aws.durable.invoke.function_name"
+TAG_NAME = "aws.durable.operation_name"
+TAG_ID = "aws.durable.operation_id"
+TAG_OPERATION_ATTEMPT = "aws.durable.operation_attempt"

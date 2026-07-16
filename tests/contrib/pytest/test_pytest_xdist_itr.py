@@ -23,6 +23,7 @@ from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettin
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+from tests.contrib.pytest.test_pytest import _assert_itr_tests_skipping_enabled_tag_propagated
 
 
 ######
@@ -177,6 +178,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
@@ -304,6 +306,7 @@ class TestScope2:
 
         # Assert on session span metrics - key assertion for suite-level skipping
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"  # loadscope uses suite-level skipping
@@ -406,6 +409,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
@@ -506,6 +510,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"

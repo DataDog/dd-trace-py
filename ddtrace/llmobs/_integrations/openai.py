@@ -3,12 +3,13 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -68,10 +69,10 @@ class OpenAIIntegration(BaseLLMIntegration):
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
         base_url = None
-        if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
+        if span is not None:
+            base_url = span._get_ctx_item(REQUEST_BASE_URL)
+        if not base_url:
             base_url = getattr(self._client, "_base_url", None)
-        else:
-            base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
@@ -230,6 +231,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
+            if cache_write_tokens is not None:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
             # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
             reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
                 token_usage, "output_tokens_details", {}

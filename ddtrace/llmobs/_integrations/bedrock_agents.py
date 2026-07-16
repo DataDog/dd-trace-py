@@ -2,30 +2,35 @@ from datetime import timezone
 import json
 import sys
 from typing import Any
-from typing import Literal
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_input
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import _ErrorField
-from ddtrace.llmobs.types import _Meta
-from ddtrace.llmobs.types import _MetaIO
-from ddtrace.llmobs.types import _SpanField
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-DEFAULT_SPAN_DURATION = 1e6  # Default span duration if not provided by bedrock trace event
+# Used when an AWS event has no duration (e.g. rationale).
+DEFAULT_SPAN_DURATION_NS = 1_000_000
 
 
 class BedrockGuardrailTriggeredException(Exception):
@@ -40,63 +45,41 @@ class BedrockFailureException(Exception):
     pass
 
 
-def _build_span_event(
-    span_name,
-    root_span,
-    parent_id,
-    span_kind,
-    start_ns=None,
-    duration_ns=None,
-    error=None,
-    error_msg=None,
-    error_type=None,
-    span_id=None,
-    metadata=None,
-    input_val=None,
-    output_val=None,
-) -> LLMObsSpanEvent:
-    if span_id is None:
-        span_id = generate_128bit_trace_id()
-    apm_trace_id = format_trace_id(root_span.trace_id)
-    llmobs_trace_id_str = get_llmobs_trace_id(root_span) or apm_trace_id
-    session_id = get_llmobs_session_id(root_span)
-    ml_app = get_llmobs_ml_app(root_span)
-    tags = [f"ml_app:{ml_app}", f"session_id:{session_id}", "integration:bedrock_agents"]
-    span_event: LLMObsSpanEvent = {
-        "name": span_name,
-        "span_id": str(span_id),
-        "trace_id": llmobs_trace_id_str,
-        "parent_id": str(parent_id or root_span.span_id),
-        "tags": tags,
-        "start_ns": int(start_ns or root_span.start_ns),
-        "duration": int(duration_ns or DEFAULT_SPAN_DURATION),
-        "status": "error" if error else "ok",
-        "meta": _Meta(
-            span=_SpanField(kind=span_kind),
-            metadata={},
-            input=_MetaIO(),
-            output=_MetaIO(),
-            error=_ErrorField(),
-        ),
-        "metrics": {},
-        "_dd": {
-            "span_id": str(span_id),
-            "trace_id": llmobs_trace_id_str,
-            "apm_trace_id": apm_trace_id,
-        },
+def _build_step_span(
+    span_name: str,
+    root_span: Span,
+    parent: Span,
+    span_kind: str,
+    start_ns: Optional[int] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    input_val: Optional[Any] = None,
+    output_val: Optional[Any] = None,
+) -> Span:
+    # activate=False so the post-stream reconstructed spans don't pollute the active context.
+    span = tracer.start_span(span_name, child_of=parent, span_type=SpanTypes.LLM, activate=False)
+    span.start_ns = int(start_ns if start_ns is not None else root_span.start_ns)
+
+    annotate_kwargs: dict[str, Any] = {
+        "kind": span_kind,
+        "parent_id": str(parent.span_id),
+        "trace_id": get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id),
+        "ml_app": get_llmobs_ml_app(root_span),
+        "tags": {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"},
+        "session_id": get_llmobs_session_id(root_span) or None,
+        "metadata": metadata or None,
     }
-    if metadata is not None:
-        span_event["meta"]["metadata"] = metadata
-    io_key: Literal["messages", "value"] = "messages" if span_kind == "llm" else "value"
-    if input_val is not None and "input" in span_event["meta"]:
-        span_event["meta"]["input"][io_key] = input_val
-    if output_val is not None and "output" in span_event["meta"]:
-        span_event["meta"]["output"][io_key] = output_val
-    if error_msg is not None and "error" in span_event["meta"]:
-        span_event["meta"]["error"]["message"] = error_msg
-    if error_type is not None and "error" in span_event["meta"]:
-        span_event["meta"]["error"]["type"] = error_type
-    return span_event
+    if input_val is not None:
+        annotate_kwargs["input_messages" if span_kind == "llm" else "input_value"] = input_val
+    if output_val is not None:
+        annotate_kwargs["output_messages" if span_kind == "llm" else "output_value"] = output_val
+
+    _annotate_llmobs_span_data(span, **annotate_kwargs)
+    return span
+
+
+def _max_finish_ns(span: Span) -> int:
+    """Return span end time in nanoseconds for sizing step spans over their back-dated children."""
+    return span.start_ns + (span.duration_ns or 0)
 
 
 def _extract_trace_step_id(bedrock_trace_obj):
@@ -147,77 +130,83 @@ def _extract_start_and_duration_from_metadata(bedrock_metadata, root_span):
     return int(start_ns), int(duration_ns)
 
 
-def _create_or_update_bedrock_trace_step_span(trace, trace_step_id, inner_span_event, root_span, span_dict):
-    """Creates/updates a Bedrock trace step span based on the provided trace and inner span event.
-    Sets the trace step span's input from the first inner span event, and the output from the last inner span event.
-    """
+def _get_or_create_bedrock_trace_step_span(
+    trace: dict[str, Any],
+    trace_step_id: str,
+    root_span: Span,
+    step_spans_by_step_id: dict[str, Span],
+) -> Span:
+    """Return the existing step parent span for ``trace_step_id`` or create a new one."""
+    step_span = step_spans_by_step_id.get(trace_step_id)
+    if step_span is not None:
+        return step_span
     trace_type = _extract_trace_type(trace) or "Bedrock Agent"
-    span_event = span_dict.get(trace_step_id)
-    if not span_event:
-        start_ns = root_span.start_ns if not inner_span_event else inner_span_event.get("start_ns", root_span.start_ns)
-        span_event = _build_span_event(
-            span_name="{} Step".format(trace_type),
-            root_span=root_span,
-            parent_id=root_span.span_id,
-            span_kind="workflow",
-            start_ns=start_ns,
-            span_id=trace_step_id,
-            metadata={"bedrock_trace_id": trace_step_id},
-        )
-        span_dict[trace_step_id] = span_event
-    trace_step_input = span_event.get("meta", {}).get("input", {})
-    if not trace_step_input and inner_span_event and inner_span_event.get("meta", {}).get("input"):
-        span_event["meta"]["input"] = inner_span_event.get("meta", {}).get("input")
-    if inner_span_event and inner_span_event.get("meta", {}).get("output"):
-        span_event["meta"]["output"] = inner_span_event.get("meta", {}).get("output")
-    if not inner_span_event or not inner_span_event.get("start_ns") or not inner_span_event.get("duration"):
-        return span_event
-    span_event["duration"] = int(inner_span_event["duration"] + inner_span_event["start_ns"] - span_event["start_ns"])
-    return span_event
+    step_span = _build_step_span(
+        "{} Step".format(trace_type),
+        root_span,
+        root_span,
+        "workflow",
+        start_ns=_extract_start_ns(trace, root_span),
+        metadata={"bedrock_trace_id": trace_step_id},
+    )
+    step_spans_by_step_id[trace_step_id] = step_span
+    return step_span
+
+
+def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
+    """Copy first non-empty input and last output from inner_span onto step_span.
+
+    MUST be called before inner_span.finish(): LLMObs._on_span_finish enqueues the event
+    and scrubs meta_struct[LLMOBS_STRUCT.KEY] on finish, leaving nothing to read.
+    """
+    kwargs: dict[str, Any] = {}
+    if not get_llmobs_input(step_span):
+        input_val = get_llmobs_input_messages(inner_span) or get_llmobs_input_value(inner_span)
+        if input_val is not None:
+            kwargs["input_value"] = safe_json(input_val) if not isinstance(input_val, str) else input_val
+    output_val = get_llmobs_output_messages(inner_span) or get_llmobs_output_value(inner_span)
+    if output_val is not None:
+        kwargs["output_value"] = safe_json(output_val) if not isinstance(output_val, str) else output_val
+    if kwargs:
+        _annotate_llmobs_span_data(step_span, **kwargs)
 
 
 def _translate_custom_orchestration_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[dict[str, Any]], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a custom orchestration bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating if the trace is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     custom_orchestration_trace = trace.get("trace", {}).get("customOrchestrationTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     custom_orchestration_event = custom_orchestration_trace.get("event", {})
     if not custom_orchestration_event or not isinstance(custom_orchestration_event, dict):
         return None, False
-    span_event = _build_span_event(
+    span = _build_step_span(
         span_name="customOrchestration",
         root_span=root_span,
-        parent_id=trace_step_id,
+        parent=parent,
         span_kind="task",
         start_ns=start_ns,
         output_val=custom_orchestration_event.get("text", ""),
     )
-    return span_event, False
+    return span, False
 
 
 def _translate_orchestration_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates an orchestration bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating if the trace is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     orchestration_trace = trace.get("trace", {}).get("orchestrationTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = orchestration_trace.get("modelInvocationInput", {})
     if model_invocation_input:
-        return _model_invocation_input_span(model_invocation_input, trace_step_id, start_ns, root_span), False
+        return _model_invocation_input_span(model_invocation_input, parent, start_ns, root_span), False
     model_invocation_output = orchestration_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span), True
     rationale = orchestration_trace.get("rationale", {})
     if rationale:
-        return _rationale_span(rationale, trace_step_id, start_ns, root_span), True
+        return _rationale_span(rationale, parent, start_ns, root_span), True
     invocation_input = orchestration_trace.get("invocationInput", {})
     if invocation_input:
-        return _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span), False
+        return _invocation_input_span(invocation_input, parent, start_ns, root_span), False
     observation = orchestration_trace.get("observation", {})
     if observation and isinstance(observation, dict):
         return _observation_span(observation, root_span, current_active_span), True
@@ -225,11 +214,8 @@ def _translate_orchestration_trace(
 
 
 def _translate_failure_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[dict[str, Any]], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a failure bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating that the span is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     failure_trace = trace.get("trace", {}).get("failureTrace", {})
     failure_metadata = failure_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(failure_metadata, root_span)
@@ -239,26 +225,25 @@ def _translate_failure_trace(
         root_span.set_exc_info(*sys.exc_info())
     error_msg = failure_trace.get("failureReason", "")
     error_type = failure_trace.get("failureType", "")
-    span_event = _build_span_event(
+    span = _build_step_span(
         span_name="failureEvent",
         root_span=root_span,
-        parent_id=trace_step_id,
+        parent=parent,
         span_kind="task",
         start_ns=start_ns,
-        duration_ns=duration_ns,
-        error=True,
-        error_msg=error_msg,
-        error_type=error_type,
     )
-    return span_event, True
+    # Set error tags directly (instead of set_exc_info) so the LLMObs payload exposes the AWS
+    # failureType/failureReason verbatim and we don't surface a synthetic exception in APM.
+    span.error = 1
+    span.set_tag(ERROR_MSG, error_msg)
+    span.set_tag(ERROR_TYPE, error_type)
+    span.finish(finish_time=(start_ns + duration_ns) / 1e9)
+    return span, True
 
 
 def _translate_guardrail_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[dict[str, Any]], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a guardrail bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating that the span is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     guardrail_trace = trace.get("trace", {}).get("guardrailTrace", {})
     guardrail_metadata = guardrail_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(guardrail_metadata, root_span)
@@ -269,16 +254,12 @@ def _translate_guardrail_trace(
         "outputAssessments": guardrail_trace.get("outputAssessments", []),
     }
     guardrail_triggered = bool(action == "INTERVENED")
-    span_event = _build_span_event(
+    span = _build_step_span(
         span_name="guardrail",
         root_span=root_span,
-        parent_id=trace_step_id,
+        parent=parent,
         span_kind="task",
         start_ns=start_ns,
-        duration_ns=duration_ns,
-        error=guardrail_triggered,
-        error_msg="Guardrail intervened" if guardrail_triggered else None,
-        error_type="GuardrailTriggered" if guardrail_triggered else None,
         output_val=safe_json(guardrail_output),
     )
     if guardrail_triggered:
@@ -286,20 +267,21 @@ def _translate_guardrail_trace(
             raise BedrockGuardrailTriggeredException("Guardrail intervened")
         except BedrockGuardrailTriggeredException:
             root_span.set_exc_info(*sys.exc_info())
-    return span_event, True
+        span.error = 1
+        span.set_tag(ERROR_MSG, "Guardrail intervened")
+        span.set_tag(ERROR_TYPE, "GuardrailTriggered")
+    span.finish(finish_time=(start_ns + duration_ns) / 1e9)
+    return span, True
 
 
 def _translate_post_processing_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a postprocessing bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating if the span is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     postprocessing_trace = trace.get("trace", {}).get("postProcessingTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = postprocessing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
-        return _model_invocation_input_span(model_invocation_input, trace_step_id, start_ns, root_span), False
+        return _model_invocation_input_span(model_invocation_input, parent, start_ns, root_span), False
     model_invocation_output = postprocessing_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span), True
@@ -307,16 +289,13 @@ def _translate_post_processing_trace(
 
 
 def _translate_pre_processing_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a preprocessing bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating if the span is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     preprocessing_trace = trace.get("trace", {}).get("preProcessingTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = preprocessing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
-        return _model_invocation_input_span(model_invocation_input, trace_step_id, start_ns, root_span), False
+        return _model_invocation_input_span(model_invocation_input, parent, start_ns, root_span), False
     model_invocation_output = preprocessing_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span), True
@@ -324,22 +303,19 @@ def _translate_pre_processing_trace(
 
 
 def _translate_routing_classifier_trace(
-    trace: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
-) -> tuple[Optional[LLMObsSpanEvent], bool]:
-    """Translates a routing classifier bedrock trace into a LLMObs span event.
-    Returns the translated span event and a boolean indicating if the span is finished.
-    """
+    trace: dict[str, Any], root_span: Span, parent: Span, current_active_span: Optional[Span], trace_step_id: str
+) -> tuple[Optional[Span], bool]:
     routing_trace = trace.get("trace", {}).get("routingClassifierTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = routing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
-        return _model_invocation_input_span(model_invocation_input, trace_step_id, start_ns, root_span), False
+        return _model_invocation_input_span(model_invocation_input, parent, start_ns, root_span), False
     model_invocation_output = routing_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span), True
     invocation_input = routing_trace.get("invocationInput", {})
     if invocation_input:
-        return _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span), False
+        return _invocation_input_span(invocation_input, parent, start_ns, root_span), False
     observation = routing_trace.get("observation", {})
     if observation and isinstance(observation, dict):
         return _observation_span(observation, root_span, current_active_span), True
@@ -347,9 +323,8 @@ def _translate_routing_classifier_trace(
 
 
 def _model_invocation_input_span(
-    model_input: dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[LLMObsSpanEvent]:
-    """Translates a Bedrock model invocation input trace into a LLMObs span event."""
+    model_input: dict[str, Any], parent: Span, start_ns: int, root_span: Span
+) -> Optional[Span]:
     model_id = model_input.get("foundationModel", "")
     model_provider, model_name = parse_model_id(model_id)
     try:
@@ -360,22 +335,23 @@ def _model_invocation_input_span(
     input_messages: list[Message] = [Message(content=text.get("system", ""), role="system")]
     for message in text.get("messages", []):
         input_messages.append(Message(content=message.get("content", ""), role=message.get("role", "")))
-    span_event = _build_span_event(
+    span = _build_step_span(
         "modelInvocation",
         root_span,
-        trace_step_id,
+        parent,
         "llm",
         start_ns=start_ns,
         metadata={"model_name": model_name, "model_provider": model_provider},
         input_val=input_messages,
     )
-    return span_event
+    _propagate_inner_io_to_step_span(parent, span)
+    return span
 
 
 def _model_invocation_output_span(
-    model_output: dict[str, Any], current_active_span: Optional[LLMObsSpanEvent], root_span: Span
-) -> Optional[LLMObsSpanEvent]:
-    """Translates a Bedrock model invocation output trace into a LLMObs span event."""
+    model_output: dict[str, Any], current_active_span: Optional[Span], root_span: Span
+) -> Optional[Span]:
+    """Finalize the pending model-invocation span with output, metrics, and back-dated finish."""
     if not current_active_span:
         log.warning("Error in processing modelInvocationOutput.")
         return None
@@ -390,34 +366,33 @@ def _model_invocation_output_span(
         output_messages.append(Message(content=raw_response, role="assistant"))
 
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
-    if reasoning_text and "metadata" in current_active_span["meta"]:
-        current_active_span["meta"]["metadata"]["reasoningText"] = str(reasoning_text.get("text", ""))
+    metadata_update = {"reasoningText": str(reasoning_text.get("text", ""))} if reasoning_text else None
     token_metrics = {
         "input_tokens": bedrock_metadata.get("usage", {}).get("inputTokens", 0),
         "output_tokens": bedrock_metadata.get("usage", {}).get("outputTokens", 0),
     }
-    current_active_span["start_ns"] = int(start_ns)
-    current_active_span["duration"] = int(duration_ns)
-    if "output" in current_active_span["meta"]:
-        current_active_span["meta"]["output"]["messages"] = output_messages
-    current_active_span["metrics"] = token_metrics
-    return current_active_span
-
-
-def _rationale_span(
-    rationale: dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[LLMObsSpanEvent]:
-    """Translates a Bedrock rationale trace into a LLMObs span event."""
-    span_event = _build_span_event(
-        "reasoning", root_span, trace_step_id, "task", start_ns=start_ns, output_val=rationale.get("text", "")
+    current_active_span.start_ns = int(start_ns)
+    _annotate_llmobs_span_data(
+        current_active_span, output_messages=output_messages, metrics=token_metrics, metadata=metadata_update
     )
-    return span_event
+    if current_active_span._parent is not None:
+        _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
+    current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
+    return None
+
+
+def _rationale_span(rationale: dict[str, Any], parent: Span, start_ns: int, root_span: Span) -> Optional[Span]:
+    span = _build_step_span(
+        "reasoning", root_span, parent, "task", start_ns=start_ns, output_val=rationale.get("text", "")
+    )
+    _propagate_inner_io_to_step_span(parent, span)
+    span.finish(finish_time=(start_ns + DEFAULT_SPAN_DURATION_NS) / 1e9)
+    return span
 
 
 def _invocation_input_span(
-    invocation_input: dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[LLMObsSpanEvent]:
-    """Translates a Bedrock invocation input trace into a LLMObs span event."""
+    invocation_input: dict[str, Any], parent: Span, start_ns: int, root_span: Span
+) -> Optional[Span]:
     span_name = ""
     tool_metadata = {}
     tool_args = {}
@@ -443,16 +418,17 @@ def _invocation_input_span(
         bedrock_tool_call = invocation_input.get("knowledgeBaseLookupInput", {})
         span_name = bedrock_tool_call.get("knowledgeBaseId")
         tool_args = {"text": str(bedrock_tool_call.get("text", ""))}
-    span_event = _build_span_event(
-        span_name, root_span, trace_step_id, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
+    span = _build_step_span(
+        span_name or "", root_span, parent, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
     )
-    return span_event
+    _propagate_inner_io_to_step_span(parent, span)
+    return span
 
 
 def _observation_span(
-    observation: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent]
-) -> Optional[LLMObsSpanEvent]:
-    """Translates a Bedrock observation trace into a LLMObs span event."""
+    observation: dict[str, Any], root_span: Span, current_active_span: Optional[Span]
+) -> Optional[Span]:
+    """Finalize the pending tool span with output and back-dated finish."""
     observation_type = observation.get("type", "")
     if observation_type in ("FINISH", "REPROMPT"):
         # There shouldn't be a corresponding active span for a finish/reprompt observation.
@@ -480,11 +456,12 @@ def _observation_span(
         output_value = output_chunk.get("executionOutput", "")
 
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
-    current_active_span["start_ns"] = int(start_ns)
-    current_active_span["duration"] = int(duration_ns)
-    if "output" in current_active_span["meta"]:
-        current_active_span["meta"]["output"]["value"] = output_value
-    return current_active_span
+    current_active_span.start_ns = int(start_ns)
+    _annotate_llmobs_span_data(current_active_span, output_value=output_value)
+    if current_active_span._parent is not None:
+        _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
+    current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
+    return None
 
 
 # Maps Bedrock trace object names to their corresponding translation methods.
@@ -499,10 +476,18 @@ BEDROCK_AGENTS_TRACE_CONVERSION_METHODS = {
 }
 
 
-def translate_bedrock_trace(trace, root_span, current_active_span_event, trace_step_id):
-    """Translates a Bedrock trace into a LLMObs span event.
-    Routes the trace to the appropriate translation method based on the trace type.
-    Returns the translated span event and a boolean indicating if the span is finished.
+def translate_bedrock_trace(
+    trace: dict[str, Any],
+    root_span: Span,
+    parent: Span,
+    current_active_span: Optional[Span],
+    trace_step_id: str,
+) -> tuple[Optional[Span], bool]:
+    """Route a single bedrock trace event to the appropriate translation method.
+
+    Returns the inner Span (created or finalized) plus a ``finished`` flag. ``finished=True`` means
+    the span has already been finished; ``finished=False`` means it is pending and the caller must
+    keep it as the active span for ``trace_step_id`` until the matching output/observation arrives.
     """
     trace_type = _extract_trace_type(trace) or ""
     if trace_type not in BEDROCK_AGENTS_TRACE_CONVERSION_METHODS:
@@ -516,5 +501,4 @@ def translate_bedrock_trace(trace, root_span, current_active_span_event, trace_s
         log.warning("Invalid trace structure for trace type '%s': %s", trace_type, trace)
         return None, False
     translation_method = BEDROCK_AGENTS_TRACE_CONVERSION_METHODS[trace_type]
-    translated_span_event, finished = translation_method(trace, root_span, current_active_span_event, trace_step_id)
-    return translated_span_event, finished
+    return translation_method(trace, root_span, parent, current_active_span, trace_step_id)

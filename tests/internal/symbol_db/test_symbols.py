@@ -5,10 +5,12 @@ from pathlib import Path
 import tempfile
 from types import ModuleType
 import typing as t
+from unittest import mock
 
 import pytest
 
 from ddtrace.internal.symbol_db.symbols import Scope
+from ddtrace.internal.symbol_db.symbols import ScopeContext
 from ddtrace.internal.symbol_db.symbols import ScopeData
 from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
@@ -287,6 +289,16 @@ def test_symbols_injectible_line_ranges(lines, expected):
     assert _line_ranges(lines) == expected
 
 
+def test_scope_context_upload_skips_empty_batch():
+    """Empty scope batches must not produce a SymDB upload request."""
+    context = ScopeContext()
+
+    with mock.patch("ddtrace.internal.symbol_db.symbols.connector") as mock_connector:
+        context.upload()
+
+    mock_connector.assert_not_called()
+
+
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
 def test_symbols_upload_enabled():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -297,7 +309,9 @@ def test_symbols_upload_enabled():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff")
+    ddtrace_run=True,
+    env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff"),
+    err=None,
 )
 def test_symbols_force_upload():
     import typing as t

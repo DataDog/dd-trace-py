@@ -79,6 +79,9 @@ def cleanup_loaded_modules() -> None:
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
+            "dataclasses",  # for product loaded remotely that use dataclasses
+            "yaml",  # third parties (e.g. Airflow) cache SafeLoader/safe_load at import time
+            "_yaml",  # PyYAML's C backend does not like being unloaded and reimported
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
@@ -101,6 +104,10 @@ def cleanup_loaded_modules() -> None:
             # CPython on boot.
             "threading",
             "_thread",
+            # reprlib does `from _thread import get_ident` at module level;
+            # unloading it ensures a fresh re-import binds the correct get_ident
+            # after _thread is reloaded, keeping it picklable.
+            "reprlib",
         ]
     )
     for u in UNLOAD_MODULES:
@@ -114,7 +121,7 @@ def cleanup_loaded_modules() -> None:
     # hook on the threading module to perform this update.
     @ModuleWatchdog.after_module_imported("threading")
     def _(threading):
-        logging.threading = threading
+        logging.threading = threading  # type: ignore[attr-defined]
 
     # Do module cloning only once
     enabled = False

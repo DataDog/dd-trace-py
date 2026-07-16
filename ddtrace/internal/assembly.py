@@ -68,7 +68,7 @@ class Assembly:
     ) -> None:
         self._labels: dict[str, bc.Label] = {}
         self._ref_labels: dict[str, bc.Label] = {}
-        self._tb: t.Optional[bc.TryBegin] = None
+        self._tb: t.Optional[bc.TryBegin] = None  # type: ignore[name-defined]
         self._instrs = bc.Bytecode()
         self._instrs.name = name or "<assembly>"
         self._instrs.filename = filename or __file__
@@ -95,7 +95,8 @@ class Assembly:
         if label_ident in self._labels:
             raise ValueError("label %s already defined" % label_ident)
 
-        label = self._labels[label_ident] = self._ref_labels.pop(label_ident, None) or bc.Label()
+        existing = self._ref_labels.pop(label_ident, None)
+        label = self._labels[label_ident] = existing if existing is not None else bc.Label()
 
         return label
 
@@ -177,7 +178,7 @@ class Assembly:
 
     def parse_opcode_arg(self, text: str) -> t.Union[bc.Label, str, int, t.Any]:
         if not text:
-            return bc.UNSET
+            return bc.UNSET  # type: ignore[attr-defined]
 
         return (
             self.parse_label_ref(text)
@@ -272,10 +273,10 @@ class Assembly:
                 print(f"    {entry.name:<32}{{{entry.arg}}}")
             elif isinstance(entry, bc.Label):
                 print(f"{self._label_ident(entry)}:")
-            elif isinstance(entry, bc.TryBegin):
+            elif isinstance(entry, bc.TryBegin):  # type: ignore[attr-defined]
                 print(f"try @{self._label_ident(entry.target)} (lasti={entry.push_lasti})")
 
-    def __iter__(self) -> t.Iterator[bc.Instr]:
+    def __iter__(self) -> t.Iterator[t.Any]:
         return iter(self._instrs)
 
     def __len__(self) -> int:

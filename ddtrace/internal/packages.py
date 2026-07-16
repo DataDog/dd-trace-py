@@ -21,6 +21,37 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
+# AIDEV-NOTE: dist.metadata access is per-dist defensive — malformed METADATA
+# (rare but real on system-Python / CI images) must not poison the @callonce cache.
+_BAD_DISTS_WARNED: set[str] = set()
+
+
+def _bad_dist_key(dist) -> str:
+    """A stable identifier for deduping warnings about a malformed dist.
+
+    ``Distribution._path`` is a private attribute but the most useful key in
+    practice for path-based installs (the dist-info directory). For other
+    backends we fall back to ``repr(dist)``.
+    """
+    path = getattr(dist, "_path", None)
+    if path is not None:
+        return str(path)
+    return repr(dist)
+
+
+def _warn_bad_dist(dist, exc: BaseException) -> None:
+    """Log a one-time warning per malformed dist; subsequent calls are silent.
+
+    The first warning includes ``exc_info=True`` so an operator can identify
+    the broken package; further encounters are suppressed to keep CI logs
+    bounded.
+    """
+    key = _bad_dist_key(dist)
+    if key in _BAD_DISTS_WARNED:
+        return
+    _BAD_DISTS_WARNED.add(key)
+    LOG.debug("Skipping distribution with unreadable metadata at %s: %s", key, exc, exc_info=True)
+
 
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
@@ -29,13 +60,16 @@ def get_distributions() -> t.Mapping[str, str]:
 
     pkgs = {}
     for dist in importlib_metadata.distributions():
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
-        metadata = dist.metadata
-        name = metadata["name"]
-        version = metadata["version"]
-        if name and version:
-            pkgs[name.lower()] = version
+        try:
+            # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed.
+            # Optimization: we should avoid accessing dist.metadata more than once.
+            metadata = dist.metadata
+            name = metadata["name"]
+            version = metadata["version"]
+            if name and version:
+                pkgs[name.lower()] = version
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
 
     return pkgs
 
@@ -179,13 +213,28 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         return False
 
     try:
-        mapping = {}
+        dists = list(importlib_metadata.distributions())
+    except Exception:
+        LOG.warning(
+            "Unable to enumerate installed distributions, "
+            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            exc_info=True,
+        )
+        return None
 
-        for dist in importlib_metadata.distributions():
+    # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
+    # mapping to None (silently breaking is_third_party for the rest of the process).
+    mapping: dict[str, Distribution] = {}
+    for dist in dists:
+        try:
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
-            d = Distribution(name=metadata["name"], version=metadata["version"])
+            name = metadata["name"]
+            version = metadata["version"]
+            if not (name and version):
+                continue
+            d = Distribution(name=name, version=version)
             for f in files:
                 root = f.parts[0]
                 if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
@@ -194,15 +243,10 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     root = "/".join(f.parts[:2])
                 if root not in mapping:
                     mapping[root] = d
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
 
-        return mapping
-
-    except Exception:
-        LOG.warning(
-            "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues",
-            exc_info=True,
-        )
-        return None
+    return mapping
 
 
 @callonce
@@ -322,8 +366,14 @@ def _packages_distributions() -> t.Mapping[str, list[str]]:
 
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():
-        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-            pkg_to_dist[pkg].append(dist.metadata["Name"])
+        try:
+            name = dist.metadata["Name"]
+            if not name:
+                continue
+            for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
+                pkg_to_dist[pkg].append(name)
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
     return dict(pkg_to_dist)
 
 

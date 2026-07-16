@@ -154,6 +154,10 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         if (iterator != nullptr) {
             PyObject* item;
             PyObject* list_aux = PyList_New(0);
+            if (list_aux == nullptr) {
+                Py_DECREF(iterator);
+                return nullptr;
+            }
             while ((item = PyIter_Next(iterator))) {
                 PyList_Append(list_aux, item);
                 Py_DECREF(item);

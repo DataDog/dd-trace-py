@@ -1,0 +1,20 @@
+id: core-dispatch-list-args-bare-single
+message: Pass a tuple, not a list, to `dispatch()` — single-element tuples need a trailing comma
+severity: error
+language: python
+fix: dispatch($EVENT, ($ARG,))
+rule:
+  pattern: dispatch($EVENT, [$ARG])
+ignores:
+  - "ddtrace/internal/core/__init__.py"
+  - "ddtrace/internal/core/event_hub.py"
+note: |
+  `dispatch()` (imported from `ddtrace.internal.core`) is typed as
+  `args: tuple[Any, ...]`. Passing a list literal violates the type contract.
+  Single-element tuples require a trailing comma.
+
+  Before:
+    dispatch("my.event", [arg])
+
+  After:
+    dispatch("my.event", (arg,))

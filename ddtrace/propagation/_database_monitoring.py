@@ -8,7 +8,7 @@ from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
@@ -33,8 +33,17 @@ DBM_VERSION_KEY: Literal["ddpv"] = "ddpv"
 DBM_SERVICE_HASH: Literal["ddsh"] = "ddsh"
 DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
 DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
+DBM_PROPAGATION_MODE_DYNAMIC_SERVICE: Literal["dynamic_service"] = "dynamic_service"
+_DBM_INJECTION_MODES = ("full", "service", DBM_PROPAGATION_MODE_DYNAMIC_SERVICE)
 
 log = get_logger(__name__)
+
+
+def _should_inject_sql_basehash():
+    # type: () -> bool
+    return dbm_config.propagation_mode == DBM_PROPAGATION_MODE_DYNAMIC_SERVICE or (
+        dbm_config.propagation_mode == "service" and dbm_config.inject_sql_basehash
+    )
 
 
 def default_sql_injector(dbm_comment, sql_statement):
@@ -83,7 +92,7 @@ class _DBM_Propagator(object):
             return args, kwargs
 
         # the base hash is injected in the comment and on the span tags for correlation purpose
-        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+        if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
@@ -102,8 +111,13 @@ class _DBM_Propagator(object):
         if dbm_config.propagation_mode == "disabled":
             return None
 
-        # set the following tags if DBM injection mode is full or service
-        peer_service_enabled = PeerServiceConfig().set_defaults_enabled
+        # set the following tags if DBM injection mode is full, service, or dynamic_service
+        # DEV: This runs on every DB span, so use the cached module-level singleton, which resolves
+        # the config once and caches it. A fresh PeerServiceConfig() has _set_defaults_enabled=None
+        # and re-reads the config via get_config() on every span; get_config() reports configuration
+        # telemetry on each read, so per-span instances leak telemetry config entries unboundedly
+        # on high-query services (issue #18800). Keep this on the shared singleton.
+        peer_service_enabled = _ps_config.set_defaults_enabled
         service_name_key = db_span.service
         if peer_service_enabled:
             db_name = db_span.get_tags().get("db.name")
@@ -132,7 +146,7 @@ class _DBM_Propagator(object):
             db_span._set_attribute(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
-        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+        if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbm_tags[DBM_SERVICE_HASH] = str(base_hash)
 
         sql_comment = self.comment_generator(**dbm_tags)
@@ -170,7 +184,7 @@ _DBM_STANDARD_EVENTS = {
 
 
 def listen():
-    if dbm_config.propagation_mode in ["full", "service"]:
+    if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
         for event in _DBM_STANDARD_EVENTS:
             core.on(event, handle_dbm_injection, "result")
         core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")

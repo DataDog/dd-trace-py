@@ -5,31 +5,35 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
+from pathlib import Path
+import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
-from ddtrace.testing.internal.pytest.plugin import _encode_test_parameter
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
-from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
+from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
+from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
+from tests.testing.mocks import mock_test_session
 from tests.testing.mocks import pytest_item_mock
 from tests.testing.mocks import session_manager_mock
 from tests.testing.mocks import test_report
@@ -194,6 +198,224 @@ class TestSkippingAndITRFeatures:
         ]
 
         assert len(tm_skip_calls) == 1, "Disabled test should be skipped with test management reason"
+
+    def test_pytest_ignore_collect_records_ignored_path(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect appends the path when the suite is ITR-skippable."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text("def test_dummy(): pass")
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is True
+        assert test_file in plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_unskippable_file(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the file contains the unskippable marker."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text("@pytest.mark.skipif(False, reason='datadog_itr_unskippable')\ndef test_x(): pass")
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_emit_itr_ignored_suite_events_emits_skip_event(self, tmp_path: Path) -> None:
+        """_emit_itr_ignored_suite_events creates test_suite_end with status=skip for each ignored path."""
+        workspace = tmp_path
+        test_file = workspace / "test_ignored.py"
+        test_file.touch()
+
+        real_session = mock_test_session()
+        real_session.set_attributes(test_command="pytest", test_framework="pytest", test_framework_version="1.0.0")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.session = real_session
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        plugin.session = real_session
+        plugin._itr_ignored_suite_paths = [test_file]
+
+        mock_pytest_session = Mock()
+        mock_pytest_session.items = []
+        mock_pytest_session.config.rootpath = workspace
+
+        with patch("ddtrace.testing.internal.pytest.plugin.TelemetryAPI"):
+            plugin._emit_itr_ignored_suite_events(mock_pytest_session)
+
+        # Suite and module were written out.
+        put_item_calls = [call[0][0] for call in mock_manager.writer.put_item.call_args_list]
+        assert len(put_item_calls) == 2  # suite + module
+
+        from ddtrace.testing.internal.test_data import TestModule
+        from ddtrace.testing.internal.test_data import TestSuite
+
+        suite_calls = [c for c in put_item_calls if isinstance(c, TestSuite)]
+        module_calls = [c for c in put_item_calls if isinstance(c, TestModule)]
+        assert len(suite_calls) == 1
+        assert len(module_calls) == 1
+
+        suite = suite_calls[0]
+        assert suite.get_status().value == "skip"
+        assert suite.tags.get("test.skipped_by_itr") == "true"
+        assert real_session.tests_skipped_by_itr == 1
+
+    @pytest.mark.parametrize("coverage_pct", [None, 75.0])
+    def test_pytest_sessionfinish_overrides_no_tests_collected_when_itr_skipped(
+        self, tmp_path: Path, coverage_pct: t.Optional[float]
+    ) -> None:
+        """When all suites are ITR-skipped, NO_TESTS_COLLECTED exit code is overridden to OK.
+
+        Parametrized over coverage_pct to exercise both the branch where get_coverage_percentage
+        returns None (coverage disabled) and where it returns a value (coverage enabled), ensuring
+        the metrics assignment path is always covered.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        plugin._itr_ignored_suite_paths = [tmp_path / "test_something.py"]
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
+
+        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+            plugin.pytest_sessionfinish(mock_session)
+
+        assert mock_session.exitstatus == pytest.ExitCode.OK
+        if coverage_pct is not None:
+            assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
+
+    @pytest.mark.parametrize("coverage_pct", [None, 75.0])
+    def test_pytest_sessionfinish_no_override_when_no_itr_skips(self, coverage_pct: t.Optional[float]) -> None:
+        """NO_TESTS_COLLECTED is not overridden when ITR skipped nothing.
+
+        Parametrized over coverage_pct to exercise both the branch where get_coverage_percentage
+        returns None (coverage disabled) and where it returns a value (coverage enabled), ensuring
+        the metrics assignment path is always covered.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        # _itr_ignored_suite_paths is empty (default)
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
+
+        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+            plugin.pytest_sessionfinish(mock_session)
+
+        assert mock_session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED
+        if coverage_pct is not None:
+            assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
+
+    def test_pytest_ignore_collect_passes_rootpath_to_is_skippable_suite_path(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect passes config.rootpath to is_skippable_suite_path."""
+        test_file = tmp_path / "test_foo.py"
+        test_file.write_text("def test_dummy(): pass")
+
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_skippable_suite_path = Mock(return_value=False)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_config = Mock()
+        mock_config.rootpath = tmp_path
+
+        plugin._pytest_ignore_collect_impl(test_file, config=mock_config)
+
+        mock_manager.is_skippable_suite_path.assert_called_once_with(test_file, root_path=tmp_path)
+
+    def test_suite_coverage_uses_put_suite_coverage_in_suite_mode(self) -> None:
+        """In SUITE mode, coverage is dispatched via put_suite_coverage (no span_id)."""
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        mock_manager.coverage_writer.put_suite_coverage.assert_called_once()
+        mock_manager.coverage_writer.put_coverage.assert_not_called()
+
+    def test_test_mode_coverage_uses_put_coverage(self) -> None:
+        """In TEST mode (default), coverage is dispatched via put_coverage (includes span_id)."""
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_itr_skipping_level(ITRSkippingLevel.TEST)
+            .build_mock()
+        )
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        mock_manager.coverage_writer.put_coverage.assert_called_once()
+        mock_manager.coverage_writer.put_suite_coverage.assert_not_called()
 
 
 class TestFinalStatusFeatures:
@@ -916,6 +1138,114 @@ class TestPrivateMethods:
         result = plugin._check_applicable_retry_handlers(mock_test)
 
         assert result is None
+
+
+class TestResetPytestTimeout:
+    """Unit tests for TestOptPlugin._reset_pytest_timeout."""
+
+    def _make_item(self, hasplugin: bool = True) -> Mock:
+        item = Mock()
+        item.config.pluginmanager.hasplugin.return_value = hasplugin
+        return item
+
+    def _make_settings(self, timeout: t.Optional[float] = 5.0, func_only: bool = False) -> Mock:
+        settings = Mock()
+        settings.timeout = timeout
+        settings.func_only = func_only
+        return settings
+
+    def test_no_op_when_import_unavailable(self) -> None:
+        """No-op when pytest-timeout was not importable at startup."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+
+        with patch("ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings", None):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
+
+    def test_no_op_when_timeout_plugin_not_registered(self) -> None:
+        """No-op when the 'timeout' plugin is absent from the session."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item(hasplugin=False)
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            return_value=self._make_settings(),
+        ):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
+
+    def test_no_op_when_func_only_true(self) -> None:
+        """No-op when func_only=True: pytest-timeout already resets the timer per attempt in that mode."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            return_value=self._make_settings(func_only=True),
+        ):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
+
+    def test_no_op_when_timeout_is_none(self) -> None:
+        """No-op when no timeout is configured for the item."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            return_value=self._make_settings(timeout=None),
+        ):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
+
+    def test_no_op_when_timeout_is_zero(self) -> None:
+        """No-op when timeout=0 (explicitly disabled)."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            return_value=self._make_settings(timeout=0),
+        ):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
+
+    def test_cancels_and_rearms_timer(self) -> None:
+        """Cancels the existing timer then arms a fresh one when all conditions are met."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+        settings = self._make_settings(timeout=30.0)
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            return_value=settings,
+        ):
+            plugin._reset_pytest_timeout(item)
+
+        item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_called_once_with(item=item)
+        item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_called_once_with(item=item, settings=settings)
+
+    def test_exception_is_swallowed(self) -> None:
+        """Exceptions from _get_item_settings must not propagate and break retries."""
+        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
+        item = self._make_item()
+
+        with patch(
+            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            side_effect=RuntimeError("unexpected error from pytest-timeout"),
+        ):
+            plugin._reset_pytest_timeout(item)  # must not raise
 
 
 # =============================================================================

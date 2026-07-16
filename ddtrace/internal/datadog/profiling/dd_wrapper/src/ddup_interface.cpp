@@ -2,7 +2,9 @@
 
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profile_borrow.hpp"
 #include "profiler_state.hpp"
+#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
@@ -115,6 +117,22 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
 }
 
+void
+ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
+{
+    // Store the caller-supplied compact JSON object on ProfilerState
+    // (process-global). It is passed verbatim to libdatadog's exporter via
+    // the `info` channel on each upload, so we only sanity-check that it
+    // looks like a JSON object here. Empty objects and non-object inputs are
+    // dropped silently.
+    auto& info_json = Datadog::ProfilerState::get().profiler_settings_info_json;
+    if (settings_json.size() > 2 && settings_json.front() == '{' && settings_json.back() == '}') {
+        info_json.assign(settings_json);
+    } else {
+        info_json.clear();
+    }
+}
+
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
@@ -178,9 +196,9 @@ ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count) // cppchec
 }
 
 void
-ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unusedFunction
+ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
 {
-    sample->push_heap(size);
+    sample->push_heap(size, count);
 }
 
 void
@@ -217,7 +235,7 @@ ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunctio
 }
 
 void
-ddup_push_task_id(Datadog::Sample* sample, int64_t task_id) // cppcheck-suppress unusedFunction
+ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id) // cppcheck-suppress unusedFunction
 {
     sample->push_task_id(task_id);
 }
@@ -287,12 +305,6 @@ void
 ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
 {
     sample->push_pyframes(frame);
-}
-
-void
-ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb) // cppcheck-suppress unusedFunction
-{
-    sample->push_pytraceback(tb);
 }
 
 void

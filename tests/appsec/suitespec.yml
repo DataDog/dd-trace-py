@@ -3,7 +3,6 @@ components:
   appsec:
     - ddtrace/appsec/*
     - '!ddtrace/appsec/ai_guard/*'
-    - '!ddtrace/appsec/_ai_guard/*'
     - '!ddtrace/appsec/iast/*'
     - '!ddtrace/appsec/_iast/*'
     - '!ddtrace/appsec/sca/*'
@@ -15,9 +14,6 @@ components:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
-  ai_guard:
-    - ddtrace/appsec/ai_guard/*
-    - ddtrace/appsec/_ai_guard/*
   sca:
     - ddtrace/appsec/sca/*
 suites:
@@ -387,54 +383,6 @@ suites:
       - '@webbrowser'
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     skip: true  # TODO: No environment available
-  ai_guard_api:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@ai_guard'
-      - tests/appsec/ai_guard/api/*
-    retry: 2
-    venvs_per_job: 1
-  ai_guard_langchain:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@ai_guard'
-      - tests/appsec/ai_guard/langchain/*
-    retry: 2
-    services:
-      - testagent
-    venvs_per_job: 2
-  ai_guard_openai:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@ai_guard'
-      - tests/appsec/ai_guard/openai/*
-    services:
-      - testagent
-    venvs_per_job: 2
-  ai_guard_strands:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@ai_guard'
-      - tests/appsec/ai_guard/strands_hooks/*
-    retry: 2
-    venvs_per_job: 1
-  ai_guard_litellm_guardrail:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@ai_guard'
-      - tests/appsec/ai_guard/litellm_guardrail/*
-    retry: 2
-    venvs_per_job: 2
   sca:
     paths:
       - '@bootstrap'

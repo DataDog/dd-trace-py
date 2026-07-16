@@ -95,11 +95,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             break;
         }
 
-        if (DataDog::should_skip_frame(frame)) {
-            continue;
-        }
-
-        PyCodeObject* code = DataDog::get_code_from_frame(frame);
+        PyCodeObject* code = DataDog::get_code_if_not_skip(frame);
         if (code == NULL) {
             continue;
         }

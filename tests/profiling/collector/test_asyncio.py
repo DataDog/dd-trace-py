@@ -228,7 +228,7 @@ class BaseAsyncioLockCollectorTest:
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
+            class CustomLock(self.lock_class):  # type: ignore[unreachable, name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 

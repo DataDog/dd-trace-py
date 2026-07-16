@@ -30,6 +30,9 @@ from tests.testing.mocks import mock_test_session
 from tests.testing.mocks import mock_test_suite
 
 
+MAX_META_TAG_VALUE_LENGTH = 5000
+
+
 class _ConcreteWriter(BaseWriter):
     """Minimal concrete subclass for testing BaseWriter."""
 
@@ -153,11 +156,15 @@ class TestWaitFinishTimeout:
             def __init__(self) -> None:
                 super().__init__()
                 self.started_flushing = threading.Event()
+                # Use a *separate* event to block the send so that signal_finish()
+                # (which sets should_finish) does not inadvertently unblock _send_events
+                # and let the thread exit before the timeout fires.
+                self._unblock_send = threading.Event()
 
             def _send_events(self, events: list[Event]) -> bool:
                 self.started_flushing.set()
-                # Block until finish is signalled (simulates slow network).
-                self.should_finish.wait()
+                # Block until explicitly unblocked (simulates a slow network call).
+                self._unblock_send.wait()
                 return True
 
             def _encode_events(self, events: list[Event]) -> bytes:
@@ -170,12 +177,17 @@ class TestWaitFinishTimeout:
         writer._flush_now.set()
         writer.started_flushing.wait(timeout=5)
 
-        # With a short timeout, wait_finish should return even though the thread is stuck.
+        # Thread is stuck in _send_events.  Signal finish so the thread knows it
+        # should stop after the current send, but the send itself is still blocked.
         writer.signal_finish()
         writer.wait_finish(timeout=0.1)
-        # Thread may still be alive because we timed out.
-        # Clean up: signal the thread to finish.
-        writer.should_finish.set()
+
+        # The timeout must have fired: the thread is still alive because _send_events
+        # has not returned yet.
+        assert writer.task.is_alive(), "thread should still be running while _send_events is blocked"
+
+        # Unblock the send so the thread can finish cleanly.
+        writer._unblock_send.set()
         writer.task.join(timeout=5)
 
 
@@ -184,30 +196,42 @@ class TestGetMinFlushEvents:
 
     def test_default_is_none(self) -> None:
         with patch.dict("os.environ", {}, clear=False):
-            # Remove the var if it exists
+            # Remove both vars if they exist
             import os
 
+            os.environ.pop("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", None)
             os.environ.pop("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
             assert _get_min_flush_events() is None
 
-    def test_reads_env_var(self) -> None:
+    def test_reads_private_env_var(self) -> None:
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "5"}):
+            assert _get_min_flush_events() == 5
+
+    def test_reads_legacy_env_var(self) -> None:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5"}):
             assert _get_min_flush_events() == 5
 
+    def test_private_env_var_takes_priority(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "3", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "99"},
+        ):
+            assert _get_min_flush_events() == 3
+
     def test_value_1(self) -> None:
-        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"}):
             assert _get_min_flush_events() == 1
 
     def test_negative_returns_none(self) -> None:
-        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
             assert _get_min_flush_events() is None
 
     def test_zero_returns_none(self) -> None:
-        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "0"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "0"}):
             assert _get_min_flush_events() is None
 
     def test_invalid_value_returns_none(self) -> None:
-        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
             assert _get_min_flush_events() is None
 
 
@@ -301,6 +325,51 @@ class TestTestOptWriter:
         )
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.writer.msgpack_packb")
+    def test_send_events_truncates_payload_metadata_and_event_meta(
+        self, mock_packb: Mock, mock_backend_connector: Mock
+    ) -> None:
+        """Test that test-cycle payload tag values are truncated without mutating originals."""
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+        mock_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=42, elapsed_seconds=1.2
+        )
+        mock_packb.return_value = b"packed_data"
+        long_metadata_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        exact_metadata_value = "e" * MAX_META_TAG_VALUE_LENGTH
+        long_event_meta_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        unicode_event_meta_value = "é" * (MAX_META_TAG_VALUE_LENGTH + 1)
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.metadata["*"]["long_metadata"] = long_metadata_value
+        writer.metadata["*"]["exact_metadata"] = exact_metadata_value
+        event = Event(
+            type="test",
+            content={
+                "meta": {
+                    "long_meta": long_event_meta_value,
+                    "unicode_meta": unicode_event_meta_value,
+                    "numeric_meta": 123,
+                },
+                "metrics": {"metric": 1.0},
+            },
+        )
+
+        writer._send_events([event])
+
+        payload = mock_packb.call_args.args[0]
+        metadata = payload["metadata"]["*"]
+        meta = payload["events"][0]["content"]["meta"]
+        assert metadata["long_metadata"] == "m" * MAX_META_TAG_VALUE_LENGTH
+        assert metadata["exact_metadata"] == exact_metadata_value
+        assert meta["long_meta"] == "x" * MAX_META_TAG_VALUE_LENGTH
+        assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
+        assert meta["numeric_meta"] == 123
+        assert writer.metadata["*"]["long_metadata"] == long_metadata_value
+        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
         mock_connector = Mock()
@@ -341,6 +410,48 @@ class TestTestOptWriter:
                 send_gzip=True,
             ),
         ]
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_connector_closed_after_writer_finishes(self, mock_bc: Mock) -> None:
+        """Regression: both the background task and the caller thread must close their
+        thread-local connectors.
+
+        ``BackendConnector`` subclasses ``threading.local`` so each thread gets its own
+        HTTP connection via ``__init__``.  Two connections can exist:
+
+        * **background thread** — opened when the periodic task calls ``_send_events``
+        * **caller thread** — opened when ``min_flush_events`` triggers a sync flush via
+          ``put_event`` → ``flush`` on the test/caller thread
+
+        Without explicit ``close()`` calls on both threads the underlying sockets are
+        left open, producing ``ResourceWarning: unclosed socket``.
+        """
+        close_caller_threads: list[str] = []
+
+        original_connector = Mock()
+        original_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=0, elapsed_seconds=0.0
+        )
+
+        def _close_tracking() -> None:
+            close_caller_threads.append(threading.current_thread().name)
+
+        original_connector.close.side_effect = _close_tracking
+        mock_bc.return_value = original_connector
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.start()
+        writer.put_event(Event(type="test"))
+        writer.signal_finish()
+        writer.wait_finish()
+
+        # close() must be called at least twice: once from the background task thread
+        # and once from the caller (main) thread via wait_finish().
+        main_thread_name = threading.main_thread().name
+        bg_closes = [t for t in close_caller_threads if t != main_thread_name]
+        caller_closes = [t for t in close_caller_threads if t == main_thread_name]
+        assert bg_closes, "connector.close() was never called from the background task thread"
+        assert caller_closes, "connector.close() was never called from the caller thread (via wait_finish)"
 
 
 class TestTestCoverageWriter:

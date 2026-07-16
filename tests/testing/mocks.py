@@ -16,21 +16,24 @@ import json
 import os
 from pathlib import Path
 import typing as t
+from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
-from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.session_manager import get_env_tags
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -48,6 +51,7 @@ def get_mock_git_instance() -> Mock:
     mock_git_instance.get_latest_commits.return_value = []
     mock_git_instance.get_filtered_revisions.return_value = []
     mock_git_instance.pack_objects.return_value = iter([])
+    mock_git_instance.is_shallow_repository.return_value = False
     return mock_git_instance
 
 
@@ -112,6 +116,7 @@ class SessionManagerMockBuilder:
         self._workspace_path = "/fake/workspace"
         self._retry_handlers: list[Mock] = []
         self._env_tags: dict[str, str] = {}
+        self._itr_skipping_level = ITRSkippingLevel.TEST
 
     def with_settings(self, settings: Settings) -> "SessionManagerMockBuilder":
         """Set custom settings."""
@@ -157,6 +162,11 @@ class SessionManagerMockBuilder:
         self._env_tags = tags
         return self
 
+    def with_itr_skipping_level(self, level: ITRSkippingLevel) -> "SessionManagerMockBuilder":
+        """Set ITR skipping level (TEST or SUITE)."""
+        self._itr_skipping_level = level
+        return self
+
     def build_mock(self) -> Mock:
         """Build a Mock SessionManager object."""
         mock_manager = Mock(spec=SessionManager)
@@ -169,7 +179,9 @@ class SessionManagerMockBuilder:
         mock_manager.retry_handlers = self._retry_handlers
         mock_manager.env_tags = self._env_tags
 
-        mock_manager.session = Mock()
+        mock_manager.itr_skipping_level = self._itr_skipping_level
+        mock_manager.session = MagicMock()
+        mock_manager.session.metrics = {}
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
@@ -186,6 +198,18 @@ class SessionManagerMockBuilder:
         if test_env is None:
             test_env = MockDefaults.test_environment()
 
+        # Propagate workspace_path and itr_skipping_level into the real env/tags so that
+        # SessionManager.__init__ picks them up (it reads from get_env_tags / os.environ).
+        effective_env_tags = dict(self._env_tags)
+        if CITag.WORKSPACE_PATH not in effective_env_tags and self._workspace_path:
+            effective_env_tags[CITag.WORKSPACE_PATH] = self._workspace_path
+
+        effective_env = dict(test_env)
+        if "_DD_CIVISIBILITY_ITR_SUITE_MODE" not in effective_env:
+            effective_env["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = (
+                "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
+            )
+
         with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
@@ -199,10 +223,13 @@ class SessionManagerMockBuilder:
             mock_api_client.return_value = mock_client
 
             with (
-                patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=self._env_tags),
+                patch(
+                    "ddtrace.testing.internal.session_manager.get_env_tags",
+                    return_value=effective_env_tags,
+                ),
                 patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
                 patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                patch.dict(os.environ, test_env),
+                patch.dict(os.environ, effective_env),
             ):
                 # Create session manager
                 test_session = MockDefaults.test_session()
@@ -600,12 +627,19 @@ class BackendConnectorMockSetup:
 
 
 @contextlib.contextmanager
-def setup_standard_mocks() -> t.Generator[None, None, None]:
-    """Mock calls used by the session manager to get git and platform tags."""
+def setup_standard_mocks(workspace_path: t.Optional[str] = None) -> t.Generator[None, None, None]:
+    """Mock calls used by the session manager to get git and platform tags.
+
+    Pass workspace_path to override the workspace used by SessionManager for ITR suite-path resolution.
+    When omitted, SessionManager falls back to Path.cwd().
+    """
+    env_tags: dict[str, str] = {}
+    if workspace_path is not None:
+        env_tags[CITag.WORKSPACE_PATH] = workspace_path
     with (
         patch.multiple(
             "ddtrace.testing.internal.session_manager",
-            get_env_tags=Mock(return_value={}),
+            get_env_tags=Mock(return_value=env_tags),
             get_platform_tags=Mock(return_value={}),
             Git=Mock(return_value=get_mock_git_instance()),
         ),
@@ -715,7 +749,7 @@ class CoverageReportUploadCapture:
     def __init__(self) -> None:
         self.upload_calls: list[dict[str, t.Any]] = []
 
-    def create_upload_handler(self) -> t.Callable:
+    def create_upload_handler(self) -> t.Callable[..., t.Any]:
         """
         Create an upload handler function that captures calls.
 
@@ -811,7 +845,7 @@ class CoverageReportUploadCapture:
         if event_file is None:
             raise AssertionError("No event file found in upload")
 
-        return json.loads(event_file.data.decode("utf-8"))
+        return dict(json.loads(event_file.data.decode("utf-8")))
 
 
 def test_report(

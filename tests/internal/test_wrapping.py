@@ -13,7 +13,6 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.internal.wrapping.context import BaseWrappingContext
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
@@ -376,6 +375,43 @@ def test_wrap_arg_args_kwarg_kwargs():
     assert f(1, path="bar", foo="baz") == (1, (), "bar", {"foo": "baz"})
 
 
+def test_wrap_kwargs_captured_by_closure():
+    """Regression: **kwargs captured as a cell var by an inner closure must be
+    loaded via LOAD_DEREF (not LOAD_FAST) on Python 3.11+, otherwise the call
+    site receives a raw cell object instead of the dict.
+    """
+
+    def outer(a, b, **kwargs):
+        def inner():
+            return kwargs
+
+        return inner()
+
+    def wrapper(f, args, kwgs):
+        return f(*args, **kwgs)
+
+    wrap(outer, wrapper)
+
+    assert outer(1, 2, x=3, y=4) == {"x": 3, "y": 4}
+
+
+def test_wrap_kwonly_captured_by_closure():
+    """Regression: keyword-only args captured as cell vars must also use LOAD_DEREF."""
+
+    def outer(a, *, key=None, **kwargs):
+        def inner():
+            return (key, kwargs)
+
+        return inner()
+
+    def wrapper(f, args, kwgs):
+        return f(*args, **kwgs)
+
+    wrap(outer, wrapper)
+
+    assert outer(1, key="k", x=3) == ("k", {"x": 3})
+
+
 @pytest.mark.asyncio
 async def test_async_generator():
     async def stream():
@@ -486,6 +522,36 @@ async def test_double_async_for_with_exception():
     assert channel == [b"hello", b""]
     with pytest.raises(StreamConsumed):
         b"".join([_ async for _ in s])
+
+
+@pytest.mark.asyncio
+async def test_wrap_async_generator_awaits_suspending_coroutine():
+    # Regression test for the async-generator trampoline await loop.
+    # The body awaits a coroutine that suspends to the event loop multiple
+    # times before the first yield. This drives the SEND/YIELD/RESUME cycle
+    # more than once; the loop previously jumped back to GET_AWAITABLE
+    # instead of SEND, which eventually awaited None and raised
+    # "object NoneType can't be used in 'await' expression".
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def suspends():
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return "ready"
+
+    async def g():
+        value = await suspends()
+        yield value
+        yield value + "!"
+
+    wrap(g, wrapper)
+
+    out = []
+    async for item in g():
+        out.append(item)
+
+    assert out == ["ready", "ready!"]
 
 
 @pytest.mark.asyncio
@@ -634,39 +700,84 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
-def test_wrapping_context_deepcopy():
-    """Deepcopy of a route holding a wrapping context (e.g. Cadwyn/Airflow 3) must not raise.
-    This is a regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+def test_wrapping_context_deepcopy_with_lock():
+    """Deepcopy of a route decorated with functools.wraps over a wrapped endpoint must not raise.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/16443 (follow-up: _thread.lock).
+
+    Cadwyn's _versioned() uses @functools.wraps(endpoint) which copies endpoint.__dict__ into
+    the decorator. Previously, __dd_context_wrapped__ would be set on endpoint.__dict__ and
+    propagated by functools.wraps. Deepcopy of a plain function is atomic, but deepcopy of an
+    object whose __dict__ was updated from a function (e.g. a route that does
+    self.__dict__.update(endpoint.__dict__)) would traverse the wrapping context. The
+    _UniversalWrappingContext holds registered WrappingContext instances that may have
+    _thread.lock attributes, causing deepcopy to fail. Wrapping metadata is now kept off the
+    function's __dict__ entirely, so decorated.__dict__ stays clean and deepcopy succeeds.
     """
+    import functools
+    import threading
+
+    class LockHoldingWrappingContext(WrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+            self._lock = threading.Lock()
+
+        def __enter__(self):
+            return super().__enter__()
+
+        def __return__(self, value):
+            return super().__return__(value)
 
     def endpoint():
         return 1
 
-    wc = DummyLazyWrappingContext(endpoint)
+    wc = LockHoldingWrappingContext(endpoint)
     wc.wrap()
 
+    @functools.wraps(endpoint)
+    def decorated(*args, **kwargs):
+        return endpoint(*args, **kwargs)
+
+    # A route that does self.__dict__.update(endpoint.__dict__) copies whatever
+    # is in decorated.__dict__ onto the route instance. With the registry-based
+    # approach, decorated.__dict__ is clean, so deepcopy of the route succeeds.
     class Route:
-        """Minimal route-like container (e.g. Starlette APIRoute)."""
+        def __init__(self, f):
+            self.__dict__.update(f.__dict__)
 
-        def __init__(self, endpoint, ctx):
-            self.endpoint = endpoint
-            self.ctx = ctx
+    copy.deepcopy(Route(decorated))
 
-    route = Route(endpoint, wc)
-    route_copy = copy.deepcopy(route)
 
-    assert route_copy.ctx is not wc
-    assert hasattr(route_copy.ctx, "_storage")
-    assert hasattr(route_copy.ctx, "_trampoline_lock")
-    # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
-    # to run inside a wrapped call). This verifies the copied context's
-    # _storage is a new, working ContextVar.
-    BaseWrappingContext.__enter__(route_copy.ctx)
-    try:
-        route_copy.ctx.set("k", 99)
-        assert route_copy.ctx.get("k") == 99
-    finally:
-        BaseWrappingContext.__exit__(route_copy.ctx, None, None, None)
+def test_wrapping_context_no_memory_leak():
+    """Ephemeral functions wrapped with a wrapping context must be garbage-collected.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+
+    The registry must not keep functions alive via the value chain:
+      _registry -> _ContextRecord -> uwc -> uwc.__wrapped__ -> function
+    Wrapping-context metadata is stored as weak references so the cycle
+    function <-> uwc is isolated and collected by the cyclic GC.
+    """
+    import gc
+    import weakref as wr
+
+    dead_refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral)
+
+    for _ in range(5):
+        dead_refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive = sum(1 for r in dead_refs if r() is not None)
+    assert alive == 0, f"{alive} wrapped ephemeral function(s) were not garbage collected"
 
 
 def test_wrapping_context_exc():
@@ -1263,4 +1374,66 @@ async def test_lazy_async_wrapper_throw_forwarding():
         assert received_cancel, (
             f"[call {call_index}] CancelledError was not forwarded to the inner "
             "coroutine by the lazy wrapper; throw() interception is broken"
+        )
+
+
+def test_wrapping_context_foot_has_valid_linenos():
+    """Regression test: CONTEXT_FOOT.bind() must pass lineno to avoid None line numbers.
+
+    The CONTEXT_FOOT assembly (exception-handler epilogue injected by
+    _UniversalWrappingContext.wrap) was previously emitted without line-number
+    information.  inspect.stack() / inspect.getframeinfo() raises TypeError when
+    it encounters a frame whose f_lineno is None, so any tool that inspects the
+    call stack from inside a WrappingContext-wrapped function (e.g. IAST's
+    report_stack) would crash.
+    """
+    stack_from_inside: list = []
+
+    def foo():
+        stack_from_inside.extend(inspect.stack())
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    result = foo()
+    assert result == 42
+
+    for frame_info in stack_from_inside:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "CONTEXT_FOOT was bound without line-number information"
+        )
+
+
+def test_wrapping_context_foot_has_valid_linenos_on_exception():
+    """Same lineno regression check when the wrapped function raises an exception.
+
+    The CONTEXT_FOOT assembly is only executed when an exception propagates, so
+    the lineno fix must also cover the exception path.
+    """
+    stack_from_handler: list = []
+
+    class _Sentinel(Exception):
+        pass
+
+    class CaptureOnExit(WrappingContext):
+        def __exit__(self, exc_type, exc_value, traceback):
+            stack_from_handler.extend(inspect.stack())
+            return super().__exit__(exc_type, exc_value, traceback)
+
+    def foo():
+        raise _Sentinel("boom")
+
+    CaptureOnExit(foo).wrap()
+
+    with pytest.raises(_Sentinel):
+        foo()
+
+    for frame_info in stack_from_handler:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "CONTEXT_FOOT exception path was bound without line-number information"
         )

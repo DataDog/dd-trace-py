@@ -1,3 +1,4 @@
+import base64
 from dataclasses import dataclass
 import inspect
 import json
@@ -10,6 +11,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
@@ -27,9 +29,12 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
+from ddtrace.llmobs.types import AudioPart
+from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -37,6 +42,17 @@ from ddtrace.llmobs.types import ToolResult
 
 
 logger = get_logger(__name__)
+
+# The openai SDK uses `Omit`/`NotGiven` sentinels as defaults for unset request parameters.
+# Callers (e.g. PydanticAI) may forward these sentinels explicitly, so filter them out of span
+# metadata rather than serializing them to noisy repr strings. Identify them by class name instead
+# of importing openai: this shared utils module is provider-agnostic, so it must not depend on a
+# specific vendor SDK (which also avoids a circular import while ddtrace is patching openai).
+_OPENAI_SENTINEL_TYPE_NAMES = ("Omit", "NotGiven")
+
+
+def _is_openai_sentinel(value: Any) -> bool:
+    return type(value).__name__ in _OPENAI_SENTINEL_TYPE_NAMES
 
 
 COMMON_METADATA_KEYS = (
@@ -320,20 +336,54 @@ def openai_set_meta_tags_from_completion(
     )
 
 
-def _extract_content_parts(parts: list) -> str:
-    """Extract readable text from multimodal content parts (e.g., text + image)."""
+def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
+    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
+    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
+    return AudioPart(mime_type=mime_type, content=content)
+
+
+def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
+    """Build an ``ImagePart`` from raw image bytes (base64-encoded) or an existing base64 string."""
+    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
+    return ImagePart(mime_type=mime_type, content=content)
+
+
+# OpenAI audio ``format`` values that don't map to ``audio/<format>``.
+_OPENAI_AUDIO_MIME_TYPES = {
+    "mp3": "audio/mpeg",
+}
+
+
+def audio_mime_type_from_format(fmt: str) -> str:
+    """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
+    fmt = (fmt or "").strip().lower()
+    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
+
+
+def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
+    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
     extracted = []
+    audio_parts: list[AudioPart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append("[image]")
+            extracted.append(IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
-            extracted.append("[audio]")
+            input_audio = _get_attr(part, "input_audio", {}) or {}
+            data = _get_attr(input_audio, "data", "")
+            if data:
+                # Audio is captured as a structured audio_part (rendered as a player), so no text
+                # marker is needed. Only fall back to "[audio]" when there's no audio to capture.
+                audio_parts.append(
+                    format_audio_part(data, audio_mime_type_from_format(_get_attr(input_audio, "format", "")))
+                )
+            else:
+                extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted)
+    return "\n".join(extracted), audio_parts
 
 
 def openai_set_meta_tags_from_chat(
@@ -343,14 +393,17 @@ def openai_set_meta_tags_from_chat(
     input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
+        audio_parts: list[AudioPart] = []
         if isinstance(raw_content, list):
-            content = _extract_content_parts(raw_content)
+            content, audio_parts = _extract_content_parts(raw_content)
         elif raw_content is None:
             content = ""
         else:
             content = str(raw_content)
         role = str(_get_attr(m, "role", ""))
         processed_message: Message = Message(content=content, role=role)
+        if audio_parts:
+            processed_message["audio_parts"] = audio_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -383,7 +436,10 @@ def openai_set_meta_tags_from_chat(
         span, input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
     )
 
-    if span.error or not messages:
+    # Gate on output presence only: a genuine model error leaves no messages,
+    # while an AI Guard block after the model call errors the span but keeps a
+    # valid response (APPSEC-68147).
+    if not messages:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
@@ -401,7 +457,7 @@ def openai_set_meta_tags_from_chat(
 
             message = Message(content=content, role=role)
 
-            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+            extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
                 streamed_message, llm_span=span, dispatch_llm_choice=True
             )
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
@@ -410,6 +466,7 @@ def openai_set_meta_tags_from_chat(
                 message["tool_calls"] = extracted_tool_calls
             output_messages.append(message)
     else:
+        output_audio_format = _get_attr(kwargs.get("audio") or {}, "format", "")
         choices = _get_attr(messages, "choices", [])
         for idx, choice in enumerate(choices):
             choice_message = _get_attr(choice, "message", {})
@@ -425,7 +482,21 @@ def openai_set_meta_tags_from_chat(
             )
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
+            audio = _get_attr(choice_message, "audio", None)
+            output_audio_parts: list[AudioPart] = []
+            if audio is not None:
+                audio_data = _get_attr(audio, "data", "")
+                if audio_data:
+                    output_audio_parts.append(
+                        format_audio_part(audio_data, audio_mime_type_from_format(output_audio_format))
+                    )
+                # gpt-4o-audio-preview returns null content; surface the transcript as readable text
+                if not content:
+                    content = _get_attr(audio, "transcript", "") or ""
+
             message = Message(content=str(content), role=str(role))
+            if output_audio_parts:
+                message["audio_parts"] = output_audio_parts
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
             if extracted_tool_results:
@@ -462,6 +533,7 @@ def _openai_extract_tool_calls_and_results_chat(
                         "trace_id": format_trace_id(llm_span.trace_id),
                         "span_id": str(llm_span.span_id),
                     },
+                    get_tool_version_from_llm_span(llm_span, tool_name),
                 ),
             )
         raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
@@ -554,6 +626,7 @@ def capture_plain_text_tool_usage(
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
                         },
+                        get_tool_version_from_llm_span(span, tool_name),
                     ),
                 )
     except Exception:
@@ -569,7 +642,7 @@ def get_metadata_from_kwargs(
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
         keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
-    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include}
+    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include and not _is_openai_sentinel(v)}
     return metadata
 
 
@@ -819,7 +892,13 @@ def openai_get_metadata_from_response(
     metadata = {}
 
     if kwargs:
-        metadata.update({k: v for k, v in kwargs.items() if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS})
+        metadata.update(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS and not _is_openai_sentinel(v)
+            }
+        )
 
     if not response:
         return metadata
@@ -1003,7 +1082,10 @@ def openai_set_meta_tags_from_response(
         prompt=validated_prompt,
     )
 
-    if span.error or not response:
+    # Gate on output presence only: a genuine model error leaves no response,
+    # while an AI Guard block after the model call errors the span but keeps a
+    # valid response (APPSEC-68147).
+    if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
@@ -1011,67 +1093,6 @@ def openai_set_meta_tags_from_response(
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
-
-
-# Maximum nesting depth allowed for a single tool schema
-MAX_TOOL_SCHEMA_DEPTH = 10
-
-
-def _tool_schema_depth(obj: Any) -> int:
-    """Return the maximum nesting depth of a tool schema object."""
-    max_depth = 0
-    stack = [(obj, 0)]
-    while stack:
-        node, depth = stack.pop()
-        if depth > max_depth:
-            max_depth = depth
-        if isinstance(node, dict):
-            for v in node.values():
-                stack.append((v, depth + 1))
-        elif isinstance(node, list):
-            for item in node:
-                stack.append((item, depth + 1))
-    return max_depth
-
-
-def _truncate_schema_to_depth(obj: Any, max_depth: int) -> Any:
-    """Return a copy of obj with any container fields beyond `max_depth` levels replaced with empty containers."""
-    if not isinstance(obj, (dict, list)):
-        return obj
-    root: Any = {} if isinstance(obj, dict) else []
-    stack = [(obj, root, max_depth)]
-    while stack:
-        source, dest, remaining = stack.pop()
-        items = source.items() if isinstance(source, dict) else enumerate(source)
-        for key, val in items:
-            if isinstance(val, (dict, list)):
-                child: Any = {} if isinstance(val, dict) else []
-                if isinstance(dest, list):
-                    dest.append(child)
-                else:
-                    dest[key] = child
-                if remaining > 1:
-                    stack.append((val, child, remaining - 1))
-            else:
-                if isinstance(dest, list):
-                    dest.append(val)
-                else:
-                    dest[key] = val
-    return root
-
-
-def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
-    """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
-    if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
-        logger.warning(
-            "LLMObs: truncating tool %r schema to %d levels of nesting because its depth exceeds "
-            "the maximum allowed. Deeply nested tool schemas are not yet supported. "
-            "LLMObs backend.",
-            name,
-            MAX_TOOL_SCHEMA_DEPTH,
-        )
-        return True
-    return False
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1108,9 +1129,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
             tool_definition["schema"] = {}
-        schema = tool_definition.get("schema") or {}
-        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", schema):
-            tool_definition["schema"] = _truncate_schema_to_depth(schema, MAX_TOOL_SCHEMA_DEPTH)
         tool_definitions.append(tool_definition)
     return tool_definitions
 
@@ -1168,9 +1186,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message: dict[str, Any] = {"content": "", "tool_calls": []}
+    message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -1182,6 +1200,9 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
             message["role"] = chunk.delta.role
         if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
+        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
+        if chunk_reasoning:
+            message["reasoning_content"] += chunk_reasoning
         chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
@@ -1198,6 +1219,8 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
         message["tool_calls"].sort(key=lambda x: x.get("index", 0))
     else:
         message.pop("tool_calls", None)
+    if not message["reasoning_content"]:
+        message.pop("reasoning_content", None)
     message["content"] = message["content"].strip()
     return message
 

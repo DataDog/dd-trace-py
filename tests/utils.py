@@ -61,10 +61,20 @@ FILE_PATH = Path(__file__).resolve().parent
 # derived from response payloads and vary by cassette / SDK version, so we
 # ignore them globally in snapshot comparisons. Their wiring is covered by
 # dedicated unit tests under tests/llmobs and tests/contrib/<integration>/.
+#
+# The `_dd.p.llmobs_*` propagation tags are written to span.context._meta by
+# LLMObs's `_inject_llmobs_context` hook whenever HTTPPropagator.inject fires
+# while the span is still active. Their values are random per-trace identifiers
+# (trace id, parent id) plus the ML app name — meaningless to verify in a
+# snapshot. Ignored globally for the same reason as the `_dd.llmobs.*` shadow
+# tags above.
 _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.p.llmobs_trace_id",
+    "meta._dd.p.llmobs_parent_id",
+    "meta._dd.p.llmobs_ml_app",
     "metrics._dd.llmobs.enabled",
     "metrics._dd.llmobs.input_tokens",
     "metrics._dd.llmobs.output_tokens",
@@ -545,14 +555,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Pop and return all spans from the writer"""
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
-            return writer.pop()
+            return writer.pop()  # type: ignore[no-any-return]
         return []
 
     def pop_traces(self) -> list[list[Span]]:
         """Pop and return all traces from the writer"""
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop_traces"):
-            return writer.pop_traces()
+            return writer.pop_traces()  # type: ignore[no-any-return]
         return []
 
     def reset(self):
@@ -560,6 +570,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
             writer.pop()
+        if hasattr(writer, "pop_traces"):
+            writer.pop_traces()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -583,8 +595,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
 class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        self.spans = []
-        self.traces = []
+        self.spans: list[Span] = []
+        self.traces: list[list[Span]] = []
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
@@ -641,21 +653,25 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     def pop(self):
         return DummyWriterMixin.pop(self)
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
-        return self._inner_writer.flush_queue(raise_exc)
+        self._inner_writer.flush_queue(raise_exc)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
-        return self._inner_writer.set_test_session_token(token)
+        self._inner_writer.set_test_session_token(token)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self._inner_writer.stop(timeout=timeout)
 
     @property
     def interval(self) -> float:
-        return self._inner_writer._interval
+        return self._inner_writer._interval  # type: ignore[no-any-return]
 
     @interval.setter
     def interval(

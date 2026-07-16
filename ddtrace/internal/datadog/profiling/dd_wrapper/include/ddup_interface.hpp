@@ -41,6 +41,7 @@ extern "C"
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
+    void ddup_set_profiler_settings_json(std::string_view settings_json);
 
     bool ddup_is_initialized();
     void ddup_start();
@@ -69,7 +70,7 @@ extern "C"
     void ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count);
     void ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count);
     void ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count);
-    void ddup_push_heap(Datadog::Sample* sample, int64_t size);
+    void ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count);
     void ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count);
     void ddup_push_gpu_memory(Datadog::Sample* sample, int64_t mem, int64_t count);
     void ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count);
@@ -78,7 +79,7 @@ extern "C"
                               int64_t thread_id,
                               int64_t thread_native_id,
                               std::string_view thread_name);
-    void ddup_push_task_id(Datadog::Sample* sample, int64_t task_id);
+    void ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id);
     void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
     void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
@@ -93,7 +94,6 @@ extern "C"
                          uint64_t address,
                          int64_t line);
     void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
-    void ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 

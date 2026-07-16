@@ -159,3 +159,19 @@ class GlobalConfigTestCase(TestCase):
         with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
             c = Config()
             assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}
+
+
+def test_raise_property_bridges_to_native():
+    from ddtrace import config
+    from ddtrace.internal.native import config as native_config
+
+    original = config._raise
+    try:
+        config._raise = True
+        assert native_config.get_raise() is True
+        assert config._raise is True
+
+        native_config.set_raise(False)
+        assert config._raise is False
+    finally:
+        config._raise = original

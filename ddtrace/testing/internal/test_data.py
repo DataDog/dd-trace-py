@@ -144,6 +144,10 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.metrics.update(metrics)
 
 
+def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
+    return TAG_TRUE if session.itr_skipping_enabled else "false"
+
+
 class TestRun(TestItem["Test", t.NoReturn]):
     __test__ = False
 
@@ -197,6 +201,10 @@ class TestRun(TestItem["Test", t.NoReturn]):
         For retry scenarios, only the last retry gets this tag.
         """
         self.tags[TestTag.FINAL_STATUS] = final_status.value
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
 
 
 class Test(TestItem["TestSuite", "TestRun"]):
@@ -345,6 +353,18 @@ class TestSuite(TestItem["TestModule", "Test"]):
     def __str__(self) -> str:
         return f"{self.parent.name}/{self.name}"
 
+    def mark_skipped_by_itr(self) -> None:
+        self.set_status(TestStatus.SKIP)
+        self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
+        try:
+            TelemetryAPI.get().record_itr_skipped(EventType.SUITE)
+        except RuntimeError:
+            pass
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+
 
 class TestModule(TestItem["TestSession", "TestSuite"]):
     ChildClass = TestSuite
@@ -359,6 +379,10 @@ class TestModule(TestItem["TestSession", "TestSuite"]):
 
     def set_location(self, module_path: Path) -> None:
         self.module_path = str(module_path)
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
 
 
 class TestSession(TestItem[t.NoReturn, "TestModule"]):
@@ -395,7 +419,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def set_final_tags(self) -> None:
         super().set_final_tags()
 
-        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = TAG_TRUE if self.itr_skipping_enabled else "false"
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self)
 
         if self.itr_enabled:
             has_itr_skips = self.tests_skipped_by_itr > 0

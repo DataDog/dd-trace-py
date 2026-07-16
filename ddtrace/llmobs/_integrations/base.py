@@ -3,7 +3,6 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -12,7 +11,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
@@ -24,10 +25,14 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_tracked_prompt
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -40,18 +45,11 @@ class BaseLLMIntegration:
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
         self.integration_config = integration_config
-        self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled
-
-    def is_pc_sampled_llmobs(self, span: Span) -> bool:
-        # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
-        if not self.llmobs_enabled:
-            return False
-        return self._llmobs_pc_sampler.sample(span)
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -86,6 +84,9 @@ class BaseLLMIntegration:
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)
+        if base_url:
+            # Used to detect providers downstream.
+            span._set_ctx_item(REQUEST_BASE_URL, base_url)
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
@@ -107,12 +108,25 @@ class BaseLLMIntegration:
             self._set_apm_shadow_tags(span, args, kwargs, response, operation)
         except Exception:
             log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
-        if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
+        if not self.llmobs_enabled:
             return
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
+        if get_llmobs_span_kind(span) == "llm" and span._get_ctx_item(INPUT_PROMPT) is None:
+            try:
+                prompt = get_tracked_prompt(args, kwargs)
+                if prompt is not None:
+                    LLMObs.annotate(
+                        span,
+                        prompt=prompt,
+                        tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_AUTO},
+                        _suppress_span_kind_error=True,
+                        _telemetry_source="auto_prompt_tracking",
+                    )
+            except Exception:
+                log.debug("Error auto-tagging prompt for span %s", span, exc_info=True)
 
     @abc.abstractmethod
     def _llmobs_set_tags(

@@ -7,6 +7,10 @@ import pytest
 
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
+from ddtrace.contrib.internal.subprocess.patch import add_lst_callback
+from ddtrace.contrib.internal.subprocess.patch import add_str_callback
+from ddtrace.contrib.internal.subprocess.patch import del_lst_callback
+from ddtrace.contrib.internal.subprocess.patch import del_str_callback
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
@@ -113,6 +117,25 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
             "lower=baz",
             ["dir", "-li", "/", "OTHER=any"],
         ),
+        # Regression: a value containing ``=`` (legal shell, e.g. base64 with
+        # padding, ``URL=...?k=v``, or just two ``=`` chained) made
+        # ``token.split("=")`` return 3 items, raising ``ValueError`` on the
+        # two-name unpack. The outer ``except Exception`` swallowed it and
+        # the subprocess span was dropped.
+        (
+            SubprocessCmdLine(["FOO=key=value", "BAR=baz", "dir", "-li", "/"], shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/"],
+            ["FOO=?", "BAR=?"],
+            "dir",
+            ["-li", "/"],
+        ),
+        (
+            SubprocessCmdLine(["BASE64=YWJjPT0=", "dir", "-li", "/"], shell=True),
+            ["BASE64=?", "dir", "-li", "/"],
+            ["BASE64=?"],
+            "dir",
+            ["-li", "/"],
+        ),
     ]
     + allowed_envvars_fixture_list,
 )
@@ -121,6 +144,27 @@ def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.env_vars == env_vars
     assert cmdline_obj.binary == binary
     assert cmdline_obj.arguments == arguments
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "BASE64",  # digit in the middle
+        "HTTP2",  # digit at the end
+        "S3_BUCKET",  # digit right after underscore
+        "A1B2C3",  # alternating letters and digits
+    ],
+)
+def test_shellcmdline_scrubs_env_var_names_with_digits(name: str) -> None:
+    """Env var names containing digits must be recognised and their values scrubbed.
+
+    Regression: _COMPILED_ENV_VAR_REGEXP used [A-Z_]+ which excludes digits,
+    so names like BASE64 were not matched and values were never redacted.
+    """
+    token = f"{name}=secret"
+    cmdline = SubprocessCmdLine([token, "ls"], shell=True)
+    assert cmdline.env_vars == [f"{name}=?"], f"value of {name} was not scrubbed"
+    assert cmdline.binary == "ls"
 
 
 denied_binaries_fixture_list = []
@@ -977,3 +1021,72 @@ def test_popen_positional_env_no_typeerror():
         if proc.poll() is None:
             proc.terminate()
             proc.wait()
+
+
+class _CallbackSpy:
+    """Records the arguments each registered subprocess callback receives."""
+
+    def __init__(self):
+        self.str_calls = []
+        self.lst_calls = []
+
+    def __enter__(self):
+        add_str_callback("_test_spy", self.str_calls.append)
+        add_lst_callback("_test_spy", self.lst_calls.append)
+        return self
+
+    def __exit__(self, *exc):
+        del_str_callback("_test_spy")
+        del_lst_callback("_test_spy")
+
+
+# Regression tests for APPSEC-68527: bytes commands are valid on POSIX and must
+# reach the RASP/IAST security callbacks instead of being silently dropped by a
+# type filter that only accepted str/list/tuple.
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_ossystem_bytes_reaches_callbacks(tracer, test_spans, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("ossystem_bytes"):
+            ret = os.system(b"dir -l /")
+            assert ret == 0
+
+        assert spy.str_calls == [b"dir -l /"]
+
+        spans = test_spans.pop()
+        span = spans[1]
+        assert span.name == COMMANDS.SPAN_NAME
+        assert span.resource == "dir"
+        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
+        assert span.get_tag(COMMANDS.COMPONENT) == "os"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_subprocess_bytes_shell_true_reaches_callbacks(tracer, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("popen_bytes_shell"):
+            subp = subprocess.Popen(b"dir -li /", shell=True)
+            subp.wait()
+
+        # shell=True routes the bytes command to the SHI (str) callbacks
+        assert spy.str_calls == [b"dir -li /"]
+        assert spy.lst_calls == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_subprocess_bytes_shell_false_reaches_callbacks(tracer, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("popen_bytes_noshell"):
+            subp = subprocess.Popen(b"/bin/ls", shell=False)
+            subp.wait()
+
+        # shell=False routes the bytes command to the CMDI (list) callbacks
+        assert spy.lst_calls == [b"/bin/ls"]
+        assert spy.str_calls == []

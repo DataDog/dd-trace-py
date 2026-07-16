@@ -259,7 +259,7 @@ def test_profiler_ddtrace_deprecation():
 def test_libdd_failure_telemetry_logging():
     """Test that libdd initialization failures log to telemetry. This mimics
     one of the two scenarios where profiling can be configured.
-    1) using ddtrace-run with DD_PROFILNG_ENABLED=true
+    1) using ddtrace-run with DD_PROFILING_ENABLED=true
     2) import ddtrace.profiling.auto
     """
 
@@ -539,7 +539,7 @@ def test_stop_then_start_new_profiler() -> None:
     p2 = profiler.Profiler()
     p2.start()
     assert profiler.Profiler._active_instance is p2
-    p2.stop(flush=False)
+    p2.stop(flush=False)  # type: ignore[unreachable]
 
 
 def test_same_profiler_restart_allowed() -> None:
@@ -550,6 +550,49 @@ def test_same_profiler_restart_allowed() -> None:
     p.start()
     assert profiler.Profiler._active_instance is p
     p.stop(flush=False)
+
+
+@pytest.mark.subprocess(err=None)
+def test_start_registers_sigterm_handler() -> None:
+    """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
+    from unittest import mock
+
+    from ddtrace.internal import atexit
+    from ddtrace.profiling import profiler
+
+    with mock.patch.object(atexit, "register_on_exit_signal") as mock_reg:
+        p = profiler.Profiler()
+        p.start()
+        mock_reg.assert_called_once_with(p._stop_on_signal)
+        p.stop(flush=False)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(status=-15, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_flushes_on_sigterm() -> None:
+    """Profiler must flush the last profile exactly once when the process receives SIGTERM.
+
+    Asserts:
+    - upload is called (flush happened).
+    - upload is called exactly once (no double-flush from atexit + signal, or scheduler race).
+
+    The process exits with status -15 (killed by SIGTERM) because register_on_exit_signal
+    chains onto _raise_default which re-raises SIGTERM with SIG_DFL after all handlers
+    complete, so atexit never runs.
+    """
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: _raise_default re-raises SIGTERM with SIG_DFL, killing the process)
 
 
 @pytest.mark.subprocess(
@@ -614,3 +657,28 @@ def test_profiler_singleton_after_fork():
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"Child exited with status {status}"
         p.stop(flush=False)
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err=lambda stderr: "AssertionError" not in stderr,
+)
+def test_profiler_atexit_no_assertion_error_with_gevent():
+    """Regression test: atexit callbacks must not raise AssertionError when
+    gevent >= 26.4.0 is monkey-patched and the gevent hub is torn down before
+    atexit runs (gevent/thread.py _set_greenlet assert glet is not None).
+    """
+    import ddtrace.auto  # noqa: F401, I001
+    import ddtrace.profiling.auto  # noqa: F401
+
+    import gevent.monkey  # noqa: E402
+
+    gevent.monkey.patch_all()
+
+    import time  # noqa: E402
+
+    time.sleep(0.1)
+
+    # We don't need to assert anything here, we only want to make sure the subprocess
+    # runs (and exits) without raising an exception/crashing.

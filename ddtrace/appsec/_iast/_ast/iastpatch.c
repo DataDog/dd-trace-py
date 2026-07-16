@@ -250,7 +250,7 @@ static int
 str_in_list(const char* needle, const char** list, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
-        if (strncmp(needle, list[i], strlen(list[i])) == 0) {
+        if (list[i] && strncmp(needle, list[i], strlen(list[i])) == 0) {
             return 1;
         }
     }
@@ -352,13 +352,21 @@ get_list_from_env(const char* env_var_name, size_t* count)
                 return NULL;
             }
             env_copy = strdup(env_value);
-            if (!env_copy)
+            if (!env_copy) {
+                free(modules_list);
+                modules_list = NULL;
                 return NULL;
+            }
             count_tmp = 0;
             token = strtok(env_copy, ",");
             while (token) {
                 char* dup = strdup(token);
                 if (!dup) {
+                    for (size_t j = 0; j < count_tmp; j++) {
+                        free(modules_list[j]);
+                    }
+                    free(modules_list);
+                    modules_list = NULL;
                     free(env_copy);
                     return NULL;
                 }
@@ -408,7 +416,12 @@ init_globals(void)
         return -1;
     }
 
-    builtin_count = (size_t)PyTuple_Size(builtin_names);
+    /* PyTuple_Size returns -1 on error; guard before casting to size_t */
+    Py_ssize_t builtin_count_s = PyTuple_Size(builtin_names);
+    if (builtin_count_s < 0) {
+        return -1;
+    }
+    builtin_count = (size_t)builtin_count_s;
     builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
     builtins_denylist = (char**)malloc(builtins_denylist_count * sizeof(char*));
@@ -416,11 +429,19 @@ init_globals(void)
         PyErr_NoMemory();
         return -1;
     }
+    /* Initialize all entries to NULL so str_in_list never reads garbage */
+    memset(builtins_denylist, 0, builtins_denylist_count * sizeof(char*));
+
     /* Copy static stdlib names */
     for (i = 0; i < static_stdlib_denylist_count; i++) {
         char* dup = strdup(static_stdlib_denylist[i]);
-        if (!dup)
+        if (!dup) {
+            PyErr_NoMemory();
+            free_list(builtins_denylist, builtins_denylist_count);
+            builtins_denylist = NULL;
+            builtins_denylist_count = 0;
             return -1;
+        }
         for (char* p = dup; *p; p++) {
             *p = tolower(*p);
         }
@@ -430,17 +451,23 @@ init_globals(void)
     /* Copy built-in module names */
     for (size_t i = 0; i < builtin_count; i++) {
         PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
-        if (PyUnicode_Check(item)) {
+        if (item && PyUnicode_Check(item)) {
             const char* s = PyUnicode_AsUTF8(item);
             if (s) {
                 char* dup = strdup(s);
-                if (!dup)
+                if (!dup) {
+                    PyErr_NoMemory();
+                    free_list(builtins_denylist, builtins_denylist_count);
+                    builtins_denylist = NULL;
+                    builtins_denylist_count = 0;
                     return -1;
+                }
                 for (char* p = dup; *p; p++) {
                     *p = tolower(*p);
                 }
                 builtins_denylist[static_stdlib_denylist_count + i] = dup;
             }
+            /* NULL entries left as NULL (from memset above) when s is NULL */
         }
     }
 

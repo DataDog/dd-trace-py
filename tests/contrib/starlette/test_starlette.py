@@ -5,6 +5,9 @@ import httpx
 import pytest
 import sqlalchemy
 import starlette
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from ddtrace.constants import ERROR_MSG
@@ -89,6 +92,23 @@ def snapshot_app_with_tracer(tracer, engine):
 def snapshot_client_with_tracer(snapshot_app_with_tracer):
     with TestClient(snapshot_app_with_tracer) as test_client:
         yield test_client
+
+
+@pytest.mark.parametrize("middleware", [None, ()])
+def test_explicit_middleware_values(middleware, tracer, test_spans):
+    async def endpoint(request):
+        return PlainTextResponse("Success")
+
+    app = Starlette(routes=[Route("/", endpoint=endpoint)], middleware=middleware)
+
+    with TestClient(app) as client:
+        r = client.get("/")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET /"
 
 
 def test_200(client, tracer, test_spans):
@@ -626,3 +646,162 @@ def test_inferred_spans_api_gateway(client, test_spans):
             url="https://local/",
             start=1736973768,
         )
+
+
+def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
+    """CORSMiddleware short-circuits OPTIONS preflight before the router runs.
+
+    The span resource MUST use the route pattern (e.g. OPTIONS /users/{user_id})
+    not the raw request path (e.g. OPTIONS /users/123).  Without a fix, this
+    test fails because resource_paths is never populated by traced_handler and the
+    span resource stays as the raw path.
+    """
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    async def get_user(request):
+        return PlainTextResponse("user")
+
+    app = Starlette(
+        routes=[Route("/users/{user_id}", endpoint=get_user)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["GET", "POST"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with TestClient(app) as client:
+        r = client.options(
+            "/users/123",
+            headers={
+                "Origin": "http://testclient.local",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert r.status_code == 200
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "OPTIONS /users/{user_id}", (
+        f"Expected route pattern 'OPTIONS /users/{{user_id}}' but got {request_span.resource!r}. "
+        "CORSMiddleware short-circuits OPTIONS preflight before traced_handler runs, "
+        "so resource_paths is never populated and the span resource stays as the raw path."
+    )
+    assert request_span.get_tag("http.route") == "/users/{user_id}", (
+        f"Expected http.route tag to be '/users/{{user_id}}' but got {request_span.get_tag('http.route')!r}"
+    )
+
+
+def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
+    """CORS preflight on a sub-app route must use the mounted route template."""
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Mount
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    sub_app = Starlette(routes=[Route("/hello/{name}", endpoint=handler)])
+    app = Starlette(
+        routes=[Mount("/api", sub_app)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with TestClient(app) as client:
+        r = client.options(
+            "/api/hello/world",
+            headers={
+                "Origin": "http://testclient.local",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert "world" not in request_span.resource, f"Resource must not be the raw path, got: {request_span.resource!r}"
+    assert request_span.resource == "OPTIONS /api/hello/{name}", (
+        "Expected mounted route pattern 'OPTIONS /api/hello/{name}' "
+        f"for sub-app CORS preflight, got: {request_span.resource!r}"
+    )
+    assert request_span.get_tag("http.route") == "/api/hello/{name}", (
+        f"Expected http.route tag '/api/hello/{{name}}', got: {request_span.get_tag('http.route')!r}"
+    )
+
+
+def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
+    """Starlette route resolution is safe before span finish and request teardown.
+
+    The two calls must be safe: the second call must not corrupt the span resource
+    or raise an exception. The final resource on the span must be the route pattern.
+    """
+    from unittest import mock
+
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    import ddtrace.contrib.internal.starlette.patch as starlette_patch_module
+
+    call_count = []
+    original_fn = starlette_patch_module._resolve_route_resource
+
+    def counting_fn(scope, span):
+        call_count.append(1)
+        return original_fn(scope, span)
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(
+        routes=[Route("/resource/{item_id}", endpoint=handler)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with mock.patch.object(starlette_patch_module, "_resolve_route_resource", counting_fn):
+        with TestClient(app) as client:
+            r = client.options(
+                "/resource/42",
+                headers={
+                    "Origin": "http://testclient.local",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+
+    assert r.status_code == 200
+    assert len(call_count) >= 2, "_resolve_route_resource was not called before finish and teardown"
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "OPTIONS /resource/{item_id}", (
+        f"Expected route pattern after idempotent calls, got: {request_span.resource!r}"
+    )
+    assert request_span.get_tag("http.route") == "/resource/{item_id}", (
+        f"Expected http.route tag '/resource/{{item_id}}', got: {request_span.get_tag('http.route')!r}"
+    )

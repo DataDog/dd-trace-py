@@ -9,14 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.9.0rc1"
+version = "4.13.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
 # change over versions, e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-requires-python = ">=3.9,<3.16"
+requires-python = ">=3.9,<3.15"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -40,7 +40,14 @@ dependencies = [
     "bytecode>=0.13.0,<1; python_version<'3.11'",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
-    "wrapt>=1,<3",
+    # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
+    # reverts/fixes the descriptor regression introduced in
+    # https://github.com/GrahamDumpleton/wrapt/commit/ae93dd71c378161ff3643c9a1f708f66f97f3b5d
+    # wrapt 2.2.0's `FunctionWrapper.__get__(None, owner)` calls `tp_descr_get`
+    # with `Py_None` instead of `NULL`, which breaks class-level access to any
+    # C method_descriptor we wrap (e.g. `_pickle.Unpickler.load`,
+    # `asyncpg.protocol.protocol.BaseProtocol.execute`). See incident 53643.
+    "wrapt>=1,!=2.2.0,<3",
 ]
 
 [project.optional-dependencies]
@@ -49,6 +56,9 @@ opentracing = [
 ]
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
+]
+openfeature = [
+    "openfeature-sdk>=0.8,<1",
 ]
 
 [project.scripts]
@@ -86,6 +96,38 @@ Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
+
+[dependency-groups]
+lint = [
+    "click==8.1.7",
+    "cython-lint==0.18.1",
+    "codespell==2.4.1",
+    "bandit==1.8.2",
+    "mypy==1.15.0",
+    "coverage==7.3.0",
+    "envier==0.6.1",
+    "openfeature-sdk~=0.8.0",
+    "types-docutils==0.19.1.1",
+    "types-protobuf==3.20.4.5",
+    "types-PyYAML==6.0.12.2",
+    "types-setuptools==65.6.0.0",
+    "ddapm-test-agent==1.43.0",
+    "packaging==23.1",
+    "pygments==2.16.1",
+    "riot==0.22.0",
+    "ruff==0.14.10",
+    "clang-format==18.1.5",
+    "cmake-format==0.6.13",
+    "ruamel.yaml==0.18.6",
+    "ast-grep-cli==0.39.4",
+    "bytecode==0.17.0",
+]
+clean = [
+    "cython",
+    "cmake>=3.24.2,<3.28",
+    "setuptools-rust<2",
+    "setuptools-scm[toml]>=4",
+]
 
 [tool.cython-lint]
 max-line-length = 120
@@ -158,6 +200,14 @@ exclude = [
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
     "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
     "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
+    # Version-gated wrapping tests: each uses syntax newer than the project minimum,
+    # so the min-version ruff parser rejects them and they are excluded from ruff on
+    # every interpreter (not linted). conftest.py collect_ignores them below their
+    # target interpreter at test time. Mirrors test_template_string_aspect.py above.
+    "tests/wrapping/test_match_py310.py",  # match/case (3.10+)
+    "tests/wrapping/test_except_star_py311.py",  # except* (3.11+)
+    "tests/wrapping/test_pep695_py312.py",  # PEP 695 generics (3.12+)
+    "tests/wrapping/test_tstrings_py314.py",  # PEP 750 t-strings (3.14+)
 ]
 lint.ignore = [
     "A003",

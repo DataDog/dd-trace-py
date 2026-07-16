@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-import sys
 import typing as t
 
 import pytest
@@ -123,11 +122,7 @@ class BddTestOptPlugin:
     ) -> None:
         span = getattr(step_func, "_datadog_span", None)
         if span is not None:
-            if hasattr(exception, "__traceback__"):
-                tb = exception.__traceback__
-            else:
-                # PY2 compatibility workaround
-                _, _, tb = sys.exc_info()
+            tb = exception.__traceback__
             if step_func_args:
                 step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
                 span.set_tag(TestTag.PARAMETERS, step_func_args_json)

@@ -231,6 +231,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     PAYMENT_CANCELLATION: Literal["server.business_logic.payment.cancellation"] = (
         "server.business_logic.payment.cancellation"
     )
+    # Persistent: WAF deduplicates, so only the first LLM call per request is surfaced (by design).
+    LLM_EVENT: Literal["server.business_logic.llm.event"] = "server.business_logic.llm.event"
     PERSISTENT_ADDRESSES = frozenset(
         (
             REQUEST_BODY,
@@ -251,10 +253,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             PAYMENT_SUCCESS,
             PAYMENT_FAILURE,
             PAYMENT_CANCELLATION,
+            LLM_EVENT,
         )
     )
 
-    # EPHEMERAL ADDRESSES
+    # Non-persistent addresses: RASP addresses run in a subcontext; the others (extract-schema,
+    # login/payment business logic) run on the main context with rule_type=None.
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
     CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
     SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
@@ -305,6 +309,7 @@ class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
     ENABLED: Literal["_dd.appsec.api_security.enabled"] = "_dd.appsec.api_security.enabled"
+    NORMALIZED_ROUTE: Literal["_dd.appsec.normalized_route"] = "_dd.appsec.normalized_route"
     ENV_VAR_ENABLED: Literal["DD_API_SECURITY_ENABLED"] = "DD_API_SECURITY_ENABLED"
     PARSE_RESPONSE_BODY: Literal["DD_API_SECURITY_PARSE_RESPONSE_BODY"] = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES: Literal["_dd.appsec.s.req.headers"] = "_dd.appsec.s.req.headers"
@@ -462,6 +467,18 @@ class AI_GUARD(metaclass=Constant_Class):
     # applied to the service-entry span only if an ai_guard span is actually created.
     CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
 
+    # Tags copied from the local root (service-entry) span to every AI Guard span with the
+    # `ai_guard.` prefix, so anomaly detection at intake can correlate without waiting for
+    # the service-entry span to arrive in the same trace chunk.
+    # Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6596165672
+    ANOMALY_DETECTION_TAGS: tuple = (
+        "http.useragent",
+        "http.client_ip",
+        "network.client.ip",
+        "usr.id",
+        "usr.session_id",
+    )
+
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"
 
@@ -476,6 +493,12 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
     ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
     ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+    ENV_ANALYZE_STREAM_RESPONSES_ENABLED: Literal["DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"] = (
+        "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"
+    )
+    # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
+    # false to disable AI Guard auto-instrumentation for that specific provider.
+    ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
 
 
 class SCA(metaclass=Constant_Class):

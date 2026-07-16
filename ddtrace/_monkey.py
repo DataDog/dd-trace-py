@@ -57,6 +57,7 @@ PATCH_MODULES = {
     "pymysql": True,
     "mariadb": True,
     "mcp": True,
+    "mistralai": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -96,6 +97,7 @@ PATCH_MODULES = {
     "dogpile_cache": True,
     "yaaredis": True,
     "asyncpg": True,
+    "aws_durable_execution_sdk_python": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_cosmos": True,
     "azure_eventhubs": True,
@@ -108,6 +110,7 @@ PATCH_MODULES = {
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
+    "pytorch": False,
     "vllm": True,
     "mlflow": config._model_lab_enabled,
     "subprocess": True,
@@ -173,7 +176,9 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.graph",
         "langgraph.prebuilt",
     ),
+    "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
+    "pytorch": ("torch",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

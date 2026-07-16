@@ -6,7 +6,6 @@ import weakref
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -23,6 +22,7 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -218,6 +218,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
                         },
+                        get_tool_version_from_llm_span(span, tool_call_output.get("name", "")),
                     ),
                 )
 
@@ -286,8 +287,36 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
 
-    def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any], agent_index: int) -> None:
-        agent = get_argument_value(args, kwargs, agent_index, "agent", True)
+    # AIDEV-NOTE: MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
+    # (0.8-0.13), ``bindings=`` kwarg (>=0.14), or positional arg[1] when streamed (arg[0] is the
+    # RunResultStreaming — no Agent attrs, so it's skipped). One scanner covers every shape.
+    def _extract_agent_from_call(self, args: list[Any], kwargs: dict[str, Any]) -> Optional[Any]:
+        """Resolve the Agent from a run_single_turn[_streamed] call across versions and call shapes."""
+        candidates = []
+        for key in ("bindings", "agent"):
+            value = kwargs.get(key)
+            if value is not None:
+                candidates.append(value)
+        candidates.extend(arg for arg in args if arg is not None)
+        for candidate in candidates:
+            # AgentBindings shape (>= 0.14.0). AIDEV-NOTE: MLOB-7584 — the manifest is the user's DECLARED
+            # config, so prefer ``public_agent`` over ``execution_agent`` (a possible sandbox-rewritten clone).
+            bound_agent = getattr(candidate, "public_agent", None) or getattr(candidate, "execution_agent", None)
+            if bound_agent is not None:
+                return bound_agent
+            # Bare Agent shape (0.0.x-0.13.x). Duck-typed (no stable Agent type across versions, so no
+            # isinstance): name+tools+handoffs distinguishes it from RunResultStreaming (only current_agent).
+            if hasattr(candidate, "name") and hasattr(candidate, "tools") and hasattr(candidate, "handoffs"):
+                return candidate
+        return None
+
+    def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any]) -> None:
+        agent = self._extract_agent_from_call(args, kwargs)
+        if agent is None:
+            return
+        self._tag_agent_manifest_from_agent(span, agent)
+
+    def _tag_agent_manifest_from_agent(self, span: Span, agent: Any) -> None:
         if not agent or not self.llmobs_enabled:
             return
 
@@ -327,7 +356,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         # convert model_settings to dict if it's not already
         model_settings = agent.model_settings
-        if type(model_settings) != dict:
+        if not isinstance(model_settings, dict):
             model_settings = getattr(model_settings, "__dict__", None)
 
         return load_data_value(model_settings)

@@ -15,6 +15,9 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import git as _git
+from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -33,6 +36,7 @@ from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
+from ddtrace.llmobs.types import _ToolField
 from ddtrace.trace import Span
 
 
@@ -43,6 +47,29 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
+
+
+def resolve_llmobs_git_metadata() -> tuple[str, str]:
+    """Return ``(repository_url, commit_sha)`` from ``DD_GIT_*`` env vars or
+    package ``Project-URL``, falling back to ``git`` against the current
+    working directory. Honors ``DD_TRACE_GIT_METADATA_ENABLED``.
+    """
+    if not gitmetadata.config.enabled:
+        return "", ""
+    repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+    if repository_url and commit_sha:
+        return repository_url, commit_sha
+    if not commit_sha:
+        try:
+            commit_sha = _git.extract_commit_sha()
+        except Exception:
+            log.debug("git fallback: extract_commit_sha failed", exc_info=True)
+    if not repository_url:
+        try:
+            repository_url = _filter_sensitive_info(_git.extract_repository_url()) or ""
+        except Exception:
+            log.debug("git fallback: extract_repository_url failed", exc_info=True)
+    return repository_url, commit_sha
 
 
 def get_asyncio():
@@ -218,6 +245,34 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
+_MAX_NESTED_META_DEPTH = 12
+
+
+def _sanitize_span_event_depth(obj: Any) -> Any:
+    """Return a sanitized copy of obj with any container value that exceeds
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
+    and every mapping key stringified. The original structure is never mutated.
+    A warning is logged for each stringified field, including its dotted path.
+    """
+
+    def _walk(node: Any, depth: int, path: str) -> Any:
+        if not isinstance(node, (dict, list)):
+            return node
+        if depth >= _MAX_NESTED_META_DEPTH:
+            log.warning(
+                "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
+                "stringified to avoid backend parsing errors.",
+                path,
+                _MAX_NESTED_META_DEPTH,
+            )
+            return safe_json(node)
+        if isinstance(node, dict):
+            return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+        return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+
+    return _walk(obj, 0, "")
+
+
 def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
@@ -306,6 +361,32 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
+class _TrackedPromptStr(str):
+    dd_prompt: Prompt
+
+
+class _TrackedPromptList(list):
+    dd_prompt: Prompt
+
+
+def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> Union[str, list[Message]]:
+    """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
+    if not config._llmobs_enabled:
+        return rendered_value
+    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
+    tracked = tracked_cls(rendered_value)
+    tracked.dd_prompt = prompt
+    return tracked
+
+
+def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Return the managed-prompt metadata carried by any value passed into this LLM call, if any."""
+    for value in (*args, *kwargs.values()):
+        if isinstance(value, (_TrackedPromptStr, _TrackedPromptList)):
+            return value.dd_prompt
+    return None
+
+
 def get_llmobs_span_name(span: Span) -> Optional[str]:
     """Return the span name stored on a span's meta_struct."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
@@ -343,6 +424,16 @@ def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
+
+
+def get_llmobs_sample_rate(span: Span) -> Optional[str]:
+    """Return the LLMObs sample rate stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
+
+
+def get_llmobs_sampling_decision(span: Span) -> Optional[str]:
+    """Return the LLMObs sampling decision stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
 
 
 _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -461,6 +552,40 @@ def get_llmobs_metadata(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
 
 
+def get_llmobs_tool_definitions(span: Span) -> Optional[list[ToolDefinition]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
+
+
+def get_tool_version_from_llm_span(llm_span: Span, tool_name: str) -> Optional[str]:
+    """Return the version of the named tool from the LLM span's tool_definitions, if any."""
+    if not tool_name:
+        return None
+    tool_definitions = get_llmobs_tool_definitions(llm_span) or []
+    for tool_def in tool_definitions:
+        if tool_def.get("name") == tool_name:
+            return tool_def.get("version")
+    return None
+
+
+def _sanitize_metric_key(key):
+    """Replace dots in a metric key with underscores.
+
+    LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
+    decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
+    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    """
+    if not isinstance(key, str) or "." not in key:
+        return key
+    sanitized = key.replace(".", "_")
+    log.warning(
+        "LLMObs metric key %r contains '.', which is not supported and would prevent the span from "
+        "being ingested; replacing with %r.",
+        key,
+        sanitized,
+    )
+    return sanitized
+
+
 def _annotate_llmobs_span_data(
     span: Span,
     name: Optional[str] = None,
@@ -480,6 +605,7 @@ def _annotate_llmobs_span_data(
     output_value: Optional[Any] = None,
     output_documents: Optional[list[Document]] = None,
     tool_definitions: Optional[list[ToolDefinition]] = None,
+    tool_version: Optional[str] = None,
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
@@ -491,6 +617,8 @@ def _annotate_llmobs_span_data(
     parent_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     dd_scope: Optional[str] = None,
+    dd_sample_rate: Optional[str] = None,
+    dd_sampling_decision: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -517,6 +645,7 @@ def _annotate_llmobs_span_data(
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
             llmobs_span_data[LLMOBS_STRUCT.TAGS]["ml_app"] = ml_app
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["agent_service"] = ml_app
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
@@ -529,7 +658,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
@@ -541,9 +671,10 @@ def _annotate_llmobs_span_data(
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
         if metrics is not None:
-            llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
+            llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
-            llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
+            # Tag values are serialized as strings, so coerce non-string values here.
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
@@ -578,6 +709,9 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
         if tool_definitions is not None:
             meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
+        if tool_version is not None:
+            tool_field = meta.setdefault(LLMOBS_STRUCT.TOOL, _ToolField())
+            tool_field[LLMOBS_STRUCT.VERSION] = tool_version
         if expected_output is not None:
             meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
         if experiment_input is not None:
@@ -588,6 +722,10 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.INTENT] = intent
         if dd_scope is not None:
             llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
+        if dd_sample_rate is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLE_RATE] = dd_sample_rate
+        if dd_sampling_decision is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLING_DECISION] = dd_sampling_decision
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:
@@ -635,6 +773,7 @@ class TrackedToolCall:
     llm_span_context: dict[str, str]  # span/trace id of the LLM span that initiated this tool call
     tool_span_context: Optional[dict[str, str]] = None  # span/trace id of the tool span that executed this call
     tool_kind: str = "function"  # one of "function", "handoff"
+    tool_version: Optional[str] = None  # resolved version from the LLM span's tool_definitions
 
 
 class LinkTracker:
@@ -653,7 +792,12 @@ class LinkTracker:
         self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
-        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: dict[str, str]
+        self,
+        tool_id: str,
+        tool_name: str,
+        arguments: str,
+        llm_span_context: dict[str, str],
+        tool_version: Optional[str] = None,
     ) -> None:
         """
         Called when an llm span finishes. This is used to save the tool choice information generated by an LLM
@@ -671,6 +815,7 @@ class LinkTracker:
             tool_name=tool_name,
             arguments=formatted_arguments,
             llm_span_context=llm_span_context,
+            tool_version=tool_version,
         )
         self._tool_calls[tool_id] = tool_call
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
@@ -700,6 +845,8 @@ class LinkTracker:
             "output",
             "input",
         )
+        if tool_call.tool_version is not None:
+            _annotate_llmobs_span_data(tool_span, tool_version=tool_call.tool_version)
         self._tool_calls[tool_id].tool_span_context = {
             "span_id": str(tool_span.span_id),
             "trace_id": format_trace_id(tool_span.trace_id),

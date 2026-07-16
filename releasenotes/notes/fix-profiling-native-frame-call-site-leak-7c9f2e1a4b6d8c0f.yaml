@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes a memory leak in native frame tracking caused by unbounded
+    native call-site metadata growth.
