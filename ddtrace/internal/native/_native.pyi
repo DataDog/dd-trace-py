@@ -169,7 +169,7 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: SpanData) -> None:
+    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.

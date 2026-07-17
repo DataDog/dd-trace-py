@@ -146,13 +146,22 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
 
 #[cfg(target_os = "linux")]
 #[pyfunction]
-pub fn update_otel_thread_context(span: PyRef<'_, SpanData>, local_root: PyRef<'_, SpanData>) {
+pub fn update_otel_thread_context(
+    span: PyRef<'_, SpanData>,
+    local_root: Option<PyRef<'_, SpanData>>,
+) {
     use libdd_otel_thread_ctx::linux::ThreadContext;
+
+    let local_root_span_id = if let Some(local_root) = local_root {
+        local_root.span_id
+    } else {
+        span.span_id
+    };
 
     ThreadContext::update(
         span.trace_id.to_be_bytes(),
         span.span_id.to_be_bytes(),
-        local_root.span_id.to_be_bytes(),
+        local_root_span_id.to_be_bytes(),
         &[],
     );
 }

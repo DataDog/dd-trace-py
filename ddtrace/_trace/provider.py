@@ -91,7 +91,7 @@ class DefaultContextProvider(BaseContextProvider):
             _activate_contextvar(ctx)
 
             if type(ctx) is Span:
-                update_otel_thread_context(ctx, ctx._local_root)
+                update_otel_thread_context(ctx, ctx._local_root_value)
             else:
                 detach_otel_thread_context()
 
