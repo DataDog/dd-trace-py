@@ -5,7 +5,6 @@ from typing import Sequence
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _is_iast_taint_source_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -21,7 +20,7 @@ log = get_logger(__name__)
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     try:
-        if (contextid := _get_iast_context_id()) is not None and _is_iast_taint_source_enabled():
+        if (contextid := _get_iast_context_id()) is not None:
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
             res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin, contextid)
