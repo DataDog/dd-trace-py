@@ -131,7 +131,7 @@ WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 LIBDDWAF_VERSION = "2.0.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v35.0.0 requires rust 1.87.0.
+# libdatadog 6b4ba8c6b475ce272e386aa1eb420d48308474d6 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
 
 
