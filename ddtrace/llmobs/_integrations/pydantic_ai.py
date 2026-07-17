@@ -9,6 +9,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -181,7 +182,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if model_name:
                 manifest["model"] = model_name
         if hasattr(agent, "model_settings"):
-            manifest["model_settings"] = agent.model_settings
+            manifest["model_settings"] = load_data_value(agent.model_settings)
         if hasattr(agent, "_instructions"):
             instructions = agent._instructions
             if isinstance(instructions, list):
