@@ -162,10 +162,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
             return False
-        # OpenRouter model slugs (e.g. "openrouter/openai/gpt-4o") contain "openai"/"gpt" but litellm
-        # routes them through its own HTTP handler, not the OpenAI SDK, so no downstream OpenAI span is
-        # created. Without this, the LiteLLM span would be wrongly suppressed and the call would produce
-        # no LLMObs span at all.
+        # OpenRouter routes through litellm's own HTTP handler, not the OpenAI SDK, so there's no
+        # downstream OpenAI span to defer to.
         if model_lower.startswith("openrouter/"):
             return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
