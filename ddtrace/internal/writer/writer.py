@@ -37,7 +37,6 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..constants import DEFAULT_PROCESSING_INTERVAL
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
@@ -78,10 +77,6 @@ def _env_bool(key: str, default: bool) -> bool:
 
 def _env_float(key: str, default: float) -> float:
     return float(env[key]) if key in env else default
-
-
-def _env_int(key: str, default: int) -> int:
-    return int(env[key]) if key in env else default
 
 
 def _env_optional_bool(key: str) -> Optional[bool]:
@@ -602,9 +597,7 @@ class AgentlessTraceWriter(HTTPWriter):
         reuse_connections: Optional[bool] = None,
     ) -> None:
         buffer_size = min(buffer_size or _config_facts.trace_writer_buffer_size(), self.MAX_BUFFER_SIZE)
-        max_payload_size = max_payload_size or _env_int(
-            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
-        )
+        max_payload_size = max_payload_size or _config_facts.trace_writer_payload_size()
         client = AgentlessWriterClient(buffer_size, max_payload_size)
         headers = {
             "Content-Type": client.encoder.content_type,
@@ -790,9 +783,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
         buffer_size = buffer_size or _config_facts.trace_writer_buffer_size()
-        max_payload_size = max_payload_size or _env_int(
-            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
-        )
+        max_payload_size = max_payload_size or _config_facts.trace_writer_payload_size()
         if self._api_version not in WRITER_CLIENTS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",

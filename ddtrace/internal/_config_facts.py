@@ -21,6 +21,7 @@ from typing import Optional
 
 _trace_api: Optional[str] = None
 _trace_writer_buffer_size: Optional[int] = None
+_trace_writer_payload_size: Optional[int] = None
 _trace_writer_connection_reuse: Optional[bool] = None
 _health_metrics_enabled: Optional[bool] = None
 _report_hostname: Optional[bool] = None
@@ -52,6 +53,15 @@ def set_trace_writer_buffer_size(value: int) -> None:
 
 def trace_writer_buffer_size() -> int:
     return _trace_writer_buffer_size  # type: ignore[return-value]
+
+
+def set_trace_writer_payload_size(value: int) -> None:
+    global _trace_writer_payload_size
+    _trace_writer_payload_size = value
+
+
+def trace_writer_payload_size() -> int:
+    return _trace_writer_payload_size  # type: ignore[return-value]
 
 
 def set_trace_writer_connection_reuse(value: bool) -> None:
