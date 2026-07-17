@@ -936,14 +936,14 @@ class Config(object):
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            return self.setattr_with_source(key, value, "code")
+            return self._setattr_with_source(key, value, "code")
         else:
             result = super(self.__class__, self).__setattr__(key, value)
             if key in self._CONFIG_FACT_ATTRS:
                 self._sync_config_facts()
             return result
 
-    def setattr_with_source(self, key: str, value: Any, source: _ConfigSource) -> None:
+    def _setattr_with_source(self, key: str, value: Any, source: _ConfigSource) -> None:
         if key in self._config:
             self._config[key].set_value(value, source)
             if key in self._CONFIG_FACT_ATTRS:
