@@ -59,7 +59,8 @@ if __name__ == "__main__":
             )
             print("IAST module load tests completed successfully")
         finally:
-            os.environ = orig_env
+            os.environ.clear()
+            os.environ.update(orig_env)
 
     # ASM WAF smoke test
     if platform.system() != "Linux" or sys.maxsize > 2**32:
@@ -76,7 +77,12 @@ if __name__ == "__main__":
         print("Skipping test, 32-bit DDWAF not ready yet")
 
     # Profiling smoke test
-    if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32):
+    # TODO(py-315): remove the sys.version_info < (3, 15) guard once the profiling
+    # py3.15 stack lands (PR #17624 and its dependencies flip the setup.py gates
+    # from < (3, 15) to < (3, 16), building the native extensions on 3.15). Until
+    # then profiling extensions are not built on 3.15, so importing
+    # ddtrace.profiling would fail to find e.g. the _lock extension.
+    if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32) and sys.version_info < (3, 15):
         print("Running profiling smoke test...")
         profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
         result = subprocess.run(profiling_cmd, capture_output=True, text=True)
