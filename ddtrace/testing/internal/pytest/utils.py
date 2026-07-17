@@ -35,7 +35,14 @@ def nodeid_to_names(nodeid: str) -> tuple[str, str, str]:
     return module, suite, test
 
 
+_ITEM_TEST_REF_ATTR = "_dd_test_ref"
+
+
 def item_to_test_ref(item: pytest.Item) -> TestRef:
+    cached: t.Optional[TestRef] = getattr(item, _ITEM_TEST_REF_ATTR, None)
+    if cached is not None:
+        return cached
+
     custom_module = item.config.hook.pytest_ddtrace_get_item_module_name(item=item)
     custom_suite = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     custom_test = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
@@ -46,6 +53,7 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
     suite_ref = SuiteRef(module_ref, custom_suite or default_suite)
     test_ref = TestRef(suite_ref, custom_test or default_test)
 
+    item.__dict__[_ITEM_TEST_REF_ATTR] = test_ref
     return test_ref
 
 

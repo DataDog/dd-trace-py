@@ -504,7 +504,10 @@ class TestOptPlugin:
             items[:] = selected
 
         elif (
-            not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+            not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP"))
+            and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+            and self.manager.settings.skipping_enabled
+            and self.manager.skippable_items
         ):
             selected = []
             deselected = []
