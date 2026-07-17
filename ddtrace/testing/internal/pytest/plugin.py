@@ -512,14 +512,11 @@ class TestOptPlugin:
             selected = []
             deselected = []
             for item in items:
-                if self._should_deselect(item):
-                    deselected.append(item)
-                else:
-                    selected.append(item)
+                (deselected if self._should_deselect(item) else selected).append(item)
 
             if deselected:
-                config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
+                config.hook.pytest_deselected(items=deselected)
                 if self._is_itr_skip_event_owner:
                     self.session.tests_skipped_by_itr += len(deselected)
 
