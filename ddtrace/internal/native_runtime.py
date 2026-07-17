@@ -1,5 +1,5 @@
-import importlib.util
 import logging
+import sys
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -45,11 +45,10 @@ class NativeRuntime(SharedRuntime):
                 If None, waits indefinitely — only safe if all workers have
                 already been stopped (e.g. via TraceExporter.shutdown).
         """
-        using_uwsgi = importlib.util.find_spec("uwsgi") is not None
-        if not using_uwsgi:
-            super().shutdown(timeout_ms=timeout_ms)
-        else:
+        if "uwsgi" in sys.modules:
             super().shutdown_in_thread(timeout_ms=timeout_ms)
+        else:
+            super().shutdown(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
         forksafe.unregister_before_fork(self.before_fork)
         forksafe.unregister_parent(self.after_fork_parent)
