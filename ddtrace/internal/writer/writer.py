@@ -24,6 +24,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
@@ -108,17 +109,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-
-def _human_size(nbytes: float) -> str:
-    """Return a human-readable size."""
-    i = 0
-    suffixes = ["B", "KB", "MB", "GB", "TB"]
-    while nbytes >= 1000 and i < len(suffixes) - 1:
-        nbytes /= 1000.0
-        i += 1
-    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
-    return "%s%s" % (f, suffixes[i])
 
 
 class TraceWriter(metaclass=abc.ABCMeta):

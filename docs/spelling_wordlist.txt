@@ -1,5 +1,6 @@
 AArch
 adk
+agentic
 agentless
 aiobotocore
 aiohttp
@@ -117,6 +118,7 @@ embeddings
 Enablement
 enqueue
 enqueuer
+enqueuing
 entrypoint
 entrypoints
 env
@@ -174,6 +176,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
@@ -223,6 +226,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarded
 onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
