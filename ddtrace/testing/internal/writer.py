@@ -66,14 +66,6 @@ def _truncate_events_meta(events: list[Event]) -> list[Event]:
     return [_truncate_event_meta(event) for event in events]
 
 
-def _itr_correlation_id_content(item: TestItem[t.Any, t.Any], skipping_level: ITRSkippingLevel) -> dict[str, str]:
-    session = getattr(item, "session", None)
-    correlation_id = getattr(session, "itr_correlation_id", None)
-    if correlation_id and getattr(session, "itr_skipping_level", None) == skipping_level:
-        return {"itr_correlation_id": correlation_id}
-    return {}
-
-
 class BaseWriter(ABC):
     # After this many consecutive failed flushes (each already retried internally),
     # stop sending and drop events until the backend recovers.
@@ -499,77 +491,75 @@ class PayloadFileCoverageWriter(TestCoverageWriter):
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
-    return Event(
-        version=2,
-        type="test",
-        content={
-            "trace_id": test_run.trace_id,
-            "parent_id": 1,
-            "span_id": test_run.span_id,
-            "service": test_run.service,
-            "resource": test_run.name,
-            "name": "pytest.test",
-            "error": 1 if test_run.get_status() == TestStatus.FAIL else 0,
-            "start": test_run.start_ns,
-            "duration": test_run.duration_ns,
-            "meta": {
-                "span.kind": "test",
-                "test.module": test_run.module.name,
-                "test.module_path": test_run.module.module_path,
-                "test.name": test_run.name,
-                "test.status": test_run.get_status().value,
-                "test.suite": test_run.suite.name,
-                "type": "test",
-                **test_run.test.tags,
-                **test_run.tags,
-            },
-            "metrics": {
-                "_dd.py.partial_flush": 1,
-                "_dd.top_level": 1,
-                "_dd.tracer_kr": 1.0,
-                "_sampling_priority_v1": 1,
-                **test_run.metrics,
-            },
+    content = {
+        "trace_id": test_run.trace_id,
+        "parent_id": 1,
+        "span_id": test_run.span_id,
+        "service": test_run.service,
+        "resource": test_run.name,
+        "name": "pytest.test",
+        "error": 1 if test_run.get_status() == TestStatus.FAIL else 0,
+        "start": test_run.start_ns,
+        "duration": test_run.duration_ns,
+        "meta": {
+            "span.kind": "test",
+            "test.module": test_run.module.name,
+            "test.module_path": test_run.module.module_path,
+            "test.name": test_run.name,
+            "test.status": test_run.get_status().value,
+            "test.suite": test_run.suite.name,
             "type": "test",
-            "test_session_id": test_run.session.item_id,
-            "test_module_id": test_run.module.item_id,
-            "test_suite_id": test_run.suite.item_id,
-            **_itr_correlation_id_content(test_run, ITRSkippingLevel.TEST),
+            **test_run.test.tags,
+            **test_run.tags,
         },
-    )
+        "metrics": {
+            "_dd.py.partial_flush": 1,
+            "_dd.top_level": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            **test_run.metrics,
+        },
+        "type": "test",
+        "test_session_id": test_run.session.item_id,
+        "test_module_id": test_run.module.item_id,
+        "test_suite_id": test_run.suite.item_id,
+    }
+    if test_run.session.itr_correlation_id and test_run.session.itr_skipping_level == ITRSkippingLevel.TEST:
+        content["itr_correlation_id"] = test_run.session.itr_correlation_id
+
+    return Event(version=2, type="test", content=content)
 
 
 def serialize_suite(suite: TestSuite) -> Event:
-    return Event(
-        version=1,
-        type="test_suite_end",
-        content={
-            "service": suite.service,
-            "resource": suite.name,
-            "name": "pytest.test_suite",
-            "error": 0,
-            "start": suite.start_ns,
-            "duration": suite.duration_ns,
-            "meta": {
-                "span.kind": "test",
-                "test.suite": suite.name,
-                "test.status": suite.get_status().value,
-                "type": "test_suite_end",
-                **suite.tags,
-            },
-            "metrics": {
-                "_dd.py.partial_flush": 1,
-                "_dd.tracer_kr": 1.0,
-                "_sampling_priority_v1": 1,
-                **suite.metrics,
-            },
+    content = {
+        "service": suite.service,
+        "resource": suite.name,
+        "name": "pytest.test_suite",
+        "error": 0,
+        "start": suite.start_ns,
+        "duration": suite.duration_ns,
+        "meta": {
+            "span.kind": "test",
+            "test.suite": suite.name,
+            "test.status": suite.get_status().value,
             "type": "test_suite_end",
-            "test_session_id": suite.session.item_id,
-            "test_module_id": suite.module.item_id,
-            "test_suite_id": suite.item_id,
-            **_itr_correlation_id_content(suite, ITRSkippingLevel.SUITE),
+            **suite.tags,
         },
-    )
+        "metrics": {
+            "_dd.py.partial_flush": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            **suite.metrics,
+        },
+        "type": "test_suite_end",
+        "test_session_id": suite.session.item_id,
+        "test_module_id": suite.module.item_id,
+        "test_suite_id": suite.item_id,
+    }
+    if suite.session.itr_correlation_id and suite.session.itr_skipping_level == ITRSkippingLevel.SUITE:
+        content["itr_correlation_id"] = suite.session.itr_correlation_id
+
+    return Event(version=1, type="test_suite_end", content=content)
 
 
 def serialize_module(module: TestModule) -> Event:
