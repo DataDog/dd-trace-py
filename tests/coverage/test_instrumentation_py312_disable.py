@@ -31,7 +31,7 @@ def test_event_handler_returns_disable():
         calls.append(line_info)
 
     # Register the code object with our hook
-    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {}, (0, "/test/path.py", None), ())
+    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {}, (0, "/test/path.py", None), (), None, None)
 
     try:
         # Call the handler
@@ -62,6 +62,45 @@ def test_event_handler_returns_disable_for_missing_code():
 
     # Should still return DISABLE (graceful handling)
     assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_file_event_handler_emits_import_dependencies_once():
+    """File-level callbacks should not resend global import dependency metadata on every execution."""
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
+
+    code_obj = compile("x = 1", "<test_import_once>", "exec")
+    file_calls: list[str] = []
+    import_calls: list[object] = []
+
+    old_file_level = m._USE_FILE_LEVEL_COVERAGE
+    old_disable = m._use_disable_optimization
+    m._USE_FILE_LEVEL_COVERAGE = True
+    m._use_disable_optimization = False
+    m._IMPORTS_EMITTED.discard(code_obj)
+    _CODE_HOOKS[code_obj] = (
+        lambda info: None,
+        "/test/path.py",
+        {},
+        (0, "/test/path.py", None),
+        ((None, "/test/path.py", ("pkg", ("dep",))),),
+        lambda path: file_calls.append(path),
+        lambda path, import_name: import_calls.append((path, import_name)),
+    )
+
+    try:
+        assert _event_handler(code_obj, 0) is None
+        assert _event_handler(code_obj, 0) is None
+    finally:
+        _CODE_HOOKS.pop(code_obj, None)
+        m._IMPORTS_EMITTED.discard(code_obj)
+        m._USE_FILE_LEVEL_COVERAGE = old_file_level
+        m._use_disable_optimization = old_disable
+
+    assert file_calls == ["/test/path.py", "/test/path.py"]
+    assert import_calls == [("/test/path.py", ("pkg", ("dep",)))]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -210,7 +249,15 @@ def test_update_disable_optimization_rearmed_on_transition():
     # Set up a real code object and register it in _CODE_HOOKS
     code_obj = compile("x = 1", "<test_rearm>", "exec")
     calls: list[object] = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {}, (0, "/test/rearm.py", None), ())
+    _CODE_HOOKS[code_obj] = (
+        lambda info: calls.append(info),
+        "/test/rearm.py",
+        {},
+        (0, "/test/rearm.py", None),
+        (),
+        None,
+        None,
+    )
     sys.monitoring.set_local_events(m._DD_TOOL_ID, code_obj, m.EVENT)
 
     # Start in DISABLE mode (default)
@@ -266,7 +313,15 @@ def test_event_handler_returns_none_when_other_tool_present():
     # Set up a code hook
     code_obj = compile("x = 1", "<test>", "exec")
     calls = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, (0, "/test/path.py", None), ())
+    _CODE_HOOKS[code_obj] = (
+        lambda info: calls.append(info),
+        "/test/path.py",
+        {},
+        (0, "/test/path.py", None),
+        (),
+        None,
+        None,
+    )
 
     try:
         # Update the flag based on detected tools
