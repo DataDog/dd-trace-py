@@ -10,6 +10,7 @@ The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
 
 import dis
 import sys
+import threading as _threading
 from types import CodeType
 import typing as t
 
@@ -77,6 +78,7 @@ CodeHookData = t.Tuple[  # noqa: UP006
 ]
 _CODE_HOOKS: t.Dict[CodeType, CodeHookData] = {}  # noqa: UP006
 _IMPORTS_EMITTED: t.Set[CodeType] = set()  # noqa: UP006
+_tls_context = _threading.local()
 
 # NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
 # line so Python stops firing that event for this code location — a performance optimisation that
@@ -96,6 +98,10 @@ _IMPORTS_EMITTED: t.Set[CodeType] = set()  # noqa: UP006
 # (see _rearm_all_events()'s docstring) to only affect our own tool's state, leaving any other
 # registered tool's disabled-event state untouched.
 _use_disable_optimization: bool = True
+
+
+def set_active_context_covered_files(covered_files: t.Optional[t.Set[str]]) -> None:  # noqa: UP006
+    _tls_context.covered_files = covered_files
 
 
 def has_other_monitoring_tools() -> bool:
@@ -253,10 +259,12 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
         # Report file-level coverage using line 0 as a sentinel value and emit this code object's pre-extracted import
         # dependency metadata. This keeps dependency tracking tied to executed code objects without parsing bytecode in
         # the hot callback.
-        if file_hook is not None:
-            file_hook(path)
-        else:
-            hook(file_arg)  # type: ignore[arg-type]
+        active_covered_files = getattr(_tls_context, "covered_files", None)
+        if active_covered_files is None or path not in active_covered_files:
+            if file_hook is not None:
+                file_hook(path)
+            else:
+                hook(file_arg)  # type: ignore[arg-type]
 
         if import_args and code not in _IMPORTS_EMITTED:
             if import_hook is not None:
