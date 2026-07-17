@@ -1,27 +1,27 @@
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
-requires = []
+requires: list[str] = []
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
-def enabled():
-    return aiguard_config._ai_guard_enabled
+def enabled() -> bool:
+    return bool(aiguard_config._ai_guard_enabled)
 
 
-def start():
+def start() -> None:
     if aiguard_config._ai_guard_enabled:
         from ddtrace.aiguard._initialization import load_ai_guard
 
         load_ai_guard()
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     pass
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     pass

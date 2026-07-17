@@ -32,9 +32,9 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_langchain_enabled",
     ]
 
-    def reset(self):
+    def reset(self) -> None:
         """For testing purposes, reset the configuration to its default values given current environment variables."""
-        self.__init__()
+        self.__init__()  # type: ignore[misc]
 
 
 aiguard_config = AIGuardConfig()

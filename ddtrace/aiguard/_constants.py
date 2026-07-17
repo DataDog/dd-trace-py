@@ -26,7 +26,7 @@ class AI_GUARD(metaclass=Constant_Class):
     # `ai_guard.` prefix, so anomaly detection at intake can correlate without waiting for
     # the service-entry span to arrive in the same trace chunk.
     # Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6596165672
-    ANOMALY_DETECTION_TAGS: tuple = (
+    ANOMALY_DETECTION_TAGS: tuple[str, ...] = (
         "http.useragent",
         "http.client_ip",
         "network.client.ip",
