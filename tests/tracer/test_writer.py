@@ -920,6 +920,19 @@ def test_flush_connection_uds(endpoint_uds_server):
         writer.flush_queue(raise_exc=True)
 
 
+def test_intake_base_path_uds():
+    """For a unix:// intake URL, the path component is the socket location, not an
+    HTTP path prefix, so it must not be prepended to the request path.
+    """
+    writer = AgentlessTraceWriter("unix:///var/run/datadog/apm.socket", api_key="foobar")
+    assert writer._intake_base_path() == ""
+
+
+def test_intake_base_path_http():
+    writer = AgentlessTraceWriter("http://localhost:8126/some/prefix", api_key="foobar")
+    assert writer._intake_base_path() == "/some/prefix"
+
+
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")), managed_writer(writer_class, "http://dne:1234") as writer:

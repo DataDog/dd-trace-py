@@ -202,7 +202,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
-        self._intake_base_path = _urlparse(intake_url).path.rstrip("/") if isinstance(intake_url, str) else ""
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -246,6 +245,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if client and hasattr(client, "_intake_url"):
             return client._intake_url
         return self.intake_url
+
+    def _intake_base_path(self, client=None) -> str:
+        intake_url = self._intake_url(client)
+        if not isinstance(intake_url, str):
+            return ""
+        parsed = _urlparse(intake_url)
+        if parsed.scheme not in ("http", "https"):
+            # For unix:// URLs the path component is the socket location, not an HTTP path prefix.
+            return ""
+        return parsed.path.rstrip("/")
 
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
@@ -304,11 +313,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     final_headers,
                     _human_size(len(data)),
                 )
-                endpoint = (
-                    self._intake_base_path + "/" + client.ENDPOINT.lstrip("/")
-                    if self._intake_base_path
-                    else client.ENDPOINT
-                )
+                intake_base_path = self._intake_base_path(client)
+                endpoint = intake_base_path + "/" + client.ENDPOINT.lstrip("/") if intake_base_path else client.ENDPOINT
                 self._conn.request(self.HTTP_METHOD, endpoint, data, final_headers)
                 resp = self._conn.getresponse()
                 t = sw.elapsed()
