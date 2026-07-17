@@ -3,6 +3,7 @@ from http import HTTPStatus
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import container
 
 
@@ -11,6 +12,9 @@ def _build_client(base_url: str, timeout_ms: int) -> Any:
     from ddtrace.internal.http_client import HTTPClient
 
     return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False)
+
+
+forksafe.register(_build_client.cache_clear)
 
 
 class _CaseInsensitiveHeaders:
