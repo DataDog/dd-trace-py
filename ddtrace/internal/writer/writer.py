@@ -851,7 +851,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        old_exporter = self._exporter
         self._exporter = self._create_exporter()
+        old_exporter.shutdown(3_000_000_000)
 
     def recreate(
         self,
@@ -890,7 +892,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
+            old_exporter = self._exporter
             self._exporter = self._create_exporter()
+            old_exporter.shutdown(3_000_000_000)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
