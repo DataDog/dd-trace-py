@@ -16,6 +16,7 @@ Values that are read directly from environment variables are not stored here;
 see ddtrace.internal.settings.env.
 """
 
+from typing import Any
 from typing import Optional
 
 
@@ -34,6 +35,12 @@ _dd_api_key: Optional[str] = None
 _otel_metrics_enabled: Optional[bool] = None
 _trace_compute_stats: Optional[bool] = None
 _llmobs_enabled: Optional[bool] = None
+_tracing_enabled: Optional[bool] = None
+_logs_injection: Optional[bool] = None
+_tags: Optional[dict[str, Any]] = None
+_remote_config_enabled: Optional[bool] = None
+_from_endpoint: Any = None
+_remote_config: dict[str, Any] = {}
 
 
 def set_trace_api(value: Optional[str]) -> None:
@@ -169,3 +176,57 @@ def set_llmobs_enabled(value: bool) -> None:
 
 def llmobs_enabled() -> bool:
     return bool(_llmobs_enabled)
+
+
+def set_tracing_enabled(value: bool) -> None:
+    global _tracing_enabled
+    _tracing_enabled = value
+
+
+def tracing_enabled() -> bool:
+    return bool(_tracing_enabled)
+
+
+def set_logs_injection(value: bool) -> None:
+    global _logs_injection
+    _logs_injection = value
+
+
+def logs_injection() -> bool:
+    return bool(_logs_injection)
+
+
+def set_tags(value: dict[str, Any]) -> None:
+    global _tags
+    _tags = dict(value)
+
+
+def tags() -> dict[str, Any]:
+    return dict(_tags or {})
+
+
+def set_remote_config_enabled(value: bool) -> None:
+    global _remote_config_enabled
+    _remote_config_enabled = value
+
+
+def remote_config_enabled() -> bool:
+    return bool(_remote_config_enabled)
+
+
+def set_from_endpoint(value: Any) -> None:
+    global _from_endpoint
+    _from_endpoint = value
+
+
+def from_endpoint() -> Any:
+    return _from_endpoint
+
+
+def set_remote_config(values: dict[str, Any]) -> None:
+    global _remote_config
+    _remote_config = dict(values)
+
+
+def remote_config(key: str, default: Any = None) -> Any:
+    return _remote_config.get(key, default)

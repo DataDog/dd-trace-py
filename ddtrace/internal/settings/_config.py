@@ -783,6 +783,7 @@ class Config(object):
         for attr in self._CONFIG_FACT_ATTRS:
             if hasattr(self, attr):
                 getattr(_config_facts, f"set_{attr.lstrip('_')}")(getattr(self, attr))
+        _config_facts.set_remote_config({key: item.value() for key, item in self._config.items()})
 
     @property
     def _raise(self) -> bool:
@@ -933,6 +934,11 @@ class Config(object):
             "_otel_metrics_enabled",
             "_trace_compute_stats",
             "_llmobs_enabled",
+            "_tracing_enabled",
+            "_logs_injection",
+            "tags",
+            "_remote_config_enabled",
+            "_from_endpoint",
         }
     )
 
