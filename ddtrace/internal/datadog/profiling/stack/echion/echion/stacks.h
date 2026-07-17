@@ -46,17 +46,20 @@ unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
-             size_t max_depth = MAX_TASK_FRAMES);
+             size_t max_frames_to_add = MAX_TASK_FRAMES);
 
 // Convenience variant that owns a local scratch set, for callers that have no
 // reusable scratch to share (fuzz harnesses and other callers outside the
 // sampling thread). Prefer the primary overload above on the sampling thread.
 size_t
-unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = MAX_TASK_FRAMES);
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             size_t max_frames_to_add = MAX_TASK_FRAMES);
 
 // ----------------------------------------------------------------------------
 void
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_depth);
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames);
 
 // ----------------------------------------------------------------------------
 class StackInfo
