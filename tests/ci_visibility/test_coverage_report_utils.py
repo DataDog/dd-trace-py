@@ -8,6 +8,8 @@ from ddtrace.internal.test_visibility.coverage_report_utils import create_covera
 
 @pytest.fixture(autouse=True)
 def reset_code_coverage_flags_cache():
+    # AIDEV-NOTE: EFD/ATR retries rerun test calls without rerunning function fixtures, so tests
+    # that assert warning counts also clear the cache inside their test bodies.
     _get_code_coverage_flags.cache_clear()
     yield
     _get_code_coverage_flags.cache_clear()
@@ -44,6 +46,7 @@ def test_coverage_report_event_accepts_maximum_flags(monkeypatch):
 
 
 def test_coverage_report_event_omits_too_many_flags(monkeypatch, caplog):
+    _get_code_coverage_flags.cache_clear()
     monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", ",".join(f"flag-{index}" for index in range(33)))
 
     with caplog.at_level(logging.WARNING):
@@ -59,6 +62,7 @@ def test_coverage_report_event_omits_too_many_flags(monkeypatch, caplog):
 
 
 def test_coverage_report_flags_are_snapshotted_once(monkeypatch, caplog):
+    _get_code_coverage_flags.cache_clear()
     monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", ",".join(f"flag-{index}" for index in range(33)))
 
     with caplog.at_level(logging.WARNING):
