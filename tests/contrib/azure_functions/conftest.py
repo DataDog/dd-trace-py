@@ -47,14 +47,22 @@ def _start_azure_functions_server(extra_env=None):
     client = Client("http://0.0.0.0:%d" % port)
     try:
         client.wait(delay=0.5, initial_wait=2.0)
-    except Exception:
+    except Exception as e:
         stdout = _read_log(stdout_log)
         stderr = _read_log(stderr_log)
-        os.killpg(proc.pid, signal.SIGKILL)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         proc.wait()
+        stdout_log.close()
+        stderr_log.close()
         raise TimeoutError(
             "Azure Functions host failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
-        )
+        ) from e
+    else:
+        stdout_log.close()
+        stderr_log.close()
     return proc, client
 
 
