@@ -39,7 +39,6 @@ from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..constants import DEFAULT_PROCESSING_INTERVAL
-from ..constants import DEFAULT_REUSE_CONNECTIONS
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
@@ -247,9 +246,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         )(self._send_payload)
 
         self._reuse_connections = (
-            _env_bool("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
-            if reuse_connections is None
-            else reuse_connections
+            _config_facts.trace_writer_connection_reuse() if reuse_connections is None else reuse_connections
         )
 
     def _intake_endpoint(self, client=None):
