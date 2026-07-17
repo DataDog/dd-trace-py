@@ -28,6 +28,7 @@ _service: Optional[str] = None
 _env: Optional[str] = None
 _version: Optional[str] = None
 _debug_mode: Optional[bool] = None
+_telemetry_enabled: Optional[bool] = None
 _dd_site: Optional[str] = None
 _dd_api_key: Optional[str] = None
 _otel_metrics_enabled: Optional[bool] = None
@@ -114,6 +115,15 @@ def set_debug_mode(value: bool) -> None:
 
 def debug_mode() -> bool:
     return bool(_debug_mode)
+
+
+def set_telemetry_enabled(value: bool) -> None:
+    global _telemetry_enabled
+    _telemetry_enabled = value
+
+
+def telemetry_enabled() -> bool:
+    return bool(_telemetry_enabled)
 
 
 def set_dd_site(value: str) -> None:

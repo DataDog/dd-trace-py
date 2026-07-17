@@ -927,6 +927,7 @@ class Config(object):
             "env",
             "version",
             "_debug_mode",
+            "_telemetry_enabled",
             "_dd_site",
             "_dd_api_key",
             "_otel_metrics_enabled",

@@ -873,7 +873,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_client_side_stats_obfuscation()
 
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
-        if _env_bool("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True) and sys.platform.startswith("linux"):
+        if _config_facts.telemetry_enabled() and sys.platform.startswith("linux"):
             heartbeat_ms = int(
                 _env_float("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60) * 1000
             )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
