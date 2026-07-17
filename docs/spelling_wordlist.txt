@@ -176,6 +176,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
