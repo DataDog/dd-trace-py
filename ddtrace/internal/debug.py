@@ -57,7 +57,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         writer = tracer_info.writer
         agent_url = writer.intake_url
         try:
-            writer.write([])
+            writer.write([])  # type: ignore[attr-defined]
             writer.flush_queue(raise_exc=True)
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
