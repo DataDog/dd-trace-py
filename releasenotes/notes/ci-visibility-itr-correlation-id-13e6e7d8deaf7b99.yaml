@@ -1,3 +1,3 @@
 fixes:
   - |
-    CI visibility: This fix resolves an issue where the Datadog UI showed ``No extra information available`` when viewing details about why a test was skipped by Intelligent Test Runner. The ``ddtrace.testing`` pytest plugin now includes the Intelligent Test Runner correlation ID on test or suite events so the UI can display covered files and skip explanations.
+    CI Visibility: This fix resolves an issue where the Datadog UI showed ``No extra information available`` when viewing details about why a test was skipped by Intelligent Test Runner, due to missing ITR correlation ID on test or suite events.
