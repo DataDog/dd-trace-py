@@ -260,8 +260,7 @@ impl SpanText for PyBackedString {
 /// for the same reasons as `PyBackedString`.
 pub struct Bytes {
     data: ptr::NonNull<[u8]>,
-    /// Keeps the owning `PyBytes` alive. Never read — the keepalive is the purpose.
-    #[allow(dead_code)]
+    /// Keeps the owning `PyBytes` alive, and is visited by `traverse` for the cyclic GC.
     storage: Option<Py<PyAny>>,
 }
 
@@ -274,6 +273,15 @@ impl Bytes {
             storage: Some(py_bytes.clone().unbind().into_any()),
             data,
         }
+    }
+
+    /// Visit the held Python object (if any) for the cyclic GC.
+    #[inline(always)]
+    pub(crate) fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(obj) = &self.storage {
+            visit.call(obj)?;
+        }
+        Ok(())
     }
 }
 

@@ -16,7 +16,7 @@ mod exceptions;
 use crate::get_or_init;
 use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use crate::shared_runtime::SharedRuntimePy;
-use crate::span::SpanData;
+use crate::span::{build_span_from_snapshot, SpanData, SpanSnapshot};
 use exceptions::TraceExporterErrorPy;
 
 // `ddtrace.internal._encoding.packb`, cached to avoid a module lookup on every put_trace call.
@@ -266,20 +266,15 @@ impl TraceExporterBuilderPy {
     }
 }
 
-/// One buffered trace: the raw Python span objects plus the trace-level origin, kept
-/// *unconverted*. `build_v04_span` is deferred to `flush` (the background thread) so the
-/// per-request path only incref-and-stashes.
-struct BufferedChunk {
-    spans: Vec<Py<SpanData>>,
-    dd_origin: Option<Py<PyString>>,
-}
-
-/// Native buffer of unconverted trace chunks awaiting flush.
+/// Native buffer of snapshotted (but not yet wire-format-converted) trace chunks awaiting
+/// flush. Spans are snapshotted at `put_trace` time (on the request thread) rather than at
+/// `flush` time, so the per-flush GIL-held work stays O(1) instead of scaling with however many
+/// spans piled up since the last flush — see `put_trace`'s doc comment.
 ///
 /// No size or count limits are enforced here; bounding the buffered data is libdatadog's
 /// responsibility.
 struct TraceBuffer {
-    chunks: Vec<BufferedChunk>,
+    chunks: Vec<Vec<SpanSnapshot>>,
 }
 
 /// Outcome of [`TraceExporterPy::put_trace`]: the trace was buffered, or it had no encodable
@@ -335,30 +330,72 @@ impl TraceExporterPy {
         })
     }
 
-    /// Buffer one trace chunk (a Python ``list[Span]``) for the next flush.
+    /// Snapshot one trace chunk (a Python ``list[Span]``) for the next flush.
     ///
-    /// This only incref-and-stashes the raw span objects and the trace-level ``dd_origin``;
-    /// the conversion to libdatadog v0.4 spans (`build_v04_span`) is deferred to `flush`, which
-    /// runs on the background writer thread. Returns an outcome rather than raising.
+    /// The snapshot (`SpanData::snapshot`) — cheap refcount bumps, plus the `meta_struct`
+    /// `packb` call and v0.5 links/events `json.dumps` call, both genuinely Python-bound — runs
+    /// right here, under the GIL, bounded by the size of *this* trace chunk. This deliberately
+    /// trades a small, bounded per-request cost for avoiding a GIL-held pass at flush time whose
+    /// size scales with however many spans piled up since the last flush — the same "spread the
+    /// cost across every request instead of paying it as one periodic burst" property the old
+    /// Cython encoder relied on for tail latency, just far cheaper per span now that it's only
+    /// refcount bumps instead of a real encode.
+    ///
+    /// The actual wire-format conversion (`build_span_from_snapshot`: string truncation,
+    /// `VecMap` construction) is deferred to `flush`, which runs it fully detached from the GIL
+    /// on the background writer thread. Returns an outcome rather than raising.
     #[pyo3(signature = (spans, dd_origin=None))]
     fn put_trace(
         &self,
+        py: Python<'_>,
         spans: Vec<Py<SpanData>>,
         dd_origin: Option<Py<PyString>>,
     ) -> PyResult<PutOutcome> {
         if spans.is_empty() {
             return Ok(PutOutcome::NoEncodableSpans);
         }
-        self.lock_buffer()
-            .chunks
-            .push(BufferedChunk { spans, dd_origin });
+
+        let packb = get_packb(py);
+        let as_json = self.encode_links_events_as_json;
+        let origin: Option<PyBackedString> = match &dd_origin {
+            Some(o) => PyBackedString::try_from(o.bind(py).clone()).ok(),
+            None => None,
+        };
+
+        let mut chunk = Vec::with_capacity(spans.len());
+        for span in &spans {
+            // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
+            // SpanData::snapshot's doc comment.
+            let (mut snapshot, meta_struct_raw) = {
+                let span_ref = span.bind(py).borrow();
+                span_ref.snapshot(py, origin.as_ref(), as_json, packb.is_some())?
+            };
+            if let Some(packb) = packb {
+                for (key, value) in meta_struct_raw {
+                    let Ok(result) = packb.call1(py, (value.bind(py),)) else {
+                        continue;
+                    };
+                    let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
+                        continue;
+                    };
+                    snapshot
+                        .meta_struct_packed
+                        .push((key, Bytes::from_py_bytes(py_bytes)));
+                }
+            }
+            chunk.push(snapshot);
+        }
+
+        self.lock_buffer().chunks.push(chunk);
         Ok(PutOutcome::Accepted)
     }
 
-    /// Convert the buffered spans to libdatadog v0.4 spans (`build_v04_span`, GIL held) and send
-    /// them directly to the agent via [`TraceExporter::send_trace_chunks`], bypassing msgpack
-    /// encode/decode. The conversion runs here — on the background writer thread — so the
-    /// per-request `put_trace` stays cheap; the GIL is released only for the network send.
+    /// Send the buffered, already-snapshotted trace chunks directly to the agent via
+    /// [`TraceExporter::send_trace_chunks`], bypassing msgpack encode/decode.
+    ///
+    /// Every snapshot field is GIL-free-readable (see `SpanSnapshot`), so both the wire-format
+    /// conversion (`build_span_from_snapshot`) and the network send run fully detached — this
+    /// flush never blocks other Python threads for its own duration.
     ///
     /// Returns ``(n_traces_sent, response_body)`` where ``response_body`` is the agent's JSON
     /// body for a changed sampling rate, else ``None``.
@@ -371,46 +408,18 @@ impl TraceExporterPy {
             return Ok((0, None));
         }
 
-        // Packs meta_struct values; None skips meta_struct entirely.
-        let packb = get_packb(py);
+        let n = buffered.len();
         let as_json = self.encode_links_events_as_json;
-
-        let mut chunks: Vec<Vec<Span<PyTraceData>>> = Vec::with_capacity(buffered.len());
-        for bc in &buffered {
-            let origin: Option<PyBackedString> = match &bc.dd_origin {
-                Some(o) => PyBackedString::try_from(o.bind(py).clone()).ok(),
-                None => None,
-            };
-            let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(bc.spans.len());
-            for span in &bc.spans {
-                // Drop the SpanData borrow before calling packb (a GIL-yield point) — see
-                // build_v04_span's doc comment.
-                let (mut v04_span, meta_struct_raw) = {
-                    let span_ref = span.bind(py).borrow();
-                    span_ref.build_v04_span(py, origin.as_ref(), as_json, packb.is_some())?
-                };
-                if let Some(packb) = packb {
-                    for (key, value) in meta_struct_raw {
-                        let Ok(result) = packb.call1(py, (value.bind(py),)) else {
-                            continue;
-                        };
-                        let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
-                            continue;
-                        };
-                        v04_span
-                            .meta_struct
-                            .insert(key, Bytes::from_py_bytes(py_bytes));
-                    }
-                }
-                chunk.push(v04_span);
-            }
-            chunks.push(chunk);
-        }
-        // Drop the buffered Python refs while the GIL is held (avoids deferring them).
-        drop(buffered);
-
-        let n = chunks.len();
         let res: PyResult<AgentResponse> = py.detach(move || {
+            let chunks: Vec<Vec<Span<PyTraceData>>> = buffered
+                .into_iter()
+                .map(|chunk| {
+                    chunk
+                        .into_iter()
+                        .map(|snapshot| build_span_from_snapshot(snapshot, as_json))
+                        .collect()
+                })
+                .collect();
             let exporter = self
                 .inner
                 .as_ref()
@@ -425,9 +434,10 @@ impl TraceExporterPy {
         }
     }
 
-    /// Cyclic-GC traversal: the buffer holds live `Py<SpanData>`/`Py<PyString>` refs that can
-    /// close reference cycles (span → context → tracer → writer → this exporter). Best-effort:
-    /// if the buffer is momentarily locked, skip this cycle rather than risk blocking GC.
+    /// Cyclic-GC traversal: the buffer holds snapshotted Python string/bytes objects directly
+    /// (see `SpanSnapshot::traverse`) that can close reference cycles (span → context → tracer →
+    /// writer → this exporter). Best-effort: if the buffer is momentarily locked, skip this
+    /// cycle rather than risk blocking GC.
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         let guard = match self.buffer.try_lock() {
             Ok(g) => g,
@@ -435,11 +445,8 @@ impl TraceExporterPy {
             Err(std::sync::TryLockError::WouldBlock) => return Ok(()),
         };
         for chunk in &guard.chunks {
-            for span in &chunk.spans {
-                visit.call(span)?;
-            }
-            if let Some(origin) = &chunk.dd_origin {
-                visit.call(origin)?;
+            for snapshot in chunk {
+                snapshot.traverse(&visit)?;
             }
         }
         Ok(())
