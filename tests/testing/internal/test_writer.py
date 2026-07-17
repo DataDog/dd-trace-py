@@ -608,6 +608,7 @@ class TestSerializationFunctions:
     def test_serialize_test_run_adds_correlation_id_to_content(self) -> None:
         test_run = self.create_mock_test_run()
         test_run.session.itr_correlation_id = "test-correlation-id"
+        test_run.session.itr_skipping_level = ITRSkippingLevel.TEST
 
         event = serialize_test_run(test_run)
 
