@@ -808,7 +808,7 @@ def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
     samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
 
-    # With sampling_interval=1, the first exception is always sampled. ddup aggregates samples
+    # With sampling_interval=1 every exception is sampled. ddup aggregates samples
     # with identical stacks into a single pprof row with a summed count value.
     # The invariant we are looking for is that the total exception-samples count for the
     # ValueError we raised must not exceed 1.
