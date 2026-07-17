@@ -16,7 +16,6 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
@@ -140,6 +139,9 @@ class AIGuardClient:
         }
 
         self._meta = {"service": config.service, "env": config.env}
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
     @staticmethod
@@ -148,6 +150,9 @@ class AIGuardClient:
 
     @staticmethod
     def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
         max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
@@ -380,6 +385,9 @@ def new_ai_guard_client(
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
     if not endpoint:
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
         endpoint = aiguard_config._ai_guard_endpoint
     if not endpoint:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site

@@ -22,7 +22,6 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -643,6 +642,10 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
     does not support native span events.
     """
+    # Import lazily: ai_guard settings pull in the aiguard package, so a top-level import
+    # would give the writer an import-time dependency on it.
+    from ddtrace.internal.settings.aiguard import aiguard_config
+
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
     if (
