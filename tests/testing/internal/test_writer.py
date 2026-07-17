@@ -367,7 +367,9 @@ class TestTestOptWriter:
         assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
         assert meta["numeric_meta"] == 123
         assert writer.metadata["*"]["long_metadata"] == long_metadata_value
-        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
+        event_content = t.cast(dict[str, t.Any], event["content"])
+        event_meta = t.cast(dict[str, t.Any], event_content["meta"])
+        assert event_meta["long_meta"] == long_event_meta_value
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
@@ -602,6 +604,23 @@ class TestSerializationFunctions:
         assert event["content"]["error"] == 1  # Fail = error
         assert event["content"]["meta"]["test.status"] == "fail"
 
+    def test_serialize_itr_skipped_test_run_adds_correlation_id_to_content(self) -> None:
+        test_run = self.create_mock_test_run()
+        test_run.session.itr_correlation_id = "test-correlation-id"
+        test_run.test.mark_skipped_by_itr()
+
+        event = serialize_test_run(test_run)
+
+        assert event["content"]["itr_correlation_id"] == "test-correlation-id"
+
+    def test_serialize_non_itr_skipped_test_run_omits_correlation_id_from_content(self) -> None:
+        test_run = self.create_mock_test_run()
+        test_run.session.itr_correlation_id = "test-correlation-id"
+
+        event = serialize_test_run(test_run)
+
+        assert "itr_correlation_id" not in event["content"]
+
     def create_mock_test_suite(self) -> TestSuite:
         """Create a mock TestSuite."""
         suite_ref = TestDataFactory.create_suite_ref("test_module", "test_suite.py")
@@ -643,6 +662,23 @@ class TestSerializationFunctions:
         assert meta["test.status"] == "pass"
         assert meta["type"] == "test_suite_end"
         assert meta["suite.custom"] == "suite_value"
+
+    def test_serialize_itr_skipped_suite_adds_correlation_id_to_content(self) -> None:
+        suite = self.create_mock_test_suite()
+        suite.session.itr_correlation_id = "suite-correlation-id"
+        suite.mark_skipped_by_itr()
+
+        event = serialize_suite(suite)
+
+        assert event["content"]["itr_correlation_id"] == "suite-correlation-id"
+
+    def test_serialize_non_itr_skipped_suite_omits_correlation_id_from_content(self) -> None:
+        suite = self.create_mock_test_suite()
+        suite.session.itr_correlation_id = "suite-correlation-id"
+
+        event = serialize_suite(suite)
+
+        assert "itr_correlation_id" not in event["content"]
 
     def create_mock_test_module(self) -> TestModule:
         """Create a mock TestModule."""

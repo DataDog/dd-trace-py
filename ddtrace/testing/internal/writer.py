@@ -7,6 +7,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -18,6 +19,7 @@ from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
@@ -63,6 +65,14 @@ def _truncate_event_meta(event: Event) -> Event:
 
 def _truncate_events_meta(events: list[Event]) -> list[Event]:
     return [_truncate_event_meta(event) for event in events]
+
+
+def _itr_correlation_id_content(item: TestItem[t.Any, t.Any]) -> dict[str, str]:
+    session = getattr(item, "session", None)
+    correlation_id = getattr(session, "itr_correlation_id", None)
+    if correlation_id and item.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE:
+        return {"itr_correlation_id": correlation_id}
+    return {}
 
 
 class BaseWriter(ABC):
@@ -525,6 +535,7 @@ def serialize_test_run(test_run: TestRun) -> Event:
             "test_session_id": test_run.session.item_id,
             "test_module_id": test_run.module.item_id,
             "test_suite_id": test_run.suite.item_id,
+            **_itr_correlation_id_content(test_run.test),
         },
     )
 
@@ -557,6 +568,7 @@ def serialize_suite(suite: TestSuite) -> Event:
             "test_session_id": suite.session.item_id,
             "test_module_id": suite.module.item_id,
             "test_suite_id": suite.item_id,
+            **_itr_correlation_id_content(suite),
         },
     )
 

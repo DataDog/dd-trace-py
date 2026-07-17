@@ -233,6 +233,7 @@ class SessionManager:
             skipping_enabled=self.settings.skipping_enabled,
             skipping_level=self.itr_skipping_level,
         )
+        self.session.itr_correlation_id = self.itr_correlation_id
 
         # Propagate configuration errors to the session event and all child events.
         if self.configuration_errors:
