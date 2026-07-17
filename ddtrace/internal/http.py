@@ -82,13 +82,13 @@ class NativeHTTPConnection:
     def _get_client(self) -> Any:
         return _build_client(self._base_url, self._timeout_ms)
 
-    def request(self, method: str, url: str, body: Any = None, headers: Any = {}) -> None:
+    def request(self, method: str, url: str, body: Any = None, headers: Optional[Any] = None) -> None:
         self._method = method.lower()
         self._path = url
         if isinstance(body, str):
             body = body.encode()
         self._pending_body = body
-        _headers: dict[str, str] = dict(headers)
+        _headers: dict[str, str] = dict(headers) if headers else {}
         container.update_headers(_headers)
         self._pending_headers = [(k, str(v)) for k, v in _headers.items()]
 
@@ -98,7 +98,7 @@ class NativeHTTPConnection:
         client = self._get_client()
         req_fn = getattr(client, self._method)
         kwargs: dict[str, Any] = {"headers": self._pending_headers}
-        if self._pending_body:
+        if self._pending_body is not None:
             kwargs["body"] = self._pending_body
         return HTTPResponse(req_fn(self._path, **kwargs))
 

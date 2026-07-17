@@ -361,12 +361,12 @@ class AIGuardClient:
 
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        conn = HTTPConnection(f"{parsed.scheme}://{hostname}:{port}", timeout=self._timeout)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", parsed.path, json_body, self._headers)
+            target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+            conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
         finally:
