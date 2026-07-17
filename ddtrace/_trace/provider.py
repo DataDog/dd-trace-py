@@ -36,17 +36,14 @@ else:
 
 
 if sys.platform == "linux":
+    from ddtrace.internal.native._native import detach_otel_thread_context
     from ddtrace.internal.native._native import update_otel_thread_context
 
     def _on_activate_update_otel_thread_context(ctx: Optional[ActiveTrace]) -> None:
         if type(ctx) is Span:
-            update_otel_thread_context(
-                ctx.trace_id,
-                ctx.span_id,
-                ctx._local_root.span_id,
-            )
+            update_otel_thread_context(ctx, ctx._local_root)
         else:
-            update_otel_thread_context(None, None, None)
+            detach_otel_thread_context()
 
     core.on("ddtrace.context_provider.activate", _on_activate_update_otel_thread_context)
 

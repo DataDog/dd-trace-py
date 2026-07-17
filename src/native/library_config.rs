@@ -7,6 +7,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::types::PyList;
 
+#[cfg(target_os = "linux")]
+use crate::span::SpanData;
+
 #[pyclass(name = "PyConfigurator", module = "ddtrace.internal._native")]
 pub struct PyConfigurator {
     configurator: Box<Configurator>,
@@ -143,23 +146,21 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
 
 #[cfg(target_os = "linux")]
 #[pyfunction]
-pub fn update_otel_thread_context(
-    trace_id: Option<u128>,
-    span_id: Option<u64>,
-    local_root_span_id: Option<u64>,
-) {
+pub fn update_otel_thread_context(span: PyRef<'_, SpanData>, local_root: PyRef<'_, SpanData>) {
     use libdd_otel_thread_ctx::linux::ThreadContext;
 
-    if let (Some(trace_id), Some(span_id), Some(local_root_span_id)) =
-        (trace_id, span_id, local_root_span_id)
-    {
-        ThreadContext::update(
-            trace_id.to_be_bytes(),
-            span_id.to_be_bytes(),
-            local_root_span_id.to_be_bytes(),
-            &[],
-        );
-    } else {
-        ThreadContext::detach();
-    }
+    ThreadContext::update(
+        span.trace_id.to_be_bytes(),
+        span.span_id.to_be_bytes(),
+        local_root.span_id.to_be_bytes(),
+        &[],
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[pyfunction]
+pub fn detach_otel_thread_context() {
+    use libdd_otel_thread_ctx::linux::ThreadContext;
+
+    ThreadContext::detach();
 }
