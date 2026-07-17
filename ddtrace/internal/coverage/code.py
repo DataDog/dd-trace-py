@@ -106,6 +106,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
+        # AIDEV-NOTE: Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
+        # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
+        self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -145,6 +148,11 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
+    def hook_import(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None:
+        if self._collect_import_coverage and import_name not in self._import_names_by_path[path]:
+            self._import_names_by_path[path].add(import_name)
+            self._import_time_dependency_paths_cache.clear()
+
     def hook_file(self, path: str) -> None:
         if self._coverage_enabled and path not in self._covered_files:
             self._covered_files.add(path)
@@ -175,8 +183,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_lines = _get_ctx_covered_lines()[path]
                 ctx_lines.add(line)
 
-        if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
+        if import_name is not None:
+            self.hook_import(path, import_name)
 
     @classmethod
     def inject_coverage(
@@ -240,10 +248,14 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return covered_lines
 
-    def _add_import_time_lines(self, covered_lines):
-        """Modify given covered_lines in place and add lines that were covered at import time"""
+    def _get_import_time_dependency_paths(self, root_path: str) -> frozenset[str]:
+        cached_dependency_paths = self._import_time_dependency_paths_cache.get(root_path)
+        if cached_dependency_paths is not None:
+            return cached_dependency_paths
+
+        dependency_paths = set()
         visited_paths = set()
-        to_visit_paths = set(covered_lines.keys())
+        to_visit_paths = {root_path}
 
         while to_visit_paths:
             path = to_visit_paths.pop()
@@ -256,8 +268,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if path not in self._import_time_covered:
                 continue
 
-            imported_module_lines = self._import_time_covered[path]
-            covered_lines[path].update(imported_module_lines)
+            dependency_paths.add(path)
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependencies in self._import_names_by_path.get(path, set()):
@@ -284,15 +295,36 @@ class ModuleCodeCollector(ModuleWatchdog):
                             break
                         parent_package = parent_package[:-1]
 
+        cached_dependency_paths = frozenset(dependency_paths)
+        self._import_time_dependency_paths_cache[root_path] = cached_dependency_paths
+        return cached_dependency_paths
+
+    def _add_import_time_lines(self, covered_lines):
+        """Modify given covered_lines in place and add lines that were covered at import time"""
+        processed_paths = set()
+        if self._file_level_coverage:
+            for root_path in tuple(covered_lines.keys()):
+                for dependency_path in self._get_import_time_dependency_paths(root_path):
+                    if dependency_path not in processed_paths:
+                        processed_paths.add(dependency_path)
+                        covered_lines[dependency_path].add(0)
+            return
+
+        for root_path in tuple(covered_lines.keys()):
+            for path in self._get_import_time_dependency_paths(root_path):
+                if path not in processed_paths:
+                    processed_paths.add(path)
+                    imported_module_lines = self._import_time_covered[path]
+                    covered_lines[path].update(imported_module_lines)
+
     def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
         if not covered_file_paths:
             return covered_file_paths
 
-        covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
-        for path in covered_file_paths:
-            covered_lines[path].add(0)
-        self._add_import_time_lines(covered_lines)
-        return set(covered_lines)
+        paths = set(covered_file_paths)
+        for root_path in tuple(covered_file_paths):
+            paths.update(self._get_import_time_dependency_paths(root_path))
+        return paths
 
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
@@ -460,6 +492,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if self._collect_import_coverage:
             self._import_time_name_to_path[_module.__name__] = code.co_filename
+            self._import_time_dependency_paths_cache.clear()
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
@@ -481,6 +514,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_dependency_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
@@ -494,6 +528,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_dependency_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
