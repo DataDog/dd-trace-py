@@ -9,6 +9,7 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal import _config_facts
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
@@ -776,6 +777,13 @@ class Config(object):
             self._report_hostname = True
             self._health_metrics_enabled = False
 
+        self._sync_config_facts()
+
+    def _sync_config_facts(self) -> None:
+        for attr in self._CONFIG_FACT_ATTRS:
+            if hasattr(self, attr):
+                getattr(_config_facts, f"set_{attr.lstrip('_')}")(getattr(self, attr))
+
     @property
     def _raise(self) -> bool:
         return _native_config.get_raise()
@@ -908,14 +916,42 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
+    _CONFIG_FACT_ATTRS = frozenset(
+        {
+            "_health_metrics_enabled",
+            "_trace_api",
+            "_trace_writer_buffer_size",
+            "_trace_writer_connection_reuse",
+            "_report_hostname",
+            "service",
+            "env",
+            "version",
+            "_debug_mode",
+            "_telemetry_enabled",
+            "_dd_site",
+            "_dd_api_key",
+            "_otel_metrics_enabled",
+            "_trace_compute_stats",
+            "_llmobs_enabled",
+        }
+    )
+
     def __setattr__(self, key: str, value: Any) -> None:
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._config[key].set_value(value, "code")
-            return None
+            return self._setattr_with_source(key, value, "code")
         else:
-            return super(self.__class__, self).__setattr__(key, value)
+            result = super(self.__class__, self).__setattr__(key, value)
+            if key in self._CONFIG_FACT_ATTRS:
+                self._sync_config_facts()
+            return result
+
+    def _setattr_with_source(self, key: str, value: Any, source: _ConfigSource) -> None:
+        if key in self._config:
+            self._config[key].set_value(value, source)
+            if key in self._CONFIG_FACT_ATTRS:
+                self._sync_config_facts()
 
     def _reset(self) -> None:
         self._config = _default_config()
