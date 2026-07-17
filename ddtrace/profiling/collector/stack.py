@@ -21,15 +21,13 @@ class StackCollector(collector.Collector):
     """Execution stacks collector."""
 
     __slots__ = (
-        "nframes",
         "tracer",
         "_native_call_monitor",
     )
 
-    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
+    def __init__(self, tracer: typing.Optional[Tracer] = None):
         super().__init__()
 
-        self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
         self._native_call_monitor: typing.Optional[ModuleType] = None
 
@@ -63,7 +61,7 @@ class StackCollector(collector.Collector):
         stack.set_p_stable_window_s(config.stack.adaptive_sampling_p_stable_window_s)
         stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
-        stack.set_max_frames(self.nframes)
+        stack.set_max_frames(config.max_frames)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")

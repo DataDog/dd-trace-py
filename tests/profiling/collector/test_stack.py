@@ -849,7 +849,7 @@ def test_gevent_cpu_time_total_accuracy() -> None:
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
-        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, tracer=None)",
     )
 
 
