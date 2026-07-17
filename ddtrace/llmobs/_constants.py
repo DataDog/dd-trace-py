@@ -74,6 +74,12 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
+# Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
+# token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
+INPUT_COST_METRIC_KEY = "input_cost"
+OUTPUT_COST_METRIC_KEY = "output_cost"
+TOTAL_COST_METRIC_KEY = "total_cost"
+
 LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
 LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
 LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
