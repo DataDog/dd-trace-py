@@ -35,7 +35,10 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     This recursively strips parent directories until it finds a file that
     exists according to sys.path.
     """
-    path = Path(_path)
+    # Probe paths can come from remote-config with Windows-style backslash
+    # separators (e.g. from a Windows client) even when running on a POSIX
+    # system, where pathlib does not treat "\\" as a separator.
+    path = Path(_path.replace("\\", "/"))
     if path.is_file():
         return path.resolve()
 
