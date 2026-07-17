@@ -7,7 +7,6 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
-from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -19,7 +18,6 @@ from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
-from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
@@ -70,9 +68,7 @@ def _truncate_events_meta(events: list[Event]) -> list[Event]:
 def _itr_correlation_id_content(item: TestItem[t.Any, t.Any]) -> dict[str, str]:
     session = getattr(item, "session", None)
     correlation_id = getattr(session, "itr_correlation_id", None)
-    if correlation_id and item.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE:
-        return {"itr_correlation_id": correlation_id}
-    return {}
+    return {"itr_correlation_id": correlation_id} if correlation_id else {}
 
 
 class BaseWriter(ABC):
