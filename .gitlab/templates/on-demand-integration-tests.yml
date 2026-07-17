@@ -2,17 +2,22 @@ stages:
   - generate
   - test
 
-include:
-  # DDCI loads this template from external storage, so a local include has no
-  # project context. Pin the include to the exact commit under test instead.
-  - project: DataDog/dd-trace-py
-    ref: $CI_COMMIT_SHA
-    file: /.gitlab/testrunner.yml
-
 generate-on-demand-integration-tests:
-  extends: .testrunner
   stage: generate
   needs: []
+  # DDCI loads this configuration from external storage under an identity that
+  # cannot resolve private project includes. Keep this bootstrap job
+  # self-contained; the generated child pipeline has normal project context.
+  image:
+    name: registry.ddbuild.io/dd-trace-py:v115521171-bbc5877-testrunner@sha256:a3e99a5fab74078806d5507b9743370ca375e63dd36b0a0eace4d05cfd1ecda3
+    docker:
+      user: bits
+  tags: ["arch:amd64"]
+  timeout: 20m
+  before_script:
+    - ulimit -c unlimited
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
   script:
     - |
       set -euo pipefail
