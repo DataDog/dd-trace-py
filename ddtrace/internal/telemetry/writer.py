@@ -374,16 +374,18 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        import ddtrace.internal.settings.asm as asm_config_module
+        asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
+        if asm_config is None:
+            return None
 
-        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+        if not asm_config._api_security_endpoint_collection or not self._enabled:
             return None
 
         if not endpoint_collection.endpoints:
             return None
 
         with self._service_lock:
-            return endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
+            return endpoint_collection.flush(asm_config._api_security_endpoint_collection_limit)
 
     def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""

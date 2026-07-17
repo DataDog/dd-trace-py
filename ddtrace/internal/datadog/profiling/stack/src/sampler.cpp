@@ -3,6 +3,7 @@
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
+#include "origin_task_links.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -556,14 +557,15 @@ Sampler::postfork_parent()
     // parity invariant used by prefork(), and cause a data race on EchionSampler state.
 }
 
-void
+bool
 Sampler::restart_after_fork()
 {
     // Restart the sampler if it was running before fork.
     // We use the saved flag because prefork changed the thread_seq_num parity.
     if (was_running_at_fork_) {
-        start();
+        return start();
     }
+    return false;
 }
 
 static void
@@ -587,6 +589,9 @@ stack_postfork_cleanup()
     // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
+    // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
+    OriginTaskLinks::postfork_child();
+
     // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
@@ -598,7 +603,11 @@ stack_atfork_child()
     stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
-    Sampler::get().restart_after_fork();
+    // OriginTaskLinks was left disabled in postfork_child; re-enable when the
+    // child sampler is started again.
+    if (Sampler::get().restart_after_fork()) {
+        OriginTaskLinks::get_instance().enable();
+    }
 }
 
 __attribute__((constructor)) void
@@ -606,6 +615,7 @@ stack_init()
 {
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
+    OriginTaskLinks::postfork_child();
 }
 
 void
