@@ -317,7 +317,7 @@ def with_traced_module(func):
 
 
 def is_tracing_enabled() -> bool:
-    tracer = core.tracer
+    tracer = core.root.get_item("tracer")
     return tracer is not None and (tracer.enabled or asm_config._apm_opt_out)
 
 

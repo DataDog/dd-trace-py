@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 
 import mock
 import pytest
@@ -71,6 +72,47 @@ def test_service_enable_proxy(tracer, test_spans):
         assert llmobs_instance.tracer == tracer
         assert llmobs_instance._llmobs_span_writer._agentless is False
         assert run_llmobs_trace_filter(tracer, test_spans) is not None
+        llmobs_service.disable()
+
+
+def test_service_enable_agent_service_precedence(tracer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<config-ml-app>")):
+        llmobs_service.enable(
+            _tracer=tracer,
+            agentless_enabled=False,
+            ml_app="<legacy-ml-app>",
+            agent_service="<agent-service>",
+        )
+        assert ddtrace.config._llmobs_ml_app == "<agent-service>"
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<agent-service>"
+        llmobs_service.disable()
+
+
+def test_service_enable_agent_service_precedence_over_service(tracer):
+    """agent_service takes precedence over both ml_app and service when enabling."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        llmobs_service.enable(
+            _tracer=tracer,
+            agentless_enabled=False,
+            service="<service>",
+            ml_app="<legacy-ml-app>",
+            agent_service="<agent-service>",
+        )
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<agent-service>"
+        llmobs_service.disable()
+
+
+def test_service_enable_service_used_as_ml_app_fallback(tracer):
+    """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<service>"
         llmobs_service.disable()
 
 
@@ -858,6 +900,40 @@ def test_annotate_llm_message_with_audio_parts(llmobs):
         ]
 
 
+def test_annotate_llm_message_with_image_parts(llmobs):
+    """Image parts annotated on input/output messages reach the emitted span event."""
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+            output_data=[
+                {
+                    "content": "done",
+                    "role": "assistant",
+                    "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}],
+                }
+            ],
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [
+            {
+                "content": "describe this",
+                "role": "user",
+                "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+            }
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"content": "done", "role": "assistant", "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}]}
+        ]
+
+
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
@@ -1294,6 +1370,57 @@ def test_ml_app_override(llmobs):
     with llmobs.retrieval(name="test_retrieval", ml_app="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
+
+
+def test_agent_service_override(llmobs):
+    with llmobs.task(name="test_task", ml_app="legacy_app", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
+    with llmobs.tool(name="test_tool", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
+    with llmobs.llm(model_name="model_name", name="test_llm", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.embedding(model_name="model_name", name="test_embedding", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.workflow(name="test_workflow", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
+    with llmobs.agent(name="test_agent", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
+    with llmobs.retrieval(name="test_retrieval", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
+
+
+def test_agent_service_tag_mirrors_ml_app(llmobs):
+    """Every span carries an agent_service tag that always equals the ml_app tag, including overrides."""
+    # Inherited/default identity: agent_service mirrors whatever ml_app resolves to.
+    with llmobs.workflow(name="inherited") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["agent_service"] == tags["ml_app"]
+    # Explicit agent_service overrides a legacy ml_app on both tags (no stale agent_service value).
+    with llmobs.task(name="override", ml_app="legacy_app", agent_service="test_app") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["ml_app"] == "test_app"
+    assert tags["agent_service"] == "test_app"
 
 
 def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
@@ -2256,6 +2383,29 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
     )
 
 
+def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar"},
+        ml_app="legacy_ml_app",
+        agent_service="agent_service",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="agent_service",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
+        )
+    )
+
+
 def test_submit_evaluation_span_with_tag_value_enqueues_writer_with_categorical_metric(
     llmobs, mock_llmobs_eval_metric_writer
 ):
@@ -2659,8 +2809,13 @@ def _setup_mock_connection(mock_get_connection, pages):
     return mock_conn
 
 
+def _set_get_spans_app_key(llmobs, app_key="test-app-key"):
+    llmobs._app_key = app_key
+    llmobs._instance._api_client._app_key = app_key
+
+
 def test_get_spans_returns_span_list(mock_get_connection, llmobs):
-    llmobs._app_key = "test-app-key"
+    _set_get_spans_app_key(llmobs)
     page = {
         "data": [
             {"attributes": {"span_id": "abc", "name": "my_span", "span_kind": "llm"}},
@@ -2675,8 +2830,20 @@ def test_get_spans_returns_span_list(mock_get_connection, llmobs):
     assert result[1]["span_id"] == "def"
 
 
+def test_get_spans_agent_service_uses_ml_app_filter(mock_get_connection, llmobs):
+    _set_get_spans_app_key(llmobs)
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs.get_spans(ml_app="legacy_ml_app", agent_service="agent_service")
+
+    path = mock_conn.request.call_args.args[1]
+    query = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
+    assert query["filter[ml_app]"] == ["agent_service"]
+    assert "filter[agent_service]" not in query
+
+
 def test_get_spans_paginates(mock_get_connection, llmobs):
-    llmobs._app_key = "test-app-key"
+    _set_get_spans_app_key(llmobs)
     page1 = {
         "data": [{"attributes": {"span_id": "s1"}}],
         "meta": {"page": {"after": "cursor-xyz"}},

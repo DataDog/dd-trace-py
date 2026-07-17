@@ -4,7 +4,7 @@ from dataclasses import field
 import dis
 from enum import Enum
 import gzip
-from hashlib import sha1
+import hashlib
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -237,8 +237,12 @@ class Scope:
 
         # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
         # module source, not a security digest. It also prevents IAST from flagging
-        # this internal use as a weak-hash false positive (APPSEC-68795).
-        source_git_hash = sha1(usedforsecurity=False)  # nosec B324
+        # this internal use as a weak-hash false positive (APPSEC-68795). Resolve
+        # hashlib.sha1 at call time (not via a module-level `from hashlib import
+        # sha1`) so the call goes through IAST's wrapped constructor when patched:
+        # symbol_db can be imported before patch_iast() runs, which would otherwise
+        # freeze a stale, unwrapped reference and leave the object untracked.
+        source_git_hash = hashlib.sha1(usedforsecurity=False)  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
         with module_origin.open("rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
