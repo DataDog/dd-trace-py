@@ -72,11 +72,7 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     llmobs_config = lib_config.get("llmobs") or {}
 
     enabled_config = dd_config._config["_llmobs_enabled"]
-    dd_config._setattr_with_source(
-        "_llmobs_enabled",
-        llmobs_config.get("enabled"),
-        "remote_config"
-    )
+    dd_config._setattr_with_source("_llmobs_enabled", llmobs_config.get("enabled"), "remote_config")
 
     ml_app_config = dd_config._config["_llmobs_ml_app"]
     dd_config._setattr_with_source("_llmobs_ml_app", llmobs_config.get("ml_app_name"), "remote_config")

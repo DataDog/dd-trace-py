@@ -919,6 +919,7 @@ class Config(object):
     _CONFIG_FACT_ATTRS = frozenset(
         {
             "_health_metrics_enabled",
+            "_trace_api",
             "_report_hostname",
             "service",
             "env",

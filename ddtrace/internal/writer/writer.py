@@ -86,10 +86,6 @@ def _env_int(key: str, default: int) -> int:
     return int(env[key]) if key in env else default
 
 
-def _env_optional_str(key: str) -> Optional[str]:
-    return env[key] if key in env else None
-
-
 def _env_optional_bool(key: str) -> Optional[bool]:
     return asbool(env[key]) if key in env else None
 
@@ -666,7 +662,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
 
     Resolution order:
     1. ``api_version`` argument (caller-supplied explicit override).
-    2. ``DD_TRACE_API_VERSION`` environment setting.
+    2. ``DD_TRACE_API_VERSION`` / ``_config_facts.trace_api()`` environment setting.
     3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
        ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
@@ -686,7 +682,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or _config_facts.llmobs_enabled()
     ):
         default = "v0.4"
-    resolved = api_version or _env_optional_str("DD_TRACE_API_VERSION") or default
+    resolved = api_version or _config_facts.trace_api() or default
     if agent_config.trace_native_span_events:
         log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"

@@ -19,6 +19,7 @@ see ddtrace.internal.settings.env.
 from typing import Optional
 
 
+_trace_api: Optional[str] = None
 _health_metrics_enabled: Optional[bool] = None
 _report_hostname: Optional[bool] = None
 _service: Optional[str] = None
@@ -30,6 +31,15 @@ _dd_api_key: Optional[str] = None
 _otel_metrics_enabled: Optional[bool] = None
 _trace_compute_stats: Optional[bool] = None
 _llmobs_enabled: Optional[bool] = None
+
+
+def set_trace_api(value: Optional[str]) -> None:
+    global _trace_api
+    _trace_api = value
+
+
+def trace_api() -> Optional[str]:
+    return _trace_api
 
 
 def set_health_metrics_enabled(value: bool) -> None:
