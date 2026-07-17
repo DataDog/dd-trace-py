@@ -20,11 +20,17 @@ from ddtrace.internal.symbol_db.symbols import _line_ranges
 
 @pytest.fixture(autouse=True, scope="function")
 def pid_file_teardown():
+    from ddtrace.internal.ipc import SharedStringFile
     from ddtrace.internal.symbol_db.remoteconfig import shared_pid_file
 
     yield
 
     shared_pid_file.clear()
+    # pytest.mark.subprocess tests run their body in a child process, where
+    # shared_pid_file is keyed by os.getppid() -- i.e. this worker's own pid, not
+    # its ppid used above. Clear that file too, or pids leak across subprocess
+    # tests scheduled on the same pytest-xdist worker.
+    SharedStringFile(f"{os.getpid()}-symdb-pids").clear()
 
 
 def test_symbol_from_code():
@@ -326,7 +332,7 @@ def test_symbols_force_upload():
     def get_scope(name: str) -> t.Optional[dict]:
         for scope in context.to_json()["scopes"]:
             if scope["name"] == name:
-                return scope
+                return t.cast(dict[str, t.Any], scope)
         return None
 
     for name in ("tests.submod.stuff", "tests.submod.traced_stuff"):
@@ -400,6 +406,147 @@ def test_symbols_fork_uploads():
 
     for pid in pids:
         os.waitpid(pid, 0)
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_symbols_fork_forces_reenable_and_install():
+    """
+    Fork force-re-enables SymDB regardless of a prior disable, since
+    ProductManager.restart_products runs on every fork child. The first fork
+    child legitimately installs, but a generation-2+ descendant must stay
+    blocked by the get_generation() > 1 guard, even though the pid file looks
+    empty from its own point of view.
+
+    Subprocess test: mutates global singleton state and calls os.fork()
+    directly, and needs ddtrace_run=True to register the real forksafe hooks
+    under test.
+    """
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    # Simulate that this process was already correctly disabled by the guard,
+    # e.g. some ancestor already decided this branch shouldn't upload symbols.
+    remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
+    remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
+    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is None
+
+    upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
+
+    with mock.patch.object(SymbolDatabaseUploader, "install", wraps=SymbolDatabaseUploader.install) as mock_install:
+        if not (child := os.fork()):
+            # The after-fork hook (ProductManager.restart_products -> symbol_db.restart())
+            # has already run by this point, before any of our own code executes here.
+            assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None, (
+                "fork should have force re-registered the RC callback despite the earlier disable"
+            )
+
+            # Nothing has polluted the shared pid file yet from this branch's point of
+            # view, so the guard doesn't trip and SymDB actually installs -- proving
+            # install() runs in a fork child that had just been explicitly disabled in
+            # its parent moments before the fork.
+            _rc_callback(upload_payload)
+            assert SymbolDatabaseUploader.is_installed()
+            assert mock_install.call_count == 1
+
+            # This child spawns a sub-worker of its own. The grandchild is two fork
+            # generations removed from the original process, so forksafe.get_generation()
+            # is 2 there and the guard's "generation > 1" clause must block it outright,
+            # regardless of the (still-empty, from the grandchild's point of view) shared
+            # pid file. Note that neither SymbolDatabaseUploader.is_installed() nor
+            # mock_install.call_count are reliable signals of what happens *in* the
+            # grandchild: both are inherited via copy-on-write from the already-installed
+            # child (call_count is already 1 before the grandchild runs any code of its
+            # own), so a fresh install() call in the grandchild is only visible as an
+            # *increment* from that inherited baseline, reported back through a pipe since
+            # mock state doesn't cross the fork boundary any other way.
+            baseline_install_calls = mock_install.call_count
+            r, w = os.pipe()
+            if not (grandchild := os.fork()):
+                os.close(r)
+                _rc_callback(upload_payload)
+                os.write(w, str(mock_install.call_count).encode())
+                os.close(w)
+                os._exit(0)
+            os.close(w)
+            grandchild_install_calls = int(os.read(r, 8))
+            os.close(r)
+            _, status = os.waitpid(grandchild, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"grandchild failed with status {status}"
+            assert grandchild_install_calls == baseline_install_calls, (
+                "install() must not run in a generation-2+ fork descendant, even though the "
+                "forced re-enablement fires there too"
+            )
+
+            # Second delivery to this *same* child: the grandchild's pid is now on the
+            # shared pid file, so the guard trips and uninstalls SymDB again -- even
+            # though this process had legitimately installed it moments ago in
+            # response to the same forced re-enablement.
+            _rc_callback(upload_payload)
+            assert not SymbolDatabaseUploader.is_installed()
+            assert mock_install.call_count == 1, "install() should not run again once disabled"
+
+            os._exit(0)
+
+        _, status = os.waitpid(child, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child failed with status {status}"
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_symbols_fork_sibling_workers_installs_at_most_twice():
+    """
+    The guard assumes a single long-lived parent forking worker children
+    directly (e.g. a prefork server recycling workers one at a time), not
+    workers that go on to fork their own descendants. Confirm SymDB installs
+    in at most two processes total -- the parent and the first forked worker
+    -- with every later sibling blocked, even after worker recycling.
+
+    Subprocess test for the same reasons as
+    test_symbols_fork_forces_reenable_and_install.
+    """
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
+
+    with mock.patch.object(SymbolDatabaseUploader, "install", wraps=SymbolDatabaseUploader.install) as mock_install:
+        # The parent installs first, as in the common case where SymDB is already
+        # enabled in the main process before it starts forking worker children.
+        _rc_callback(upload_payload)
+        assert SymbolDatabaseUploader.is_installed()
+        assert mock_install.call_count == 1
+
+        NUM_WORKERS = 4
+        install_flags = []
+        for _ in range(NUM_WORKERS):
+            r, w = os.pipe()
+            if not (worker := os.fork()):
+                os.close(r)
+                _rc_callback(upload_payload)
+                os.write(w, b"1" if SymbolDatabaseUploader.is_installed() else b"0")
+                os.close(w)
+                os._exit(0)
+            os.close(w)
+            install_flags.append(os.read(r, 1))
+            os.close(r)
+            _, status = os.waitpid(worker, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"worker failed with status {status}"
+
+        installed_count = install_flags.count(b"1")
+        assert installed_count == 1, (
+            f"expected exactly one of {NUM_WORKERS} sequentially-forked sibling workers to install SymDB, "
+            f"got {installed_count}: {install_flags}"
+        )
 
 
 @pytest.mark.subprocess(run_module=True, err=None)

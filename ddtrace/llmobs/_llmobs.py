@@ -1922,6 +1922,7 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         *,
+        version: Optional[int] = None,
         label: Optional[str] = None,
         fallback: PromptFallback = None,
         targeting_key: Optional[str] = None,
@@ -1931,7 +1932,8 @@ class LLMObs(Service):
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version.
+        :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
+        :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
@@ -1947,6 +1949,9 @@ class LLMObs(Service):
             # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
+
+            # Retrieve an exact version, independently of DD_ENV
+            prompt = LLMObs.get_prompt("greeting", version=2)
 
             # With explicit label and fallback
             prompt = LLMObs.get_prompt(
@@ -1976,6 +1981,7 @@ class LLMObs(Service):
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(
             prompt_id,
+            version=version,
             label=label,
             fallback=fallback,
             targeting_key=targeting_key,
@@ -2012,7 +2018,7 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: Deprecated; set DD_ENV instead. Deployment label selecting a version.
+            label: Deprecated; set DD_ENV instead. Must be ``production`` or ``development``.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
@@ -2041,7 +2047,7 @@ class LLMObs(Service):
             title: Optional human-readable title.
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
-            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+            labels: Optional list containing ``production`` and/or ``development``.
 
         Returns:
             The created prompt.
@@ -2074,7 +2080,7 @@ class LLMObs(Service):
             template: List of chat messages defining the new version's template.
             description: Optional description of this version.
             user_version: Optional user-defined version string.
-            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+            labels: Optional list containing ``production`` and/or ``development``.
 
         Returns:
             The created prompt version.
@@ -2131,7 +2137,7 @@ class LLMObs(Service):
         Args:
             prompt_id: The prompt identifier.
             version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
-            labels: New labels for the version.
+            labels: New labels for the version. Values must be ``production`` and/or ``development``.
             description: New description for the version.
 
         Returns:
