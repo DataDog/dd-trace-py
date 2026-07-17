@@ -79,7 +79,7 @@ def test_agentic_onboarding_telemetry(telemetry_writer, onboarding, asm_enabled)
 def test_agentic_onboarding_telemetry_reported_once(telemetry_writer):
     """RFC-1110: start() (the entrypoint AWS Lambda calls) reports it, only once across start+post_preload."""
     from ddtrace.internal.appsec import product
-    from ddtrace.internal.settings.asm import ai_guard_config
+    from ddtrace.internal.settings.aiguard import aiguard_config
     from ddtrace.internal.settings.asm import config as asm_config
 
     with (
@@ -88,7 +88,7 @@ def test_agentic_onboarding_telemetry_reported_once(telemetry_writer):
         mock.patch.object(asm_config, "_asm_enabled", True),
         mock.patch.object(asm_config, "_asm_can_be_enabled", False),
         mock.patch.object(asm_config, "_asm_rc_enabled", False),
-        mock.patch.object(ai_guard_config, "_ai_guard_enabled", False),
+        mock.patch.object(aiguard_config, "_ai_guard_enabled", False),
         mock.patch.object(asm_config, "value_source", return_value="env_var"),
         mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
         mock.patch("ddtrace.appsec._listeners.load_appsec"),
