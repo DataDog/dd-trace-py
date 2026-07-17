@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CI visibility: This fix ensures that ``ddtrace.testing`` includes the Intelligent Test Runner correlation ID on test or suite events sent during Intelligent Test Runner-enabled pytest sessions.

@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
 
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.test_data import TestModule
@@ -619,6 +620,15 @@ class TestSerializationFunctions:
 
         assert "itr_correlation_id" not in event["content"]
 
+    def test_serialize_test_run_omits_correlation_id_in_suite_skipping_mode(self) -> None:
+        test_run = self.create_mock_test_run()
+        test_run.session.itr_correlation_id = "test-correlation-id"
+        test_run.session.itr_skipping_level = ITRSkippingLevel.SUITE
+
+        event = serialize_test_run(test_run)
+
+        assert "itr_correlation_id" not in event["content"]
+
     def create_mock_test_suite(self) -> TestSuite:
         """Create a mock TestSuite."""
         suite_ref = TestDataFactory.create_suite_ref("test_module", "test_suite.py")
@@ -664,6 +674,7 @@ class TestSerializationFunctions:
     def test_serialize_suite_adds_correlation_id_to_content(self) -> None:
         suite = self.create_mock_test_suite()
         suite.session.itr_correlation_id = "suite-correlation-id"
+        suite.session.itr_skipping_level = ITRSkippingLevel.SUITE
 
         event = serialize_suite(suite)
 
@@ -671,6 +682,15 @@ class TestSerializationFunctions:
 
     def test_serialize_suite_omits_missing_correlation_id_from_content(self) -> None:
         suite = self.create_mock_test_suite()
+        suite.session.itr_skipping_level = ITRSkippingLevel.SUITE
+
+        event = serialize_suite(suite)
+
+        assert "itr_correlation_id" not in event["content"]
+
+    def test_serialize_suite_omits_correlation_id_in_test_skipping_mode(self) -> None:
+        suite = self.create_mock_test_suite()
+        suite.session.itr_correlation_id = "suite-correlation-id"
 
         event = serialize_suite(suite)
 

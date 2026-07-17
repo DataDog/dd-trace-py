@@ -257,10 +257,6 @@ class SessionManager:
             },
         )
 
-        if self.itr_correlation_id:
-            itr_event = "test" if self.itr_skipping_level == ITRSkippingLevel.TEST else "test_suite_end"
-            self.writer.add_metadata(itr_event, {"itr_correlation_id": self.itr_correlation_id})
-
         self.codeowners: t.Optional[Codeowners] = None
 
         try:

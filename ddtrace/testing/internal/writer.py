@@ -7,6 +7,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -65,10 +66,12 @@ def _truncate_events_meta(events: list[Event]) -> list[Event]:
     return [_truncate_event_meta(event) for event in events]
 
 
-def _itr_correlation_id_content(item: TestItem[t.Any, t.Any]) -> dict[str, str]:
+def _itr_correlation_id_content(item: TestItem[t.Any, t.Any], skipping_level: ITRSkippingLevel) -> dict[str, str]:
     session = getattr(item, "session", None)
     correlation_id = getattr(session, "itr_correlation_id", None)
-    return {"itr_correlation_id": correlation_id} if correlation_id else {}
+    if correlation_id and getattr(session, "itr_skipping_level", None) == skipping_level:
+        return {"itr_correlation_id": correlation_id}
+    return {}
 
 
 class BaseWriter(ABC):
@@ -531,7 +534,7 @@ def serialize_test_run(test_run: TestRun) -> Event:
             "test_session_id": test_run.session.item_id,
             "test_module_id": test_run.module.item_id,
             "test_suite_id": test_run.suite.item_id,
-            **_itr_correlation_id_content(test_run.test),
+            **_itr_correlation_id_content(test_run, ITRSkippingLevel.TEST),
         },
     )
 
@@ -564,7 +567,7 @@ def serialize_suite(suite: TestSuite) -> Event:
             "test_session_id": suite.session.item_id,
             "test_module_id": suite.module.item_id,
             "test_suite_id": suite.item_id,
-            **_itr_correlation_id_content(suite),
+            **_itr_correlation_id_content(suite, ITRSkippingLevel.SUITE),
         },
     )
 
