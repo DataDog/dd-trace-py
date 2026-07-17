@@ -920,6 +920,7 @@ class Config(object):
         {
             "_health_metrics_enabled",
             "_trace_api",
+            "_trace_writer_buffer_size",
             "_report_hostname",
             "service",
             "env",

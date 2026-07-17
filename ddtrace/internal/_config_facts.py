@@ -20,6 +20,7 @@ from typing import Optional
 
 
 _trace_api: Optional[str] = None
+_trace_writer_buffer_size: Optional[int] = None
 _health_metrics_enabled: Optional[bool] = None
 _report_hostname: Optional[bool] = None
 _service: Optional[str] = None
@@ -40,6 +41,15 @@ def set_trace_api(value: Optional[str]) -> None:
 
 def trace_api() -> Optional[str]:
     return _trace_api
+
+
+def set_trace_writer_buffer_size(value: int) -> None:
+    global _trace_writer_buffer_size
+    _trace_writer_buffer_size = value
+
+
+def trace_writer_buffer_size() -> int:
+    return _trace_writer_buffer_size  # type: ignore[return-value]
 
 
 def set_health_metrics_enabled(value: bool) -> None:

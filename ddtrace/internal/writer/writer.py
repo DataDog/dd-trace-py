@@ -37,7 +37,6 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..constants import DEFAULT_BUFFER_SIZE
 from ..constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..constants import DEFAULT_PROCESSING_INTERVAL
 from ..constants import DEFAULT_REUSE_CONNECTIONS
@@ -605,9 +604,7 @@ class AgentlessTraceWriter(HTTPWriter):
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
     ) -> None:
-        buffer_size = min(
-            buffer_size or _env_int("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE), self.MAX_BUFFER_SIZE
-        )
+        buffer_size = min(buffer_size or _config_facts.trace_writer_buffer_size(), self.MAX_BUFFER_SIZE)
         max_payload_size = max_payload_size or _env_int(
             "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
         )
@@ -795,7 +792,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
                 )
 
-        buffer_size = buffer_size or _env_int("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE)
+        buffer_size = buffer_size or _config_facts.trace_writer_buffer_size()
         max_payload_size = max_payload_size or _env_int(
             "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
         )
