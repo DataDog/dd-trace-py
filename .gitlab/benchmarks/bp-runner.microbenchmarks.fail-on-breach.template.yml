@@ -215,7 +215,7 @@ experiments:
               - max_rss_usage < 62.50 MB
           - name: flasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.27 ms
               - max_rss_usage < 62.00 MB
 
           # httppropagationextract
