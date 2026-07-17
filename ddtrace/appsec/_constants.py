@@ -61,6 +61,8 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
+    AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
+    AGENTIC_ONBOARDING_TELEMETRY: Literal["appsec.agentic_onboarding"] = "appsec.agentic_onboarding"
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
@@ -499,6 +501,8 @@ class AI_GUARD(metaclass=Constant_Class):
     # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
     # false to disable AI Guard auto-instrumentation for that specific provider.
     ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
+    ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
+    ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
 
 
 class SCA(metaclass=Constant_Class):
