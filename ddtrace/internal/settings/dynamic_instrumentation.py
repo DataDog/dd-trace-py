@@ -153,7 +153,7 @@ class DynamicInstrumentationConfig(DDConfig):
     evaluation_timeout_ms = DDConfig.v(
         int,
         "evaluation.timeout_ms",
-        default=10,
+        default=50,
         help_type="Integer",
         help="Maximum wall-time in milliseconds for condition and template expression evaluation per probe invocation",
     )

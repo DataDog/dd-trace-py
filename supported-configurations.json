@@ -1448,7 +1448,7 @@
     ],
     "DD_DYNAMIC_INSTRUMENTATION_CAPTURE_TIMEOUT_MS": [
       {
-        "implementation": "A",
+        "implementation": "C",
         "type": "int",
         "default": "150"
       }
@@ -1471,7 +1471,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": "10"
+        "default": "50"
       }
     ],
     "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE": [
