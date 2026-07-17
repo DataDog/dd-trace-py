@@ -63,16 +63,11 @@ class StackInfo
 {
   public:
     TaskName task_name;
-    // Numeric task identifier emitted as the "task id" label.
-    // Must match _task.task_object_address() (lock profiler) so the backend can
-    // correlate stack and lock samples on the timeline.
-    uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
 
-    StackInfo(TaskName task_name, bool on_cpu, uint64_t task_id)
+    StackInfo(TaskName task_name, bool on_cpu)
       : task_name(std::move(task_name))
-      , task_id(task_id)
       , on_cpu(on_cpu)
     {
     }

@@ -127,7 +127,7 @@ class Sample
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);
     bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
-    bool push_task_id(uint64_t task_id);
+    bool push_task_id(int64_t task_id);
     bool push_task_name(std::string_view task_name);
     bool push_origin_task_id(uint64_t origin_task_id);
     bool push_origin_task_name(std::string_view origin_task_name);
