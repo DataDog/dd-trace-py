@@ -46,7 +46,7 @@ def _start_azure_functions_server(extra_env=None):
     )
     client = Client("http://0.0.0.0:%d" % port)
     try:
-        client.wait(delay=0.5)
+        client.wait(delay=0.5, initial_wait=2.0)
     except Exception:
         stdout = _read_log(stdout_log)
         stderr = _read_log(stderr_log)
@@ -58,48 +58,20 @@ def _start_azure_functions_server(extra_env=None):
     return proc, client
 
 
-@pytest.fixture(scope="session")
-def azure_functions_server():
-    proc, _client = _start_azure_functions_server()
-    try:
-        yield AZURE_FUNCTIONS_PORT
-    finally:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
-
-
 @pytest.fixture
 def azure_functions_client(request):
     env_vars = getattr(request, "param", {})
 
-    if env_vars:
-        proc, client = _start_azure_functions_server(env_vars)
-        try:
-            yield client
-            time.sleep(1)
-        finally:
-            os.killpg(proc.pid, signal.SIGKILL)
-            proc.wait()
-        return
-
-    port = request.getfixturevalue("azure_functions_server")
-    client = Client("http://0.0.0.0:%d" % port)
-    yield client
-    # At this point the traces have been sent to the test agent
-    # but the test agent hasn't necessarily finished processing
-    # the traces (race condition) so wait just a bit for that
-    # processing to complete.
-    time.sleep(1)
-
-
-def pytest_collection_modifyitems(session, config, items):
-    # The disabled distributed tracing variant needs its own func host on port 7071.
-    # Run it before any test that starts the session-scoped host.
-    disabled_distributed_tracing = []
-    other = []
-    for item in items:
-        if "test_http_get_distributed_tracing[disabled]" in item.nodeid:
-            disabled_distributed_tracing.append(item)
-        else:
-            other.append(item)
-    items[:] = disabled_distributed_tracing + other
+    # Snapshot tests set a unique X-Datadog-Test-Session-Token per test via os.environ.
+    # The func worker reads that token at startup, so we must start a fresh host per test.
+    proc, client = _start_azure_functions_server(env_vars or None)
+    try:
+        yield client
+        # At this point the traces have been sent to the test agent
+        # but the test agent hasn't necessarily finished processing
+        # the traces (race condition) so wait just a bit for that
+        # processing to complete.
+        time.sleep(1)
+    finally:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()

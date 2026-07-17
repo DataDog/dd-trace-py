@@ -14,17 +14,6 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
 }
 
 
-@pytest.mark.parametrize(
-    "azure_functions_client",
-    [DISTRIBUTED_TRACING_DISABLED_PARAMS, {}],
-    ids=["disabled", "enabled"],
-    indirect=True,
-)
-@pytest.mark.snapshot
-def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
-    assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
-
-
 @pytest.mark.snapshot
 def test_http_get_ok(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetok?key=val", headers=DEFAULT_HEADERS).status_code == 200
@@ -77,6 +66,17 @@ def test_http_get_function_name_decorator_order(azure_functions_client: Client) 
     assert (
         azure_functions_client.get("/api/httpgetfunctionnamedecoratororder", headers=DEFAULT_HEADERS).status_code == 200
     )
+
+
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
+    ids=["enabled", "disabled"],
+    indirect=True,
+)
+@pytest.mark.snapshot
+def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
 
 
 @pytest.mark.snapshot
