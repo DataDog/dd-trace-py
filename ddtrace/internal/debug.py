@@ -12,6 +12,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.version import __version__
@@ -41,20 +42,19 @@ def tags_to_str(tags: dict[str, Any]) -> str:
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect() -> dict[str, Any]:
+def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
-    from ddtrace.trace import tracer
 
-    if isinstance(tracer._span_aggregator.writer, LogWriter):
+    if isinstance(tracer_info.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-        writer = tracer._span_aggregator.writer
+    elif isinstance(tracer_info.writer, AgentWriterInterface):
+        writer = tracer_info.writer
         agent_url = writer.intake_url
         try:
             writer.write([])
@@ -67,7 +67,7 @@ def collect() -> dict[str, Any]:
         agent_url = "CUSTOM"
         agent_error = None
 
-    sampling_rules = [str(rule) for rule in tracer._sampler.rules]
+    sampling_rules = [str(rule) for rule in tracer_info.sampling_rules]
 
     is_venv = in_venv()
 
@@ -132,10 +132,10 @@ def collect() -> dict[str, Any]:
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
         global_tags=tags_to_str(ddtrace.config.tags),
-        tracer_tags=tags_to_str(tracer._tags),
+        tracer_tags=tags_to_str(tracer_info.tags),
         integrations=integration_configs,
-        partial_flush_enabled=tracer._span_aggregator.partial_flush_enabled,
-        partial_flush_min_spans=tracer._span_aggregator.partial_flush_min_spans,
+        partial_flush_enabled=tracer_info.partial_flush_enabled,
+        partial_flush_min_spans=tracer_info.partial_flush_min_spans,
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,
@@ -171,7 +171,9 @@ def pretty_collect(color=True):
         bcolors.ENDC = ""
         bcolors.BOLD = ""
 
-    info = collect()
+    from ddtrace.trace import tracer
+
+    info = collect(TracerDebugInfo.from_tracer(tracer))
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}

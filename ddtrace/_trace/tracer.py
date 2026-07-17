@@ -33,6 +33,7 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import debug
+from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.constants import _SERVICE_SOURCE
@@ -385,7 +386,14 @@ class Tracer(object):
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
             try:
-                info = debug.collect()
+                tracer_debug_info = TracerDebugInfo(
+                    writer=self._span_aggregator.writer,
+                    sampling_rules=self._sampler.rules,
+                    tags=self._tags,
+                    partial_flush_enabled=self._span_aggregator.partial_flush_enabled,
+                    partial_flush_min_spans=self._span_aggregator.partial_flush_min_spans,
+                )
+                info = debug.collect(tracer_debug_info)
             except Exception as e:
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)

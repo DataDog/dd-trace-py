@@ -32,8 +32,10 @@ def test_standard_tags():
     from datetime import datetime
 
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     date = f.get("date")
     assert isinstance(date, str)
@@ -97,8 +99,10 @@ def test_debug_post_configure_uds():
     import re
 
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     agent_url = f.get("agent_url")
     assert agent_url == "unix:///file.sock"
@@ -121,7 +125,10 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_env_config(self):
-        f = debug.collect()
+        from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+        from ddtrace.trace import tracer
+
+        f = debug.collect(TracerDebugInfo.from_tracer(tracer))
         assert f.get("agent_url") == "http://0.0.0.0:4321"
         assert f.get("health_metrics_enabled") is True
         assert f.get("log_injection_enabled") is True
@@ -141,7 +148,10 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_trace_agent_url(self):
-        f = debug.collect()
+        from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+        from ddtrace.trace import tracer
+
+        f = debug.collect(TracerDebugInfo.from_tracer(tracer))
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
     @run_in_subprocess(
@@ -211,17 +221,19 @@ class TestGlobalConfig(SubprocessTestCase):
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_runtime_metrics_enabled_via_manual_start():
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
     from ddtrace.runtime import RuntimeMetrics
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
     assert f.get("runtime_metrics_enabled") is False
 
     RuntimeMetrics.enable()
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
     assert f.get("runtime_metrics_enabled") is True
 
     RuntimeMetrics.disable()
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
     assert f.get("runtime_metrics_enabled") is False
 
 
@@ -231,8 +243,10 @@ def test_runtime_metrics_enabled_via_env_var_start():
 
     from ddtrace.internal import debug
     from ddtrace.internal.utils.formats import asbool
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
     assert f.get("runtime_metrics_enabled") is asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")), (
         f.get("runtime_metrics_enabled"),
         asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")),
@@ -240,15 +254,20 @@ def test_runtime_metrics_enabled_via_env_var_start():
 
 
 def test_to_json():
-    info = debug.collect()
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
+
+    info = debug.collect(TracerDebugInfo.from_tracer(tracer))
     json.dumps(info)
 
 
 @pytest.mark.subprocess(env={"AWS_LAMBDA_FUNCTION_NAME": "something"})
 def test_agentless(monkeypatch):
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    info = debug.collect()
+    info = debug.collect(TracerDebugInfo.from_tracer(tracer))
     assert info.get("agent_url") == "AGENTLESS"
 
 
@@ -257,6 +276,7 @@ def test_custom_writer():
     from typing import Optional
 
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
     from ddtrace.internal.writer import TraceWriter
     from ddtrace.trace import Span
     from ddtrace.trace import tracer
@@ -275,7 +295,7 @@ def test_custom_writer():
             pass
 
     tracer._span_aggregator.writer = CustomWriter()
-    info = debug.collect()
+    info = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     assert info.get("agent_url") == "CUSTOM"
 
@@ -283,8 +303,10 @@ def test_custom_writer():
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":1.0}]'})
 def test_startup_logs_sampling_rules():
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     assert f.get("sampling_rules") == [
         "SamplingRule(sample_rate=1.0, service=None, name=None, resource=None, tags={}, provenance=default)"
@@ -294,8 +316,10 @@ def test_startup_logs_sampling_rules():
 @pytest.mark.subprocess()
 def test_startup_logs_log_level_override_default():
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     assert f.get("log_level_override") is None
 
@@ -303,8 +327,10 @@ def test_startup_logs_log_level_override_default():
 @pytest.mark.subprocess(env={"DD_TRACE_LOG_LEVEL": "WARNING"})
 def test_startup_logs_log_level_override_set():
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     assert f.get("log_level_override") == "WARNING"
 
@@ -383,8 +409,10 @@ def test_debug_span_log():
 )
 def test_partial_flush_log():
     from ddtrace.internal import debug
+    from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+    from ddtrace.trace import tracer
 
-    f = debug.collect()
+    f = debug.collect(TracerDebugInfo.from_tracer(tracer))
 
     partial_flush_enabled = f.get("partial_flush_enabled")
     partial_flush_min_spans = f.get("partial_flush_min_spans")
