@@ -3,7 +3,11 @@ stages:
   - test
 
 include:
-  - local: .gitlab/testrunner.yml
+  # DDCI loads this template from external storage, so a local include has no
+  # project context. Pin the include to the exact commit under test instead.
+  - project: DataDog/dd-trace-py
+    ref: $CI_COMMIT_SHA
+    file: /.gitlab/testrunner.yml
 
 generate-on-demand-integration-tests:
   extends: .testrunner
