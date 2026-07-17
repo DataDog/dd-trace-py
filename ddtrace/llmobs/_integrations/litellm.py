@@ -274,8 +274,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
                 metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
 
-        # OpenRouter (routed via litellm) returns billed cost on `usage.cost`; surface it so cost is
-        # taken from the response instead of estimated from tokens.
         metrics.update(get_openrouter_cost_metrics(token_usage))
 
         return metrics
