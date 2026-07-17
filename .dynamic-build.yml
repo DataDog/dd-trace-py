@@ -1,0 +1,3 @@
+integration-tests:
+  template: .gitlab/templates/on-demand-integration-tests.yml
+  static_rule: true

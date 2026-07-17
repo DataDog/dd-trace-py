@@ -1,0 +1,45 @@
+stages:
+  - generate
+  - test
+
+include:
+  - local: .gitlab/testrunner.yml
+
+generate-on-demand-integration-tests:
+  extends: .testrunner
+  stage: generate
+  needs: []
+  script:
+    - |
+      set -euo pipefail
+      : "${INTEGRATION:?Set INTEGRATION to a contrib suite name, for example httpx}"
+      if [[ ! "${INTEGRATION}" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
+        echo "Invalid integration name: ${INTEGRATION}" >&2
+        exit 1
+      fi
+
+      # AIDEV-NOTE: --suite restricts test generation while --file prevents the
+      # remaining generators from querying PR changes in this on-demand pipeline.
+      scripts/gen_gitlab_config.py \
+        --verbose \
+        --suite "contrib::${INTEGRATION}" \
+        --file "tests/contrib/${INTEGRATION}/"
+
+      if ! grep -Fq "contrib/${INTEGRATION}:" .gitlab/tests-gen.yml; then
+        echo "No contrib integration suite named '${INTEGRATION}' was generated" >&2
+        exit 1
+      fi
+  artifacts:
+    paths:
+      - .gitlab/tests-gen.yml
+    expire_in: 1 day
+
+run-on-demand-integration-tests:
+  stage: test
+  needs:
+    - generate-on-demand-integration-tests
+  trigger:
+    include:
+      - artifact: .gitlab/tests-gen.yml
+        job: generate-on-demand-integration-tests
+    strategy: depend
