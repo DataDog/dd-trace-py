@@ -3,6 +3,37 @@
 import time
 import typing as t
 
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
+from ddtrace.internal.utils.cache import cached
+
+
+log = get_logger(__name__)
+
+_CODE_COVERAGE_FLAGS_ENV_VAR = "DD_CODE_COVERAGE_FLAGS"
+_MAX_CODE_COVERAGE_FLAGS = 32
+
+
+def _parse_code_coverage_flags(raw_flags: t.Optional[str]) -> tuple[str, ...]:
+    if not raw_flags:
+        return ()
+
+    flags = tuple(flag.strip() for flag in raw_flags.split(",") if flag.strip())
+    if len(flags) > _MAX_CODE_COVERAGE_FLAGS:
+        log.warning(
+            "Code coverage report flags will be omitted because %d flags were provided, exceeding the maximum of %d",
+            len(flags),
+            _MAX_CODE_COVERAGE_FLAGS,
+        )
+        return ()
+
+    return flags
+
+
+@cached(maxsize=1)
+def _get_code_coverage_flags() -> tuple[str, ...]:
+    return _parse_code_coverage_flags(env.get(_CODE_COVERAGE_FLAGS_ENV_VAR))
+
 
 def create_coverage_report_event(
     coverage_format: str,
@@ -25,6 +56,10 @@ def create_coverage_report_event(
         "format": coverage_format,
         "timestamp": int(time.time() * 1000),
     }
+
+    flags = _get_code_coverage_flags()
+    if flags:
+        event["report.flags"] = list(flags)
 
     # Add only git.*, ci.*, and pr.* tags.
     if tags:
