@@ -160,8 +160,9 @@ class Sampler
     // Restart the sampling thread in the parent after fork
     void postfork_parent();
 
-    // Restart the sampler after fork if it was running
-    void restart_after_fork();
+    // Restart the sampler after fork if it was running.
+    // Returns true if start() was invoked and succeeded.
+    bool restart_after_fork();
 };
 
 } // namespace Datadog
