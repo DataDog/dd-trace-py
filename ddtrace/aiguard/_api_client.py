@@ -1,7 +1,6 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
 from copy import deepcopy
-import http.client
 import json
 from typing import Any
 from typing import Literal
@@ -17,6 +16,7 @@ from ddtrace.ext import http as http_ext
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
@@ -363,8 +363,7 @@ class AIGuardClient:
         parsed = urlparse(url)
         hostname = parsed.hostname or ""
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        ConnClass = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
-        conn = ConnClass(hostname, port, timeout=self._timeout)
+        conn = HTTPConnection(f"{parsed.scheme}://{hostname}:{port}", timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
             conn.request("POST", parsed.path, json_body, self._headers)
