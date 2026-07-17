@@ -58,13 +58,25 @@ EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.moni
 _DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
 _DD_CANDIDATE_SLOTS = (4, 3, 1)
 
-# Store: (hook, path, import_names_by_line, file_arg, import_args)
+# Store: (hook, path, import_names_by_line, file_arg, import_args, file_hook, import_hook)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
-ImportNamesByLine = t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]  # noqa: UP006
-CoverageHookArg = t.Tuple[t.Optional[int], str, t.Optional[t.Tuple[str, t.Optional[t.Tuple[str]]]]]  # noqa: UP006
-CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, CoverageHookArg, t.Tuple[CoverageHookArg, ...]]  # noqa: UP006
+ImportName = t.Tuple[str, t.Optional[t.Tuple[str]]]  # noqa: UP006
+ImportNamesByLine = t.Dict[int, ImportName]  # noqa: UP006
+CoverageHookArg = t.Tuple[t.Optional[int], str, t.Optional[ImportName]]  # noqa: UP006
+FileHookType = t.Optional[t.Callable[[str], None]]  # noqa: UP006
+ImportHookType = t.Optional[t.Callable[[str, ImportName], None]]  # noqa: UP006
+CodeHookData = t.Tuple[  # noqa: UP006
+    HookType,
+    str,
+    ImportNamesByLine,
+    CoverageHookArg,
+    t.Tuple[CoverageHookArg, ...],  # noqa: UP006
+    FileHookType,
+    ImportHookType,
+]
 _CODE_HOOKS: t.Dict[CodeType, CodeHookData] = {}  # noqa: UP006
+_IMPORTS_EMITTED: t.Set[CodeType] = set()  # noqa: UP006
 
 # NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
 # line so Python stops firing that event for this code location — a performance optimisation that
@@ -235,15 +247,25 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
     if hook_data is None:
         return sys.monitoring.DISABLE
 
-    hook, path, import_names, file_arg, import_args = hook_data
+    hook, path, import_names, file_arg, import_args, file_hook, import_hook = hook_data
 
     if _USE_FILE_LEVEL_COVERAGE:
         # Report file-level coverage using line 0 as a sentinel value and emit this code object's pre-extracted import
         # dependency metadata. This keeps dependency tracking tied to executed code objects without parsing bytecode in
         # the hot callback.
-        hook(file_arg)  # type: ignore[arg-type]
-        for import_arg in import_args:
-            hook(import_arg)  # type: ignore[arg-type]
+        if file_hook is not None:
+            file_hook(path)
+        else:
+            hook(file_arg)  # type: ignore[arg-type]
+
+        if import_args and code not in _IMPORTS_EMITTED:
+            if import_hook is not None:
+                for import_arg in import_args:
+                    import_hook(path, import_arg[2])  # type: ignore[arg-type]
+            else:
+                for import_arg in import_args:
+                    hook(import_arg)  # type: ignore[arg-type]
+            _IMPORTS_EMITTED.add(code)
         if _use_disable_optimization:
             return sys.monitoring.DISABLE
     else:
@@ -274,10 +296,14 @@ def _instrument_with_monitoring(
         lines.update(nested_lines)
 
     # Register the hook and argument for the code object. Precompute file-level hook arguments so the callback does
-    # not allocate a set or tuples every time a code object starts executing.
+    # not allocate a set or tuples every time a code object starts executing. When the hook is ModuleCodeCollector.hook,
+    # also cache specialized file/import methods to avoid the generic tuple-dispatch path.
     file_arg = (0, path, None)
     import_args = tuple((None, path, import_name) for import_name in dict.fromkeys(import_names.values()))
-    _CODE_HOOKS[code] = (hook, path, import_names, file_arg, import_args)
+    hook_self = getattr(hook, "__self__", None)
+    file_hook = getattr(hook_self, "hook_file", None)
+    import_hook = getattr(hook_self, "hook_import", None)
+    _CODE_HOOKS[code] = (hook, path, import_names, file_arg, import_args, file_hook, import_hook)
 
     if _USE_FILE_LEVEL_COVERAGE:
         # Return CoverageLines with line 0 as sentinel to indicate file-level coverage
