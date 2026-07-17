@@ -40,6 +40,8 @@ _CACHE_LOCK = threading.Lock()
 _BACKOFF_BASE_SECONDS = 1.0
 _BACKOFF_FACTOR = 1.618
 _BACKOFF_MAX_SECONDS = 600.0
+# Delay already saturates by ~15 failures; this just avoids exponent overflow long-term.
+_BACKOFF_MAX_EXPONENT = 30
 # Bound the failure map so a long-lived process hitting many distinct invalid ARNs can't
 # grow it without limit.
 _BACKOFF_MAX_ENTRIES = 512
@@ -109,7 +111,8 @@ def record_resolve_failure(profile_arn: str) -> tuple[float, int]:
             _evict_backoff_locked(now)
         prev = _RESOLVE_BACKOFF.get(profile_arn)
         count = (prev.failures if prev is not None else 0) + 1
-        capped = min(_BACKOFF_BASE_SECONDS * (_BACKOFF_FACTOR ** (count - 1)), _BACKOFF_MAX_SECONDS)
+        exponent = min(count - 1, _BACKOFF_MAX_EXPONENT)
+        capped = min(_BACKOFF_BASE_SECONDS * (_BACKOFF_FACTOR**exponent), _BACKOFF_MAX_SECONDS)
         # Half-jitter: keep at least half the interval (so it still spaces out) while
         # de-synchronizing retries across processes.
         delay = capped * random.uniform(0.5, 1.0)  # nosec B311 - not security-sensitive

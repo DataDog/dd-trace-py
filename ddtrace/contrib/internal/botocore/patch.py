@@ -299,9 +299,14 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
-    # application-inference-profile ARN, so it doesn't emit a stray span.
+    # application-inference-profile ARN, so it doesn't emit a stray span. Still suppress
+    # urllib3-layer propagation injection so headers aren't added post-signing.
     if _resolve_inference_profile_in_progress.get():
-        return original_func(*args, **kwargs)
+        token = _http_propagation_suppressed.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
