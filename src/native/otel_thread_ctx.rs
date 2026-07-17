@@ -1,6 +1,6 @@
 use crate::span::SpanData;
 use libdd_otel_thread_ctx::linux::ThreadContext;
-use pyo3::{pyfunction, PyRef, PyResult};
+use pyo3::{pyfunction, PyRef};
 
 #[pyfunction]
 pub fn update_otel_thread_context(
