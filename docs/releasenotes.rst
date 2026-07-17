@@ -22,9 +22,6 @@ Examples of when a release note is **not required** are:
 * CI chores (e.g., upgrade/pinning dependency versions to fix CI)
 * Changes to internal API (Non-public facing, or not-yet released components/features)
 
-If it's unclear whether a change is customer-impacting, ask — don't guess unless the PR or
-issue already states the customer impact.
-
 After you've written a release note by following this guide, commit it to your change branch and
 include it in your pull request.
 
@@ -73,6 +70,8 @@ Release notes should:
   a new public API.
 * Include actionable steps with the necessary code changes.
 * Include relevant links (bug issues, upstream issues or release notes, documentation pages).
+* Reference the PR or issue number when it's already known (e.g. ``(#12345)``) — this is
+  encouraged but not required, since a note is often written before its PR number exists.
 * Use full sentences with sentence-casing and punctuation.
 * Before using Datadog specific acronyms/terminology, a release note must first introduce them with a definition.
 

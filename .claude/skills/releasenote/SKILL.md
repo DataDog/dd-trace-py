@@ -31,9 +31,11 @@ the PR description, not here.
 1. If the category (`features`/`fixes`/`upgrade`/`deprecations`/`issues`/`api`/`security`/`other`)
    isn't given, ask.
 2. Check for an existing fragment on the same topic, scoped to your current branch's own
-   unmerged changes: `git diff --name-only origin/main...HEAD -- releasenotes/notes/`. Only
-   reuse one of those — a fragment already on main may already be released; create a new
-   fragment instead of editing a shipped one.
+   unmerged changes: `git diff --name-only <base>...HEAD -- releasenotes/notes/`, where
+   `<base>` is the branch you're merging into (usually `origin/main`; use the actual base if
+   this branch forked off a release branch instead). Only reuse a fragment from that diff — one
+   already on the base branch may already be released; create a new fragment instead of
+   editing a shipped one.
 3. Read the PR/commit diff for ground truth, but translate it — don't copy engineering language.
 
 ## Write the note
