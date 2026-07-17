@@ -39,13 +39,11 @@ if sys.platform == "linux":
     from ddtrace.internal.native._native import detach_otel_thread_context
     from ddtrace.internal.native._native import update_otel_thread_context
 
-    def _on_activate_update_otel_thread_context(ctx: Optional[ActiveTrace]) -> None:
+    def _update_otel_thread_context(ctx: Optional[ActiveTrace]) -> None:
         if type(ctx) is Span:
             update_otel_thread_context(ctx, ctx._local_root)
         else:
             detach_otel_thread_context()
-
-    core.on("ddtrace.context_provider.activate", _on_activate_update_otel_thread_context)
 
 
 class BaseContextProvider(metaclass=abc.ABCMeta):
@@ -92,10 +90,19 @@ class DefaultContextProvider(BaseContextProvider):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
-    def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        """Makes the given context active in the current execution."""
-        _activate_contextvar(ctx)
-        super(DefaultContextProvider, self).activate(ctx)
+    if sys.platform == "linux":
+
+        def activate(self, ctx: Optional[ActiveTrace]) -> None:
+            """Makes the given context active in the current execution."""
+            _activate_contextvar(ctx)
+            _update_otel_thread_context(ctx)
+            super(DefaultContextProvider, self).activate(ctx)
+    else:
+
+        def activate(self, ctx: Optional[ActiveTrace]) -> None:
+            """Makes the given context active in the current execution."""
+            _activate_contextvar(ctx)
+            super(DefaultContextProvider, self).activate(ctx)
 
     def active(self) -> Optional[ActiveTrace]:
         """Returns the active span or context for the current execution."""
