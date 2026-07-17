@@ -1,6 +1,6 @@
 from typing import Literal  # noqa:F401
 
-from ddtrace.appsec._constants import Constant_Class
+from ddtrace.internal.constants import Constant_Class
 
 
 class AI_GUARD(metaclass=Constant_Class):

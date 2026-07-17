@@ -22,7 +22,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
@@ -661,7 +661,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or in_azure_function()
         or asm_config._asm_enabled
         or asm_config._iast_enabled
-        or ai_guard_config._ai_guard_enabled
+        or aiguard_config._ai_guard_enabled
         or config._llmobs_enabled
     ):
         default = "v0.4"

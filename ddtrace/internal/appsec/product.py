@@ -1,5 +1,4 @@
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config
 
 
@@ -27,9 +26,7 @@ def post_preload():
 
 
 def enabled():
-    return (
-        config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled or ai_guard_config._ai_guard_enabled
-    )
+    return config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled
 
 
 def start():
@@ -57,11 +54,6 @@ def start():
     finally:
         # Also reported here for AWS Lambda, where start() is called directly.
         _report_agentic_onboarding()
-
-    if ai_guard_config._ai_guard_enabled:
-        from ddtrace.aiguard._initialization import load_ai_guard
-
-        load_ai_guard()
 
 
 def restart(join=False):
