@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    database monitoring: Resolved a memory leak that grew with query volume when
+    ``DD_DBM_PROPAGATION_MODE`` was set to ``full``, ``service``, or ``dynamic_service``.
