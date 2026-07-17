@@ -727,6 +727,10 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("gpt-4o", False, False, False),
         # non-OpenAI models are unaffected
         ("anthropic/claude-3", False, True, False),
+        # OpenRouter slugs contain "openai"/"gpt" but litellm routes them via httpx (no OpenAI span),
+        # so they must not be suppressed even with the OpenAI integration enabled
+        ("openrouter/openai/gpt-4o", False, True, False),
+        ("openrouter/openai/gpt-oss-120b", False, True, False),
     ],
 )
 def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
