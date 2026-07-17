@@ -1,4 +1,6 @@
 import os
+import sys
+from types import ModuleType
 
 import pytest
 
@@ -18,6 +20,15 @@ assert telemetry_writer._worker is not None
     assert status == 0, stderr
     assert stdout == b"", stderr
     assert stderr == b""
+
+
+def test_report_endpoints_while_asm_config_is_initializing(monkeypatch):
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    initializing_asm = ModuleType("ddtrace.internal.settings.asm")
+    monkeypatch.setitem(sys.modules, initializing_asm.__name__, initializing_asm)
+
+    assert telemetry_writer._report_endpoints() is None
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
