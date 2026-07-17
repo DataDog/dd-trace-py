@@ -56,7 +56,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     #[cfg(target_os = "linux")]
-    m.add_wrapped(wrap_pyfunction!(library_config::update_otel_thread_context))?;
+    {
+        m.add_wrapped(wrap_pyfunction!(library_config::update_otel_thread_context))?;
+        m.add_wrapped(wrap_pyfunction!(library_config::detach_otel_thread_context))?;
+    }
     shared_runtime::register_shared_runtime(m)?;
     data_pipeline::register_data_pipeline(m)?;
     http_client::register_http_client(m)?;
