@@ -16,15 +16,18 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -198,6 +201,34 @@ def parse_llmobs_metric_args(metrics):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
+
+def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
+    """Extract OpenRouter's returned cost (USD) from an OpenAI-compatible ``usage`` object.
+
+    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
+    every response. Returns an empty dict for responses without a cost (e.g. other providers).
+    """
+    cost = _get_attr(token_usage, "cost", None)
+    if not isinstance(cost, (int, float)):
+        return {}
+    total_cost = float(cost)
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
+    # Only emit the input/output breakdown when it reconciles with the billed total: the
+    # upstream_inference_* costs are wholesale and can diverge from `cost` (e.g. BYOK surcharge).
+    # Reconcile at nanodollar precision (how the backend stores cost) so binary-float noise in the
+    # decimal components doesn't spuriously reject a breakdown that actually sums to the total.
+    cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
+    output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
+    if (
+        isinstance(input_cost, (int, float))
+        and isinstance(output_cost, (int, float))
+        and round((input_cost + output_cost) * 1e9) == round(total_cost * 1e9)
+    ):
+        metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
+        metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
 
 
 LANGCHAIN_ROLE_MAPPING = {
