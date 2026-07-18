@@ -600,18 +600,23 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 
 
 def request_patcher(name):
+    # PERF: span name is constant per wrapper; build it once at patch time.
+    span_name = ".".join(("flask", name))
+
     @with_tracing_enabled
     def _patched_request(wrapped, instance, args, kwargs):
+        # PERF: config.flask is resolved via Config.__getattr__; bind the singleton once.
+        flask_config = config.flask
         with (
             core.context_with_data(
                 "flask._patched_request",
-                span_name=".".join(("flask", name)),
-                service=trace_utils.int_service(None, config.flask),
-                flask_config=config.flask,
+                span_name=span_name,
+                service=trace_utils.int_service(None, flask_config),
+                flask_config=flask_config,
                 flask_request=flask.request,
                 ignored_exception_type=NotFound,
-                tags={COMPONENT: config.flask.integration_name},
-                integration_config=config.flask,
+                tags={COMPONENT: flask_config.integration_name},
+                integration_config=flask_config,
             ) as ctx,
             ctx.span,
         ):

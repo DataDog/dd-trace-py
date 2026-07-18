@@ -68,6 +68,12 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
+# Meta keys that must NOT be propagated from a parent context to child spans.
+# Hoisted to a module-level frozenset so the per-child-span loop below does a set
+# membership test instead of rebuilding a tuple (and re-resolving APPSEC.*) each iteration.
+_METAS_NOT_TO_PROPAGATE = frozenset((SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER))
+
+
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
@@ -533,7 +539,7 @@ class Tracer(object):
         if service is not None:
             service = config.service_mapping.get(service, service)
 
-        links = context._span_links if not parent and context else []
+        links = context._span_links if not parent and context else None
         if trace_id or links or (context and context._baggage):
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -559,7 +565,7 @@ class Tracer(object):
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
+                if k not in _METAS_NOT_TO_PROPAGATE:
                     span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
@@ -586,11 +592,13 @@ class Tracer(object):
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
 
-        if config.env:
-            span._set_attribute(ENV_KEY, config.env)
+        env = config.env
+        if env:
+            span._set_attribute(ENV_KEY, env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        version = config.version
+        if version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
@@ -599,17 +607,27 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_attribute(VERSION_KEY, config.version)
+                span._set_attribute(VERSION_KEY, version)
 
         if activate:
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+            # PERF: iterate the (static in the hot path) processor lists directly and call the
+            # aggregator last, avoiding a per-span chain() + single-element list allocation.
+            for p in self._span_processors:
                 if p:
                     p.on_span_start(span)
-        core.dispatch("trace.span_start", (span,))
+            for p in SpanProcessor.__processors__:
+                if p:
+                    p.on_span_start(span)
+            if self._span_aggregator:
+                self._span_aggregator.on_span_start(span)
+        # PERF: only build args + cross into native when something listens (AppSec/LLMObs/
+        # mlflow). In a tracer-only config nothing does, so skip the FFI entirely.
+        if "trace.span_start" in core._events_with_listeners:
+            core.dispatch("trace.span_start", (span,))
         return span
 
     _start_span = start_span
@@ -638,15 +656,25 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # run handlers before flushing that don't need the span in its final state
-        core.dispatch("trace.span_finish", (span,))
+        # PERF: skip the FFI when nothing listens (tracer-only config; see start_span).
+        if "trace.span_finish" in core._events_with_listeners:
+            core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+            # PERF: see start_span -- avoid the per-span chain() + list allocation.
+            for p in self._span_processors:
                 if p:
                     p.on_span_finish(span)
+            for p in SpanProcessor.__processors__:
+                if p:
+                    p.on_span_finish(span)
+            if self._span_aggregator:
+                self._span_aggregator.on_span_finish(span)
 
-        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
+        # PERF: guard the per-span debug log to skip the logging-machinery call when debug is off.
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

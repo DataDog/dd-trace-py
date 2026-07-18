@@ -48,6 +48,13 @@ from ddtrace.internal.utils.time import Time
 log = get_logger(__name__)
 
 
+# Keys that `set_tag` special-cases before storing. Anything not in this set with a
+# plain str key and str value stores identically to a direct `_set_attribute` call.
+_SPECIAL_SET_TAG_KEYS = frozenset(
+    (net.TARGET_PORT, MANUAL_KEEP_KEY, MANUAL_DROP_KEY, SERVICE_KEY, SERVICE_VERSION_KEY, _SPAN_MEASURED_KEY)
+)
+
+
 def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
     """Get the 64 lowest order bits from a 128bit integer"""
     return _MAX_UINT_64BITS & large_int
@@ -64,10 +71,10 @@ class Span(SpanData):
         "context",
         "_store",
         # Internal attributes
-        "_parent_context",
-        "_local_root_value",
+        # NB: _parent, _parent_context, _local_root_value now live on the native SpanData
+        # base (getters/setters/properties in src/native/span/span_data.rs), so they are
+        # not declared here.
         "_service_entry_span_value",
-        "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
@@ -125,9 +132,9 @@ class Span(SpanData):
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
 
-        self._parent: Optional["Span"] = None
+        # _parent and _local_root_value now live on the native SpanData base and default
+        # to None (== root span / not set); no need to initialize them here.
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
-        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
@@ -195,6 +202,16 @@ class Span(SpanData):
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""
+        # PERF fast path: a plain str key/value that isn't special-cased reduces to
+        # exactly `self._set_attribute(key, value)` below (no int coercion, no
+        # sampling override, no bytes/bool conversion). Skip the whole if/elif chain.
+        if type(key) is str and type(value) is str and key not in _SPECIAL_SET_TAG_KEYS:
+            try:
+                self._set_attribute(key, value)
+            except Exception:
+                log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+            return
+
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         if key == net.TARGET_PORT:
@@ -463,17 +480,7 @@ class Span(SpanData):
 
         return False
 
-    @property
-    def _local_root(self) -> "Span":
-        return self._local_root_value or self
-
-    @_local_root.setter
-    def _local_root(self, value: "Span") -> None:
-        self._local_root_value = value if value is not self else None
-
-    @_local_root.deleter
-    def _local_root(self) -> None:
-        del self._local_root_value
+    # _local_root (property get/set/del) is provided by the native SpanData base.
 
     @property
     def _service_entry_span(self) -> "Span":
@@ -603,13 +610,6 @@ class Span(SpanData):
             self.name,
         )
 
-    @property
-    def _is_top_level(self) -> bool:
-        """Return whether the span is a "top level" span.
-
-        Top level meaning the root of the trace or a child span
-        whose service is different from its parent.
-        """
-        return (self._local_root is self) or (
-            self._parent is not None and self._parent.service != self.service and self.service is not None
-        )
+    # _is_top_level is provided by the native SpanData base (src/native/span/span_data.rs):
+    #   (self._local_root_value is None) or
+    #   (self._parent is not None and self._parent.service != self.service and self.service is not None)

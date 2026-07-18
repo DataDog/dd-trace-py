@@ -30,7 +30,9 @@ def get_current_app():
 def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dispatch=False, args=None, kwargs=None):
     args = args or []
     kwargs = kwargs or {}
-    tags = {COMPONENT: config.flask.integration_name}
+    # PERF: config.flask is resolved via Config.__getattr__; bind the singleton once.
+    flask_config = config.flask
+    tags = {COMPONENT: flask_config.integration_name}
     if signal:
         tags["flask.signal"] = signal
     with (
@@ -38,14 +40,17 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
             "flask.call",
             span_name=name,
             resource=resource,
-            service=trace_utils.int_service(None, config.flask),
+            service=trace_utils.int_service(None, flask_config),
             span_type=span_type,
             tags=tags,
-            integration_config=config.flask,
+            integration_config=flask_config,
         ) as ctx,
         ctx.span,
     ):
-        if do_dispatch:
+        if do_dispatch and core.has_listeners("flask.wrapped_view"):
+            # PERF: only cross into the native event hub when a listener (AppSec/IAST) is
+            # actually registered. With none, dispatch_with_results returns an empty result
+            # whose .callbacks/.check_kwargs are falsy, so this block is already a no-op.
             dispatch = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "flask.wrapped_view", (kwargs,)
             )

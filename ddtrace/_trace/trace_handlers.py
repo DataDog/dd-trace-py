@@ -142,54 +142,70 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
+_NEW_SPAN_CONTEXT_PARAMS = ("span_type", "resource", "service", "child_of", "activate")
+
+
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
+    data = ctx._data
     span_kwargs = {}
-    for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_item(parameter_name)
+    for parameter_name in _NEW_SPAN_CONTEXT_PARAMS:
+        parameter_value = data.get(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
-    span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
-    call_trace = ctx.get_item("call_trace", call_trace)
-    integration_config = ctx.get_item("integration_config")
+    # PERF: read straight from the context's data dict. `ctx.get_item(k)` is just a
+    # method wrapper around `ctx._data.get(k, default)`; binding the dict once removes
+    # ~13 call frames per span start, and this runs for every span on the request path.
+    data = ctx._data
+    activate_distributed_headers = data.get("activate_distributed_headers")
+    # PERF: inlined _get_parameters_for_new_span_directly_from_context (its only caller) to
+    # avoid a per-span frame and a redundant re-bind of ctx._data.
+    span_kwargs = {}
+    for parameter_name in _NEW_SPAN_CONTEXT_PARAMS:
+        parameter_value = data.get(parameter_name)
+        if parameter_value:
+            span_kwargs[parameter_name] = parameter_value
+    call_trace = data.get("call_trace", call_trace)
+    integration_config = data.get("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx.get_item("distributed_headers"),
-            override=ctx.get_item("distributed_headers_config_override"),
+            request_headers=data.get("distributed_headers"),
+            override=data.get("distributed_headers_config_override"),
         )
-    distributed_context = ctx.get_item("distributed_context")
+    distributed_context = data.get("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
-    if config._inferred_proxy_services_enabled:
+    # PERF: process-global flag read via Config.__getattr__; read once, used twice below.
+    inferred_proxy_enabled = config._inferred_proxy_services_enabled
+    if inferred_proxy_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, span_kwargs, call_trace))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
-        span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
+        span_kwargs = data.get("span_kwargs", span_kwargs)
 
     span_kwargs.update(kwargs)
-    span_name = ctx.get_item("span_name")
+    span_name = data.get("span_name")
     if not span_name:
         raise ValueError("span_name must be set in the context before starting a span")
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    tags: Optional[dict[str, str]] = ctx.get_item("tags")
+    tags: Optional[dict[str, str]] = data.get("tags")
     if tags:
         for tk, tv in tags.items():
             span.set_tag(tk, tv)
-    if ctx.get_item("measured"):
+    if data.get("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
+    set_service_and_source(span, data.get("service"), integration_config or dict())
     ctx.span = span
 
-    if config._inferred_proxy_services_enabled:
+    if inferred_proxy_enabled:
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
@@ -523,37 +539,48 @@ def _set_flask_request_tags(request, span, flask_config):
     try:
         span._set_attribute(COMPONENT, flask_config.integration_name)
 
-        if span.name.split(".")[-1] == "request":
+        # rpartition avoids building an intermediate list; same result for dotted/bare names.
+        if span.name.rpartition(".")[2] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
         _set_flask_request_route_tags(request, span)
 
-        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
-            for k, v in request.view_args.items():
-                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
-                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
-            trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
+        # PERF: read the view_args LocalProxy once (was resolved up to 3x), preserving
+        # the original short-circuit (only touched when the tag is unset).
+        if not span.get_tag(FLASK_VIEW_ARGS):
+            view_args = request.view_args
+            if view_args and flask_config.get("collect_view_args"):
+                for k, v in view_args.items():
+                    # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
+                    #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+                    span._set_attribute(".".join((FLASK_VIEW_ARGS, k)), v)
+                trace_utils.set_http_meta(span, flask_config, request_path_params=view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
 def _set_flask_request_route_tags(request, span):
+    # PERF: `request` is a werkzeug LocalProxy; each attribute read is a proxy
+    # resolution. Read each attribute at most once per branch.
     try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
-            span._set_attribute(FLASK_ENDPOINT, request.endpoint)
+        if not span.get_tag(FLASK_ENDPOINT):
+            endpoint = request.endpoint
+            if endpoint:
+                span.resource = " ".join((request.method, endpoint))
+                span._set_attribute(FLASK_ENDPOINT, endpoint)
 
-        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
-            span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
-            # Side-channel tag for backend resource remapping; resource itself stays app-local.
-            if request.script_root:
-                span._set_attribute(
-                    FLASK_RESOURCE_FULL,
-                    " ".join((request.method, request.script_root + request.url_rule.rule)),
-                )
+        if not span.get_tag(FLASK_URL_RULE):
+            url_rule = request.url_rule
+            rule = url_rule.rule if url_rule else None
+            if rule:
+                method = request.method
+                span.resource = " ".join((method, rule))
+                span._set_attribute(FLASK_URL_RULE, rule)
+                # Side-channel tag for backend resource remapping; resource itself stays app-local.
+                script_root = request.script_root
+                if script_root:
+                    span._set_attribute(FLASK_RESOURCE_FULL, " ".join((method, script_root + rule)))
     except Exception:
         log.debug('failed to set route tags for "flask.request" span', exc_info=True)
 

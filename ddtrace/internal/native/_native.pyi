@@ -644,6 +644,12 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    # Span-tree links (moved from Python Span.__slots__/properties into the native base).
+    _parent: Optional[Any]  # parent Span or None
+    _parent_context: Optional[Any]  # parent Context or None
+    _local_root_value: Optional[Any]  # local-root Span, or None when this span is the local root
+    _local_root: Any  # property: _local_root_value or self
+    _is_top_level: bool  # read-only property
 
     def __new__(
         cls: type[_SpanDataT],
@@ -698,6 +704,24 @@ class SpanData:
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
     def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+
+class DefaultContextProvider:
+    """Native base for ``ddtrace._trace.provider.DefaultContextProvider``.
+
+    Holds the shared ``_DD_CONTEXTVAR`` and the ``Span`` type, and implements the
+    active/activate/reconciliation read path in Rust. The Python subclass wires these in via
+    ``_configure`` and keeps ``_update_active``-adjacent behavior overridable.
+    """
+
+    _contextvar: Any  # read-only: the underlying contextvars.ContextVar
+
+    def __new__(cls, contextvar: Optional[Any] = None, span_type: Optional[Any] = None) -> "DefaultContextProvider": ...
+    def _configure(self, contextvar: Any, span_type: Any) -> None: ...
+    def _has_active_context(self) -> bool: ...
+    def active(self) -> Optional[Any]: ...  # Span | Context | None
+    def activate(self, ctx: Optional[Any]) -> None: ...
+    def _update_active(self, span: Any) -> Optional[Any]: ...
+    def __call__(self) -> Optional[Any]: ...
 
 class SpanEvent:
     name: str

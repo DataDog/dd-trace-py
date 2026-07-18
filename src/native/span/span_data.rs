@@ -4,7 +4,7 @@ use pyo3::{
         PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
         PyString, PyStringMethods as _, PyTuple,
     },
-    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
+    Bound, IntoPyObject as _, Py, PyAny, PyRef, PyRefMut, PyResult, Python,
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
@@ -54,6 +54,25 @@ pub struct SpanData {
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
+    /// Parent Span (Python object), or None if this is a root span. Formerly the
+    /// `_parent` Python `__slots__` entry; moved here so the context provider's
+    /// `_update_active` walk and `_is_top_level`/`_local_root` are frame-free.
+    pub parent: Option<Py<PyAny>>,
+    /// Parent Context (Python object), or None. Formerly `_parent_context`.
+    pub parent_context: Option<Py<PyAny>>,
+    /// Local-root Span, or None when this span *is* the local root. Formerly
+    /// `_local_root_value`. The `_local_root` property returns this or `self`.
+    pub local_root_value: Option<Py<PyAny>>,
+}
+
+/// Map a Python attribute value to `Option<Py<PyAny>>`: Python `None` -> `None`.
+#[inline(always)]
+fn opt_pyany(value: &Bound<'_, PyAny>) -> Option<Py<PyAny>> {
+    if value.is_none() {
+        None
+    } else {
+        Some(value.clone().unbind())
+    }
 }
 
 impl SpanData {
@@ -255,6 +274,86 @@ impl SpanData {
     #[inline(always)]
     fn set_span_type(&mut self, span_type: &Bound<'_, PyAny>) {
         self.span_type = extract_backed_string_or_none(span_type);
+    }
+
+    // --- Span-tree links (moved from Python __slots__/properties on Span) ---
+
+    #[getter(_parent)]
+    #[inline(always)]
+    fn get_parent(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.parent.as_ref().map(|v| v.clone_ref(py))
+    }
+    #[setter(_parent)]
+    #[inline(always)]
+    fn set_parent(&mut self, value: &Bound<'_, PyAny>) {
+        self.parent = opt_pyany(value);
+    }
+
+    #[getter(_parent_context)]
+    #[inline(always)]
+    fn get_parent_context(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.parent_context.as_ref().map(|v| v.clone_ref(py))
+    }
+    #[setter(_parent_context)]
+    #[inline(always)]
+    fn set_parent_context(&mut self, value: &Bound<'_, PyAny>) {
+        self.parent_context = opt_pyany(value);
+    }
+
+    #[getter(_local_root_value)]
+    #[inline(always)]
+    fn get_local_root_value(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.local_root_value.as_ref().map(|v| v.clone_ref(py))
+    }
+    #[setter(_local_root_value)]
+    #[inline(always)]
+    fn set_local_root_value(&mut self, value: &Bound<'_, PyAny>) {
+        self.local_root_value = opt_pyany(value);
+    }
+
+    /// `self._local_root_value or self` — the local root span (self if this is it).
+    #[getter(_local_root)]
+    fn get_local_root<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> Bound<'py, PyAny> {
+        match &slf.local_root_value {
+            Some(v) => v.bind(py).clone(),
+            // Return self (a new reference). SAFETY: slf is a live, GIL-held instance.
+            None => unsafe { Bound::from_borrowed_ptr(py, slf.as_ptr()) },
+        }
+    }
+    /// `self._local_root_value = value if value is not self else None`
+    #[setter(_local_root)]
+    fn set_local_root(mut slf: PyRefMut<'_, Self>, value: &Bound<'_, PyAny>) {
+        slf.local_root_value = if value.is_none() || value.as_ptr() == slf.as_ptr() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+    #[deleter(_local_root)]
+    fn del_local_root(&mut self) {
+        self.local_root_value = None;
+    }
+
+    /// Native mirror of the Python `_is_top_level` property: local root of the trace, or a
+    /// child whose service differs from its parent's.
+    #[getter(_is_top_level)]
+    fn get_is_top_level(&self, py: Python<'_>) -> PyResult<bool> {
+        // (self._local_root_value is None)
+        if self.local_root_value.is_none() {
+            return Ok(true);
+        }
+        // ... or (self._parent is not None and self._parent.service != self.service
+        //         and self.service is not None)
+        if self.service.is_py_none(py) {
+            return Ok(false);
+        }
+        let parent = match &self.parent {
+            Some(p) => p.bind(py),
+            None => return Ok(false),
+        };
+        let self_service = self.service.as_py(py);
+        let parent_service = parent.getattr(pyo3::intern!(py, "service"))?;
+        parent_service.ne(&self_service)
     }
 
     // start_ns property (maps to self.start)
@@ -889,6 +988,17 @@ impl SpanData {
         }
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
+        }
+        // Span-tree links to other Span/Context objects — must be visited so CPython's
+        // cyclic GC can see and break parent/local-root cycles (e.g. finished traces).
+        if let Some(o) = &self.parent {
+            visit.call(o)?;
+        }
+        if let Some(o) = &self.parent_context {
+            visit.call(o)?;
+        }
+        if let Some(o) = &self.local_root_value {
+            visit.call(o)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
         // Atomic types can't form cycles, but visit them for correct refcount

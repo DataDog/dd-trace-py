@@ -55,6 +55,35 @@ pub fn safe_contextvar_set(
     Ok(())
 }
 
+/// Read a `contextvars.ContextVar` through the C-API (`PyContextVar_Get`) instead of a
+/// Python-level `.get()` method dispatch — cheaper on hot read paths.
+///
+/// Unlike the set path there is no CPython crash to guard against here; the `unsafe` is
+/// only because every `pyo3::ffi` raw C-API call is unsafe and PyO3 ships no safe
+/// high-level `ContextVar` wrapper. It is sound: the GIL is held, `var` is a live
+/// ContextVar, and the returned new reference is handed to a `Bound`.
+///
+/// Callers that pass a ContextVar created with `default=...` get that default (never a
+/// null pointer) when the variable is unset; a truly-unset var with no default yields
+/// Python `None`.
+#[inline]
+pub fn contextvar_get<'py>(py: Python<'py>, var: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    // SAFETY: the GIL is held for the whole call; `var` is a live ContextVar object.
+    unsafe {
+        let mut value: *mut ffi::PyObject = std::ptr::null_mut();
+        if ffi::PyContextVar_Get(var.as_ptr(), std::ptr::null_mut(), &mut value) < 0 {
+            return Err(PyErr::take(py).unwrap_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("PyContextVar_Get failed")
+            }));
+        }
+        if value.is_null() {
+            Ok(py.None().into_bound(py))
+        } else {
+            Ok(Bound::from_owned_ptr(py, value))
+        }
+    }
+}
+
 pub fn register_contextvar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(safe_contextvar_set, m)?)?;
     Ok(())

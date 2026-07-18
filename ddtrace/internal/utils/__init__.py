@@ -73,10 +73,27 @@ def set_argument_value(
 def _get_metas_to_propagate(context: Any) -> list[tuple[str, str]]:
     if context is None:
         return []
+    meta = context._meta
+    if not meta:
+        return []
+    # PERF: this runs once per child span, but _meta is shared by reference across a local
+    # trace (Context.copy) and its _dd.p.* subset is stable within a trace. When _meta tracks
+    # a version (_VersionedMeta), cache the filtered list keyed on that version so the filter
+    # runs once per trace instead of once per span. Any mutation bumps _v (including in-place
+    # _dd.p.dm changes from a sampling override), so the cache invalidates by construction.
+    # A plain dict (remote/propagation context) has no _v -> recompute, unchanged behavior.
+    version = getattr(meta, "_v", None)
+    if version is not None:
+        cached = meta._prop_cache
+        if cached is not None and cached[0] == version:
+            return cached[1]
     # Snapshot items to avoid "dictionary changed size during iteration" when
     # context._meta is mutated by another thread (e.g. tracer.sample()). See #16523.
-    items = list(context._meta.items())
-    return [(k, v) for k, v in items if isinstance(k, str) and k.startswith("_dd.p.")]
+    # PERF: reuse the (k, v) tuples the snapshot already built instead of rebuilding them.
+    result = [item for item in list(meta.items()) if isinstance(item[0], str) and item[0].startswith("_dd.p.")]
+    if version is not None:
+        meta._prop_cache = (version, result)
+    return result
 
 
 class Block_config(Protocol):
