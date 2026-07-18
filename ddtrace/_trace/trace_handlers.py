@@ -202,7 +202,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if data.get("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    set_service_and_source(span, data.get("service"), integration_config or dict())
+    # NB default "" (not None) so the type is str, not Optional; set_service_and_source treats
+    # "" and None identically (both hit the `not service` branch), so behavior is unchanged.
+    set_service_and_source(span, data.get("service", ""), integration_config or dict())
     ctx.span = span
 
     if inferred_proxy_enabled:

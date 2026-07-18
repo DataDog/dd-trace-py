@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Optional
+
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import EventResult
 from ddtrace.internal.native._native import EventResultDict
@@ -25,12 +28,12 @@ from ddtrace.internal.native._native import reset as _native_reset
 _events_with_listeners: "set[str]" = set()
 
 
-def on(event_id, callback, name=None):
+def on(event_id: str, callback: Any, name: Any = None) -> None:
     _native_on(event_id, callback, name)
     _events_with_listeners.add(event_id)
 
 
-def reset(event_id=None, callback=None):
+def reset(event_id: Optional[str] = None, callback: Optional[Any] = None) -> None:
     _native_reset(event_id, callback)
     if event_id is None:
         # Reset-all: rebuild is unnecessary — no listeners remain.
@@ -40,7 +43,7 @@ def reset(event_id=None, callback=None):
         _events_with_listeners.discard(event_id)
 
 
-def has_listeners(event_id) -> bool:
+def has_listeners(event_id: str) -> bool:
     """Whether ``event_id`` has any registered listener (pure-Python, no FFI)."""
     return event_id in _events_with_listeners
 

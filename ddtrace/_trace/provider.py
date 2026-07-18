@@ -1,6 +1,7 @@
 import abc
 import contextvars
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -9,7 +10,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native._native import DefaultContextProvider as _NativeDefaultContextProvider
 
 
 log = get_logger(__name__)
@@ -63,6 +63,23 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         ``self.active()`` and must not do anything more.
         """
         return self.active()
+
+
+if TYPE_CHECKING:
+    # At runtime `DefaultContextProvider` derives from the native base and is made a
+    # `BaseContextProvider` via `BaseContextProvider.register(...)` below — a virtual-subclass
+    # registration that type-checkers cannot see. Present the native base as a concrete
+    # `BaseContextProvider` for type-checkers so `DefaultContextProvider` (and subclasses such as
+    # the ci_visibility `CIContextProvider`) satisfy `context_provider: BaseContextProvider`.
+    class _NativeDefaultContextProvider(BaseContextProvider):
+        def _configure(self, contextvar: Any, span_type: Any) -> None: ...
+        def _has_active_context(self) -> bool: ...
+        def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+        def active(self) -> Optional[ActiveTrace]: ...
+        def _update_active(self, span: Span) -> Optional[ActiveTrace]: ...
+
+else:
+    from ddtrace.internal.native._native import DefaultContextProvider as _NativeDefaultContextProvider  # noqa: E402
 
 
 class DefaultContextProvider(_NativeDefaultContextProvider):

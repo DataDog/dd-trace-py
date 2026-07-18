@@ -9,6 +9,8 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
@@ -645,10 +647,10 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     # Span-tree links (moved from Python Span.__slots__/properties into the native base).
-    _parent: Optional[Any]  # parent Span or None
-    _parent_context: Optional[Any]  # parent Context or None
-    _local_root_value: Optional[Any]  # local-root Span, or None when this span is the local root
-    _local_root: Any  # property: _local_root_value or self
+    _parent: Optional[Span]  # parent Span or None
+    _parent_context: Optional[Context]  # parent Context or None
+    _local_root_value: Optional[Span]  # local-root Span, or None when this span is the local root
+    _local_root: Span  # property: _local_root_value or self (always a Span)
     _is_top_level: bool  # read-only property
 
     def __new__(

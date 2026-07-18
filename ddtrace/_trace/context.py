@@ -34,7 +34,7 @@ _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
 log = get_logger(__name__)
 
 
-class _VersionedMeta(dict):
+class _VersionedMeta(dict[str, str]):
     """A dict that bumps a version counter on every mutation.
 
     ``Context._meta`` is shared by reference across every span in a local trace (see
@@ -50,7 +50,10 @@ class _VersionedMeta(dict):
 
     __slots__ = ("_v", "_prop_cache")
 
-    def __init__(self, *args, **kwargs):
+    _v: int
+    _prop_cache: Optional[tuple[int, list[tuple[str, str]]]]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         # dict(...) bulk-init does not route through __setitem__, so _v starts at 0.
         super().__init__(*args, **kwargs)
         self._v = 0
@@ -60,12 +63,12 @@ class _VersionedMeta(dict):
         self._v += 1
         self._prop_cache = None
 
-    def __setitem__(self, key, value) -> None:
+    def __setitem__(self, key: str, value: str) -> None:
         super().__setitem__(key, value)
         self._v += 1
         self._prop_cache = None
 
-    def __delitem__(self, key) -> None:
+    def __delitem__(self, key: str) -> None:
         super().__delitem__(key)
         self._bump()
 
@@ -73,31 +76,33 @@ class _VersionedMeta(dict):
         super().clear()
         self._bump()
 
-    def pop(self, *args):
+    def pop(self, *args: Any) -> Any:
         r = super().pop(*args)
         self._bump()
         return r
 
-    def popitem(self):
+    def popitem(self) -> tuple[str, str]:
         r = super().popitem()
         self._bump()
         return r
 
-    def setdefault(self, key, default=None):
+    def setdefault(self, key: str, default: str = "") -> str:
         n = len(self)
         r = super().setdefault(key, default)
         if len(self) != n:
             self._bump()
         return r
 
-    def update(self, *args, **kwargs) -> None:
+    def update(self, *args: Any, **kwargs: Any) -> None:
         super().update(*args, **kwargs)
         self._bump()
 
-    def __ior__(self, other):
-        r = super().__ior__(other)
+    # `dict.__or__` returns `dict`, so mypy flags the covariant `_VersionedMeta` return as
+    # inconsistent; the override is behavior-correct (bump on `|=`), just rarely exercised.
+    def __ior__(self, other: Any) -> "_VersionedMeta":  # type: ignore[override,misc]
+        super().__ior__(other)
         self._bump()
-        return r
+        return self
 
 
 class Context(object):
