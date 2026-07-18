@@ -17,7 +17,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
@@ -29,7 +28,6 @@ from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
-from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -100,11 +98,33 @@ class NativeWriterTests(BaseTestCase):
             any_order=True,
         )
 
+    def test_metrics_generic_send_failure(self):
+        # A generic (non-4xx) send failure, e.g. an unreachable agent, still drains the buffer
+        # and counts the traces as "sent" for drop-rate purposes.
+        statsd = mock.Mock()
+        with (
+            override_global_config(dict(_health_metrics_enabled=True)),
+            # Long interval so the background periodic thread never flushes mid-test.
+            managed_writer(
+                self.WRITER_CLASS,
+                "http://asdf:1234",
+                dogstatsd=statsd,
+                sync_mode=False,
+                processing_interval=1000,
+            ) as writer,
+        ):
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+            writer.flush_queue()
+
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
+            assert writer._drop_sma.get() == 0.0
+
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
         with (
-            override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
+            override_global_config(dict(_health_metrics_enabled=True)),
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, max_payload_size=2000) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -120,15 +140,12 @@ class NativeWriterTests(BaseTestCase):
 
             writer.write(massive_trace)
 
+        # NB: buffer.dropped.bytes is no longer emitted — the native put_trace path returns a
+        # drop reason but not the rejected chunk's byte size to Python.
         statsd.distribution.assert_has_calls(
             [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
             + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"])]
-            + [
-                mock.call(
-                    "datadog.%s.buffer.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=["reason:t_too_big"]
-                )
-            ],
+            + [mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"])],
             any_order=True,
         )
 
@@ -248,7 +265,7 @@ class NativeWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, buffer_size=1000) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, max_payload_size=2000) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -283,58 +300,54 @@ class NativeWriterTests(BaseTestCase):
             # metrics should be reset after traces are sent
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
 
-            client_count = len(writer._clients)
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:full"]),
+                ],
+                any_order=True,
+            )
+
+    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
+        # max_item_size is clamped to max_size, so a chunk bigger than the whole buffer reports
+        # as t_too_big rather than the misleading "full".
+        statsd = mock.Mock()
+        with (
+            override_global_config(dict(_health_metrics_enabled=True)),
+            managed_writer(
+                self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, max_payload_size=100000, dogstatsd=statsd
+            ) as writer,
+        ):
+            writer.write(
+                [Span(name="a" * i, trace_id=1, span_id=j + 1, parent_id=j or None) for i, j in enumerate(range(50))]
+            )
+            writer.flush_queue()
+
             statsd.distribution.assert_has_calls(
                 [
                     mock.call(
-                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, client_count, tags=["reason:full"]
+                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"]
                     ),
                 ],
                 any_order=True,
             )
 
-    def test_drop_reason_encoding_error(self):
-        n_traces = 10
-        statsd = mock.Mock()
-        writer_encoder = mock.Mock()
-        writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
-        writer_encoder.encode.side_effect = Exception
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
-        ):
-            for client in writer._clients:
-                client.encoder = writer_encoder
-            for i in range(n_traces):
-                writer.write(
-                    [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
-                )
-            writer.flush_queue()
-
-            # writer should have has 10 unsent traces, sent traces should be reset to zero
-            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call("datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None),
-                ]
-                * len(writer._clients),
-                any_order=True,
-            )
-
     def test_keep_rate(self):
         statsd = mock.Mock()
-        writer_run_periodic = mock.Mock()
-        writer_exporter = mock.Mock()
-        writer_exporter_send = mock.Mock()
         with (
-            override_global_config(dict(_health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
+            override_global_config(dict(_health_metrics_enabled=False)),
+            # Long interval so the background periodic thread never flushes mid-test; a small
+            # max_payload_size so the oversized traces are rejected (ItemTooLarge) rather than buffered.
+            managed_writer(
+                self.WRITER_CLASS,
+                "http://asdf:1234",
+                dogstatsd=statsd,
+                api_version="v0.4",
+                processing_interval=1000,
+                max_payload_size=100000,
+            ) as writer,
         ):
-            # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
-            writer.run_periodic = writer_run_periodic
-            writer._exporter = writer_exporter
-            writer._exporter.send = writer_exporter_send
-
+            # The keep rate is stamped onto trace[0] at write time as 1.0 - drop_sma, so read
+            # it back from the span's _KEEP_SPANS_RATE_KEY metric rather than decoding a payload.
             traces = [
                 [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)] for i in range(1, 5)
             ]
@@ -344,62 +357,37 @@ class NativeWriterTests(BaseTestCase):
                 for i in range(4)
             ]
 
-            # 1. We write 4 traces successfully.
+            # 1. We write 4 traces successfully. No previous drops -> 100% kept.
             for trace in traces:
                 writer.write(trace)
             writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_exporter_send.call_args.args[0])
-            # No previous drops.
             assert 0.0 == writer._drop_sma.get()
-            # 4 traces written.
-            assert 4 == len(payload)
-            # 100% of traces kept (refers to the past).
-            # No traces sent before now so 100% kept.
-            for trace in payload:
-                assert 1.0 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
+            for trace in traces:
+                assert 1.0 == trace[0].get_metric(_KEEP_SPANS_RATE_KEY)
 
             # 2. We fail to write 4 traces because of size limitation.
+            # 4 successfully written before and 4 dropped now -> 50% dropped historically.
             for trace in traces_too_big:
                 writer.write(trace)
             writer.flush_queue()
-
-            # 50% of traces were dropped historically.
-            # 4 successfully written before and 4 dropped now.
             assert 0.5 == writer._drop_sma.get()
-            # send not called since no new traces are available.
-            writer_exporter_send.assert_called_once()
 
-            # 3. We write 2 traces successfully.
+            # 3. We write 2 traces successfully. 40% dropped historically; 50% kept at write time.
             for trace in traces[:2]:
                 writer.write(trace)
             writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_exporter_send.call_args.args[0])
-            # 40% of traces were dropped historically.
             assert 0.4 == writer._drop_sma.get()
-            # 2 traces written.
-            assert 2 == len(payload)
-            # 50% of traces kept (refers to the past).
-            # We had 4 successfully written and 4 dropped.
-            for trace in payload:
-                assert 0.5 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
+            for trace in traces[:2]:
+                assert 0.5 == trace[0].get_metric(_KEEP_SPANS_RATE_KEY)
 
             # 4. We write 1 trace successfully and fail to write 3.
+            # 50% dropped historically; 60% kept at write time.
             writer.write(traces[0])
             for trace in traces_too_big[:3]:
                 writer.write(trace)
             writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_exporter_send.call_args.args[0])
-            # 50% of traces were dropped historically.
             assert 0.5 == writer._drop_sma.get()
-            # 1 trace written.
-            assert 1 == len(payload)
-            # 60% of traces kept (refers to the past).
-            # We had 4 successfully written, then 4 dropped, then 2 written.
-            for trace in payload:
-                assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
+            assert 0.6 == traces[0][0].get_metric(_KEEP_SPANS_RATE_KEY)
 
     def test_on_shutdown_idempotent(self):
         """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
@@ -444,10 +432,18 @@ class CIVisibilityWriterTests(NativeWriterTests):
     def test_drop_reason_trace_too_big(self):
         pytest.skip()
 
+    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
+        pytest.skip()
+
     def test_metrics_trace_too_big(self):
         pytest.skip()
 
     def test_keep_rate(self):
+        pytest.skip()
+
+    # CIVisibilityWriter retries with backoff (unlike NativeWriter), making this both slow and
+    # not a meaningful test of NativeWriter._flush()'s buffer-drain/metrics behavior.
+    def test_metrics_generic_send_failure(self):
         pytest.skip()
 
     def test_on_shutdown_idempotent(self):
@@ -775,18 +771,18 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         # test without base path
         endpoint_assert_path(path)
         with managed_writer(writer_class, "http://%s:%s/" % (_HOST, _PORT)) as writer:
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
         with managed_writer(writer_class, "http://%s:%s" % (_HOST, _PORT)) as writer:
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
         with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -798,7 +794,7 @@ def test_flush_connection_timeout_connect(writer_class):
     ):
         exc_type = (OSError, NetworkError)
         with pytest.raises(exc_type):
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -810,7 +806,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
         with pytest.raises((socket.timeout, IoError)):
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -892,7 +888,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -903,7 +899,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
         # IncompleteRead should be raised when the server sends an incomplete chunked response
         exc_types = (httplib.IncompleteRead, NetworkError)
         with pytest.raises(exc_types):
-            writer._encoder.put([Span("foobar")])
+            writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -915,7 +911,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
 def test_flush_connection_uds(endpoint_uds_server):
     url = f"unix://{endpoint_uds_server.server_address}"
     with managed_writer(NativeWriter, url) as writer:
-        writer._encoder.put([Span("foobar")])
+        writer._exporter.put_trace([Span("foobar")], None)
         writer.flush_queue(raise_exc=True)
 
 
@@ -945,7 +941,7 @@ def test_racing_start():
         for t in ts:
             t.join()
 
-        assert len(writer._encoder) == 100
+        assert writer._exporter.buffered_traces() == 100
 
 
 def test_bad_encoding(monkeypatch):
@@ -955,23 +951,21 @@ def test_bad_encoding(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "init_api_version,api_version,endpoint,encoder_cls",
+    "init_api_version,api_version,endpoint",
     [
-        (None, "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
-        ("v0.4", "v0.4", "v0.4/traces", MSGPACK_ENCODERS["v0.4"]),
-        ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
+        (None, "v0.5", "v0.5/traces"),
+        ("v0.4", "v0.4", "v0.4/traces"),
+        ("v0.5", "v0.5", "v0.5/traces"),
     ],
 )
-def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint):
     writer = NativeWriter("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
-    assert isinstance(writer._encoder, encoder_cls)
 
     writer = writer.recreate()
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
-    assert isinstance(writer._encoder, encoder_cls)
 
 
 def test_native_writer_recreate_keeps_stats_opt_out():
