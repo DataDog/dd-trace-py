@@ -15,6 +15,7 @@ crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:lib
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:datadog-ffe"]
 stats = ["dep:libdd-ddsketch"]
+appsec = ["dep:libddwaf-sys"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
@@ -48,6 +49,7 @@ libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v37.
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
+libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "main", version = "2.0.0", optional = true }
 
 [build-dependencies]
 pyo3-build-config = "0.28"

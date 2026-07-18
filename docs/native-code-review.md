@@ -368,8 +368,9 @@ stripped binaries).
 - **Read the actual source code** rather than guessing. For CPython, use
   [github.com/python/cpython](https://github.com/python/cpython) and checkout
   the relevant version tag. For libdatadog, check the pinned version in
-  `src/native/Cargo.toml`. For libddwaf, check the pinned version in
-  `setup.py`. Verify behavior against that version's source, not the latest.
+  `src/native/Cargo.toml`. The libddwaf source is declared there and its exact
+  revision is recorded in `src/native/Cargo.lock`. Verify behavior against
+  that version's source, not the latest.
 - Does this code depend on Python's default behavior for multiprocessing start
   method, GC scheduling, or finalization order?
 - Has this been tested against the latest Python RC/beta?
@@ -495,4 +496,3 @@ def __dealloc__(self):
         ddup_drop_sample(self.ptr)
         self.ptr = NULL
 ```
-

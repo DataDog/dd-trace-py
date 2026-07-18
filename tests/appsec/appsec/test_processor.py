@@ -11,7 +11,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -19,6 +18,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.native._native import appsec as native_appsec
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -263,7 +263,13 @@ def test_ip_update_rules_and_block(tracer):
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
     assert AppSecSpanProcessor._instance
-    assert py_ddwaf_builder_get_config_paths(AppSecSpanProcessor._instance._ddwaf._builder, "ASM/data") == 1
+    config_path = b"ASM/data"
+    assert (
+        native_appsec.libddwaf.ddwaf_builder_get_config_paths(
+            AppSecSpanProcessor._instance._ddwaf._builder, config_path
+        )
+        == 1
+    )
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -391,25 +397,15 @@ def test_appsec_abort_on_waf_failure():
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
     completely if an error is found in the bindings layer.
     """
-    import ctypes
-
     import mock
 
+    from ddtrace.internal.native._native import appsec as native_appsec
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
-    original_cdll = ctypes.CDLL
-
     ERROR_MESSAGE = "mock libddwaf load failure"
 
-    def _raise_on_libddwaf(path, *args, **kwargs):
-        if path == asm_config._asm_libddwaf:
-            raise OSError(ERROR_MESSAGE)
-        return original_cdll(path, *args, **kwargs)
-
-    with (
-        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-    ):
+    with mock.patch.object(native_appsec.libddwaf, "ddwaf_get_version", side_effect=OSError(ERROR_MESSAGE)):
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -584,6 +580,23 @@ def test_ddwaf_run_timeout():
         assert res.timeout is True
 
 
+def test_ddwaf_serializes_concurrent_runs_on_one_context():
+    from concurrent.futures import ThreadPoolExecutor
+
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        waf = DDWaf(rule_set.read(), b"", b"")
+    ctx = waf._at_request_start()
+    assert ctx is not None
+
+    def run(index):
+        return waf.run(ctx, {"server.request.uri.raw": f"/{index}"})
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(run, range(32)))
+
+    assert len(results) == 32
+
+
 def test_ddwaf_info():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
@@ -640,7 +653,8 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     # The bundled default ruleset is the only ASM_DD config loaded at startup.
     assert _ddwaf.initialized
     assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    default_path = ASM_DD_DEFAULT.encode()
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, default_path) == 1
     default_required_data = set(_ddwaf.required_data)
 
     # An ASM_DD payload that libddwaf rejects (here: "rules" is not a list, so no rule loads).
@@ -650,8 +664,9 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     # The update reports failure and the default ruleset is preserved, not the rejected payload.
     assert ok is False
     assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, rejected_path) == 0
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, default_path) == 1
+    rejected_path_bytes = rejected_path.encode()
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, rejected_path_bytes) == 0
     assert _ddwaf.initialized
     assert set(_ddwaf.required_data) == default_required_data
 
@@ -660,7 +675,7 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     ok = _ddwaf.update_rules([("ASM_DD", rejected_path)], [])
     assert ok is True
     assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, default_path) == 1
 
     # A valid ASM_DD payload must still take over and displace the default ruleset.
     with open(rules.RULES_GOOD_PATH) as rule_set:
@@ -670,8 +685,9 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
 
     assert ok is True
     assert _ddwaf._asm_dd_cache == {accepted_path}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 0
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, accepted_path) == 1
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, default_path) == 0
+    accepted_path_bytes = accepted_path.encode()
+    assert native_appsec.libddwaf.ddwaf_builder_get_config_paths(_ddwaf._builder, accepted_path_bytes) == 1
 
 
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
@@ -680,9 +696,10 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch(
-            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
-            side_effect=TypeError("expected c_long instead of int"),
+        mock.patch.object(
+            native_appsec.libddwaf,
+            "ddwaf_context_eval",
+            side_effect=TypeError("invalid native argument"),
         ),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
@@ -711,7 +728,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
             )
 
     assert get_triggers(span) is None
-    assert "TypeError: expected c_long instead of int" in caplog.text
+    assert "TypeError: invalid native argument" in caplog.text
 
 
 def test_ddwaf_run_contained_oserror(tracer, caplog):
@@ -720,7 +737,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
+        mock.patch.object(native_appsec.libddwaf, "ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(

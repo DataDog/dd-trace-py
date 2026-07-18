@@ -30,8 +30,6 @@ pygoat/*
 ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/_ddwaf/libddwaf/
-libddwaf*.sha256
 ddtrace/internal/datadog/profiling/libdatadog/
 
 # Distribution / packaging

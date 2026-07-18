@@ -8,8 +8,6 @@ import pytest
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-import ddtrace.appsec._ddwaf.ddwaf_types
-import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import enable_asm
@@ -18,6 +16,7 @@ from ddtrace.appsec._utils import _observator
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.native._native import appsec as native_appsec
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -296,7 +295,7 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         assert "waf_version:{}".format(asm_config._ddwaf_version) in list_metrics_logs[0]["tags"]
 
 
-unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_context_eval
+unpatched_run = native_appsec.libddwaf.ddwaf_context_eval
 
 
 def _wrapped_run(*args, **kwargs):
@@ -304,7 +303,7 @@ def _wrapped_run(*args, **kwargs):
     return -3
 
 
-@mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_context_eval", new=_wrapped_run)
+@mock.patch.object(native_appsec.libddwaf, "ddwaf_context_eval", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
 
