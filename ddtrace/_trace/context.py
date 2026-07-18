@@ -59,6 +59,13 @@ class _VersionedMeta(dict[str, str]):
         self._v = 0
         self._prop_cache = None
 
+    def __reduce__(self) -> Any:
+        # Reconstruct through __init__ (bulk dict init) on unpickle. The default dict-subclass
+        # reduce restores items via __setitem__ *before* the slot state, which would touch `_v`
+        # before it exists; rebuilding from a plain dict initializes `_v`/`_prop_cache` correctly
+        # (and drops the derived `_prop_cache`, which is recomputed on next access).
+        return (self.__class__, (dict(self),))
+
     def _bump(self) -> None:
         self._v += 1
         self._prop_cache = None
