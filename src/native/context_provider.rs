@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods as _, PyTuple};
+use pyo3::types::PyTuple;
 use pyo3::{intern, Bound, Py, PyAny, PyResult, Python};
 
 use crate::contextvar::{contextvar_get, safe_contextvar_set};
@@ -13,27 +13,31 @@ use crate::event_hub::dispatch as event_dispatch;
 /// reached via normal attribute resolution on the Python subclass.
 ///
 /// `contextvar`/`span_type` are stored as opaque Python handles (never read from Rust
-/// as native types) so we pay no conversion cost. `__new__` accepts them as optional to
-/// stay compatible with provider subclasses (tornado/ci_visibility/llmobs) that construct
-/// via `BaseContextProvider.__init__` and never populate these.
-#[pyo3::pyclass(name = "DefaultContextProvider", module = "ddtrace.internal._native", subclass)]
+/// as native types) so we pay no conversion cost. Both are `Option` so a provider subclass
+/// (tornado/ci_visibility/llmobs) that constructs via `BaseContextProvider.__init__` and
+/// never populates these is represented as `None` (unconfigured).
+#[pyo3::pyclass(
+    name = "DefaultContextProvider",
+    module = "ddtrace.internal._native",
+    subclass
+)]
 pub struct DefaultContextProvider {
-    /// The `_DD_CONTEXTVAR` object (a `contextvars.ContextVar`), or Python `None` when a
-    /// subclass constructs without supplying it. Stored as an opaque handle — never read
-    /// from Rust as a native type.
-    contextvar: Py<PyAny>,
-    /// The Python `Span` class, used for the exact-type check. Python `None` when unset.
-    span_type: Py<PyAny>,
+    /// The `_DD_CONTEXTVAR` object (a `contextvars.ContextVar`), or `None` when a subclass
+    /// constructs without supplying it. Stored as an opaque handle — never read from Rust
+    /// as a native type.
+    contextvar: Option<Py<PyAny>>,
+    /// The Python `Span` class, used for the exact-type check. `None` when unset.
+    span_type: Option<Py<PyAny>>,
 }
 
 #[pyo3::pymethods]
 impl DefaultContextProvider {
     #[new]
     #[pyo3(signature = (contextvar=None, span_type=None))]
-    fn new(py: Python<'_>, contextvar: Option<Py<PyAny>>, span_type: Option<Py<PyAny>>) -> Self {
+    fn new(contextvar: Option<Py<PyAny>>, span_type: Option<Py<PyAny>>) -> Self {
         DefaultContextProvider {
-            contextvar: contextvar.unwrap_or_else(|| py.None()),
-            span_type: span_type.unwrap_or_else(|| py.None()),
+            contextvar,
+            span_type,
         }
     }
 
@@ -41,22 +45,24 @@ impl DefaultContextProvider {
     /// `__new__`, so a Python subclass cannot forward these through `super().__init__`;
     /// it calls this from its own `__init__` instead.
     fn _configure(&mut self, contextvar: Py<PyAny>, span_type: Py<PyAny>) {
-        self.contextvar = contextvar;
-        self.span_type = span_type;
+        self.contextvar = Some(contextvar);
+        self.span_type = Some(span_type);
     }
 
     /// Exposed so Python (e.g. the gevent integration) and subclasses keep access to the
-    /// underlying contextvar object.
+    /// underlying contextvar object. Returns Python `None` when unconfigured.
     #[getter]
     fn _contextvar(&self, py: Python<'_>) -> Py<PyAny> {
-        self.contextvar.clone_ref(py)
+        self.contextvar
+            .as_ref()
+            .map_or_else(|| py.None(), |v| v.clone_ref(py))
     }
 
     fn _has_active_context(&self, py: Python<'_>) -> PyResult<bool> {
-        let var = self.contextvar.bind(py);
-        if var.is_none() {
-            return Ok(false);
-        }
+        let var = match &self.contextvar {
+            Some(v) => v.bind(py),
+            None => return Ok(false),
+        };
         Ok(!contextvar_get(py, var)?.is_none())
     }
 
@@ -68,11 +74,11 @@ impl DefaultContextProvider {
     /// `PyContextVar_Set` is safe and slightly cheaper; branching on version is a follow-up
     /// (the perf-harness runs 3.10, which takes the safe path either way).
     fn activate(&self, py: Python<'_>, ctx: &Bound<'_, PyAny>) -> PyResult<()> {
-        let var = self.contextvar.bind(py);
-        if var.is_none() {
+        let var = match &self.contextvar {
+            Some(v) => v.bind(py),
             // Unconfigured native base (a subclass that overrides activate); no-op.
-            return Ok(());
-        }
+            None => return Ok(()),
+        };
         safe_contextvar_set(py, var, ctx)?;
         let args = PyTuple::new(py, [ctx])?;
         event_dispatch(
@@ -96,10 +102,10 @@ impl DefaultContextProvider {
         let is_span;
         {
             let this = slf.borrow();
-            let var = this.contextvar.bind(py);
-            if var.is_none() {
-                return Ok(py.None().into_bound(py));
-            }
+            let var = match &this.contextvar {
+                Some(v) => v.bind(py),
+                None => return Ok(py.None().into_bound(py)),
+            };
             item = contextvar_get(py, var)?;
             if item.is_none() {
                 return Ok(item);
@@ -107,8 +113,10 @@ impl DefaultContextProvider {
             // `type(item) is Span` — exact-type identity via pointer compare (no isinstance,
             // no coercion). A Context or None fails this and is returned as-is, matching the
             // Python provider.
-            let span_type = this.span_type.bind(py);
-            is_span = !span_type.is_none() && item.get_type().as_ptr() == span_type.as_ptr();
+            is_span = match &this.span_type {
+                Some(span_type) => item.get_type().as_ptr() == span_type.as_ptr(),
+                None => false,
+            };
         }
         if is_span {
             if item.getattr(intern!(py, "duration_ns"))?.is_none() {
@@ -130,7 +138,11 @@ impl DefaultContextProvider {
     /// walk is almost always a single step (a parent that finished before its child is a
     /// programming error).
     #[pyo3(name = "_update_active")]
-    fn update_active<'py>(&self, py: Python<'py>, span: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    fn update_active<'py>(
+        &self,
+        py: Python<'py>,
+        span: Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let mut new_active = span.clone();
         loop {
             if new_active.is_none() {
@@ -158,6 +170,27 @@ impl DefaultContextProvider {
 
     fn __call__<'py>(slf: &Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         Self::active(slf, py)
+    }
+
+    /// PyO3 does not auto-derive the cyclic-GC protocol; this pyclass holds `Py<PyAny>`
+    /// fields, so it must visit them. The provider is a long-lived singleton whose fields
+    /// (a `ContextVar` and the `Span` class) are effectively atomic and never close a cycle,
+    /// but traversal is still required for correct refcount accounting (and to satisfy the
+    /// `pyclass-missing-traverse` lint). See `src/native/span/span_data.rs`.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(v) = &self.contextvar {
+            visit.call(v)?;
+        }
+        if let Some(t) = &self.span_type {
+            visit.call(t)?;
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        // Drop owned Python references so CPython can break any cycle through this object.
+        self.contextvar = None;
+        self.span_type = None;
     }
 }
 

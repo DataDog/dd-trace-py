@@ -67,7 +67,10 @@ pub fn safe_contextvar_set(
 /// null pointer) when the variable is unset; a truly-unset var with no default yields
 /// Python `None`.
 #[inline]
-pub fn contextvar_get<'py>(py: Python<'py>, var: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+pub fn contextvar_get<'py>(
+    py: Python<'py>,
+    var: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
     // SAFETY: the GIL is held for the whole call; `var` is a live ContextVar object.
     unsafe {
         let mut value: *mut ffi::PyObject = std::ptr::null_mut();
