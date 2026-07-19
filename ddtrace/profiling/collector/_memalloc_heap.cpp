@@ -1,6 +1,9 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <deque>
 #include <memory>
 #include <random>
 #include <vector>
@@ -111,8 +114,9 @@ class heap_tracker_t
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
+     * is deleted internally. ``domain`` is recorded only for the track/untrack
+     * balance instrumentation. */
+    void add_sample_no_cpython(void* ptr, PyMemAllocatorDomain domain, std::unique_ptr<traceback_t> tb);
 
     void export_heap_no_cpython();
 
@@ -134,6 +138,10 @@ class heap_tracker_t
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
+    /* Self-healing cap: drop the oldest still-live tracked entry to make room.
+     * GIL-held, no CPython calls, only std-allocated containers touched. */
+    void evict_oldest_no_cpython();
+
     /* This function is called from heap_tracker_t::postfork_child() as part of
        the fork handler to reset the sampling state. */
     void reset_sampling_state_no_cpython();
@@ -152,13 +160,28 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
+    /* Insertion-order queue of keys in allocs_m, used by the self-healing cap to
+     * evict the oldest live entry. Entries whose pointer has since been untracked
+     * remain as tombstones and are drained lazily (in add_sample / eviction), so
+     * fifo_m stays bounded without needing O(n) removal on untrack. Uses the std
+     * allocator (libc malloc), so it never re-enters the Python allocator hooks. */
+    std::deque<void*> fifo_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
-    /* Number of samples silently dropped because allocs_m hit the cap.
-     * Accumulated across the lifetime of this tracker instance and surfaced
-     * via ProfilerStats so the backend / user can detect data loss. */
-    size_t cap_drops{ 0 };
+    /* Number of oldest entries evicted because allocs_m hit the cap. Surfaced via
+     * ProfilerStats (heap_tracker_cap_drops) so the backend / user can detect that
+     * the live set is saturated and being aged out. */
+    size_t cap_evictions{ 0 };
+
+    /* Track/untrack balance instrumentation. A persistently growing
+     * (track_count_obj + track_count_mem - untrack_count) with the map pinned near
+     * the cap pinpoints which domain's frees are bypassing the untrack hook (the
+     * ghost-accumulation root cause). Logged from export when
+     * _DD_MEMALLOC_HEAP_DEBUG_STATS is set. */
+    size_t track_count_obj{ 0 };
+    size_t track_count_mem{ 0 };
+    size_t untrack_count{ 0 };
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -241,7 +264,35 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
+        ++untrack_count;
         pool_put_no_cpython(std::move(node.mapped()));
+    }
+    /* Any matching entry left in fifo_m is now a tombstone; it is drained lazily
+     * in add_sample_no_cpython / evict_oldest_no_cpython. */
+}
+
+void
+heap_tracker_t::evict_oldest_no_cpython()
+{
+    /* Discard leading tombstones (pointers already untracked) then evict the
+     * oldest still-live entry. */
+    while (!fifo_m.empty()) {
+        void* oldest = fifo_m.front();
+        fifo_m.pop_front();
+        auto node = allocs_m.extract(oldest);
+        if (!node.empty()) {
+            pool_put_no_cpython(std::move(node.mapped()));
+            ++cap_evictions;
+            return;
+        }
+    }
+    /* fifo_m exhausted but map still populated (should not happen): drop an
+     * arbitrary entry so the caller is guaranteed room. */
+    if (!allocs_m.empty()) {
+        auto it = allocs_m.begin();
+        pool_put_no_cpython(std::move(it->second));
+        allocs_m.erase(it);
+        ++cap_evictions;
     }
 }
 
@@ -257,28 +308,52 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    /* This cap bounds memory use but creates blind spots: once allocs_m is full,
-     * new allocations are not sampled. cap_drops tracks how often this happens
-     * so we can observe whether the limit is ever reached in practice. */
+    /* Self-heal instead of freezing. Previously, once allocs_m hit the cap the
+     * sampler stopped forever and the reported heap-live-size stayed pinned at a
+     * saturated value made largely of "ghost" entries (freed allocations whose
+     * free bypassed our untrack hook, e.g. via CPython free-lists). Evicting the
+     * oldest live entry turns the live set into a rolling window that ages ghosts
+     * out, so heap-live-size tracks the recent working set instead of climbing
+     * without bound. This bounds the *symptom*; the definitive fix is closing the
+     * untrack bypass identified by the instrumentation below.
+     * UNVERIFIED: pending the CI build + churn regression. */
     if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
-        ++cap_drops;
-        reset_sampling_state_no_cpython();
-        return false;
+        evict_oldest_no_cpython();
     }
 
     return true;
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, PyMemAllocatorDomain domain, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
+
+#ifdef _PY312_AND_LATER
+    if (domain == PYMEM_DOMAIN_MEM) {
+        ++track_count_mem;
+    } else {
+        ++track_count_obj;
+    }
+#else
+    (void)domain;
+    ++track_count_obj;
+#endif
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
     (void)it; // Unused, but needed for structured binding
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
+
+    /* Record insertion order for the self-healing cap, and opportunistically
+     * drain a few leading tombstones so fifo_m stays bounded even when the cap is
+     * never reached. The budget keeps this amortized O(1). */
+    size_t drain_budget = 4;
+    while (drain_budget-- > 0 && !fifo_m.empty() && allocs_m.find(fifo_m.front()) == allocs_m.end()) {
+        fifo_m.pop_front();
+    }
+    fifo_m.push_back(ptr);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -297,7 +372,22 @@ heap_tracker_t::export_heap_no_cpython()
 
     auto& stats = Datadog::Sample::profile_borrow().stats();
     stats.set_heap_tracker_size(allocs_m.size());
-    stats.set_heap_tracker_cap_drops(cap_drops);
+    stats.set_heap_tracker_cap_drops(cap_evictions);
+
+    /* Diagnostic to pin the exact untrack bypass: a persistently growing
+     * (track - untrack) with the map pinned near the cap identifies the leaking
+     * domain (the ghost-accumulation root cause). Silent unless explicitly
+     * enabled so production is unaffected. */
+    static const bool debug_stats = (std::getenv("_DD_MEMALLOC_HEAP_DEBUG_STATS") != nullptr);
+    if (debug_stats) {
+        std::fprintf(stderr,
+                     "[memalloc-heap] live=%zu track_obj=%zu track_mem=%zu untrack=%zu evictions=%zu\n",
+                     allocs_m.size(),
+                     track_count_obj,
+                     track_count_mem,
+                     untrack_count,
+                     cap_evictions);
+    }
 }
 
 void
@@ -324,8 +414,12 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
+    fifo_m.clear();
 
-    cap_drops = 0;
+    cap_evictions = 0;
+    track_count_obj = 0;
+    track_count_mem = 0;
+    untrack_count = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
@@ -369,7 +463,6 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
         return;
     }
@@ -447,7 +540,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, domain, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }

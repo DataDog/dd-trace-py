@@ -1571,3 +1571,76 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+def _measure_live_churn_samples(mc: "memalloc.MemoryCollector", output_filename: str, n_iter: int, size: int) -> int:
+    """Churn ``n_iter`` MEM-domain allocations (allocate then immediately free each),
+    flush CPython free lists, then return the number of live heap-space samples still
+    attributed to ``_make_mem_domain_object``.
+
+    Every object is unreferenced and ``gc.collect()`` is called before measuring, so a
+    correct heap tracker must report ~0 live samples for the churned allocations. If
+    freed MEM-domain allocations are not untracked (the ai_gateway staging bug), they
+    linger as "ghost" entries and this count grows roughly linearly with ``n_iter``.
+    """
+    for _ in range(n_iter):
+        obj = _make_mem_domain_object(size)
+        # Force a real, non-trivial free through the MEM free hook rather than letting
+        # CPython reuse the same block: mutate then drop the last reference.
+        if isinstance(obj, bytearray):
+            obj[-1:] = b"\x00"
+        del obj
+    # Flush type-specific free lists so cached-but-dead objects don't masquerade as live.
+    gc.collect()
+    mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    return _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_churn_does_not_inflate_live_heap(tmp_path: Path) -> None:
+    """Regression for the ai_gateway staging heap-live-size explosion.
+
+    With ``mem_domain_enabled=True`` a high-churn workload (allocate + free MEM-domain
+    buffers in a loop) reported an ever-growing heap-live-size (TiB) while container RSS
+    stayed flat -- a phantom leak. Root cause: ``heap-space`` is the sum of
+    ``allocated_memory_val`` over *live* tracked entries, so freed-but-not-untracked
+    "ghost" entries inflate it without bound. Each sampled live allocation contributes
+    ~R bytes, so the live *sample count* attributed to the churn function is a direct,
+    RSS-independent proxy for the bug.
+
+    Invariant: after churning N MEM-domain allocations where every object is freed
+    (+ ``gc.collect()``), the live sample count must stay bounded and must NOT scale with
+    N. Pre-fix this fails (count grows ~linearly with the iteration count); post-fix both
+    magnitudes stay near zero.
+    """
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_churn")
+    # 64 KiB sampling interval so 256 KiB churn objects are reliably sampled (~4 samples
+    # each while live); every one must disappear from the live set once freed.
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024, mem_domain_enabled=True)
+    size: int = 256 * 1024
+
+    with mc:
+        # Warm-up churn establishes a baseline for the steady-state live count.
+        live_baseline: int = _measure_live_churn_samples(mc, output_filename, n_iter=200, size=size)
+        # 5x the churn. A correct tracker untracks every freed allocation, so the live
+        # count stays flat; a leaking tracker accumulates ~5x more ghosts.
+        live_heavy: int = _measure_live_churn_samples(mc, output_filename, n_iter=1000, size=size)
+
+    # Absolute bound: all 1000 heavy-churn objects are freed, so almost none may remain
+    # live. Ghost accumulation would leave hundreds/thousands of sampled entries here.
+    assert live_heavy < 50, (
+        f"Live heap-space samples for freed MEM-domain churn did not drop: {live_heavy} "
+        f"entries remain live after freeing 1000 allocations + gc.collect() "
+        f"(baseline after 200 was {live_baseline}). This is the ghost-accumulation bug: "
+        f"freed MEM-domain allocations are not being untracked, so heap-live-size inflates."
+    )
+    # Scaling bound: 5x the work must not produce ~5x the live entries. Allow generous
+    # slack for sampling jitter and objects still resident in free lists.
+    assert live_heavy <= live_baseline + 25, (
+        f"Live heap-space samples scale with churn volume "
+        f"(baseline={live_baseline}, heavy={live_heavy}); freed MEM-domain allocations "
+        f"are accumulating as ghost entries in the heap tracker."
+    )
