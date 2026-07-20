@@ -657,7 +657,7 @@ integrations:
   tested_versions_by_dependency:
     mistralai:
       min: 2.0.5
-      max: 2.4.9
+      max: 2.7.0
 
 - integration_name: mlflow
   is_external_package: true
@@ -985,7 +985,7 @@ integrations:
   tested_versions_by_dependency:
     structlog:
       min: 20.2.0
-      max: 25.5.0
+      max: 26.1.0
 
 - integration_name: subprocess
   is_external_package: false

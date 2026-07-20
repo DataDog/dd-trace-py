@@ -2631,6 +2631,13 @@
         ]
       }
     ],
+    "DD_OPENAI_REALTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_OPENAI_SERVICE": [
       {
         "implementation": "A",
