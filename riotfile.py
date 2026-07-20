@@ -538,9 +538,7 @@ venv = Venv(
         # has version-specific code so tests are run across all supported versions
         Venv(
             name="dd_coverage",
-            command="pytest --cov-reset --cov=ddtrace/ {cmdargs} tests/coverage -s",
-            # Keep --cov-append data local to this container instead of reusing coverage from other suites.
-            env={"COVERAGE_FILE": "/tmp/dd_coverage"},  # nosec B108 - ephemeral test container
+            command="pytest --no-cov {cmdargs} tests/coverage -s",
             pys=select_pys(),
         ),
         Venv(
