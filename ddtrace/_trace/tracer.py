@@ -631,14 +631,11 @@ class Tracer(object):
         return span
 
     def _on_span_finish(self, span: Span) -> None:
-        if log.isEnabledFor(logging.DEBUG):
-            active = self.current_span()
-            # Debug check: if the finishing span has a parent and its parent
-            # is not the next active span then this is an error in synchronous tracing.
-            if span._parent is not None and active is not span._parent:
-                log.debug(
-                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
-                )
+        active = self.current_span()
+        # Debug check: if the finishing span has a parent and its parent
+        # is not the next active span then this is an error in synchronous tracing.
+        if span._parent is not None and active is not span._parent:
+            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
