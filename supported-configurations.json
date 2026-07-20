@@ -866,6 +866,13 @@
         "default": "true"
       }
     ],
+    "DD_CIVISIBILITY_ITR_SKIP": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_CIVISIBILITY_LOG_LEVEL": [
       {
         "implementation": "A",

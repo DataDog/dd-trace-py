@@ -48,7 +48,13 @@ class TestSkippingAndITRFeatures:
     """Test intelligent test running and skipping functionality."""
 
     def test_skippable_test_without_attempt_to_fix_gets_skipped(self) -> None:
-        """Test that a skippable test that is NOT attempt_to_fix gets skipped."""
+        """A skippable, non-attempt_to_fix test still gets runtime-marked under the DD_CIVISIBILITY_ITR_SKIP opt-out.
+
+        Under the default (test-level deselect-at-collection) behavior, a test-level-skippable test
+        never reaches pytest_runtest_protocol_wrapper at all — it's removed from `items` in
+        pytest_collection_modifyitems. DD_CIVISIBILITY_ITR_SKIP=1 reverts to the pre-deselect
+        behavior of marking it skipped at runtime instead, which is what this test covers.
+        """
         # Create test references using TestDataFactory
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
 
@@ -70,6 +76,7 @@ class TestSkippingAndITRFeatures:
         with (
             patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
             patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch.dict(os.environ, {"DD_CIVISIBILITY_ITR_SKIP": "1"}),
         ):
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
@@ -120,7 +127,12 @@ class TestSkippingAndITRFeatures:
         assert len(itr_skip_calls) == 0, "Test should not be skipped with ITR reason when is_attempt_to_fix=True"
 
     def test_suite_level_skipping_works(self) -> None:
-        """Test that tests from a skippable suite get skipped."""
+        """Test that tests from a skippable suite get skipped.
+
+        This exercises the pytest_ignore_collect fallback: when a file contains the unskippable
+        marker anywhere, the whole file is collected normally instead of ignored wholesale, and
+        _handle_itr becomes the only remaining skip point for its (still-skippable) tests.
+        """
         # Create test references using TestDataFactory
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
         suite_ref = test_ref.suite
@@ -129,6 +141,7 @@ class TestSkippingAndITRFeatures:
         mock_manager = (
             session_manager_mock()
             .with_skipping_enabled(True)
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
             .with_skippable_items({suite_ref})  # Suite is skippable, not individual test
             .build_mock()
         )
@@ -586,6 +599,42 @@ class TestSessionManagement:
             plugin.pytest_sessionstart(mock_session)
 
         assert plugin.is_xdist_worker is True
+
+    def test_session_start_xdist_gw0_is_itr_skip_event_owner(self) -> None:
+        """gw0 is elected as the sole owner responsible for emitting ITR-skip events/metrics."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {"dd_session_id": "test-session-123", "workerid": "gw0"}
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = ["test_arg1"]
+        mock_config.invocation_params = mock_invocation_params
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin._is_itr_skip_event_owner is True
+
+    def test_session_start_xdist_non_gw0_is_not_itr_skip_event_owner(self) -> None:
+        """Workers other than gw0 must not emit ITR-skip events/metrics, to avoid duplicating counts."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {"dd_session_id": "test-session-123", "workerid": "gw1"}
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = ["test_arg1"]
+        mock_config.invocation_params = mock_invocation_params
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin._is_itr_skip_event_owner is False
 
     def test_get_test_command_extraction(self) -> None:
         """Test that the pytest session command is properly extracted."""

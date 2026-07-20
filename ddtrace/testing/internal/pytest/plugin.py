@@ -327,11 +327,12 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
-        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
-        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
-        # same ignored suites), but we must only report/count them once per session. We elect the
-        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
-        self._is_itr_ignored_suite_event_owner = True
+        # Whether this process is responsible for emitting ITR-skip events/metrics (both
+        # suite-level ignore events and test-level deselect counts). Every xdist worker performs a
+        # full, unsharded collection pass (so they all discover the same ignored suites/deselected
+        # tests), but we must only report/count them once per session. We elect the first worker
+        # ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_skip_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -349,7 +350,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
-                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+                self._is_itr_skip_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -407,7 +408,11 @@ class TestOptPlugin:
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
-        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+        # Also handle test-level deselection: when all tests are deselected at the item level,
+        # pytest still returns NO_TESTS_COLLECTED, so check if any tests were skipped.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and (
+            self._itr_ignored_suite_paths or self.session.tests_skipped_by_itr > 0
+        ):
             session.exitstatus = pytest.ExitCode.OK
 
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
@@ -476,6 +481,13 @@ class TestOptPlugin:
 
         self.manager.finish()
 
+    def _should_deselect(self, item: pytest.Item) -> bool:
+        if _is_test_unskippable(item):
+            return False
+        if self.manager.is_skippable_test(test_ref := item_to_test_ref(item)):
+            return not ((test_props := self.manager.test_properties.get(test_ref)) and test_props.attempt_to_fix)
+        return False
+
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
     ) -> None:
@@ -490,6 +502,23 @@ class TestOptPlugin:
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
+
+        elif (
+            not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP"))
+            and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+            and self.manager.settings.skipping_enabled
+            and self.manager.skippable_items
+        ):
+            selected = []
+            deselected = []
+            for item in items:
+                (deselected if self._should_deselect(item) else selected).append(item)
+
+            if deselected:
+                items[:] = selected
+                config.hook.pytest_deselected(items=deselected)
+                if self._is_itr_skip_event_owner:
+                    self.session.tests_skipped_by_itr += len(deselected)
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -545,10 +574,10 @@ class TestOptPlugin:
         ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
 
         Under xdist, every worker performs a full, unsharded collection pass and so discovers the
-        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        same ignored suites; only the elected owner (see `_is_itr_skip_event_owner`)
         actually emits events/metrics to avoid multiplying counts by the number of workers.
         """
-        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
+        if not self._itr_ignored_suite_paths or not self._is_itr_skip_event_owner:
             return
 
         # Use rootdir so module names match what item_to_test_ref produces from nodeids.
@@ -1112,6 +1141,12 @@ class TestOptPlugin:
             test.mark_forced_run()
             return
 
+        if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
+            # Test-level skippable tests are already deselected in pytest_collection_modifyitems.
+            # Suite-level skippable tests reach here only via the pytest_ignore_collect fallback (a
+            # file containing the unskippable marker), so this is still their only skip point.
+            return
+
         if test.is_attempt_to_fix():
             return
 
@@ -1399,6 +1434,10 @@ class XdistTestOptPlugin:
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
         """
         Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
+
+        Both suite-level ignores and test-level deselects are counted only by the elected owner
+        worker (see `_is_itr_skip_event_owner`); every other worker reports 0, so summing across
+        workers here is always "owner's true count + zeros", never multiplied by worker count.
         """
         if not hasattr(node, "workeroutput"):
             return

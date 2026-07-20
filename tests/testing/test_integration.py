@@ -305,7 +305,7 @@ class TestFeaturesWithMocking:
         assert "test_known_test PASSED" in output
 
     def test_intelligent_test_runner_with_pytester(self, pytester: Pytester) -> None:
-        """Test that IntelligentTestRunner skips tests marked as skippable."""
+        """Test that IntelligentTestRunner deselects tests marked as skippable."""
         # Create a test file with multiple tests
         pytester.makepyfile(
             test_itr="""
@@ -336,19 +336,13 @@ class TestFeaturesWithMocking:
         # Check that tests completed successfully
         assert result.ret == 0  # Exit code 0 indicates success
 
-        # Verify outcomes: one test skipped by ITR, one test passed
-        result.assert_outcomes(passed=1, skipped=1)
+        # The ITR-skippable test is deselected at collection time, not skip-marked, so pytest's own
+        # outcome counters and stdout don't show it as skipped — only the passed test is counted.
+        result.assert_outcomes(passed=1)
 
-        # Check the output for ITR skip indicators
+        # Check the output for ITR deselection indicators
         output = result.stdout.str()
-
-        # Verify that ITR skipped the test with the correct reason
-        assert "SKIPPED" in output
-        # The reason might be truncated in the output, so check for the beginning of the message
-        assert "Skipped by Datadog" in output
-
-        # The skippable test should be marked as skipped, the other should pass
-        assert "test_should_be_skipped SKIPPED" in output
+        assert "1 deselected" in output
         assert "test_should_run PASSED" in output
 
 
