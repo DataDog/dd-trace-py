@@ -1034,6 +1034,16 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    auto error = Sampler::get().take_sampling_thread_error();
+    if (!error.has_value()) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("(ss)", error->type_name.c_str(), error->message.c_str());
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -1117,6 +1127,10 @@ static PyMethodDef stack_methods[] = {
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
       "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "take_sampling_thread_error",
+      stack_take_sampling_thread_error,
+      METH_NOARGS,
+      "Return and clear the (error_type, message) that terminated the sampling thread, or None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
