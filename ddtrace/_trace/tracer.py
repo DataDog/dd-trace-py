@@ -130,6 +130,15 @@ def _default_span_processors_factory(
     return span_processors
 
 
+if sys.platform == "linux":
+
+    def _sync_otel_thread_context(ctx: Optional[Union[Context, Span]]) -> None:
+        if type(ctx) is Span:
+            update_otel_thread_context(ctx, ctx._local_root_value)
+        else:
+            detach_otel_thread_context()
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -172,7 +181,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider: BaseContextProvider = DefaultContextProvider()
+        self.context_provider = DefaultContextProvider()
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -214,6 +223,18 @@ class Tracer(object):
             self._config_on_disk = store_metadata(metadata)
         except Exception as e:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
+
+    @property
+    def context_provider(self) -> BaseContextProvider:
+        return self._context_provider
+
+    @context_provider.setter
+    def context_provider(self, value: BaseContextProvider) -> None:
+        if sys.platform == "linux":
+            if hasattr(self, "_context_provider"):
+                self._context_provider._remove_activation_listener(_sync_otel_thread_context)
+            value._add_activation_listener(_sync_otel_thread_context)
+        self._context_provider = value
 
     @property
     def _agent_url(self) -> Optional[str]:
@@ -326,14 +347,6 @@ class Tracer(object):
         core.dispatch("trace.log_correlation_context", (log_context,))
         return log_context
 
-    if sys.platform == "linux":
-
-        def _sync_otel_thread_context(self, ctx: Optional[Union[Context, Span]]) -> None:
-            if type(ctx) is Span:
-                update_otel_thread_context(ctx, ctx._local_root_value)
-            else:
-                detach_otel_thread_context()
-
     def configure(
         self,
         context_provider: Optional[BaseContextProvider] = None,
@@ -396,13 +409,7 @@ class Tracer(object):
             )
 
         if context_provider is not None:
-            if sys.platform == "linux":
-                self.context_provider._remove_activation_listener(self._sync_otel_thread_context)
-
             self.context_provider = context_provider
-
-            if sys.platform == "linux":
-                self.context_provider._add_activation_listener(self._sync_otel_thread_context)
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
