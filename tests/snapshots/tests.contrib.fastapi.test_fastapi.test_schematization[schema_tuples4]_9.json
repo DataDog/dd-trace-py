@@ -10,8 +10,8 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de533d00000000",
-      "_dd.svc_src": "httpx",
+      "_dd.p.tid": "6a5e8acd00000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "httpx",
       "http.method": "GET",
@@ -20,7 +20,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "aac45c6da04845b686aaf611781f5c85",
+      "runtime-id": "3a9fd06dfc5e4dbcb35c6fd1f8525b09",
       "span.kind": "client"
     },
     "metrics": {
@@ -28,10 +28,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 85775.0
+      "process_id": 716.0
     },
-    "duration": 2043250,
-    "start": 1776177981417115422
+    "duration": 3200708,
+    "start": 1784580813092035970
   },
      {
        "name": "fastapi.request",
@@ -43,7 +43,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "69de533d00000000",
+         "_dd.p.tid": "6a5e8acd00000000",
          "_dd.svc_src": "m",
          "component": "fastapi",
          "http.method": "GET",
@@ -54,8 +54,8 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 1188208,
-       "start": 1776177981417683339
+       "duration": 2405500,
+       "start": 1784580813092496386
      },
         {
           "name": "fastapi.request",
@@ -67,7 +67,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "69de533d00000000",
+            "_dd.p.tid": "6a5e8acd00000000",
             "_dd.svc_src": "m",
             "component": "fastapi",
             "http.method": "GET",
@@ -77,8 +77,8 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 978333,
-          "start": 1776177981417901381
+          "duration": 2192333,
+          "start": 1784580813092716845
         },
            {
              "name": "fastapi.serialize_response",
@@ -90,9 +90,9 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.tid": "69de533d00000000",
+               "_dd.p.tid": "6a5e8acd00000000",
                "_dd.svc_src": "m"
              },
-             "duration": 28000,
-             "start": 1776177981418758464
+             "duration": 50834,
+             "start": 1784580813094757886
            }]]

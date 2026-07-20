@@ -825,7 +825,7 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
     [
         (None, None, "fastapi", "fastapi.request"),
         (None, "v0", "fastapi", "fastapi.request"),
-        (None, "v1", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, "http.server.request"),
+        (None, "v1", "httpx", "http.server.request"),
         ("mysvc", None, "mysvc", "fastapi.request"),
         ("mysvc", "v0", "mysvc", "fastapi.request"),
         ("mysvc", "v1", "mysvc", "http.server.request"),
