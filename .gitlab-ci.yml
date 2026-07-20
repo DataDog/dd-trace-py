@@ -462,79 +462,8 @@ detect_circular_imports:
       - claude.stdout.log
     expire_in: 1 month
 
-
-package-oci:
-  needs:
-    - job: "package version"
-      artifacts: true
-    - job: "build linux"
-      artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
-
-configure_system_tests:
-  needs: []
-  variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
-
-system_tests:
-  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
-
-deploy_to_reliability_env:
-  needs: []
-  rules:
-    # Always deploy on main nightly builds
-    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
-      when: always
-    # Original rules from one-pipeline.yml
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - when: manual
-      allow_failure: true
-
 deploy_to_di_backend:manual:
-  stage: shared-pipeline
+  stage: tests
   rules:
     - when: manual
       allow_failure: true
@@ -554,7 +483,7 @@ deploy_to_di_backend:manual:
 # Runs the prof-correctness test suite (Python scenarios) against the wheels
 # uploaded to S3 for this commit.
 prof-correctness:
-  stage: shared-pipeline
+  stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: ["arch:amd64"]
   needs:
