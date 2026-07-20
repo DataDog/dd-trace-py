@@ -4,7 +4,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.servicebus.management import ServiceBusAdministrationClient
 import pytest
 
-from tests.contrib.azure_servicebus.common import CONNECTION_STRING
+from tests.contrib.azure_servicebus.common import MANAGEMENT_CONNECTION_STRING
 from tests.contrib.azure_servicebus.common import PARALLEL_QUEUE_COUNT
 from tests.contrib.azure_servicebus.common import get_queue_name
 
@@ -12,9 +12,13 @@ from tests.contrib.azure_servicebus.common import get_queue_name
 @pytest.fixture(scope="session", autouse=True)
 def ensure_servicebus_test_queue():
     # AIDEV-NOTE: CI GitLab services use the stock emulator image without a mounted Config.json.
-    # Create the per-job queue at runtime when it is not already provisioned by the emulator config.
+    # queue.1 ships with the default emulator config; parallel jobs use queue.2-4 and must be
+    # created via the administration client on the emulator management port (5300).
     queue_name = get_queue_name()
-    admin_client = ServiceBusAdministrationClient.from_connection_string(CONNECTION_STRING)
+    if not os.environ.get("CI") or queue_name == "queue.1":
+        return
+
+    admin_client = ServiceBusAdministrationClient.from_connection_string(MANAGEMENT_CONNECTION_STRING)
     try:
         try:
             admin_client.get_queue(queue_name)

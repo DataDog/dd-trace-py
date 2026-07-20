@@ -21,6 +21,11 @@ CONNECTION_STRING = (
     "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;"
     "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 )
+# Administration client uses the emulator HTTP management port, not the AMQP messaging port.
+MANAGEMENT_CONNECTION_STRING = (
+    "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;"
+    "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+)
 PARALLEL_QUEUE_COUNT = 4
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
