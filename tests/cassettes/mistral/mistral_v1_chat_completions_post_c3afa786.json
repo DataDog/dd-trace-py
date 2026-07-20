@@ -6,7 +6,7 @@
       "Accept-Encoding": "gzip, deflate",
       "Connection": "keep-alive",
       "Accept": "application/json",
-      "User-Agent": "mistral-client-python/2.4.9",
+      "User-Agent": "mistral-client-python/2.0.5",
       "Content-Type": "application/json",
       "Content-Length": "220"
     },
@@ -18,31 +18,31 @@
       "message": "OK"
     },
     "headers": {
-      "Date": "Wed, 08 Jul 2026 15:44:06 GMT",
+      "Date": "Mon, 20 Jul 2026 16:58:31 GMT",
       "Content-Type": "application/json",
       "Transfer-Encoding": "chunked",
       "Connection": "keep-alive",
-      "mistral-correlation-id": "019f4266-8bd2-75e9-a177-6f60b0740744",
-      "x-kong-request-id": "019f4266-8bd2-75e9-a177-6f60b0740744",
+      "set-cookie": "__cf_bm=wPwNrZM_JVgB9hxJaQq1xN7llD.8AouVRCfHZkDeeJs-1784566709.5234303-1.0.1.1-jZrFfESYpBx6kxrs8rDrKYG22F_Y0W3XF_2gMhc9JO.JpOc.S4nbHNJuQvr7hknkkQY4fKoWGvuFh_LN_z.VZLniHaIqo13foC9J05q46VWKlGK4LanvEgeF1OB6V4uo; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Mon, 20 Jul 2026 17:28:31 GMT",
+      "mistral-correlation-id": "019f8076-fd49-71cb-b710-42e6ac161d45",
+      "x-kong-request-id": "019f8076-fd49-71cb-b710-42e6ac161d45",
       "x-max-retry-attempts-reached": "false",
       "x-ratelimit-limit-tokens-minute": "250000",
       "x-ratelimit-remaining-tokens-minute": "249891",
       "x-ratelimit-tokens-query-cost": "109",
       "x-ratelimit-limit-req-minute": "4",
       "x-ratelimit-remaining-req-minute": "3",
-      "x-envoy-upstream-service-time": "1740",
+      "x-envoy-upstream-service-time": "1680",
       "Server": "cloudflare",
       "access-control-allow-origin": "*",
-      "x-kong-upstream-latency": "1741",
-      "x-kong-proxy-latency": "15",
-      "cf-cache-status": "DYNAMIC",
-      "set-cookie": "__cf_bm=.F424TE7p44h_pCluKyL2.kdDdmM28Z3OjOGpUezknk-1783525444.5055444-1.0.1.1-Ykd8m_po5vFfrJe6_5j5mwmBqyB3gCUiB7ksByLMTY0Xl3N_lVFRcbHjq2nwDOrUGDB48pFgHTyd6FZl9xFEevqyyw29xLhi2FNPeLA9b4UXhnOiMrlXcJ8XcvN8D6vP; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 08 Jul 2026 16:14:06 GMT",
-      "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "x-kong-upstream-latency": "1681",
+      "x-kong-proxy-latency": "14",
       "X-Content-Type-Options": "nosniff",
+      "cf-cache-status": "DYNAMIC",
+      "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
       "Content-Encoding": "gzip",
-      "CF-RAY": "a180354c2d6639b4-EWR",
+      "CF-RAY": "a1e382ce8965d52d-BOS",
       "alt-svc": "h3=\":443\"; ma=86400"
     },
-    "body": "{\"id\":\"c5b1a6fd981f48f4bc857bff7781a0a7\",\"created\":1783525444,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":9,\"total_tokens\":109,\"completion_tokens\":100,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"length\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":\"The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes how light interacts with molecules and tiny particles in Earth's atmosphere. Here\u2019s a step-by-step explanation:\\n\\n### 1. **Sunlight is White Light**\\n   - Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, blue, indigo, and violet.\\n\\n### 2. **Scattering by Air Molecules**\\n\"}}]}"
+    "body": "{\"id\":\"b6fb3feaa0154b08bad5a1ea48f56374\",\"created\":1784566709,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":9,\"total_tokens\":109,\"completion_tokens\":100,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"length\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":\"The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes how light interacts with molecules and tiny particles in Earth's atmosphere. Here\u2019s a step-by-step explanation:\\n\\n### 1. **Sunlight is White Light**\\n   - Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, blue, indigo, and violet.\\n\\n### 2. **Scattering by Air Molecules**\\n\"}}]}"
   }
 }

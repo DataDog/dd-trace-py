@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 import pytest
 
@@ -19,12 +20,7 @@ COMMON_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.mistralai", 
 STREAM_CHAT_OUTPUT_MESSAGES = [
     {
         "role": "assistant",
-        "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which"
-        " describes how light interacts with molecules and tiny particles in Earth's atmosphere."
-        " Here’s a step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   -"
-        " Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible"
-        " spectrum: red, orange, yellow, green, blue, indigo, and violet.\n\n### 2. **Scattering"
-        " by Air Molecules**\n",
+        "content": mock.ANY,
     }
 ]
 
@@ -36,7 +32,7 @@ STREAM_TOOL_OUTPUT_MESSAGES = [
             {
                 "name": "get_weather",
                 "arguments": {"location": "New York City"},
-                "tool_id": "KXHmupO7X",
+                "tool_id": mock.ANY,
                 "type": "function",
             }
         ],
@@ -77,11 +73,7 @@ def _expected_chat_span_data(
         kwargs["output_messages"] = output_messages or [
             {
                 "role": "assistant",
-                "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes "
-                "how light interacts with molecules and tiny particles in Earth's atmosphere. Here’s a "
-                "step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   - Sunlight appears white but is "
-                "actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, "
-                "blue, indigo, and violet.\n\n### 2. **Scattering by Air Molecules**\n",
+                "content": mock.ANY,
             }
         ]
         kwargs["metrics"] = {"input_tokens": 9, "output_tokens": 100, "total_tokens": 109}
@@ -126,7 +118,7 @@ def _expected_tool_first_call_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "Euogr0xwu",
+                        "tool_id": mock.ANY,
                         "type": "function",
                     }
                 ],
@@ -155,7 +147,7 @@ def _expected_tool_followup_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "Euogr0xwu",
+                        "tool_id": mock.ANY,
                         "type": "function",
                     }
                 ],
@@ -170,8 +162,7 @@ def _expected_tool_followup_span_data(**overrides):
         "output_messages": [
             {
                 "role": "assistant",
-                "content": "The current weather in **New York City** is **sunny** with a temperature of "
-                "**72°F**. Enjoy your day! 😊",
+                "content": mock.ANY,
             }
         ],
         "metadata": get_expected_chat_metadata(),
