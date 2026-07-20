@@ -539,6 +539,8 @@ venv = Venv(
         Venv(
             name="dd_coverage",
             command="pytest --no-cov {cmdargs} tests/coverage -s",
+            # These tests manipulate coverage collectors and cannot share the report-upload collector safely.
+            env={"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false"},
             pys=select_pys(),
         ),
         Venv(
