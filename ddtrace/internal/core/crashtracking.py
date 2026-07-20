@@ -232,8 +232,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-        sys.excepthook = _unhandled_exception_reporter
         crashtracker_init(config, receiver_config, metadata)
+        sys.excepthook = _unhandled_exception_reporter
+
 
         if stack_mod is not None:
             try:

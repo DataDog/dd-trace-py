@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    crashtracking: Unhandled Python exceptions are now reported through the crashtracker,
+    providing crash reports with exception type, message, and Python stack trace in addition
+    to the existing native signal-based crash reporting.
