@@ -317,6 +317,22 @@ class ModuleCodeCollector(ModuleWatchdog):
                     imported_module_lines = self._import_time_covered[path]
                     covered_lines[path].update(imported_module_lines)
 
+    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> set[str]:
+        """Return file-level covered paths with import-time dependencies added.
+
+        This is the file-level equivalent of _add_import_time_lines(), but avoids
+        allocating and mutating one CoverageLines object per covered file for every
+        test. File-level coverage only needs path membership because every covered
+        file emits the same line-0 sentinel bitmap.
+        """
+        if not covered_file_paths:
+            return covered_file_paths
+
+        paths = set(covered_file_paths)
+        for root_path in tuple(covered_file_paths):
+            paths.update(self._get_import_time_dependency_paths(root_path))
+        return paths
+
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
@@ -387,6 +403,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
+
+        def get_covered_file_paths(self) -> set[str]:
+            covered_file_paths = _get_ctx_covered_files()
+            if global_instance := ModuleCodeCollector._instance:
+                return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
+            return covered_file_paths
+
+    @classmethod
+    def file_level_coverage_enabled(cls):
+        return cls._instance is not None and cls._instance._file_level_coverage
 
     @classmethod
     def start_coverage(cls):
