@@ -108,7 +108,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
         # AIDEV-NOTE: Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
+        self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
+        self._file_level_covered_paths_cache: dict[frozenset[str], frozenset[str]] = {}
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -151,7 +153,9 @@ class ModuleCodeCollector(ModuleWatchdog):
     def hook_import(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None:
         if self._collect_import_coverage and import_name not in self._import_names_by_path[path]:
             self._import_names_by_path[path].add(import_name)
+            self._direct_import_time_dependency_paths_cache.pop(path, None)
             self._import_time_dependency_paths_cache.clear()
+            self._file_level_covered_paths_cache.clear()
 
     def hook_file(self, path: str) -> None:
         if self._coverage_enabled and path not in self._covered_files:
@@ -252,6 +256,36 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return covered_lines
 
+    def _get_direct_import_time_dependency_paths(self, path: str) -> frozenset[str]:
+        cached_dependency_paths = self._direct_import_time_dependency_paths_cache.get(path)
+        if cached_dependency_paths is not None:
+            return cached_dependency_paths
+
+        dependency_paths = set()
+        for dependencies in self._import_names_by_path.get(path, set()):
+            package, modules = dependencies
+            for module in modules:
+                dep_fqdn = f"{package}.{module}" if package else module
+                dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
+                if dep_name in self._import_time_name_to_path:
+                    dependency_paths.add(self._import_time_name_to_path[dep_name])
+
+                # Since modules can import from packages below them in the hierarchy, we may also need to find
+                # packages that were imported (eg: identifying __init__.py files). We do this by working our way
+                # from the module name to the package name "one dot at a time"
+                parent_package = dep_fqdn.split(".")[:-1]
+                while parent_package:
+                    parent_package_str = ".".join(parent_package)
+                    if parent_package_str in self._import_time_name_to_path:
+                        dependency_paths.add(self._import_time_name_to_path[parent_package_str])
+                    if parent_package_str == package:
+                        break
+                    parent_package = parent_package[:-1]
+
+        cached_dependency_paths = frozenset(dependency_paths)
+        self._direct_import_time_dependency_paths_cache[path] = cached_dependency_paths
+        return cached_dependency_paths
+
     def _get_import_time_dependency_paths(self, root_path: str) -> frozenset[str]:
         cached_dependency_paths = self._import_time_dependency_paths_cache.get(root_path)
         if cached_dependency_paths is not None:
@@ -273,31 +307,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 continue
 
             dependency_paths.add(path)
-
-            # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
-            for dependencies in self._import_names_by_path.get(path, set()):
-                package, modules = dependencies
-                for module in modules:
-                    dep_fqdn = f"{package}.{module}" if package else module
-                    dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
-                    if dep_name in self._import_time_name_to_path:
-                        dependency_path = self._import_time_name_to_path[dep_name]
-                        if dependency_path not in visited_paths:
-                            to_visit_paths.add(dependency_path)
-
-                    # Since modules can import from packages below them in the hierarchy, we may also need to find
-                    # packages that were imported (eg: identifying __init__.py files). We do this by working our way
-                    # from the module name to the package name "one dot at a time"
-                    parent_package = dep_fqdn.split(".")[:-1]
-                    while parent_package:
-                        parent_package_str = ".".join(parent_package)
-                        if parent_package_str in self._import_time_name_to_path:
-                            dependency_path = self._import_time_name_to_path[parent_package_str]
-                            if dependency_path not in visited_paths:
-                                to_visit_paths.add(dependency_path)
-                        if parent_package_str == package:
-                            break
-                        parent_package = parent_package[:-1]
+            to_visit_paths.update(self._get_direct_import_time_dependency_paths(path) - visited_paths)
 
         cached_dependency_paths = frozenset(dependency_paths)
         self._import_time_dependency_paths_cache[root_path] = cached_dependency_paths
@@ -332,9 +342,16 @@ class ModuleCodeCollector(ModuleWatchdog):
         if not covered_file_paths:
             return covered_file_paths
 
+        cache_key = frozenset(covered_file_paths)
+        cached_paths = self._file_level_covered_paths_cache.get(cache_key)
+        if cached_paths is not None:
+            return set(cached_paths)
+
         paths = set(covered_file_paths)
-        for root_path in tuple(covered_file_paths):
+        for root_path in cache_key:
             paths.update(self._get_import_time_dependency_paths(root_path))
+
+        self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
         return paths
 
     class CollectInContext:
@@ -513,7 +530,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if self._collect_import_coverage:
             self._import_time_name_to_path[_module.__name__] = code.co_filename
+            self._direct_import_time_dependency_paths_cache.clear()
             self._import_time_dependency_paths_cache.clear()
+            self._file_level_covered_paths_cache.clear()
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
@@ -536,6 +555,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
                 self._import_time_dependency_paths_cache.clear()
+                self._file_level_covered_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
@@ -550,6 +570,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
                 self._import_time_dependency_paths_cache.clear()
+                self._file_level_covered_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
