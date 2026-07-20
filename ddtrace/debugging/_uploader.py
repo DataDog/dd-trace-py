@@ -118,24 +118,27 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             log.debug("Unsupported Datadog agent detected. Please upgrade to 7.49.0.")
             return False
 
-        endpoints = set(agent_info.get("endpoints", []))
+        # Agent /info entries may or may not carry a leading slash depending on
+        # the agent version, so normalize before matching (see remoteconfig).
+        endpoints = {endpoint.lstrip("/") for endpoint in agent_info.get("endpoints", [])}
 
         logs_track = self._tracks[SignalTrack.LOGS]
         snapshot_track = self._tracks[SignalTrack.SNAPSHOT]
         logs_track.enabled = True
         snapshot_track.enabled = True
 
-        if "/debugger/v2/input" in endpoints:
+        if "debugger/v2/input" in endpoints:
             log.debug("Detected /debugger/v2/input endpoint")
             logs_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
-        elif "/debugger/v1/diagnostics" in endpoints:
+        elif "debugger/v1/diagnostics" in endpoints:
             log.debug("Detected /debugger/v1/diagnostics endpoint fallback")
             logs_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
         else:
             logs_track.enabled = False
             snapshot_track.enabled = False
+            self._throttle_agent_check()
             log.warning(
                 UNSUPPORTED_AGENT,
                 extra={
@@ -180,6 +183,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
     def reset(self) -> None:
         """Reset the buffer on fork."""
+        super().reset()
         for track in self._tracks.values():
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}

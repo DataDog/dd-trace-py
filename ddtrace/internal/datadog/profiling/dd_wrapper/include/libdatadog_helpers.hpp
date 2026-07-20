@@ -54,6 +54,8 @@ intern_string(std::string_view s);
     X(thread_name, "thread name")                                                                                      \
     X(task_id, "task id")                                                                                              \
     X(task_name, "task name")                                                                                          \
+    X(origin_task_id, "origin task id")                                                                                \
+    X(origin_task_name, "origin task name")                                                                            \
     X(span_id, "span id")                                                                                              \
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \

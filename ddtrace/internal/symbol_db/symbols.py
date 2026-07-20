@@ -4,7 +4,7 @@ from dataclasses import field
 import dis
 from enum import Enum
 import gzip
-from hashlib import sha1
+import hashlib
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -44,6 +44,7 @@ from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.wrapping import get_wrapped
 
 
 log = get_logger(__name__)
@@ -234,7 +235,14 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
-        source_git_hash = sha1()  # nosec B324
+        # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
+        # module source, not a security digest. It also prevents IAST from flagging
+        # this internal use as a weak-hash false positive (APPSEC-68795). Resolve
+        # hashlib.sha1 at call time (not via a module-level `from hashlib import
+        # sha1`) so the call goes through IAST's wrapped constructor when patched:
+        # symbol_db can be imported before patch_iast() runs, which would otherwise
+        # freeze a stale, unwrapped reference and leave the object untracked.
+        source_git_hash = hashlib.sha1(usedforsecurity=False)  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
         with module_origin.open("rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
@@ -386,7 +394,8 @@ class Scope:
         if not is_from_user_code(f):
             return None
 
-        code = f.__dd_wrapped__.__code__ if hasattr(f, "__dd_wrapped__") else f.__code__
+        inner = get_wrapped(f)
+        code = inner.__code__ if inner is not None else f.__code__
         code_scope = t.cast(t.Optional[Scope], cls._get_from(code, data))
         if code_scope is None:
             return None

@@ -64,6 +64,7 @@ def build_libddwaf_filename() -> str:
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
+    _asm_agentic_onboarding = DDConfig.var(Optional[str], APPSEC.AGENTIC_ONBOARDING, default=None)
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -320,8 +321,15 @@ class ASMConfig(DDConfig):
 
     @property
     def _apm_opt_out(self) -> bool:
+        # AI Guard standalone: when AI Guard is enabled and APM tracing is disabled, opt out of APM
+        # billing while still letting AI Guard traces (USER_KEEP'd via _aiguard_manual_keep) reach the
+        # backend. ``ai_guard_config`` is a module global defined below; this property is only evaluated
+        # at runtime (after module import), so the reference resolves fine.
         return (
-            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+            self._asm_enabled
+            or self._iast_enabled
+            or tracer_config._sca_enabled is True
+            or ai_guard_config._ai_guard_enabled
         ) and not self._apm_tracing_enabled
 
     @property
@@ -346,6 +354,11 @@ class AIGuardConfig(DDConfig):
     _ai_guard_analyze_stream_responses_enabled = DDConfig.var(
         bool, AI_GUARD.ENV_ANALYZE_STREAM_RESPONSES_ENABLED, default=False
     )
+    # Per-LLM kill switches: disable AI Guard auto-instrumentation for a specific
+    # provider/framework when false, without affecting others or requiring a rollback.
+    _ai_guard_openai_enabled = DDConfig.var(bool, AI_GUARD.ENV_OPENAI_ENABLED, default=True)
+    _ai_guard_anthropic_enabled = DDConfig.var(bool, AI_GUARD.ENV_ANTHROPIC_ENABLED, default=True)
+    _ai_guard_langchain_enabled = DDConfig.var(bool, AI_GUARD.ENV_LANGCHAIN_ENABLED, default=True)
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -356,6 +369,9 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",
         "_ai_guard_analyze_stream_responses_enabled",
+        "_ai_guard_openai_enabled",
+        "_ai_guard_anthropic_enabled",
+        "_ai_guard_langchain_enabled",
     ]
 
     def reset(self):

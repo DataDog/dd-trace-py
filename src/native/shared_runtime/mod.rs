@@ -1,4 +1,4 @@
-use libdd_shared_runtime::SharedRuntime;
+use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::thread;
@@ -9,11 +9,11 @@ use exceptions::shared_runtime_error_to_pyerr;
 
 #[pyclass(name = "SharedRuntime", subclass)]
 pub struct SharedRuntimePy {
-    inner: Arc<SharedRuntime>,
+    inner: Arc<ForkSafeRuntime>,
 }
 
 impl SharedRuntimePy {
-    pub(crate) fn as_arc(&self) -> &Arc<SharedRuntime> {
+    pub(crate) fn as_arc(&self) -> &Arc<ForkSafeRuntime> {
         &self.inner
     }
 }
@@ -22,7 +22,7 @@ impl SharedRuntimePy {
 impl SharedRuntimePy {
     #[new]
     fn new() -> PyResult<Self> {
-        let inner = SharedRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
+        let inner = ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
         Ok(Self {
             inner: Arc::new(inner),
         })

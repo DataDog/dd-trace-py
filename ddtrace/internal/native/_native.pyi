@@ -1,3 +1,4 @@
+import contextvars
 from enum import Enum
 from typing import Any
 from typing import Iterable
@@ -397,6 +398,29 @@ class TraceExporterBuilder:
         :param headers: A list of (key, value) header pairs.
         """
         ...
+    def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace-metrics export.
+        When set, client-computed span stats are exported as the traces.span.sdk.metrics.duration
+        OTLP histogram to this endpoint instead of the Datadog agent /v0.6/stats endpoint.
+        Requires stats computation to be enabled via enable_stats.
+        :param url: The full URL of the OTLP metrics endpoint (e.g. "http://localhost:4318/v1/metrics").
+        """
+        ...
+    def set_otlp_metrics_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace-metrics export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
+        """
+        Enable OpenTelemetry trace semantics for the exported OTLP trace-metrics.
+        When enabled, the traces.span.sdk.metrics.duration histogram carries only OpenTelemetry
+        attributes; Datadog-specific dd.*/_dd.* data-point attributes are omitted. Driven by the
+        DD_TRACE_OTEL_SEMANTICS_ENABLED environment variable.
+        """
+        ...
     def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
         """
         Set the connection timeout in milliseconds for trace export requests.
@@ -582,6 +606,8 @@ class ffe:
         def flag_metadata(self) -> dict[str, str]: ...
         @property
         def do_log(self) -> bool: ...
+        @property
+        def serial_id(self) -> Optional[int]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -959,3 +985,5 @@ class HttpIoError(HttpClientError):
     """An I/O error occurred during the request (truncated response,
     connection reset, etc.).
     """
+
+def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...

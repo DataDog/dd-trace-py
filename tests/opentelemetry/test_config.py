@@ -355,10 +355,33 @@ def test_otel_resource_attributes_version_tag():
     ],
 )
 def test_parse_otlp_headers(raw, expected):
-    from unittest import mock
-
     from ddtrace.internal.writer.writer import NativeWriter
 
-    with mock.patch("ddtrace.internal.writer.writer.otel_config") as mock_cfg:
-        mock_cfg.exporter.TRACES_HEADERS = raw
-        assert NativeWriter._parse_otlp_headers() == expected
+    assert NativeWriter._parse_otlp_headers(raw) == expected
+
+
+@pytest.mark.subprocess()
+def test_trace_metrics_endpoint_defaults_to_http_json():
+    """The native trace-metrics exporter is HTTP/JSON only, so its endpoint must resolve to an
+    HTTP ``/v1/metrics`` endpoint even when the (default) metrics protocol is gRPC. Otherwise the
+    auto-enable path would post JSON metrics to the gRPC endpoint (``:4317`` with no path).
+    """
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
+    assert endpoint.startswith("http://")
+    assert endpoint.endswith(":4318/v1/metrics"), endpoint
+
+
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318"})
+def test_trace_metrics_endpoint_appends_path_to_global_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACE_METRICS_ENDPOINT == "http://collector:4318/v1/metrics"
+
+
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:9999/custom/path"})
+def test_trace_metrics_endpoint_uses_signal_specific_endpoint_as_is():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACE_METRICS_ENDPOINT == "http://collector:9999/custom/path"
