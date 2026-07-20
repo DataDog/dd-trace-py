@@ -52,3 +52,93 @@ def test_same_file_fast_path_preserves_late_dynamic_import_dependency():
 
     assert covered_file in with_dynamic_import
     assert dependency_file in with_dynamic_import, "late dynamic import dependency must merge import-time coverage"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
+def test_file_level_path_fast_path_preserves_late_dynamic_import_dependency():
+    """File-level get_covered_file_paths() must include dependency edges discovered after an earlier cache hit.
+
+    The first context covers ``covered_then_dynamic_import.py`` without executing its dynamic import, then asks for
+    file paths. That populates the file-level covered-path cache for the singleton covered-file set. The second context
+    covers the same file set but also executes the dynamic import. If dynamic import metadata does not invalidate the
+    file-level cache, the preimported dependency would be omitted.
+    """
+    import os
+    from pathlib import Path
+
+    def relpath_set(rootpath, paths):
+        root = Path(rootpath)
+        return {str(Path(path).relative_to(root)) for path in paths}
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Imported before the test contexts: later contexts only include it through import-time dependency expansion.
+    from tests.coverage.included_path import preimported_dependency  # noqa:F401
+    from tests.coverage.included_path.covered_then_dynamic_import import cover_file_without_import
+    from tests.coverage.included_path.covered_then_dynamic_import import import_preimported_dependency
+
+    with ModuleCodeCollector.CollectInContext() as context_without_dynamic_import:
+        assert cover_file_without_import() == "covered"
+        without_dynamic_import = relpath_set(cwd_path, context_without_dynamic_import.get_covered_file_paths())
+
+    with ModuleCodeCollector.CollectInContext() as context_with_dynamic_import:
+        assert cover_file_without_import() == "covered"
+        assert import_preimported_dependency() == 42
+        with_dynamic_import = relpath_set(cwd_path, context_with_dynamic_import.get_covered_file_paths())
+
+    covered_file = "tests/coverage/included_path/covered_then_dynamic_import.py"
+    dependency_file = "tests/coverage/included_path/preimported_dependency.py"
+
+    assert covered_file in without_dynamic_import
+    assert dependency_file not in without_dynamic_import, "import-time coverage should not leak into unrelated contexts"
+
+    assert covered_file in with_dynamic_import
+    assert dependency_file in with_dynamic_import, "late dynamic import dependency must invalidate cached file paths"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
+def test_file_level_path_fast_path_preserves_nested_dynamic_import_dependencies():
+    """Nested dynamic imports should be represented in file-level path output across contexts."""
+    import os
+    from pathlib import Path
+
+    def relpath_set(rootpath, paths):
+        root = Path(rootpath)
+        return {str(Path(path).relative_to(root)) for path in paths}
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.nested_fixture import fixture_dynamic_path
+    from tests.coverage.included_path.nested_fixture import fixture_toplevel_path
+
+    with ModuleCodeCollector.CollectInContext() as context_toplevel:
+        fixture_toplevel_path(5)
+        toplevel_files = relpath_set(cwd_path, context_toplevel.get_covered_file_paths())
+
+    with ModuleCodeCollector.CollectInContext() as context_dynamic:
+        fixture_dynamic_path(10)
+        dynamic_files = relpath_set(cwd_path, context_dynamic.get_covered_file_paths())
+
+    assert "tests/coverage/included_path/nested_fixture.py" in toplevel_files
+    assert "tests/coverage/included_path/layer2_toplevel.py" in toplevel_files
+    assert "tests/coverage/included_path/layer2_dynamic.py" not in toplevel_files
+
+    assert "tests/coverage/included_path/nested_fixture.py" in dynamic_files
+    assert "tests/coverage/included_path/layer2_dynamic.py" in dynamic_files
+    assert "tests/coverage/included_path/layer3_toplevel.py" in dynamic_files
+    assert "tests/coverage/included_path/layer3_dynamic.py" in dynamic_files
+    assert "tests/coverage/included_path/constants_dynamic.py" in dynamic_files
