@@ -657,7 +657,7 @@ integrations:
   tested_versions_by_dependency:
     mistralai:
       min: 2.0.5
-      max: 2.4.9
+      max: 2.7.0
 
 - integration_name: mlflow
   is_external_package: true
