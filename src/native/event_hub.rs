@@ -3,18 +3,20 @@ use pyo3::{
     types::{PyDict, PyList, PyTuple},
     PyTraverseError, PyVisit,
 };
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::sync::{LazyLock, OnceLock, RwLock};
 
 // Most events have only a handful of listeners; this keeps the per-dispatch
 // snapshot off the heap for the common case instead of allocating a Vec.
 const INLINE_LISTENERS: usize = 4;
 
-type Listeners = HashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
+// FxHashMap over std::collections::HashMap — event_id keys are short, trusted
+// strings internal to the tracer, so SipHash's DoS resistance buys nothing here.
+type Listeners = FxHashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
 
 // (name_key, callback) pairs per event_id
-static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
 // Cached Python objects — initialized on first use, never invalidated.
 // The losing thread in a race drops its Py<PyAny>; pyo3 0.28 defers the decref.
