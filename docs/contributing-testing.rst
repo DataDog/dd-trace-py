@@ -72,6 +72,23 @@ You can run riot commands and lint checks in the test runner container with comm
     $ scripts/ddtest scripts/lint style
 
 
+Podman Compose compatibility
+----------------------------
+
+``scripts/ddtest`` defaults to Docker Compose command syntax. When your ``docker compose`` command is
+provided by Podman Compose, enable the compatibility mode:
+
+.. code-block:: bash
+
+    $ DD_TEST_PODMAN_COMPAT=1 scripts/ddtest riot run -p 3.10
+    $ DD_TEST_PODMAN_COMPAT=1 scripts/ddtest --build
+    $ DD_TEST_PODMAN_COMPAT=1 scripts/run-tests tests/contrib/django/
+
+This mode adapts the ``run`` command for Podman Compose by avoiding Docker-only arguments, passing
+``DD_TRACE_AGENT_URL`` as an explicit environment value when it is set, and building ``testrunner`` before
+running it when ``--build`` is requested. It does not change Compose service networking requirements.
+
+
 How do I run only the tests I care about?
 -----------------------------------------
 

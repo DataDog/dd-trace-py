@@ -8,6 +8,15 @@ if [ "${1:-}" = "--build" ]; then
     shift
 fi
 
+PODMAN_COMPAT="${DD_TEST_PODMAN_COMPAT:-0}"
+case "$PODMAN_COMPAT" in
+    0|1) ;;
+    *)
+        echo "Error: DD_TEST_PODMAN_COMPAT must be set to 0 or 1."
+        exit 2
+        ;;
+esac
+
 if [ "$#" -eq 0 ]; then
     CMD=bash
 else
@@ -69,9 +78,25 @@ if command -v nvidia-smi >/dev/null 2>&1; then
     COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
 fi
 
-docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
-       -e DD_TRACE_AGENT_URL \
-       --rm \
-       -i \
-       testrunner \
-       bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+COMPOSE_COMMAND=(docker compose "${COMPOSE_FILES[@]}")
+if [ "$PODMAN_COMPAT" = "1" ]; then
+    if [ "$BUILD_FLAG" = "--build" ]; then
+        "${COMPOSE_COMMAND[@]}" build testrunner
+    fi
+
+    RUN_ARGS=()
+    if [ -n "${DD_TRACE_AGENT_URL+x}" ]; then
+        RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
+    fi
+    RUN_ARGS+=(--rm)
+else
+    RUN_ARGS=()
+    if [ "$BUILD_FLAG" = "--build" ]; then
+        RUN_ARGS+=(--build)
+    fi
+    RUN_ARGS+=(-e DD_TRACE_AGENT_URL --rm -i)
+fi
+
+"${COMPOSE_COMMAND[@]}" run "${RUN_ARGS[@]}" \
+    testrunner \
+    bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
