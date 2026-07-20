@@ -462,15 +462,12 @@ def _region_from_arn(arn):
 
 
 def _foundation_model_id_from_profile(response):
-    """Return the bare foundation-model id (e.g. ``anthropic.claude-...``) from a
-    GetInferenceProfile response, or None. The region-prefixed cross-region form is
-    intentionally not used: cost estimation keys off the region-agnostic model id.
-    """
-    for model in response.get("models") or []:
-        model_arn = model.get("modelArn") or ""
-        if "foundation-model/" in model_arn:
-            return model_arn.rsplit("foundation-model/", 1)[-1]
-    return None
+    """Return the model id backing this application inference profile, or None."""
+    models = response.get("models") or []
+    if not models:
+        return None
+    model_arn = models[0].get("modelArn") or ""
+    return model_arn.rsplit("/", 1)[-1] or None
 
 
 def _frozen_credentials(instance):
@@ -493,19 +490,25 @@ def _fetch_inference_profile_base_model(instance, profile_arn):
     refresh, runs in the guard.
     """
     try:
+        import botocore.config
         import botocore.session
 
         frozen = _frozen_credentials(instance)
         if frozen is None:
             _note_resolve_failure(profile_arn, "no credentials on the client")
             return None
+        # Bound this hidden call so a slow/hung GetInferenceProfile can't stall the caller's
+        # request. No in-call retries: a failure backs off and a future request retries.
+        resolve_config = botocore.config.Config(connect_timeout=2, read_timeout=3, retries={"total_max_attempts": 1})
+        base_config = getattr(instance, "_client_config", None)
+        client_config = base_config.merge(resolve_config) if base_config is not None else resolve_config
         client = botocore.session.get_session().create_client(
             "bedrock",
             region_name=_region_from_arn(profile_arn) or instance.meta.region_name,
             aws_access_key_id=frozen.access_key,
             aws_secret_access_key=frozen.secret_key,
             aws_session_token=frozen.token,
-            config=getattr(instance, "_client_config", None),
+            config=client_config,
         )
         token = _resolve_inference_profile_in_progress.set(True)
         try:
@@ -532,7 +535,7 @@ def _note_resolve_failure(profile_arn, reason, exc_info=False) -> None:
     delay, count = record_resolve_failure(profile_arn)
     if count <= 1:
         log.warning(
-            "Bedrock inference profile %s could not be resolved (%s); retrying in ~%ds",
+            "Bedrock inference profile %s could not be resolved (%s); skipping future resolution attempts for ~%ds",
             profile_arn,
             reason,
             int(delay),
@@ -540,7 +543,8 @@ def _note_resolve_failure(profile_arn, reason, exc_info=False) -> None:
         )
     else:
         log.debug(
-            "Bedrock inference profile %s still unresolved (%s, attempt %d); retrying in ~%ds",
+            "Bedrock inference profile %s still unresolved (%s, attempt %d); "
+            "skipping future resolution attempts for ~%ds",
             profile_arn,
             reason,
             count,
@@ -548,14 +552,16 @@ def _note_resolve_failure(profile_arn, reason, exc_info=False) -> None:
         )
 
 
-def _resolve_application_inference_profile(model_id, model_provider, model_name, instance=None):
+def _resolve_application_inference_profile(model_id, model_provider, model_name, instance=None, llmobs_enabled=False):
     """If model_id is an application-inference-profile ARN whose base model can be
     resolved, return (model_id, model_provider, model_name) with model_id replaced by
     the base model id instead of the opaque ARN. Otherwise return the inputs unchanged.
 
     The base model is taken from the cache (populated by the langchain integration) or,
-    when ``DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE`` is enabled, resolved with an
-    extra ``bedrock:GetInferenceProfile`` call and cached.
+    when ``DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE`` is enabled and LLM Obs is
+    enabled for this call, resolved with an extra ``bedrock:GetInferenceProfile`` call
+    and cached. The extra call is skipped for APM-only usage since it only benefits
+    LLM Obs cost data - a cache hit still applies either way.
 
     Overriding model_id matters because the LLM Obs annotator reads
     ``ctx.get_item("model_id")`` first and only falls back to ``model_name``.
@@ -563,7 +569,12 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
     if not isinstance(model_id, str) or "application-inference-profile/" not in model_id:
         return model_id, model_provider, model_name
     base_model_id = lookup_inference_profile(model_id)
-    if not base_model_id and instance is not None and config.botocore["bedrock_resolve_inference_profile"]:
+    if (
+        not base_model_id
+        and instance is not None
+        and llmobs_enabled
+        and config.botocore["bedrock_resolve_inference_profile"]
+    ):
         # Single-flight + backoff gate: only one thread attempts a given ARN at a time, and
         # only once its backoff window has elapsed. Others keep the opaque id for this call.
         with begin_resolve(model_id) as claimed:
@@ -578,12 +589,12 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
+    integration = function_vars.get("integration")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
     model_id, model_provider, model_name = _resolve_application_inference_profile(
-        model_id, model_provider, model_name, instance
+        model_id, model_provider, model_name, instance, llmobs_enabled=integration.llmobs_enabled
     )
-    integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",

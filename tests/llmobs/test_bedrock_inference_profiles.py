@@ -151,8 +151,8 @@ def test_foundation_model_id_from_profile():
     assert _foundation_model_id_from_profile(PROFILE_RESPONSE) == BASE_MODEL
     assert _foundation_model_id_from_profile({"models": []}) is None
     assert _foundation_model_id_from_profile({}) is None
-    # A cross-region inference-profile ARN (no bare foundation model) is not usable for costing.
-    assert _foundation_model_id_from_profile({"models": [{"modelArn": "arn:...:inference-profile/us.x"}]}) is None
+    # A cross-region inference-profile ARN resolves to its region-prefixed id.
+    assert _foundation_model_id_from_profile({"models": [{"modelArn": "arn:...:inference-profile/us.x"}]}) == "us.x"
 
 
 def test_resolve_via_get_inference_profile_populates_cache(resolve_enabled):
@@ -160,7 +160,7 @@ def test_resolve_via_get_inference_profile_populates_cache(resolve_enabled):
     instance = _FakeRuntimeClient()
     with mock.patch("botocore.session.get_session", return_value=session):
         model_id, provider, name = _resolve_application_inference_profile(
-            PROFILE_ARN, "custom", "p7aksl2pa6w7", instance
+            PROFILE_ARN, "custom", "p7aksl2pa6w7", instance, llmobs_enabled=True
         )
     assert model_id == BASE_MODEL
     assert provider == "anthropic"
@@ -171,10 +171,39 @@ def test_resolve_via_get_inference_profile_populates_cache(resolve_enabled):
     assert session.create_client.call_args.kwargs["region_name"] == "us-east-2"
 
 
+def test_resolve_client_config_is_bounded_and_merged(resolve_enabled):
+    from botocore.config import Config
+
+    session, _ = _control_plane_session(response=PROFILE_RESPONSE)
+    instance = _FakeRuntimeClient()
+    # runtime client tuned with a long inference read timeout and a proxy
+    instance._client_config = Config(read_timeout=600, proxies={"https": "http://proxy:8080"})
+    with mock.patch("botocore.session.get_session", return_value=session):
+        _resolve_application_inference_profile(PROFILE_ARN, "custom", "p7aksl2pa6w7", instance, llmobs_enabled=True)
+    cfg = session.create_client.call_args.kwargs["config"]
+    # our bounds win over the inherited long timeout, and in-call retries are disabled
+    assert cfg.connect_timeout == 2
+    assert cfg.read_timeout == 3
+    assert cfg.retries["total_max_attempts"] == 1
+    # unrelated runtime settings are preserved
+    assert cfg.proxies == {"https": "http://proxy:8080"}
+
+
 def test_no_resolution_call_when_flag_disabled():
     instance = _FakeRuntimeClient()
     with mock.patch("botocore.session.get_session") as get_session:
         model_id, _, _ = _resolve_application_inference_profile(PROFILE_ARN, "custom", "p7aksl2pa6w7", instance)
+    get_session.assert_not_called()
+    assert model_id == PROFILE_ARN
+
+
+def test_no_resolution_call_when_llmobs_disabled(resolve_enabled):
+    # Flag on but LLM Obs disabled for this call (APM-only): a cache miss must not make the AWS call.
+    instance = _FakeRuntimeClient()
+    with mock.patch("botocore.session.get_session") as get_session:
+        model_id, _, _ = _resolve_application_inference_profile(
+            PROFILE_ARN, "custom", "p7aksl2pa6w7", instance, llmobs_enabled=False
+        )
     get_session.assert_not_called()
     assert model_id == PROFILE_ARN
 
@@ -209,7 +238,7 @@ def _instance_without_credentials():
 def test_failure_cause_backs_off(resolve_enabled, make_session, make_instance):
     with mock.patch("botocore.session.get_session", return_value=make_session()):
         model_id, provider, _ = _resolve_application_inference_profile(
-            PROFILE_ARN, "custom", "p7aksl2pa6w7", make_instance()
+            PROFILE_ARN, "custom", "p7aksl2pa6w7", make_instance(), llmobs_enabled=True
         )
     assert model_id == PROFILE_ARN
     assert provider == "custom"
@@ -223,10 +252,13 @@ def test_failure_backs_off_and_is_not_retried_within_window(resolve_enabled):
     session, _ = _control_plane_session(error=error)
     instance = _FakeRuntimeClient()
     with mock.patch("botocore.session.get_session", return_value=session) as get_session:
-        assert _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance)[0] == PROFILE_ARN
+        assert (
+            _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance, llmobs_enabled=True)[0]
+            == PROFILE_ARN
+        )
         assert is_resolve_in_backoff(PROFILE_ARN)
         # a second call within the backoff window makes no additional AWS call
-        _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance)
+        _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance, llmobs_enabled=True)
     get_session.assert_called_once()
 
 
@@ -244,14 +276,19 @@ def test_backoff_expires_and_recovers_after_fix(resolve_enabled):
     clock = {"t": 1000.0}
     with mock.patch.object(_profiles.time, "monotonic", side_effect=lambda: clock["t"]):
         with mock.patch("botocore.session.get_session", return_value=session):
-            assert _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance)[0] == PROFILE_ARN
+            assert (
+                _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance, llmobs_enabled=True)[0]
+                == PROFILE_ARN
+            )
             assert is_resolve_in_backoff(PROFILE_ARN)
             # within the window: skipped, no extra call
-            _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance)
+            _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance, llmobs_enabled=True)
             assert control_client.get_inference_profile.call_count == 1
             # advance past the largest possible backoff window, then retry succeeds
             clock["t"] += _profiles._BACKOFF_MAX_SECONDS + 1
-            model_id, provider, _ = _resolve_application_inference_profile(PROFILE_ARN, "custom", "x", instance)
+            model_id, provider, _ = _resolve_application_inference_profile(
+                PROFILE_ARN, "custom", "x", instance, llmobs_enabled=True
+            )
     assert control_client.get_inference_profile.call_count == 2
     assert model_id == BASE_MODEL
     assert provider == "anthropic"
