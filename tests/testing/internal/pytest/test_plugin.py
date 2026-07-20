@@ -255,6 +255,34 @@ class TestSkippingAndITRFeatures:
         assert result is None
         assert not plugin._itr_ignored_suite_paths
 
+    def test_pytest_ignore_collect_ignores_comment_only_unskippable_marker(self, tmp_path: Path) -> None:
+        """A comment mentioning datadog_itr_unskippable does not force suite collection."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text("# datadog_itr_unskippable\ndef test_x(): pass")
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is True
+        assert plugin._itr_ignored_suite_paths == [test_file]
+
     def test_emit_itr_ignored_suite_events_emits_skip_event(self, tmp_path: Path) -> None:
         """_emit_itr_ignored_suite_events creates test_suite_end with status=skip for each ignored path."""
         workspace = tmp_path

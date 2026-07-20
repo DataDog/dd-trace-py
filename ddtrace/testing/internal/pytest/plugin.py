@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from collections import defaultdict
 from functools import lru_cache
 import inspect
@@ -44,6 +45,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -333,6 +335,7 @@ class TestOptPlugin:
         # first worker ("gw0") as the sole owner; non-xdist runs always own it.
         self._is_itr_ignored_suite_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
+        self._itr_unskippable_suites: set[SuiteRef] = set()
 
         self.manager = session_manager
         self.session = self.manager.session
@@ -497,9 +500,8 @@ class TestOptPlugin:
         This fires before the file is imported, saving the cost of module import and test discovery.
         We only ignore a file when we are sure it is safe to do so:
           - suite-level ITR skipping is active, and
-          - no test in the file carries the unskippable marker (checked via a fast text scan — if the
-            marker string is present anywhere in the source we fall back to normal collection so that
-            pytest_collection_modifyitems can handle the file test-by-test).
+          - no test in the file carries a statically-detectable unskippable marker. Comments mentioning
+            the marker reason do not force normal collection.
         """
         if collection_path.suffix != ".py":
             return None
@@ -509,15 +511,15 @@ class TestOptPlugin:
         if not self.manager.is_skippable_suite_path(collection_path, root_path=config.rootpath):
             return None
 
-        # The suite is skippable — scan the source for the unskippable marker before committing
-        # to the skip.  If the marker string appears anywhere in the file we fall back to normal
-        # collection so that pytest_collection_modifyitems can handle it test-by-test.
+        # The suite is skippable — scan the source for a real unskippable marker before committing
+        # to the skip. A comment mentioning datadog_itr_unskippable is not enough to make the
+        # suite run.
         try:
             source = collection_path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             return None
 
-        if ITR_UNSKIPPABLE_REASON in source:
+        if _source_has_itr_unskippable_marker(source):
             return None
 
         self._itr_ignored_suite_paths.append(collection_path)
@@ -533,6 +535,12 @@ class TestOptPlugin:
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
+            if (
+                self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
+                and self.manager.is_skippable_test(test_ref)
+                and _is_test_unskippable(item)
+            ):
+                self._itr_unskippable_suites.add(test_ref.suite)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
@@ -631,6 +639,8 @@ class TestOptPlugin:
             # is already populated when the SessionManager was created in pytest_load_initial_conftest.
             if self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
                 test.mark_unskippable()
+                if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+                    self._itr_unskippable_suites.add(test_ref.suite)
 
             # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
@@ -1106,6 +1116,10 @@ class TestOptPlugin:
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
+            return
+
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE and test_ref.suite in self._itr_unskippable_suites:
+            test.mark_forced_run()
             return
 
         if test.is_unskippable():
@@ -1655,6 +1669,62 @@ def _get_skipif_condition(marker: pytest.Mark) -> t.Any:
         condition = True  # `skipif` with no condition is equivalent to plain `skip`.
 
     return condition
+
+
+def _ast_call_is_itr_unskippable_skipif(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "skipif":
+        return False
+
+    condition = node.args[0] if node.args else None
+    reason = None
+    for keyword in node.keywords:
+        if keyword.arg == "condition":
+            condition = keyword.value
+        elif keyword.arg == "reason":
+            reason = keyword.value
+
+    return (
+        isinstance(condition, ast.Constant)
+        and condition.value is False
+        and isinstance(reason, ast.Constant)
+        and reason.value == ITR_UNSKIPPABLE_REASON
+    )
+
+
+def _ast_expr_contains_itr_unskippable_marker(node: ast.AST) -> bool:
+    if _ast_call_is_itr_unskippable_skipif(node):
+        return True
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return any(_ast_expr_contains_itr_unskippable_marker(item) for item in node.elts)
+    return False
+
+
+def _source_has_itr_unskippable_marker(source: str) -> bool:
+    """Return whether source contains a real pytest unskippable marker.
+
+    Collection-time suite skipping must be conservative about actual pytest markers, but comments
+    mentioning the marker reason should not force normal collection.
+    """
+    if ITR_UNSKIPPABLE_REASON not in source:
+        return False
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return True
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if any(_ast_call_is_itr_unskippable_skipif(decorator) for decorator in node.decorator_list):
+                return True
+        elif isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets):
+                if _ast_expr_contains_itr_unskippable_marker(node.value):
+                    return True
+
+    return False
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
