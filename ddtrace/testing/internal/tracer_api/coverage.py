@@ -6,6 +6,7 @@ coverage data.
 """
 
 import contextlib
+import functools
 import logging
 from pathlib import Path
 import typing as t
@@ -38,6 +39,14 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
+@functools.lru_cache(maxsize=65536)
+def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
+    try:
+        return f"/{Path(absolute_path).relative_to(relative_to)}"
+    except ValueError:
+        return None  # covered file does not belong to current repo
+
+
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
@@ -46,14 +55,11 @@ class CoverageData:
         if not self._covered_lines:
             return
 
+        relative_to_str = str(relative_to)
         for absolute_path, covered_lines in self._covered_lines.items():
-            try:
-                relative_path = Path(absolute_path).relative_to(relative_to)
-            except ValueError:
-                continue  # covered file does not belong to current repo
-
-            path_str = f"/{relative_path}"
-            yield path_str, covered_lines.to_bytes()
+            path_str = _relative_coverage_path(absolute_path, relative_to_str)
+            if path_str is not None:
+                yield path_str, covered_lines.to_bytes()
 
 
 @contextlib.contextmanager
