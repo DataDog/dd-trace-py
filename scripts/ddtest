@@ -89,6 +89,31 @@ if [ "$PODMAN_COMPAT" = "1" ]; then
         RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
     fi
     RUN_ARGS+=(--rm)
+
+    # Run the testrunner as the invoking host user instead of the image's
+    # baked-in `bits` user (uid 1000). The testrunner service uses
+    # `userns_mode: host` and bind-mounts the repo at /home/bits/project, so the
+    # in-container uid maps 1:1 to a host uid. When the checkout is not owned by
+    # uid 1000 -- e.g. a root-owned checkout in CI or sandboxed environments --
+    # the `bits` user cannot write the artifacts the build and tests create
+    # inside the tree (.riot venvs, .download_cache, *.egg-info, compiled .so
+    # files), and riot aborts with "the destination . is not write-able".
+    # Aligning the container uid/gid with the caller keeps those writes owned by
+    # the caller and avoids having to chown the working tree. This is the
+    # automatic equivalent of the documented docker-compose.override.yml
+    # (`user: "${UID}:${GID}"`) workaround.
+    #
+    # Scoped to the podman-compat (Linux) path on purpose: the standard Docker
+    # path below is also used on macOS Docker Desktop, whose file-sharing layer
+    # already maps ownership and would break if forced to a non-1000 uid.
+    #
+    # Override with DD_TEST_USER (e.g. DD_TEST_USER=1000:1000); set it to the
+    # empty string to keep the image's default user.
+    RUN_AS_USER="${DD_TEST_USER-$(id -u):$(id -g)}"
+    if [ -n "$RUN_AS_USER" ]; then
+        RUN_ARGS+=(--user "$RUN_AS_USER")
+    fi
+
     "${COMPOSE_COMMAND[@]}" run "${RUN_ARGS[@]}" \
         testrunner \
         bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"

@@ -144,6 +144,10 @@ Why are my Docker tests failing with permission errors on Linux?
 
 On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
 
+.. note::
+
+   When running with ``DD_TEST_PODMAN_COMPAT=1``, ``scripts/ddtest`` (and therefore ``scripts/run-tests``) aligns the container user with your host user automatically by passing ``--user "$(id -u):$(id -g)"`` to the testrunner, so no ``docker-compose.override.yml`` is needed for that path. This makes a root-owned checkout (common in CI or sandboxed environments) work without ``chown``-ing the tree. Set ``DD_TEST_USER`` (for example ``DD_TEST_USER=1000:1000``) to override the uid/gid, or ``DD_TEST_USER=""`` to keep the image's default ``bits`` user. The manual steps below apply to the standard Docker path.
+
 To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
 
 .. code-block:: yaml
