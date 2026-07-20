@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Union
 import urllib.parse as parse
 
+from ddtrace.internal import core
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
@@ -596,12 +597,6 @@ class TelemetryWriter(PeriodicService):
             self._logs = set()
         return logs
 
-    def _dispatch(self) -> None:
-        # moved core here to avoid circular import
-        from ddtrace.internal import core
-
-        core.dispatch("telemetry.periodic")
-
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
         """Process and send telemetry events in batches.
 
@@ -699,7 +694,7 @@ class TelemetryWriter(PeriodicService):
             "payload": events,
             "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
         }
-        self._dispatch()
+        core.dispatch("telemetry.periodic")
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:
