@@ -2,6 +2,7 @@
 import importlib.util
 import platform
 import sys
+import traceback
 from typing import Optional
 
 from ddtrace import config
@@ -30,6 +31,7 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
 
     is_available = True
@@ -171,6 +173,33 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     return config, receiver_config, metadata
 
 
+_original_excepthook = sys.excepthook
+
+
+def _unhandled_exception_reporter(exc_type, exc_value, exc_traceback):
+    try:
+        if is_available and is_started():
+            frames = []
+            for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
+                frames.append(
+                    {
+                        "function": name,
+                        "file": filename,
+                        "line": str(lineno),
+                    }
+                )
+            # Reverse so the innermost (most recent) frame is first
+            frames.reverse()
+
+            exception_type = exc_type.__qualname__ if exc_type is not None else None
+            exception_message = str(exc_value) if exc_value is not None else None
+            crashtracker_report_unhandled_exception(exception_type, exception_message, frames)
+    except Exception:
+        log.debug("Failed to report unhandled exception to crashtracker", exc_info=True)
+
+    _original_excepthook(exc_type, exc_value, exc_traceback)
+
+
 def is_started() -> bool:
     if not is_available:
         return False
@@ -203,7 +232,7 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-
+        sys.excepthook = _unhandled_exception_reporter
         crashtracker_init(config, receiver_config, metadata)
 
         if stack_mod is not None:
