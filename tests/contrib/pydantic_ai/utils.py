@@ -25,17 +25,27 @@ def expected_foo_tool():
     ]
 
 
-# The manifest is ADDITIVE over origin/main: the shipped keys ``framework`` / ``name`` / ``model`` /
-# ``model_settings`` / ``instructions`` (str|None) / ``system_prompts`` (tuple) / ``tools`` (list) keep their
-# exact name + type -- emitted ALWAYS, even when empty/None, exactly as main does. For a normal agent the
-# builder also always emits the additive ``model_provider`` (computed from the model), ``output_type``
-# (defaulting to ``str``), and a flat ``settings`` block (``retries`` / ``tool_retries`` / ``end_strategy``
-# are present on every supported pydantic-ai version 0.8.1 / 1.0.0 / 1.63.0). Prompts are flat: static text
-# in ``instructions`` / ``system_prompts``, runtime resolvers in the separate ``dynamic_instructions`` /
-# ``dynamic_system_prompts`` lists (their descriptor shape is covered by the builder-driven ``test_manifest_*``
-# tests, so these end-to-end baselines carry only the static text). Per-test baselines.
+# The manifest is the LOCKED cross-framework shape, ADDITIVE over origin/main: the shipped keys
+# ``framework`` / ``name`` / ``model`` / ``model_settings`` / ``instructions`` (str|None) /
+# ``system_prompts`` (tuple) / ``tools`` (list) keep their exact name + type -- emitted ALWAYS, even
+# when empty/None, exactly as main does. For a normal agent the builder also always emits the additive
+# ``model_provider`` (computed from the model), ``output_type`` (defaulting to ``str``), and a flat
+# ``settings`` block (``retries`` / ``tool_retries`` / ``end_strategy`` are present on every supported
+# pydantic-ai version 0.8.1 / 1.0.0 / 1.63.0). Function tools appear in BOTH the flat ``tools`` list
+# (registration order, back-compat) AND the unified ``capabilities`` superset (order-incidental ->
+# sorted by ``(type, name)``). Dynamic prompt resolvers live in the separate ``extra_instructions``
+# list (their descriptor shape is covered by the builder-driven ``test_manifest_*`` tests, so these
+# end-to-end baselines carry only static text + function-tool capabilities). Per-test baselines.
 DEFAULT_OUTPUT_TYPE = {"name": "str"}
 DEFAULT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
+
+
+def _capability_from_tool(tool: dict) -> dict:
+    """Mirror the builder's ``tool`` -> ``capabilities`` envelope entry for a flat function tool."""
+    cap = {"name": tool["name"], "type": "tool", "content": {"schema": tool.get("parameters", {})}}
+    if tool.get("description") is not None:
+        cap["description"] = tool["description"]
+    return cap
 
 
 def expected_agent_metadata(
@@ -47,12 +57,8 @@ def expected_agent_metadata(
     instructions=None,
     system_prompts=None,  # a single static system-prompt string (or None)
     tools=None,
-    dynamic_instructions=None,
-    dynamic_system_prompts=None,
-    sub_agents=None,
-    mcp_servers=None,
-    builtin_tools=None,
-    custom_toolsets=None,
+    capabilities=None,  # explicit override; otherwise auto-derived from ``tools``
+    extra_instructions=None,
     handoffs=None,
     guardrails=None,
     output_type=None,
@@ -71,21 +77,26 @@ def expected_agent_metadata(
     manifest["model_settings"] = model_settings
     manifest["instructions"] = instructions
     manifest["system_prompts"] = (system_prompts,) if system_prompts else ()
+
+    # ADDITIVE ordered list of dynamic prompt resolvers (present only when the agent has them).
+    if extra_instructions:
+        manifest["extra_instructions"] = extra_instructions
+
     manifest["tools"] = tools if tools is not None else []
 
-    # ADDITIVE lists -- present only when the agent actually has them.
-    for key, val in (
-        ("dynamic_instructions", dynamic_instructions),
-        ("dynamic_system_prompts", dynamic_system_prompts),
-        ("sub_agents", sub_agents),
-        ("mcp_servers", mcp_servers),
-        ("builtin_tools", builtin_tools),
-        ("custom_toolsets", custom_toolsets),
-        ("handoffs", handoffs),
-        ("guardrails", guardrails),
-    ):
-        if val:
-            manifest[key] = val
+    # Unified ``capabilities`` superset -- present only when non-empty. For these end-to-end baselines
+    # the only capabilities are the agent's function tools, so auto-derive from ``tools`` (sorted by
+    # ``(type, name)`` to match the builder's ``_sorted_definition_list``) unless overridden.
+    if capabilities is None and tools:
+        capabilities = sorted((_capability_from_tool(t) for t in tools), key=lambda c: (c["type"], c["name"]))
+    if capabilities:
+        manifest["capabilities"] = capabilities
+
+    # ADDITIVE order-incidental lists -- present only when the agent actually has them.
+    if handoffs:
+        manifest["handoffs"] = handoffs
+    if guardrails:
+        manifest["guardrails"] = guardrails
 
     manifest["output_type"] = output_type if output_type is not None else dict(DEFAULT_OUTPUT_TYPE)
 
