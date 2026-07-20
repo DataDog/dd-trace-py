@@ -7,6 +7,7 @@ import contextlib
 import gc
 import logging
 from os import getpid
+import sys
 import threading
 import time
 from unittest.case import SkipTest
@@ -1873,19 +1874,38 @@ def test_fork_pid():
     assert exit_code == 12
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="tracer metadata is stored in a memfd on Linux only")
 @pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
-def test_fork_republishes_tracer_metadata():
+def test_fork_republishes_tracer_metadata_linux():
     import os
-    from unittest import mock
+
+    import msgpack
 
     import ddtrace.auto  # noqa
+    from ddtrace.internal.runtime import get_runtime_id
 
-    with mock.patch("ddtrace._trace.tracer.store_metadata") as mock_store_metadata:
-        pid = os.fork()
+    pid = os.fork()
 
-        if pid == 0:
-            mock_store_metadata.assert_called()
-            os._exit(12)
+    if pid == 0:
+        metadata = []
+        for fd in os.listdir("/proc/self/fd"):
+            path = "/proc/self/fd/" + fd
+            try:
+                if not os.readlink(path).startswith("/memfd:datadog-tracer-info-"):
+                    continue
+                with open(path, "rb") as file:
+                    metadata.append(msgpack.unpackb(file.read(), raw=False))
+            except FileNotFoundError:
+                continue
+
+        runtime_id = None
+        for entry in metadata:
+            if "runtime_id" in entry:
+                runtime_id = entry["runtime_id"]
+                break
+
+        assert runtime_id == get_runtime_id()
+        os._exit(12)
 
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
