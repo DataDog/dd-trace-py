@@ -13,7 +13,7 @@
       "_dd.p.tid": "69de9dbb00000000",
       "_dd.svc_src": "dramatiq",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.dramatiq",
-      "actor.name": "fn_task",
+      "actor.name": "exception_task",
       "actor.options": "{}",
       "language": "python",
       "runtime-id": "7171554b23eb48f18f73159a06b1c463",
