@@ -32,7 +32,8 @@ libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v3
 libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true }
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
+# TODO: update to a released version of libdatadog
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "7cdeb7896e92d1ba38bde495934e112dac2eda25", features = ["otel-thread-ctx"] }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = [
@@ -48,6 +49,9 @@ libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v37.
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = ["sanity-check"] }
 
 [build-dependencies]
 pyo3-build-config = "0.28"

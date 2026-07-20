@@ -14,6 +14,8 @@ mod ffe;
 mod http_client;
 mod library_config;
 mod log;
+#[cfg(target_os = "linux")]
+mod otel_thread_ctx;
 mod py_string;
 mod rand;
 mod shared_runtime;
@@ -58,6 +60,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     event_hub::register_event_hub(m)?;
     contextvar::register_contextvar(m)?;
     rand::register_rand(m)?;
+
+    #[cfg(target_os = "linux")]
+    otel_thread_ctx::register_otel_thread_ctx(m)?;
+
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
