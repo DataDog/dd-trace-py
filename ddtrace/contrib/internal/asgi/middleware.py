@@ -21,7 +21,6 @@ from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
