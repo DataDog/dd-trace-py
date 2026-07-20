@@ -84,7 +84,11 @@ if [ "$PODMAN_COMPAT" = "1" ]; then
         "${COMPOSE_COMMAND[@]}" build testrunner
     fi
 
-    RUN_ARGS=()
+    RUN_ARGS=(
+        -e "PATH=/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        -e "CARGO_HOME=/home/bits/.cargo"
+        -e "RUSTUP_HOME=/home/bits/.rustup"
+    )
     if [ -n "${DD_TRACE_AGENT_URL+x}" ]; then
         RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
     fi
