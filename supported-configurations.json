@@ -925,6 +925,13 @@
         "default": "true"
       }
     ],
+    "DD_CODE_COVERAGE_FLAGS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_CODE_ORIGIN_ENABLED": [
       {
         "implementation": "A",
