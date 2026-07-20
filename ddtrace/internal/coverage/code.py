@@ -318,6 +318,13 @@ class ModuleCodeCollector(ModuleWatchdog):
                     covered_lines[path].update(imported_module_lines)
 
     def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
+        """Return file-level covered paths with import-time dependencies added.
+
+        This is the file-level equivalent of _add_import_time_lines(), but avoids
+        allocating and mutating one CoverageLines object per covered file for every
+        test. File-level coverage only needs path membership because every covered
+        file emits the same line-0 sentinel bitmap.
+        """
         if not covered_file_paths:
             return covered_file_paths
 
