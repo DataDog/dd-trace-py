@@ -27,7 +27,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeter
 from tests.utils import assert_is_measured
 
 
-_GRPC_PORT = 50531
 NUMBER_OF_REPLY = 10
 
 
@@ -175,11 +174,13 @@ def patch_grpc_aio():
 @pytest.fixture
 async def async_server_info(request, tracer, event_loop):
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
-    _server = grpc.aio.server()
+    _server = grpc.aio.server(options=(("grpc.so_reuseport", 0),))
     add_MultiGreeterServicer_to_server(Greeter(), _server)
     _servicer = request.param
-    target = f"localhost:{_GRPC_PORT}"
-    _server.add_insecure_port(target)
+    # Bind to an ephemeral port so the OS atomically assigns a guaranteed-free one; avoids the
+    # fixed-port rebind races that were flaky under pytest-xdist. add_insecure_port returns it.
+    port = _server.add_insecure_port("localhost:0")
+    target = f"localhost:{port}"
     # interceptor can not catch AbortError for sync servicer
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
@@ -197,8 +198,8 @@ async def server_info(request, tracer, event_loop):
     """Configures grpc server and starts it in pytest-asyncio event loop."""
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _servicer = request.param
-    target = f"localhost:{_GRPC_PORT}"
-    _server = _create_server(_servicer, target)
+    _server, port = _create_server(_servicer)
+    target = f"localhost:{port}"
     # interceptor can not catch AbortError for sync servicer
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
@@ -209,11 +210,11 @@ async def server_info(request, tracer, event_loop):
     await wait_task
 
 
-def _create_server(servicer, target):
-    _server = aio.server()
-    _server.add_insecure_port(target)
+def _create_server(servicer):
+    _server = aio.server(options=(("grpc.so_reuseport", 0),))
+    port = _server.add_insecure_port("localhost:0")
     add_HelloServicer_to_server(servicer, _server)
-    return _server
+    return _server, port
 
 
 def _get_spans(tracer):
@@ -235,7 +236,8 @@ def _check_client_span(span, service, method_name, method_kind, resource="hellow
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
     assert span.get_tag("grpc.host") == "localhost"
     assert span.get_tag("peer.hostname") == "localhost"
-    assert span.get_tag("network.destination.port") == "50531"
+    # The server binds an ephemeral port, so assert a valid port is tagged rather than a fixed value.
+    assert span.get_tag("network.destination.port").isdigit()
     assert span.get_tag("component") == "grpc_aio_client"
     assert span.get_tag("span.kind") == "client"
 
