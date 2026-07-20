@@ -212,6 +212,7 @@ import opentelemetry
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_AGENTIC_ONBOARDING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
