@@ -58,6 +58,13 @@ def ai_guard_listen() -> None:
 
 
 def _langchain_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_LANGCHAIN_ENABLED, true by default). When set
+    # to false, skip registering LangChain listeners so AI Guard never evaluates
+    # LangChain calls, without affecting other providers or requiring a tracer rollback.
+    if not ai_guard_config._ai_guard_langchain_enabled:
+        logger.debug("AI Guard LangChain auto-instrumentation disabled via DD_AI_GUARD_LANGCHAIN_ENABLED=false")
+        return
+
     core.on("langchain.patch", partial(_langchain_patch, client))
     core.on("langchain.unpatch", _langchain_unpatch)
 
@@ -319,6 +326,13 @@ def _uninstall_openai_wrappers() -> None:
 
 
 def _anthropic_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_ANTHROPIC_ENABLED, true by default). When set
+    # to false, skip registering Anthropic listeners so AI Guard never evaluates
+    # Anthropic calls, without affecting other providers or requiring a tracer rollback.
+    if not ai_guard_config._ai_guard_anthropic_enabled:
+        logger.debug("AI Guard Anthropic auto-instrumentation disabled via DD_AI_GUARD_ANTHROPIC_ENABLED=false")
+        return
+
     core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
