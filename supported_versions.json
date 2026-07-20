@@ -5089,42 +5089,42 @@
             },
             "3.10": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.14": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             }
         }
