@@ -1,9 +1,9 @@
 ---
 description: AI Guard - LLM/agentic workflow safety evaluation - how it works and development guidelines
 globs:
-  - "**/appsec/_ai_guard/**"
+  - "**/aiguard/**"
   - "**/appsec/ai_guard/**"
-  - "**/tests/appsec/ai_guard/**"
+  - "**/tests/aiguard/**"
 ---
 
 # AI Guard Development Guide
@@ -27,7 +27,7 @@ and acting on its verdict.
 ### Evaluation outcomes
 
 The service returns one of three actions (see `ACTIONS` in
-`ddtrace/appsec/ai_guard/_api_client.py`):
+`ddtrace/aiguard/_api_client.py`):
 
 | Action | Meaning |
 |--------|---------|
@@ -42,44 +42,49 @@ user code cannot accidentally swallow a block decision.
 
 ## Package layout
 
-AI Guard lives in two sibling packages under `ddtrace/appsec/`:
+AI Guard lives in the top-level `ddtrace/aiguard/` package (moved out of
+`ddtrace/appsec/` to align with Node `dd-trace/aiguard` and Java
+`datadog.trace.api.aiguard`):
 
 ```
-ddtrace/appsec/
-├── ai_guard/               # PUBLIC SDK (user-facing, stable API)
-│   ├── __init__.py         # re-exports: new_ai_guard_client, AIGuardClient,
-│   │                       #   AIGuardClientError, AIGuardAbortError, Message,
-│   │                       #   Evaluation, Options, ToolCall, Function, …
-│   ├── _api_client.py      # AIGuardClient.evaluate() + HTTP transport + types
-│   └── integrations/       # framework SDK plugins resolved lazily
-│       ├── litellm.py
-│       └── strands.py      # AIGuardStrandsPlugin / AIGuardStrandsHookProvider
-│
-└── _ai_guard/              # PRIVATE internals (listeners + converters)
-    ├── __init__.py         # init_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
-    ├── _listener.py        # ai_guard_listen(): registers all core.on(...) hooks
-    ├── _context.py         # contextvar depth counter to avoid double-scanning
-    ├── _common.py          # _get(), wrap_abort_error() shared helpers
-    ├── _openai.py          # OpenAI common helpers
+ddtrace/aiguard/
+├── __init__.py             # PUBLIC SDK: re-exports new_ai_guard_client,
+│                           #   AIGuardClient, AIGuardClientError,
+│                           #   AIGuardAbortError, Message, Evaluation, Options,
+│                           #   ToolCall, Function, … (Strands plugins lazily)
+├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport + types
+├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
+├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks
+├── _context.py             # contextvar depth counter to avoid double-scanning
+├── _common.py              # _get(), wrap_abort_error() shared helpers
+├── _streaming.py           # streaming response evaluation
+├── messages.py             # message formatting helpers
+└── integrations/           # provider listeners/converters + framework plugins
+    ├── litellm.py
+    ├── strands.py          # AIGuardStrandsPlugin / AIGuardStrandsHookProvider
+    ├── openai.py           # OpenAI common helpers
     ├── _openai_chat.py     # Chat Completions API converters + listeners
     ├── _openai_responses.py# Responses API converters + listeners
     ├── _openai_errors.py   # OpenAI-compatible abort error class
-    ├── _anthropic.py       # Anthropic Messages API converters + listeners
-    ├── _anthropic_errors.py# Anthropic-compatible abort error class
-    ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
-    ├── _streaming.py       # streaming response evaluation
-    └── messages.py         # message formatting helpers
+    ├── anthropic.py        # Anthropic Messages API converters + listeners
+    ├── _anthropic_streaming.py # Anthropic stream reconstruction
+    ├── _anthropic_errors.py    # Anthropic-compatible abort error class
+    └── langchain.py        # LangChain agent/chatmodel/llm listeners
 ```
 
+The old import path `ddtrace.appsec.ai_guard` remains as a deprecated re-export
+shim (`ddtrace/appsec/ai_guard/__init__.py`) that emits
+`DDTraceDeprecationWarning` and will be removed in 5.0.0.
+
 **Rule of thumb:**
-- `ai_guard/` (no underscore) = **public**, stable contract. Don't break it.
-- `_ai_guard/` (underscore) = **private**, listeners and provider converters.
+- `ddtrace/aiguard/` top level + `__init__.py` = **public**, stable contract. Don't break it.
+- `_`-prefixed modules and `integrations/` provider listeners = **private** internals.
 
 ## How AI Guard Works: High-Level Architecture
 
 ### 1. Lazy, opt-in initialization
 
-`init_ai_guard()` (in `ddtrace/appsec/_ai_guard/__init__.py`) is a one-shot
+`load_ai_guard()` (in `ddtrace/aiguard/_initialization.py`) is a one-shot
 loader gated on `DD_AI_GUARD_ENABLED`. When enabled, it imports
 `ai_guard_listen()` from `_listener.py`, which constructs a single
 `AIGuardClient` and registers all event listeners. When disabled, nothing is
@@ -108,7 +113,7 @@ so a `DENY`/`ABORT` decision actually stops the SDK call.
 **Consumer side** — `_listener.py` registers listeners with `core.on(...)`:
 
 ```python
-# ddtrace/appsec/_ai_guard/_listener.py
+# ddtrace/aiguard/_listener.py
 core.on("openai.chat.completions.create.before",
         partial(_openai_chat_completion_before, client))
 core.on("openai.chat.completions.create.after",
@@ -174,7 +179,7 @@ All configuration is via environment variables, parsed in
 ## Public SDK usage
 
 ```python
-from ddtrace.appsec.ai_guard import new_ai_guard_client, AIGuardAbortError
+from ddtrace.aiguard import new_ai_guard_client, AIGuardAbortError
 
 client = new_ai_guard_client()
 try:
@@ -208,5 +213,5 @@ re-exported lazily from `ai_guard/__init__.py` via a module-level
   the provider listener honor `is_aiguard_context_active()`.
 - **Preserve `AIDEV-NOTE` anchors** (lazy import timing, stream counter
   lifecycle, legacy message translation) — they encode non-obvious invariants.
-- **Tests** live under `tests/appsec/ai_guard/`. Use the `run-tests` skill;
+- **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;
   never run `pytest` directly.

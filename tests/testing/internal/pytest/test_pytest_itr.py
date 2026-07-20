@@ -478,3 +478,37 @@ class TestITR:
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []
+
+    def test_itr_coverage_enabled_with_coverage_report_upload(self, pytester: Pytester) -> None:
+        """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
+        even when coverage_report_upload_enabled=True.
+
+        Both mechanisms can run simultaneously because CollectInContext.__enter__ dynamically
+        detects other sys.monitoring tools and disables the DISABLE optimisation + restart_events()
+        to avoid corrupting their state.
+        """
+        pytester.makepyfile(test_placeholder="def test_ok(): pass")
+
+        setup_coverage_calls: list[bool] = []
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    coverage_enabled=True,
+                    coverage_report_upload_enabled=True,
+                ),
+            ),
+            setup_standard_mocks(),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.setup_coverage_collection",
+                side_effect=lambda **kwargs: setup_coverage_calls.append(True),
+            ),
+        ):
+            pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert len(setup_coverage_calls) == 1, (
+            "setup_coverage_collection() must be called when coverage_enabled=True "
+            "even when coverage_report_upload_enabled=True; "
+            f"was called {len(setup_coverage_calls)} time(s)"
+        )
