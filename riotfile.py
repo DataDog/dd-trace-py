@@ -2081,6 +2081,8 @@ venv = Venv(
         Venv(
             name="asynctest",
             command="pytest {cmdargs} tests/contrib/asynctest/",
+            # The test runs a nested pytest session in-process, which cannot safely upload the outer coverage data.
+            env={"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false"},
             pkgs={
                 "pytest-randomly": latest,
                 "pytest": [
@@ -2093,6 +2095,8 @@ venv = Venv(
         Venv(
             name="pytest_bdd",
             command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
+            # The BDD tests run nested pytest sessions in-process, which cannot safely upload the outer coverage data.
+            env={"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false"},
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
