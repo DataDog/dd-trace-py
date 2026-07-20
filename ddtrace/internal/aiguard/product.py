@@ -13,6 +13,8 @@ def enabled() -> bool:
 
 
 def start() -> None:
+    from ddtrace.aiguard._initialization import load_ai_guard
+
     load_ai_guard()
 
 
