@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    tracing: This fix resolves an issue where forked child processes did not
-    republish tracer metadata, the context was inherited from the parent and
-    contained stale metadata.
+    tracing: Fixes an issue in applications that fork where the security agent
+    could read stale process metadata, preventing security signals from being
+    correlated with APM traces.
