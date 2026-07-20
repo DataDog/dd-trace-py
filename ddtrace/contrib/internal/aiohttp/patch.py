@@ -60,11 +60,15 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         super().__init__(obj)
 
     async def connect(self, req, *args, **kwargs):
+        service: Optional[str] = (
+            url.host if config.aiohttp_client.split_by_domain else ext_service(config, config.aiohttp_client)
+        )
         with core.context_with_event(
             TracingEvent.create(
                 component=config.aiohttp.integration_name,
                 integration_config=config.aiohttp,
                 operation_name="%s.connect" % self.__class__.__name__,
+                service=service,
                 span_type="",  # no SpanType matches
                 span_kind=SpanKind.CLIENT,
                 measured=False,
@@ -74,11 +78,15 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
     async def _create_connection(self, req, *args, **kwargs):
+        service: Optional[str] = (
+            url.host if config.aiohttp_client.split_by_domain else ext_service(config, config.aiohttp_client)
+        )
         with core.context_with_event(
             TracingEvent.create(
                 component=config.aiohttp.integration_name,
                 integration_config=config.aiohttp,
                 operation_name="%s._create_connection" % self.__class__.__name__,
+                service=service,
                 span_type="",  # no SpanType matches
                 span_kind=SpanKind.CLIENT,
                 measured=False,
