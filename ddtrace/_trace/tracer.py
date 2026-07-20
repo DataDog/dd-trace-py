@@ -7,6 +7,7 @@ from itertools import chain
 import logging
 import os
 from os import getpid
+import sys
 from threading import Lock
 from typing import Any
 from typing import AsyncGenerator
@@ -69,6 +70,10 @@ log = get_logger(__name__)
 
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
+
+if sys.platform == "linux":
+    from ddtrace.internal.native._native import detach_otel_thread_context
+    from ddtrace.internal.native._native import update_otel_thread_context
 
 
 def _function_has_class_scope(f: Callable) -> bool:
@@ -321,6 +326,14 @@ class Tracer(object):
         core.dispatch("trace.log_correlation_context", (log_context,))
         return log_context
 
+    if sys.platform == "linux":
+
+        def _sync_otel_thread_context(self, ctx: Optional[Union[Context, Span]]) -> None:
+            if type(ctx) is Span:
+                update_otel_thread_context(ctx, ctx._local_root_value)
+            else:
+                detach_otel_thread_context()
+
     def configure(
         self,
         context_provider: Optional[BaseContextProvider] = None,
@@ -383,7 +396,13 @@ class Tracer(object):
             )
 
         if context_provider is not None:
+            if sys.platform == "linux":
+                self.context_provider._remove_activation_listener(self._sync_otel_thread_context)
+
             self.context_provider = context_provider
+
+            if sys.platform == "linux":
+                self.context_provider._add_activation_listener(self._sync_otel_thread_context)
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
