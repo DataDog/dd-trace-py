@@ -1064,7 +1064,8 @@ def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
         body = json.loads(report["body"])
         message = json.loads(body["payload"]["logs"][0]["message"])
 
-        # Verify the error contains our exception info
         error = message["error"]
-        assert "CustomError" in json.dumps(error)
-        assert "crashtracker_unhandled_test_message" in json.dumps(error)
+        error_str = json.dumps(error)
+        # The exception is defined in __main__
+        assert "__main__.CustomError" in error_str
+        assert "crashtracker_unhandled_test_message" in error_str

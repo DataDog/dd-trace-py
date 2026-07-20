@@ -3,6 +3,7 @@ import importlib.util
 import platform
 import sys
 import traceback
+from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
@@ -173,12 +174,14 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     return config, receiver_config, metadata
 
 
-_original_excepthook = sys.excepthook
+_original_excepthook = None
 
 
-def _unhandled_exception_reporter(exc_type, exc_value, exc_traceback):
+def _unhandled_exception_reporter(
+    exc_type: type[BaseException], exc_value: BaseException, exc_traceback: TracebackType
+) -> None:
     try:
-        if is_available and is_started():
+        if is_available and is_started() and exc_type is not None and issubclass(exc_type, Exception):
             frames = []
             for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
                 frames.append(
@@ -191,7 +194,12 @@ def _unhandled_exception_reporter(exc_type, exc_value, exc_traceback):
             # Reverse so the innermost (most recent) frame is first
             frames.reverse()
 
-            exception_type = exc_type.__qualname__ if exc_type is not None else None
+            module = getattr(exc_type, "__module__", None)
+            qualname = exc_type.__qualname__
+            if module and module != "builtins":
+                exception_type = f"{module}.{qualname}"
+            else:
+                exception_type = qualname
             exception_message = str(exc_value) if exc_value is not None else None
             crashtracker_report_unhandled_exception(exception_type, exception_message, frames)
     except Exception:
@@ -233,8 +241,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             except Exception:  # nosec: B110
                 pass
         crashtracker_init(config, receiver_config, metadata)
+        global _original_excepthook
+        _original_excepthook = sys.excepthook
         sys.excepthook = _unhandled_exception_reporter
-
 
         if stack_mod is not None:
             try:
