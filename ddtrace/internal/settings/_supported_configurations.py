@@ -965,7 +965,6 @@ DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(
 SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(
     {
         "DD_API_KEY",
-        "DD_APPSEC_AGENTIC_ONBOARDING",
         "DD_APP_KEY",
         "OTEL_EXPORTER_OTLP_HEADERS",
         "OTEL_EXPORTER_OTLP_LOGS_HEADERS",

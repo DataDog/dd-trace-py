@@ -52,84 +52,11 @@ def test_app_started_event_configuration_override_asm(
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
 
-@pytest.mark.parametrize(
-    "onboarding, asm_enabled",
-    [("1", True), ("", True), ("1", False), (None, True), (None, False)],
-)
-def test_agentic_onboarding_telemetry(telemetry_writer, onboarding, asm_enabled):
-    """RFC-1110: report appsec.agentic_onboarding=_asm_enabled iff DD_APPSEC_AGENTIC_ONBOARDING is set."""
-    from ddtrace.internal.appsec import product
-    from ddtrace.internal.settings.asm import config as asm_config
-
-    with (
-        mock.patch.object(product, "_agentic_onboarding_reported", False),
-        mock.patch.object(asm_config, "_asm_agentic_onboarding", onboarding),
-        mock.patch.object(asm_config, "_asm_enabled", asm_enabled),
-        mock.patch.object(asm_config, "value_source", return_value="env_var"),
-        mock.patch.object(telemetry_writer, "add_configuration") as add_configuration,
-    ):
-        product.post_preload()
-
-    if onboarding is not None:
-        add_configuration.assert_called_once_with("appsec.agentic_onboarding", asm_enabled, "env_var")
-    else:
-        add_configuration.assert_not_called()
-
-
-def test_agentic_onboarding_telemetry_reported_once(telemetry_writer):
-    """RFC-1110: start() (the entrypoint AWS Lambda calls) reports it, only once across start+post_preload."""
-    from ddtrace.internal.appsec import product
-    from ddtrace.internal.settings.asm import ai_guard_config
-    from ddtrace.internal.settings.asm import config as asm_config
-
-    with (
-        mock.patch.object(product, "_agentic_onboarding_reported", False),
-        mock.patch.object(asm_config, "_asm_agentic_onboarding", "1"),
-        mock.patch.object(asm_config, "_asm_enabled", True),
-        mock.patch.object(asm_config, "_asm_can_be_enabled", False),
-        mock.patch.object(asm_config, "_asm_rc_enabled", False),
-        mock.patch.object(ai_guard_config, "_ai_guard_enabled", False),
-        mock.patch.object(asm_config, "value_source", return_value="env_var"),
-        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
-        mock.patch("ddtrace.appsec._listeners.load_appsec"),
-        mock.patch.object(telemetry_writer, "add_configuration") as add_configuration,
-    ):
-        product.start()  # AWS Lambda calls start() directly
-        product.post_preload()  # standard startup also runs; must not double-report
-
-    add_configuration.assert_called_once_with("appsec.agentic_onboarding", True, "env_var")
-
-
-def test_agentic_onboarding_reports_false_when_startup_fails(telemetry_writer):
-    """RFC-1110: if AppSec fails to come up in start(), the signal must report false, not true."""
-    from ddtrace.internal.appsec import product
-    from ddtrace.internal.settings.asm import config as asm_config
-
-    def fake_abort(_msg):
-        asm_config._asm_enabled = False
-
-    with (
-        mock.patch.object(product, "_agentic_onboarding_reported", False),
-        mock.patch.object(asm_config, "_asm_agentic_onboarding", "1"),
-        mock.patch.object(asm_config, "_asm_enabled", True),
-        mock.patch.object(asm_config, "_asm_can_be_enabled", True),
-        mock.patch.object(asm_config, "value_source", return_value="env_var"),
-        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules", side_effect=RuntimeError("boom")),
-        mock.patch("ddtrace.appsec._listeners._abort_appsec", side_effect=fake_abort) as abort,
-        mock.patch.object(telemetry_writer, "add_configuration") as add_configuration,
-    ):
-        with pytest.raises(RuntimeError):
-            product.start()
-
-    abort.assert_called_once()
-    add_configuration.assert_called_once_with("appsec.agentic_onboarding", False, "env_var")
-
-
-@pytest.mark.parametrize("onboarding_value", ["1", "true", "false", "0", ""])
-def test_app_started_event_agentic_onboarding_presence(
+@pytest.mark.parametrize("onboarding_value", ["true", "false", "1", "0", ""])
+def test_app_started_event_agentic_onboarding_reported_verbatim(
     test_agent_session, run_python_code_in_subprocess, onboarding_value
 ):
-    """RFC-1110: any value (even empty) counts as set, so the entry is reported."""
+    """RFC-1113: DD_APPSEC_AGENTIC_ONBOARDING is reported verbatim as an ordinary config key."""
     env = os.environ.copy()
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_AGENTIC_ONBOARDING"] = onboarding_value
@@ -137,17 +64,18 @@ def test_app_started_event_agentic_onboarding_presence(
     assert status == 0, stderr
 
     configuration = test_agent_session.get_configurations(
-        name="appsec.agentic_onboarding", remove_seq_id=True, effective=True
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
     )
     assert len(configuration) == 1, configuration
-    assert configuration[0]["name"] == "appsec.agentic_onboarding"
-    assert configuration[0]["origin"] == "env_var"
-    # The raw env var value must never be transmitted (registered sensitive).
-    assert test_agent_session.get_configurations(name="DD_APPSEC_AGENTIC_ONBOARDING") == []
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "env_var",
+        "value": onboarding_value,
+    }
 
 
 def test_app_started_event_agentic_onboarding_absent(test_agent_session, run_python_code_in_subprocess):
-    """RFC-1110: when DD_APPSEC_AGENTIC_ONBOARDING is unset, nothing is reported."""
+    """RFC-1113: when unset, the key is still reported with an empty value and origin=default."""
     env = os.environ.copy()
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
@@ -156,9 +84,14 @@ def test_app_started_event_agentic_onboarding_absent(test_agent_session, run_pyt
     assert status == 0, stderr
 
     configuration = test_agent_session.get_configurations(
-        name="appsec.agentic_onboarding", remove_seq_id=True, effective=True
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
     )
-    assert configuration == [], configuration
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "default",
+        "value": "",
+    }
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):

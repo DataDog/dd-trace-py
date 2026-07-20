@@ -530,10 +530,10 @@ Application & API Security
    DD_APPSEC_AGENTIC_ONBOARDING:
      type: String
      description: |
-       A legitimate Datadog variable set automatically by Datadog's agentic onboarding solution when it
-       configures App & API Protection. It lets Datadog record, via
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding
+       solution when it configures App & API Protection. Its value is reported verbatim via
        `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
-       that the service was onboarded through the agentic flow. Its value is never read.
+       so that Datadog can record that the service was onboarded through the agentic flow.
 
      version_added:
        v4.13.0:
