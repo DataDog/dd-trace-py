@@ -298,7 +298,13 @@ f.wsgi_app()
     assert len(app_started_event) == 1
 
     logs_event = test_agent_session.get_events("logs")
-    error_log = logs_event[0]["payload"]["logs"][0]
+    # Filter out crashtracker logs (contain "is_crash:true" in the message)
+    telemetry_logs = [
+        event
+        for event in logs_event
+        if not any("is_crash:true" in log.get("message", "") for log in event["payload"]["logs"])
+    ]
+    error_log = telemetry_logs[0]["payload"]["logs"][0]
     assert error_log["message"] == "Unhandled exception from ddtrace code"
     assert error_log["level"] == "ERROR"
     assert "patched_wsgi_app" in error_log["stack_trace"]
