@@ -171,19 +171,17 @@ variables:
   variables:
     ARCH_TAG: "amd64"
 
-# Tart VMs default to using zsh instead of bash
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
-  tags: [ "macos:sonoma-tart" ]
+  tags: [ "macos:tart" ]
   variables:
     ARCH_TAG: "arm64"
-    # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
-    FF_SCRIPT_SECTIONS: "false"
+    # Use bash instead of the Tart VM's default zsh
+    TART_EXECUTOR_SHELL: "/bin/bash -l"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
   before_script: |
-    setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
     # so resolve creds from the tart iam-proxy beforehand

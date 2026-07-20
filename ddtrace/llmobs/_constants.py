@@ -43,6 +43,7 @@ class LLMObsSamplingDecision(str, Enum):
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -73,6 +74,12 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+
+# Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
+# token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
+INPUT_COST_METRIC_KEY = "input_cost"
+OUTPUT_COST_METRIC_KEY = "output_cost"
+TOTAL_COST_METRIC_KEY = "total_cost"
 
 LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
 LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
@@ -167,6 +174,7 @@ INPUT_TYPE_TEXT = "input_text"
 
 # Managed Prompts Cache and Timeout defaults
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_CACHE_MAXSIZE = 1024  # max in-memory prompt entries (LRU); bounds per-subject resolve growth
 DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 
 # Managed Prompts API
@@ -236,3 +244,12 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
 # These were removed in the span._store -> span._meta_struct migration (PR #16774).
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+
+
+class PromptSource(str, Enum):
+    HOT_CACHE = "hot_cache"
+    WARM_CACHE = "warm_cache"
+    REGISTRY = "registry"
+    RESOLVE = "resolve"
+    FF = "ff"
+    FALLBACK = "fallback"
