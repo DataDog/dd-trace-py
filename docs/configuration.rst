@@ -784,6 +784,15 @@ Test Visibility
 
 .. ddtrace-configuration-options::
 
+   DD_CODE_COVERAGE_FLAGS:
+     type: String (comma-separated list)
+
+     description: |
+        Adds flags to uploaded code coverage reports for grouping and filtering. Separate flags with commas, for example
+        ``DD_CODE_COVERAGE_FLAGS="type:unit-tests,jvm-21"``. Surrounding whitespace and empty entries are ignored;
+        order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
+        omitted without canceling the report upload.
+
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False

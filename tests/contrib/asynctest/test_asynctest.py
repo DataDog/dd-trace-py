@@ -1,54 +1,19 @@
-import os
 import sys
-from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
-import ddtrace
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.ext import test
-from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from tests.ci_visibility.util import _patch_dummy_writer
-from tests.utils import DummyCIVisibilityWriter
-from tests.utils import TracerTestCase
-from tests.utils import override_env
+from tests.testing.mocks import EventCapture
+from tests.testing.mocks import mock_api_client_settings
+from tests.testing.mocks import setup_standard_mocks
 
 
-class TestPytest(TracerTestCase):
+class TestPytest:
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
-
-    @pytest.fixture(autouse=True)
-    def _dummy_check_enabled_features(self):
-        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
-
-        Tests that need a different response should re-patch the CIVisibility object.
-        """
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(False, False, False, False),
-        ):
-            yield
-
-    def inline_run(self, *args):
-        """Execute test script with test tracer."""
-
-        class CIVisibilityPlugin:
-            @staticmethod
-            def pytest_configure(config):
-                if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            self.tracer._span_aggregator.writer = DummyCIVisibilityWriter("https://citestcycle-intake.banana")
-            self.tracer._recreate()
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0),
@@ -69,11 +34,24 @@ class TestPytest(TracerTestCase):
             assert 1 == 1
         """
         )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
+        file_name = py_file.strpath
+        self.monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "0")
 
-        assert len(spans) == 4
-        test_span = spans[0]
-        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+            EventCapture.capture() as event_capture,
+        ):
+            rec = self.testdir.inline_run("--ddtrace", file_name)
+
+        rec.assertoutcome(passed=1)
+        events = list(event_capture.events())
+        assert sorted(event["type"] for event in events) == [
+            "test",
+            "test_module_end",
+            "test_session_end",
+            "test_suite_end",
+        ]
+
+        test_event = event_capture.event_by_test_name("test_asynctest")
+        assert test_event["content"]["meta"][test.STATUS] == test.Status.PASS.value

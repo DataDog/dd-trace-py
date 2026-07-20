@@ -44,6 +44,12 @@ LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
+# Agent attribution: nearest-agent identity propagated across process boundaries.
+# The id is always str(span_id) (digit-safe); the name is an arbitrary user string. Both are
+# written via _stamp_agent_attribution, which drops the name (or both) rather than overflow
+# the x-datadog-tags budget (see _utils.py).
+PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
+PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -74,6 +80,12 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+
+# Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
+# token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
+INPUT_COST_METRIC_KEY = "input_cost"
+OUTPUT_COST_METRIC_KEY = "output_cost"
+TOTAL_COST_METRIC_KEY = "total_cost"
 
 LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
 LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
@@ -181,6 +193,8 @@ class LLMOBS_STRUCT:
     KEY: Final = "_llmobs"
     NAME: Final = "name"
     PARENT_ID: Final = "parent_id"
+    PARENT_AGENT_NAME: Final = "pagent_name"
+    PARENT_AGENT_SPAN_ID: Final = "pagent_span_id"
     TRACE_ID: Final = "trace_id"
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
