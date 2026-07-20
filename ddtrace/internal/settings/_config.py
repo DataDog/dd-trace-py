@@ -9,6 +9,7 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -19,6 +20,7 @@ from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
@@ -26,7 +28,6 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -523,17 +524,31 @@ class Config(object):
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
         self._is_user_provided_service = self.service is not None
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # (v0 vs v1) without importing that package, which would recreate the
+        # _config -> schema -> span_attribute_schema -> _config circular import.
+        _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+        if _span_service_name_schema_version not in ("v0", "v1"):
+            _span_service_name_schema_version = "v0"
+        if _span_service_name_schema_version == "v0" and not asbool(
+            env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
+        ):
+            default_span_service_name = self._inferred_base_service or None
+        else:
+            default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
         if self.service is None and in_aws_lambda():
-            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)
         if self.service is None and in_gcp_function():
-            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], default_span_service_name)
         if self.service is None and in_azure_function():
-            self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
-        if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
-            self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config("WEBSITE_SITE_NAME", default_span_service_name)
+        if self.service is None and default_span_service_name:
+            self.service = _get_config("DD_SERVICE", default_span_service_name)
 
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
@@ -647,8 +662,10 @@ class Config(object):
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
+        self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
+        self._otel_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
         self._client_side_stats_obfuscation = _get_config(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
@@ -704,6 +721,13 @@ class Config(object):
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
         self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
+        if "DD_LLMOBS_ML_APP" in env:
+            deprecate(
+                "DD_LLMOBS_ML_APP is deprecated",
+                message="Use DD_SERVICE instead to identify your agentic service.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)

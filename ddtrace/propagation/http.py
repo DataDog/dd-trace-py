@@ -1132,13 +1132,14 @@ class HTTPPropagator(object):
         If sampling_priority is already set, returns immediately. Otherwise, finds the
         appropriate span and triggers sampling before returning the injection context.
         """
+        core_tracer = core.root.get_item("tracer")
         # Extract context for header injection (non_active_span takes precedence)
         injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
 
         # Find root span for sampling decisions
         if injection_context.sampling_priority is not None:
             return injection_context
-        elif core.tracer is None:
+        elif core_tracer is None:
             # This should never happen, tracer should be initialized before headers can be injected.
             log.error(
                 "No tracer found and injection context %s has no sampling priority, skipping sampling",
@@ -1153,13 +1154,13 @@ class HTTPPropagator(object):
         elif isinstance(trace_info, Span):
             # Use span's root for sampling
             sampling_span = trace_info._local_root
-        elif (current_root := core.tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
+        elif (current_root := core_tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
             # Get the local root span for the current trace (if it is active, otherwise we can't sample)
             sampling_span = current_root
 
         # Sample the local root span before injecting headers.
         if sampling_span:
-            core.tracer.sample(sampling_span)
+            core_tracer.sample(sampling_span)
             log.debug("%s sampled before propagating trace: span_context=%s", sampling_span, injection_context)
 
         return injection_context

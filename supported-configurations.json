@@ -145,6 +145,13 @@
         "default": "false"
       }
     ],
+    "DD_AI_GUARD_ANTHROPIC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -164,6 +171,13 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_AI_GUARD_LANGCHAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_MAX_CONTENT_SIZE": [
@@ -297,6 +311,14 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_APPSEC_AGENTIC_ONBOARDING": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
@@ -901,6 +923,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_CODE_COVERAGE_FLAGS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_CODE_ORIGIN_ENABLED": [
@@ -1584,6 +1613,14 @@
         "experimental": true
       }
     ],
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "experimental": true
+      }
+    ],
     "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": [
       {
         "implementation": "B",
@@ -1652,6 +1689,14 @@
         "implementation": "A",
         "type": "decimal",
         "default": "1.0"
+      }
+    ],
+    "DD_FLAGGING_EVALUATION_COUNTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
       }
     ],
     "DD_FLASK_CACHE_SERVICE": [
@@ -2591,6 +2636,13 @@
         "aliases": [
           "DD_OPENAI_AGENTS_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_OPENAI_REALTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_OPENAI_SERVICE": [
@@ -4500,6 +4552,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TRACE_PARTIAL_FLUSH_ENABLED": [
       {
         "implementation": "B",
@@ -5545,6 +5604,13 @@
         "default": null
       }
     ],
+    "OTEL_TRACES_SPAN_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
@@ -6033,6 +6099,14 @@
         "internal": true
       }
     ],
+    "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
+        "internal": true
+      }
+    ],
     "_DD_TRACE_STATS_WRITER_INTERVAL": [
       {
         "implementation": "A",
@@ -6067,9 +6141,9 @@
     ],
     "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED": [
       {
-        "version": "B",
+        "version": "C",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "propertyKeys": [
           "trace_stats_computation_experimental_client_obfuscation_enabled"
         ]
