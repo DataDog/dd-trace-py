@@ -228,6 +228,9 @@ class BaseLLMObsWriter(PeriodicService):
                 self._headers["DD-APPLICATION-KEY"] = self._app_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+        override_auth_header = env.get("_DD_LLMOBS_OVERRIDE_AUTH_HEADER", "")
+        if override_auth_header:
+            self._headers["Authorization"] = override_auth_header
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
