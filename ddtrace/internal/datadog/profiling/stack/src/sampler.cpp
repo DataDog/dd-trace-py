@@ -1,6 +1,10 @@
 #include "sampler.hpp"
 
+#include <datadog/common.h>
+#include <datadog/crashtracker.h>
+
 #include "constants.hpp"
+#include "dd_wrapper/include/libdatadog_helpers.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "origin_task_links.hpp"
@@ -21,6 +25,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <typeinfo>
 #include <utility>
 
 using namespace Datadog;
@@ -335,6 +340,30 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
     }
 }
 
+namespace {
+
+// Reports an unexpected exception from the sampling thread to the crashtracker as a
+// terminal, unhandled exception. We have no native backtrace to attach, so the
+// stack trace is left incomplete (its default state).
+void
+report_sampling_thread_exception(const std::exception& e)
+{
+    ddog_crasht_StackTrace_NewResult stack_result = ddog_crasht_StackTrace_new();
+    if (stack_result.tag != DDOG_CRASHT_STACK_TRACE_NEW_RESULT_OK) {
+        ddog_Error_drop(&stack_result.err);
+        return;
+    }
+
+    ddog_crasht_Handle_StackTrace* stack_trace = &stack_result.ok;
+    ddog_VoidResult result =
+      ddog_crasht_report_unhandled_exception(to_slice(typeid(e).name()), to_slice(e.what()), stack_trace);
+    if (result.tag != DDOG_VOID_RESULT_OK) {
+        ddog_Error_drop(&result.err);
+    }
+}
+
+} // namespace
+
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
@@ -431,7 +460,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 }
             }
         } catch (const std::exception& e) {
-            std::cerr << "Unexpected error in sampling thread: " << e.what() << std::endl;
+            report_sampling_thread_exception(e);
 
             // If the exception interrupted a sample mid-build (after render_thread_begin
             // but before render_stack_end), return it to the pool instead of leaking it.

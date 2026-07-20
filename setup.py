@@ -360,7 +360,10 @@ class ExtensionHashes(build_ext):
                 # the case where Rust extension is not rebuilt but the dd_wrapper
                 # needs to be rebuilt when its sources changed.
                 if isinstance(ext, RustExtension) and "profiling" in ext.features:
-                    for f in ["common.h", "profiling.h"]:
+                    headers = ["common.h", "profiling.h"]
+                    if "crashtracker" in ext.features:
+                        headers.append("crashtracker.h")
+                    for f in headers:
                         entries.append(
                             (
                                 ext.name,
@@ -429,10 +432,12 @@ class CustomBuildRust(build_rust):
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
+        has_crashtracker_feature = False
         for ext in self.distribution.rust_extensions:
             if ext.features and "profiling" in ext.features:
                 has_profiling_feature = True
-                break
+            if ext.features and "crashtracker" in ext.features:
+                has_crashtracker_feature = True
 
         if IS_EDITABLE or getattr(self, "inplace", False):
             self.inplace = True
@@ -451,9 +456,12 @@ class CustomBuildRust(build_rust):
 
             # Run dedup_headers on the generated headers
             include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            child_headers = ["profiling.h"]
+            if has_crashtracker_feature:
+                child_headers.append("crashtracker.h")
             if include_dir.exists():
                 subprocess.run(
-                    ["dedup_headers", "common.h", "profiling.h"],
+                    ["dedup_headers", "common.h", *child_headers],
                     cwd=str(include_dir),
                     check=True,
                     env=dedup_env,
@@ -913,6 +921,8 @@ class CustomBuildExt(build_ext):
             required_headers = ["common.h"]
             if "profiling" in rust_features:
                 required_headers.append("profiling.h")
+            if "crashtracker" in rust_features:
+                required_headers.append("crashtracker.h")
 
             include_dir = CARGO_TARGET_DIR / "include" / "datadog"
             headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
