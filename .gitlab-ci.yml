@@ -1,11 +1,13 @@
 stages:
   - package
+  - shared-pipeline-build
   - tests
   - system-tests
   - fuzz
-  - shared-pipeline
+  - shared-pipeline-test
   - benchmarks
   - release
+  - shared-pipeline-publish
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
