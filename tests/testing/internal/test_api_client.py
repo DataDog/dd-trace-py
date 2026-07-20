@@ -10,14 +10,15 @@ import uuid
 import pytest
 
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.api_client import _get_known_tests_timeout_seconds
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -393,6 +394,7 @@ class TestAPIClientGetKnownTests:
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
+                max_attempts=2,
             )
         ]
 
@@ -452,6 +454,7 @@ class TestAPIClientGetKnownTests:
             known_tests = api_client.get_known_tests()
 
         assert len(mock_connector.post_json.call_args_list) == 2
+        assert all(call.kwargs["max_attempts"] == 2 for call in mock_connector.post_json.call_args_list)
         assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {}
         assert mock_connector.post_json.call_args_list[1][0][1]["data"]["attributes"]["page_info"] == {
             "page_state": "cursor-page-1"
@@ -460,6 +463,77 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
             TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
+
+    @pytest.mark.parametrize(
+        "raw_value,expected_seconds",
+        [(None, 45.0), ("", 45.0), ("10000", 10.0), ("10500", 10.5)],
+    )
+    def test_get_known_tests_timeout_parsing(
+        self, monkeypatch: pytest.MonkeyPatch, raw_value: t.Optional[str], expected_seconds: float
+    ) -> None:
+        if raw_value is None:
+            monkeypatch.delenv("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS", raising=False)
+        else:
+            monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS", raw_value)
+
+        assert _get_known_tests_timeout_seconds() == expected_seconds
+
+    def test_get_known_tests_default_timeout_uses_larger_backend_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS", raising=False)
+
+        with patch("ddtrace.testing.internal.api_client.DEFAULT_TIMEOUT_SECONDS", 60.0):
+            assert _get_known_tests_timeout_seconds() == 60.0
+
+    @pytest.mark.parametrize("raw_value", ["0", "-1", "invalid", "300001", "inf", "nan"])
+    def test_get_known_tests_invalid_timeout_uses_default(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw_value: str
+    ) -> None:
+        monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS", raw_value)
+
+        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.api_client"):
+            assert _get_known_tests_timeout_seconds() == 45.0
+
+        assert "Invalid value for _DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS" in caplog.text
+
+    def test_get_known_tests_timeout_stops_before_next_page(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS", "20000")
+        first_page = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod1": {"suite1.py": ["test_one"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-1"},
+                }
+            }
+        }
+        mock_connector = (
+            mock_backend_connector()
+            .with_post_json_response(endpoint="/api/v2/ci/libraries/tests", response_data=first_page)
+            .build()
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={GitTag.REPOSITORY_URL: "http://github.com/org/repo.git"},
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with (
+            patch("ddtrace.testing.internal.api_client.time.monotonic", side_effect=[100.0, 121.0]),
+            caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.api_client"),
+        ):
+            known_tests = api_client.get_known_tests()
+
+        assert known_tests == set()
+        assert mock_connector.post_json.call_count == 1
+        assert "Known tests pagination exceeded 20.0s after 1 page(s)" in caplog.text
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
 
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -676,7 +750,8 @@ class TestAPIClientGetKnownTests:
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
                 known_tests = api_client.get_known_tests()
 
-        assert "Error getting known tests from API: No can do" in caplog.text
+        assert "Error getting known tests page 1 after" in caplog.text
+        assert "No can do" in caplog.text
 
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
