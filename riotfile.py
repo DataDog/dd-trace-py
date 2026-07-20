@@ -538,7 +538,7 @@ venv = Venv(
         # has version-specific code so tests are run across all supported versions
         Venv(
             name="dd_coverage",
-            command="pytest --no-cov {cmdargs} tests/coverage -s",
+            command="pytest {cmdargs} tests/coverage -s",
             pys=select_pys(),
         ),
         Venv(
