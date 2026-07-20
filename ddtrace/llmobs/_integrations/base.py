@@ -76,7 +76,7 @@ class BaseLLMIntegration:
             child_of=parent_context,
             resource=operation_id,
             span_type=span_type,
-            activate=True,
+            activate=kwargs.get("activate", True),
         )
         service = int_service(None, self.integration_config) or ""
         set_service_and_source(span, service, self.integration_config)
