@@ -1,0 +1,75 @@
+[[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "GET /sub-app/hello/{name}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a5e97d000000000",
+      "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "fastapi",
+      "http.method": "GET",
+      "http.route": "/sub-app/hello/{name}",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "cd4382c016d8482aad6814e327ba0197",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 637.0
+    },
+    "duration": 754583,
+    "start": 1784584144538638047
+  },
+     {
+       "name": "fastapi.request",
+       "service": "fastapi",
+       "resource": "GET /hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "fastapi",
+         "component": "fastapi",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 578458,
+       "start": 1784584144538823172
+     },
+        {
+          "name": "fastapi.serialize_response",
+          "service": "fastapi",
+          "resource": "fastapi.serialize_response",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "ddtrace_subprocess_dir",
+            "_dd.svc_src": "fastapi"
+          },
+          "duration": 28042,
+          "start": 1784584144539255463
+        }]]
