@@ -1,14 +1,17 @@
 """Shared utilities for coverage report uploads across V2 and V3 plugins."""
 
+import logging
+import os
 import time
 import typing as t
 
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 
 
-log = get_logger(__name__)
+# AIDEV-NOTE: Use stdlib logging and environment access here. Importing ddtrace.internal.logger or
+# ddtrace.internal.settings creates circular imports because this utility is shared by both the
+# legacy CI Visibility and Testing plugin dependency trees.
+log = logging.getLogger(__name__)
 
 _CODE_COVERAGE_FLAGS_ENV_VAR = "DD_CODE_COVERAGE_FLAGS"
 _MAX_CODE_COVERAGE_FLAGS = 32
@@ -32,7 +35,7 @@ def _parse_code_coverage_flags(raw_flags: t.Optional[str]) -> tuple[str, ...]:
 
 @cached(maxsize=1)
 def _get_code_coverage_flags() -> tuple[str, ...]:
-    return _parse_code_coverage_flags(env.get(_CODE_COVERAGE_FLAGS_ENV_VAR))
+    return _parse_code_coverage_flags(os.environ.get(_CODE_COVERAGE_FLAGS_ENV_VAR))
 
 
 def create_coverage_report_event(

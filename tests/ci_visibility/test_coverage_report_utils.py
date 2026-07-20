@@ -1,22 +1,25 @@
-import logging
+from unittest.mock import Mock
 
 import pytest
 
 from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
 from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
+from ddtrace.internal.test_visibility.coverage_report_utils import log
 
 
 @pytest.fixture(autouse=True)
 def reset_code_coverage_flags_cache():
-    # AIDEV-NOTE: EFD/ATR retries rerun test calls without rerunning function fixtures, so tests
-    # that assert warning counts also clear the cache inside their test bodies.
+    # AIDEV-NOTE: EFD/ATR retries rerun test calls without rerunning function fixtures. Tests that
+    # assert cached or logged behavior clear the cache and install fresh logger mocks in their bodies.
     _get_code_coverage_flags.cache_clear()
     yield
     _get_code_coverage_flags.cache_clear()
 
 
 @pytest.mark.parametrize("raw_flags", [None, "", "   ", ", , ,"])
-def test_coverage_report_event_omits_empty_flags(monkeypatch, caplog, raw_flags):
+def test_coverage_report_event_omits_empty_flags(monkeypatch, raw_flags):
+    warning = Mock()
+    monkeypatch.setattr(log, "warning", warning)
     if raw_flags is None:
         monkeypatch.delenv("DD_CODE_COVERAGE_FLAGS", raising=False)
     else:
@@ -25,7 +28,7 @@ def test_coverage_report_event_omits_empty_flags(monkeypatch, caplog, raw_flags)
     event = create_coverage_report_event("lcov")
 
     assert "report.flags" not in event
-    assert not caplog.records
+    warning.assert_not_called()
 
 
 def test_coverage_report_event_normalizes_flags(monkeypatch):
@@ -45,34 +48,42 @@ def test_coverage_report_event_accepts_maximum_flags(monkeypatch):
     assert event["report.flags"] == flags
 
 
-def test_coverage_report_event_omits_too_many_flags(monkeypatch, caplog):
+def test_coverage_report_event_omits_too_many_flags(monkeypatch):
     _get_code_coverage_flags.cache_clear()
+    warning = Mock()
+    monkeypatch.setattr(log, "warning", warning)
     monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", ",".join(f"flag-{index}" for index in range(33)))
 
-    with caplog.at_level(logging.WARNING):
-        event = create_coverage_report_event("lcov")
+    event = create_coverage_report_event("lcov")
 
     assert event["type"] == "coverage_report"
     assert event["format"] == "lcov"
     assert "timestamp" in event
     assert "report.flags" not in event
-    assert caplog.messages == [
-        "Code coverage report flags will be omitted because 33 flags were provided, exceeding the maximum of 32"
-    ]
+    warning.assert_called_once_with(
+        "Code coverage report flags will be omitted because %d flags were provided, exceeding the maximum of %d",
+        33,
+        32,
+    )
 
 
-def test_coverage_report_flags_are_snapshotted_once(monkeypatch, caplog):
+def test_coverage_report_flags_are_snapshotted_once(monkeypatch):
     _get_code_coverage_flags.cache_clear()
+    warning = Mock()
+    monkeypatch.setattr(log, "warning", warning)
     monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", ",".join(f"flag-{index}" for index in range(33)))
 
-    with caplog.at_level(logging.WARNING):
-        first_event = create_coverage_report_event("lcov")
-        monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "later")
-        second_event = create_coverage_report_event("cobertura")
+    first_event = create_coverage_report_event("lcov")
+    monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "later")
+    second_event = create_coverage_report_event("cobertura")
 
     assert "report.flags" not in first_event
     assert "report.flags" not in second_event
-    assert len(caplog.records) == 1
+    warning.assert_called_once_with(
+        "Code coverage report flags will be omitted because %d flags were provided, exceeding the maximum of %d",
+        33,
+        32,
+    )
 
 
 def test_coverage_report_flags_snapshot_is_reused(monkeypatch):
