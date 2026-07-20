@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Union
 import urllib.parse as parse
 
+from ddtrace.internal import core
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
@@ -374,16 +375,18 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        import ddtrace.internal.settings.asm as asm_config_module
+        asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
+        if asm_config is None:
+            return None
 
-        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+        if not asm_config._api_security_endpoint_collection or not self._enabled:
             return None
 
         if not endpoint_collection.endpoints:
             return None
 
         with self._service_lock:
-            return endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
+            return endpoint_collection.flush(asm_config._api_security_endpoint_collection_limit)
 
     def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
@@ -594,12 +597,6 @@ class TelemetryWriter(PeriodicService):
             self._logs = set()
         return logs
 
-    def _dispatch(self) -> None:
-        # moved core here to avoid circular import
-        from ddtrace.internal import core
-
-        core.dispatch("telemetry.periodic")
-
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
         """Process and send telemetry events in batches.
 
@@ -697,7 +694,7 @@ class TelemetryWriter(PeriodicService):
             "payload": events,
             "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
         }
-        self._dispatch()
+        core.dispatch("telemetry.periodic")
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:

@@ -8,7 +8,7 @@ from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
@@ -112,7 +112,12 @@ class _DBM_Propagator(object):
             return None
 
         # set the following tags if DBM injection mode is full, service, or dynamic_service
-        peer_service_enabled = PeerServiceConfig().set_defaults_enabled
+        # DEV: This runs on every DB span, so use the cached module-level singleton, which resolves
+        # the config once and caches it. A fresh PeerServiceConfig() has _set_defaults_enabled=None
+        # and re-reads the config via get_config() on every span; get_config() reports configuration
+        # telemetry on each read, so per-span instances leak telemetry config entries unboundedly
+        # on high-query services (issue #18800). Keep this on the shared singleton.
+        peer_service_enabled = _ps_config.set_defaults_enabled
         service_name_key = db_span.service
         if peer_service_enabled:
             db_name = db_span.get_tags().get("db.name")
