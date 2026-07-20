@@ -4,13 +4,13 @@ use std::{
     process::{self, Command},
 };
 
-fn system_lld_error(detail: &str) -> ! {
+fn system_lld_error(reason: &str, detail: &str) -> ! {
     let target = env::var("TARGET").unwrap_or_else(|_| "Linux musl".to_string());
 
     eprintln!();
     eprintln!("error: LLVM's LLD linker is required to build ddtrace-native for {target}");
     eprintln!();
-    eprintln!("The rustup-provided rust-lld does not support zlib-compressed DWARF on musl.");
+    eprintln!("{reason}");
     eprintln!("{detail}");
     eprintln!();
     eprintln!("Install LLVM's LLD linker and ensure ld.lld is available in PATH.");
@@ -20,13 +20,13 @@ fn system_lld_error(detail: &str) -> ! {
     process::exit(1);
 }
 
-fn require_system_lld() {
+fn require_system_lld(reason: &str) {
     if !Command::new("ld.lld")
         .arg("--version")
         .output()
         .is_ok_and(|output| output.status.success())
     {
-        system_lld_error("No working ld.lld executable was found in PATH.");
+        system_lld_error(reason, "No working ld.lld executable was found in PATH.");
     }
 }
 
@@ -36,9 +36,15 @@ fn configure_otel_thread_context_export() {
 
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
     if target_env == "musl" {
-        require_system_lld();
+        require_system_lld(
+            "The rustup-provided rust-lld does not support zlib-compressed DWARF on musl.",
+        );
     } else if let Some(rust_lld_dir) = find_rust_lld_dir() {
         println!("cargo:rustc-cdylib-link-arg=-B{}", rust_lld_dir.display());
+    } else {
+        require_system_lld(
+            "The Rust toolchain does not provide the rust-lld linker shim required for this build.",
+        );
     }
 
     println!("cargo:rustc-cdylib-link-arg=-fuse-ld=lld");
