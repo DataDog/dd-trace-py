@@ -11,7 +11,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
-from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
@@ -58,7 +58,7 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
         if request.url.port:
             service += b":" + ensure_binary(str(request.url.port))
         return ensure_text(service, errors="backslashreplace")
-    return ext_service(None, config.httpx)
+    return int_service(None, config.httpx)
 
 
 def _wrapped_sync_send_single_request(
