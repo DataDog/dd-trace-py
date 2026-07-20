@@ -4,6 +4,8 @@ import platform
 import sys
 import traceback
 from types import TracebackType
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace import config
@@ -174,25 +176,26 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     return config, receiver_config, metadata
 
 
-_original_excepthook = None
+_original_excepthook: Callable[[type[BaseException], BaseException, Optional[TracebackType]], Any] = sys.__excepthook__
 
 
 def _unhandled_exception_reporter(
-    exc_type: type[BaseException], exc_value: BaseException, exc_traceback: TracebackType
+    exc_type: type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
 ) -> None:
     try:
         if is_available and is_started() and exc_type is not None and issubclass(exc_type, Exception):
             frames = []
-            for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
-                frames.append(
-                    {
-                        "function": name,
-                        "file": filename,
-                        "line": str(lineno),
-                    }
-                )
-            # Reverse so the innermost (most recent) frame is first
-            frames.reverse()
+            if exc_traceback is not None:
+                for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
+                    frames.append(
+                        {
+                            "function": name,
+                            "file": filename,
+                            "line": str(lineno),
+                        }
+                    )
+                # Reverse so the innermost (most recent) frame is first
+                frames.reverse()
 
             module = getattr(exc_type, "__module__", None)
             qualname = exc_type.__qualname__
