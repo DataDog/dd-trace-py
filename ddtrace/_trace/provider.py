@@ -2,6 +2,7 @@ import abc
 import contextvars
 import sys
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -35,11 +36,6 @@ else:
     _activate_contextvar = _DD_CONTEXTVAR.set  # type: ignore[assignment]
 
 
-if sys.platform == "linux":
-    from ddtrace.internal.native._native import detach_otel_thread_context
-    from ddtrace.internal.native._native import update_otel_thread_context
-
-
 class BaseContextProvider(metaclass=abc.ABCMeta):
     """
     A ``ContextProvider`` is an interface that provides the blueprint
@@ -50,6 +46,16 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
+    def __init__(self) -> None:
+        self._activation_listeners: list[Callable[[Optional[ActiveTrace]], None]] = []
+
+    def _add_activation_listener(self, listener: Callable[[Optional[ActiveTrace]], None]) -> None:
+        self._activation_listeners.append(listener)
+
+    def _remove_activation_listener(self, listener: Callable[[Optional[ActiveTrace]], None]) -> None:
+        if listener in self._activation_listeners:
+            self._activation_listeners.remove(listener)
+
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
@@ -57,6 +63,8 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
         core.dispatch("ddtrace.context_provider.activate", (ctx,))
+        for listener in self._activation_listeners:
+            listener(ctx)
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:
@@ -84,24 +92,10 @@ class DefaultContextProvider(BaseContextProvider):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
-    if sys.platform == "linux":
-
-        def activate(self, ctx: Optional[ActiveTrace]) -> None:
-            """Makes the given context active in the current execution."""
-            _activate_contextvar(ctx)
-
-            if type(ctx) is Span:
-                update_otel_thread_context(ctx, ctx._local_root_value)
-            else:
-                detach_otel_thread_context()
-
-            super(DefaultContextProvider, self).activate(ctx)
-    else:
-
-        def activate(self, ctx: Optional[ActiveTrace]) -> None:
-            """Makes the given context active in the current execution."""
-            _activate_contextvar(ctx)
-            super(DefaultContextProvider, self).activate(ctx)
+    def activate(self, ctx: Optional[ActiveTrace]) -> None:
+        """Makes the given context active in the current execution."""
+        _activate_contextvar(ctx)
+        super(DefaultContextProvider, self).activate(ctx)
 
     def active(self) -> Optional[ActiveTrace]:
         """Returns the active span or context for the current execution."""

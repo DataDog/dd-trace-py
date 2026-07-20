@@ -6,6 +6,7 @@ import threading
 
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 
 
@@ -56,6 +57,30 @@ def test_span_context_is_thread_local(tracer: Tracer):
         results = executor.map(trace, ("one", "two"))
 
     assert all(span_id == published_span_id for span_id, published_span_id in results)
+
+
+def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
+    uninstalled_provider = DefaultContextProvider()
+
+    with tracer.trace("test") as span:
+        uninstalled_provider.activate(None)
+
+        assert _published_span_id() == span.span_id
+
+
+def test_replaced_context_provider_no_longer_updates_thread_context(tracer: Tracer):
+    old_provider = tracer.context_provider
+    new_provider = DefaultContextProvider()
+    tracer.configure(context_provider=new_provider)
+    span = tracer.start_span("test")
+
+    new_provider.activate(span)
+    old_provider.activate(None)
+
+    assert _published_span_id() == span.span_id
+
+    new_provider.activate(None)
+    span.finish()
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
