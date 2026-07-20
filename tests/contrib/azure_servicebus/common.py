@@ -21,9 +21,7 @@ CONNECTION_STRING = (
     "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;"
     "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 )
-QUEUE_NAME = "queue.1"
-TOPIC_NAME = "topic.1"
-SUBSCRIPTION_NAME = "subscription.3"
+PARALLEL_QUEUE_COUNT = 4
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
     "x-datadog-trace-id",
@@ -37,6 +35,15 @@ RECEIVE_TIMEOUT_SECONDS = 15
 MAX_DRAIN_MESSAGES = 100
 
 
+def get_queue_name() -> str:
+    if queue_name := os.environ.get("DD_AZURE_SERVICEBUS_TEST_QUEUE"):
+        return queue_name
+
+    node_index = int(os.environ.get("CI_NODE_INDEX", "1"))
+    queue_index = ((node_index - 1) % PARALLEL_QUEUE_COUNT) + 1
+    return f"queue.{queue_index}"
+
+
 def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]):
     props = message.application_properties
 
@@ -47,8 +54,8 @@ def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]
 
 
 def drain_queue(receiver: ServiceBusReceiver):
-    # AIDEV-NOTE: Tests run sequentially in CI and share queue.1. Drain leftovers from failed
-    # runs so the next test only receives messages it just sent.
+    # AIDEV-NOTE: Snapshot subprocess tests for a CI node share one queue. Drain leftovers from
+    # failed runs so the next test only receives messages it just sent.
     drained = 0
     while drained < MAX_DRAIN_MESSAGES:
         messages = receiver.receive_messages(max_message_count=10, max_wait_time=1)
@@ -223,12 +230,13 @@ async def test_common():
     message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
     distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
     batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
+    queue_name = get_queue_name()
 
     if is_async:
         client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+        sender = client.get_queue_sender(queue_name=queue_name)
         receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+            queue_name=queue_name, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
         )
         try:
             await drain_queue_async(receiver)
@@ -241,9 +249,9 @@ async def test_common():
             await client.close()
     else:
         client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+        sender = client.get_queue_sender(queue_name=queue_name)
         receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+            queue_name=queue_name, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
         )
         try:
             drain_queue(receiver)

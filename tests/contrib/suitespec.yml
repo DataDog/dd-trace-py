@@ -512,8 +512,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   azure_servicebus:
-    parallelism: 1
-    timeout: 30m
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'

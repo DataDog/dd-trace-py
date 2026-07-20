@@ -1,4 +1,5 @@
 import itertools
+import json
 import os
 from pathlib import Path
 
@@ -6,10 +7,34 @@ import pytest
 
 from ddtrace.contrib.internal.azure_servicebus.patch import patch
 from ddtrace.contrib.internal.azure_servicebus.patch import unpatch
+from tests.contrib.azure_servicebus.common import get_queue_name
+
+
+def assert_azure_servicebus_spans_use_queue(snapshot, queue_name: str) -> None:
+    status, body = snapshot._client._request("GET", snapshot._client._url("/test/session/traces"))
+    assert status == 200, body.decode("utf-8", errors="ignore")
+
+    traces = json.loads(body)
+    servicebus_spans = [
+        span for trace in traces for span in trace if span.get("name", "").startswith("azure.servicebus.")
+    ]
+    assert servicebus_spans, f"expected azure.servicebus spans, got {traces}"
+
+    for span in servicebus_spans:
+        assert span["resource"] == queue_name, span
+        assert span["meta"]["messaging.destination.name"] == queue_name, span
 
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
-SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links"]
+SNAPSHOT_IGNORES = [
+    "meta.messaging.message_id",
+    "meta._dd.span_links",
+]
+
+# Committed snapshots use queue.1; parallel CI jobs use queue.2-4. Those fields are asserted
+# explicitly in test_producer instead of being ignored on the default queue.
+if get_queue_name() != "queue.1":
+    SNAPSHOT_IGNORES.extend(["meta.messaging.destination.name", "resource"])
 
 METHODS = ["send_messages", "schedule_messages"]
 ASYNC_OPTIONS = [False, True]
@@ -60,12 +85,17 @@ def patch_azure_servicebus():
     ids=param_ids,
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
+async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars, snapshot):
+    queue_name = get_queue_name()
     env = os.environ.copy()
     env.update(env_vars)
+    env["DD_AZURE_SERVICEBUS_TEST_QUEUE"] = queue_name
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
 
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+    if snapshot is not None:
+        assert_azure_servicebus_spans_use_queue(snapshot, queue_name)
