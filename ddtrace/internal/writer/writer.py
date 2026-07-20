@@ -16,9 +16,9 @@ import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.settings import _config as config
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
