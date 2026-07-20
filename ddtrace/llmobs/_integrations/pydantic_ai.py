@@ -13,6 +13,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -368,6 +369,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if model_provider:
                 manifest["model_provider"] = model_provider
         if hasattr(agent, "model_settings"):
+<<<<<<< HEAD
             manifest["model_settings"] = agent.model_settings
 
         # Instructions: shipped ``instructions`` (string) + shipped ``system_prompts`` (list); the runtime
@@ -376,6 +378,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _, dynamic_system_prompts = _collect_system_prompts(agent)
         instructions_text = " ".join(t for t in static_instructions if t)
         manifest["instructions"] = instructions_text or None
+=======
+            manifest["model_settings"] = load_data_value(agent.model_settings)
+        if hasattr(agent, "_instructions"):
+            instructions = agent._instructions
+            if isinstance(instructions, list):
+                instructions = (
+                    " ".join(instructions) if instructions and all(isinstance(i, str) for i in instructions) else None
+                )
+            manifest["instructions"] = instructions
+>>>>>>> origin/main
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
         extra_instructions = self._build_extra_instructions(dynamic_instructions, dynamic_system_prompts)

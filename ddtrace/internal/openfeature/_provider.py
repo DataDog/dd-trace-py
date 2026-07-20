@@ -32,6 +32,9 @@ from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_M
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
+from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
+from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
+from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -40,11 +43,14 @@ from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 
 
-# Handle different import paths between openfeature-sdk versions
-# Versions 0.7.0+ reorganized submodules
+# Handle different import paths between openfeature-sdk versions.
+# Versions 0.7.0+ reorganized submodules (AbstractProvider moved to
+# openfeature.provider). A string comparison of the version is unsafe -- e.g.
+# "0.10.0" >= "0.7.0" is False lexicographically -- so resolve by import
+# instead, which is correct for any version-string format.
 try:
     from openfeature.provider import AbstractProvider
-except ModuleNotFoundError:
+except ImportError:
     from openfeature.provider.provider import AbstractProvider
 
 
@@ -152,6 +158,13 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_evp_writer = FlagEvaluationWriter()
             self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
 
+        # APM span enrichment hook (experimental, distinct gate, OFF by default).
+        # Constructed ONLY when the gate is on, so nothing is allocated and
+        # nothing subscribes to span finish when it is off (DG-005).
+        self._span_enrichment_hook: typing.Optional[SpanEnrichmentHook] = None
+        if self._enabled and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
+            self._span_enrichment_hook = SpanEnrichmentHook()
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -175,12 +188,17 @@ class DataDogProvider(AbstractProvider):
         2. FlagEvalEVPHook (_flag_eval_evp_hook.py) — registered only when
            DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
            snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
+        3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
+           DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
+           accumulates feature-flag metadata onto the local-root APM span.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
             hooks.append(self._flag_eval_metrics_hook)
         if self._flag_eval_evp_hook is not None:
             hooks.append(self._flag_eval_evp_hook)
+        if self._span_enrichment_hook is not None:
+            hooks.append(self._span_enrichment_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -275,6 +293,13 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics.shutdown()
             self._flag_eval_metrics = None
             self._flag_eval_metrics_hook = None
+
+        # Tear down the span-enrichment hook: unsubscribe the span-finish
+        # callback (symmetric subscribe<->unsubscribe -- avoids a duplicate
+        # subscription on provider reconfigure).
+        if self._span_enrichment_hook is not None:
+            self._span_enrichment_hook.destroy()
+            self._span_enrichment_hook = None
 
         # Clear exposure cache
         self.clear_exposure_cache()
@@ -425,6 +450,12 @@ class DataDogProvider(AbstractProvider):
             # Add allocation_key to the provider-entry timestamp metadata when present.
             if details.allocation_key:
                 flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
+
+            # Thread serial id + do_log into flag_metadata for span enrichment.
+            # The span-enrichment hook reads these from details.flag_metadata.
+            if details.serial_id is not None:
+                flag_metadata[METADATA_SERIAL_ID] = details.serial_id
+            flag_metadata[METADATA_DO_LOG] = details.do_log
 
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.

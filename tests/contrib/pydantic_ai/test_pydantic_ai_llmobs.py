@@ -1,3 +1,5 @@
+import json
+
 import mock
 import pydantic_ai
 import pytest
@@ -7,6 +9,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import _METADATA_MAX_BYTES
 from ddtrace.llmobs._integrations.pydantic_ai import _PROMPT_SOURCE_MAX_BYTES
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
@@ -1481,6 +1484,35 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
+    async def test_agent_run_with_unserializable_model_settings(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """Regression test: agent.model_settings containing non-JSON-serializable provider
+        sentinel values must not crash span submission.
+
+        Uses FunctionModel to avoid OpenAI SDK serialization, which would reject the
+        sentinel before our span-tagging code ever runs.
+        """
+        from pydantic_ai.messages import ModelResponse
+        from pydantic_ai.messages import TextPart
+        from pydantic_ai.models.function import FunctionModel
+
+        def model_func(messages, info):
+            return ModelResponse(parts=[TextPart(content="Hello!")])
+
+        agent = pydantic_ai.Agent(
+            model=FunctionModel(model_func),
+            name="test_agent",
+            model_settings={"temperature": _UnserializableSentinel(), "max_tokens": 100},
+        )
+        await agent.run("Hello, world!")
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_data = _get_llmobs_data_metastruct(spans[0])
+        recorded_settings = span_data["meta"]["metadata"]["_dd"]["agent_manifest"]["model_settings"]
+        # Coerced values must be JSON-serializable.
+        json.dumps(recorded_settings)
+        assert recorded_settings["max_tokens"] == 100
+        assert recorded_settings["temperature"] == "Omit()"
+
 
 class TestLLMObsPydanticAISpanLinks:
     async def test_agent_calls_tool(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, openai_patched, test_spans):
@@ -1509,3 +1541,32 @@ class TestLLMObsPydanticAISpanLinks:
         assert len(second_llm_span_data["span_links"]) == 1
         assert second_llm_span_data["span_links"][0]["span_id"] == str(tool_span.span_id)
         assert second_llm_span_data["span_links"][0]["attributes"] == {"from": "output", "to": "input"}
+
+
+class _UnserializableSentinel:
+    """Stand-in for provider sentinels such as OpenAI's ``Omit`` / ``NOT_GIVEN``."""
+
+    def __repr__(self):
+        return "Omit()"
+
+
+def test_model_settings_unserializable_values_are_coerced():
+    """Regression test: ``agent.model_settings`` may hold provider sentinels (e.g.
+    OpenAI's ``Omit``/``NOT_GIVEN`` for unset params). The agent manifest is written to
+    the span's meta_struct, so storing these raw crashed the agentless trace encoder at
+    span finish (``TypeError: Object of type Omit is not JSON serializable``). They must
+    be coerced to JSON-safe values while serializable settings are preserved.
+    """
+    raw = {"temperature": _UnserializableSentinel(), "max_tokens": 100}
+    # This is what used to be stored raw on the span and crash encoding.
+    with pytest.raises(TypeError):
+        json.dumps(raw)
+
+    coerced = load_data_value(raw)
+    json.dumps(coerced)  # must not raise
+    assert coerced["max_tokens"] == 100
+    assert coerced["temperature"] == "Omit()"
+
+
+def test_model_settings_none_is_preserved():
+    assert load_data_value(None) is None
