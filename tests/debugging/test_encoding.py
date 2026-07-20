@@ -5,6 +5,9 @@ import inspect
 import json
 import sys
 import threading
+from typing import Any
+from typing import Optional
+from typing import cast
 
 import pytest
 
@@ -212,9 +215,11 @@ def test_capture_context_exc():
 
 
 def test_batch_json_encoder():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
 
@@ -223,7 +228,7 @@ def test_batch_json_encoder():
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
     buffer_size = 30 * (1 << 20)
-    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(cast(str, None)), buffer_size=buffer_size)
 
     s.line({})
 
@@ -251,13 +256,15 @@ def test_batch_json_encoder():
 
 
 def test_process_tags_are_included():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
     buffer_size = 30 * (1 << 20)
-    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(cast(str, None)), buffer_size=buffer_size)
 
     s.line({})
 
@@ -272,15 +279,17 @@ def test_process_tags_are_included():
 
 
 def test_batch_flush_reencode():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
 
     s.line({})
 
-    queue = SignalQueue(LogSignalJsonEncoder(None))
+    queue = SignalQueue(LogSignalJsonEncoder(cast(str, None)))
 
     snapshot_total_size = sum(queue.put(s) for _ in range(2))
     data = queue.flush()
@@ -512,7 +521,9 @@ def test_json_tree():
             [node_to_tuple(_) for _ in node.children],
         )
 
-    assert node_to_tuple(tree.root) == (
+    root = tree.root
+    assert root is not None
+    assert node_to_tuple(root) == (
         0,
         88,
         0,
@@ -614,7 +625,7 @@ def test_json_pruning_not_capture_depth(size, expected):
         MIN_LEVEL = 0
 
     assert (
-        TestEncoder(None).pruned(
+        TestEncoder(cast(str, None)).pruned(
             r"""{
                 "keep": {"type": "list", "size":2, "elements": [
                     {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -650,8 +661,8 @@ def test_capture_value_redacted_type():
     with debugger_config(
         DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES=",".join(
             (
-                utils.qualname(Foo),
-                utils.qualname(Bar),
+                Foo.__qualname__,
+                Bar.__qualname__,
                 "*.Secret*",
             )
         )
@@ -685,7 +696,7 @@ def test_capture_value_mapping_type(_type):
         d = _type(int, {"bar": 42})
 
     assert utils.capture_value(d) == {
-        "type": utils.qualname(_type),
+        "type": _type.__qualname__,
         "entries": [
             (
                 {"type": "str", "value": "'bar'"},
@@ -701,7 +712,7 @@ def test_capture_value_sequence_type(_type):
     s = _type(["foo"])
 
     assert utils.capture_value(s) == {
-        "type": utils.qualname(_type),
+        "type": _type.__qualname__,
         "elements": [
             {"type": "str", "value": "'foo'"},
         ],
@@ -725,6 +736,8 @@ def test_capture_value_deque_concurrent_mutation():
 
     t = threading.Thread(target=mutate)
     t.start()
+
+    result: Optional[dict[str, Any]] = None
     try:
         result = utils.capture_value(d)
     except RuntimeError as e:
@@ -733,6 +746,7 @@ def test_capture_value_deque_concurrent_mutation():
         t.join()
 
     assert not errors, "capture_value raised RuntimeError on concurrent deque mutation"
+    assert result is not None
     assert result["type"] == "deque"
     assert "elements" in result
 
@@ -740,7 +754,7 @@ def test_capture_value_deque_concurrent_mutation():
 def test_capture_value_dict_concurrent_mutation():
     """capture_value must not raise when a dict is mutated by another thread."""
     d = {i: i for i in range(1000)}
-    errors = []
+    errors: list[RuntimeError] = []
 
     def mutate():
         for i in range(500):
@@ -752,6 +766,8 @@ def test_capture_value_dict_concurrent_mutation():
 
     t = threading.Thread(target=mutate)
     t.start()
+
+    result: Optional[dict[str, Any]] = None
     try:
         result = utils.capture_value(d)
     except RuntimeError as e:
@@ -760,6 +776,7 @@ def test_capture_value_dict_concurrent_mutation():
         t.join()
 
     assert not errors, "capture_value raised RuntimeError on concurrent dict mutation"
+    assert result is not None
     assert result["type"] == "dict"
     assert "entries" in result
 
@@ -773,3 +790,33 @@ def test_capture_value_dict_concurrent_mutation():
 )
 def test_serialize_builtins(value, expected):
     assert utils.serialize(value) == expected
+
+
+def test_serialize_custom_object_at_level_zero():
+    class Obj:
+        pass
+
+    result = utils.serialize(Obj(), level=0)
+    assert result == repr(type(Obj()))
+
+
+def test_capture_value_arbitrary_object_depth_exceeded():
+    class Obj:
+        def __init__(self):
+            self.x = 1
+
+    result = utils.capture_value(Obj(), level=-1)
+    assert result == {
+        "type": "test_capture_value_arbitrary_object_depth_exceeded.<locals>.Obj",
+        "notCapturedReason": "depth",
+    }
+
+
+def test_capture_value_arbitrary_object_redacted_type():
+    class SensitiveModel:
+        def __init__(self):
+            self.value = 42
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="*.SensitiveModel"):
+        result = utils.capture_value(SensitiveModel())
+    assert result == utils.redacted_type(SensitiveModel)

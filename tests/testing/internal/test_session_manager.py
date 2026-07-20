@@ -14,6 +14,7 @@ from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -904,7 +905,7 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
-        sm.api_client.get_known_commits.assert_not_called()
+        sm.api_client.get_known_commits.assert_not_called()  # type: ignore[attr-defined]
 
     def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
         """The sentinel is written when the early-return on all-commits-known path is taken."""
@@ -912,7 +913,7 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -934,8 +935,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
-        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.return_value = 123  # type: ignore[attr-defined]  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -956,7 +957,7 @@ class TestUploadSentinel:
         """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -978,8 +979,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
-        sm.api_client.send_git_pack_file.return_value = None  # upload failure
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.return_value = None  # type: ignore[attr-defined]  # upload failure
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1001,9 +1002,9 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
         # First packfile succeeds, second fails.
-        sm.api_client.send_git_pack_file.side_effect = [123, None]
+        sm.api_client.send_git_pack_file.side_effect = [123, None]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1024,7 +1025,7 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         # API returning None signals a failure that aborts the upload.
-        sm.api_client.get_known_commits.return_value = None
+        sm.api_client.get_known_commits.return_value = None  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1162,7 +1163,7 @@ class TestUploadLock:
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.api_client.get_known_commits.return_value = ["c1"]
+        sm.api_client.get_known_commits.return_value = ["c1"]  # type: ignore[attr-defined]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["c1"]
@@ -1308,3 +1309,261 @@ class TestUploadLock:
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = {}
         sm.cleanup_upload_artifacts()  # no workspace_path — must not raise
+
+
+class TestParallelInit:
+    """Tests for the parallel initialisation of network calls in SessionManager.__init__."""
+
+    def setup_method(self) -> None:
+        self.session = TestSession("pytest")
+        self.session.set_attributes(
+            test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
+        )
+
+    def _make_mock_client(self, **kwargs) -> Mock:
+        return mock_api_client_settings(**kwargs)
+
+    # -------------------------------------------------------------------------
+    # 1. Happy-path: all three calls are wired up in the parallel block
+    # -------------------------------------------------------------------------
+
+    def test_all_three_parallel_calls_are_made(self) -> None:
+        """get_known_tests, get_test_management_properties, and upload_git_data are all invoked."""
+        mock_client = self._make_mock_client(
+            known_tests_enabled=True,
+            test_management_enabled=True,
+        )
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_called_once()
+        mock_client.get_test_management_properties.assert_called_once()
+        # upload_git_data calls get_known_commits under the hood
+        mock_client.get_known_commits.assert_called_once()
+
+    def test_known_tests_skipped_when_disabled(self) -> None:
+        """get_known_tests is not called when known_tests_enabled is False."""
+        mock_client = self._make_mock_client(known_tests_enabled=False)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_not_called()
+
+    def test_test_management_properties_skipped_when_disabled(self) -> None:
+        """get_test_management_properties is not called when test_management is disabled."""
+        mock_client = self._make_mock_client(test_management_enabled=False)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_test_management_properties.assert_not_called()
+
+    # -------------------------------------------------------------------------
+    # 2. require_git sequential chain: get_skippable_tests uses re-fetched settings
+    # -------------------------------------------------------------------------
+
+    def test_require_git_enables_itr_for_skippable_fetch(self) -> None:
+        """When the re-fetched settings after git upload enable ITR, get_skippable_tests is called."""
+        # First get_settings call: ITR disabled, require_git=True.
+        settings_before_git = Settings(require_git=True, itr_enabled=False)
+        # Second get_settings call (after upload): ITR now enabled.
+        settings_after_git = Settings(require_git=False, itr_enabled=True, skipping_enabled=True)
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        # Skippable fetch must have been triggered by the re-fetched settings.
+        mock_client.get_skippable_tests.assert_called_once()
+        assert sm.settings.itr_enabled is True
+
+    def test_require_git_disables_itr_suppresses_skippable_fetch(self) -> None:
+        """When the re-fetched settings disable ITR, get_skippable_tests is NOT called."""
+        settings_before_git = Settings(require_git=True, itr_enabled=True, skipping_enabled=True)
+        settings_after_git = Settings(require_git=False, itr_enabled=False)
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        mock_client.get_skippable_tests.assert_not_called()
+        assert sm.skippable_items == set()
+
+    def test_known_tests_and_test_management_use_pre_upload_settings(self) -> None:
+        """known_tests/test_management decisions must use the settings captured before the
+        concurrent git-upload thread replaces self.settings, not whatever self.settings happens
+        to be when each thread runs (otherwise the outcome would race on thread scheduling).
+        """
+        settings_before_git = Settings(require_git=True, known_tests_enabled=True)
+        settings_before_git.test_management.enabled = True
+        settings_after_git = Settings(require_git=False, known_tests_enabled=False)
+        settings_after_git.test_management.enabled = False
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        # Both decisions were made when known_tests_enabled/test_management.enabled were True,
+        # regardless of the settings refetch triggered by require_git.
+        mock_client.get_known_tests.assert_called_once()
+        mock_client.get_test_management_properties.assert_called_once()
+
+    # -------------------------------------------------------------------------
+    # 3. Exceptions from background threads propagate to the caller
+    # -------------------------------------------------------------------------
+
+    def test_exception_in_get_known_tests_propagates(self) -> None:
+        """An exception raised by get_known_tests surfaces in the main thread."""
+        mock_client = self._make_mock_client(known_tests_enabled=True)
+        mock_client.get_known_tests.side_effect = RuntimeError("network failure")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            pytest.raises(RuntimeError, match="network failure"),
+        ):
+            SessionManager(self.session)
+
+    def test_exception_in_get_test_management_properties_propagates(self) -> None:
+        """An exception raised by get_test_management_properties surfaces in the main thread."""
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        mock_client.get_test_management_properties.side_effect = RuntimeError("server error")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            pytest.raises(RuntimeError, match="server error"),
+        ):
+            SessionManager(self.session)
+
+    def test_exception_in_upload_git_data_propagates(self) -> None:
+        """An exception raised inside the git-upload thread surfaces in the main thread."""
+        mock_client = self._make_mock_client()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch.object(SessionManager, "upload_git_data", side_effect=RuntimeError("git upload failed")),
+            pytest.raises(RuntimeError, match="git upload failed"),
+        ):
+            SessionManager(self.session)
+
+    # -------------------------------------------------------------------------
+    # 4. atf_all_flaky mode: only test management properties, nothing else
+    # -------------------------------------------------------------------------
+
+    def test_atf_all_flaky_sets_flag_and_logs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """In ATF-all-flaky mode, atf_all_flaky_tests is True and the count is logged."""
+        module_ref = ModuleRef("m")
+        suite_ref = SuiteRef(module_ref, "s.py")
+        flaky_test = TestRef(suite_ref, "test_flaky")
+        props = {flaky_test: TestProperties(attempt_to_fix=True)}
+
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        mock_client.get_test_management_properties.return_value = props
+
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch("ddtrace.testing.internal.session_manager.log") as mock_log,
+        ):
+            sm = SessionManager(self.session)
+
+        assert sm.atf_all_flaky_tests is True
+        assert sm.test_properties == props
+        # The count log must fire exactly once with the correct number.
+        atf_log_calls = [c for c in mock_log.info.call_args_list if "attempt_to_fix" in str(c)]
+        assert len(atf_log_calls) == 1
+        assert "1" in str(atf_log_calls[0])
+
+    def test_atf_all_flaky_skips_known_tests_and_skippable_but_still_uploads_git(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode, get_known_tests/get_skippable_tests are skipped, but git data is still uploaded."""
+        mock_client = self._make_mock_client(test_management_enabled=True, known_tests_enabled=True)
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+            patch.object(SessionManager, "upload_git_data") as mock_upload,
+        ):
+            sm = SessionManager(self.session)
+
+        mock_client.get_known_tests.assert_not_called()
+        mock_client.get_skippable_tests.assert_not_called()
+        mock_upload.assert_called_once()
+        assert sm.known_tests == set()
+        assert sm.skippable_items == set()
+
+    def test_non_atf_all_flaky_does_not_set_flag(self) -> None:
+        """Without the ATF-all-flaky env var, atf_all_flaky_tests is False."""
+        mock_client = self._make_mock_client()
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            sm = SessionManager(self.session)
+
+        assert sm.atf_all_flaky_tests is False
+
+    def test_atf_all_flaky_uses_all_statuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """In ATF-all-flaky mode, get_test_management_properties is called with all statuses."""
+        mock_client = self._make_mock_client(test_management_enabled=True)
+        monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        mock_client.get_test_management_properties.assert_called_once_with(
+            statuses=("active", "quarantined", "disabled")
+        )
