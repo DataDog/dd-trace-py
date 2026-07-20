@@ -1,5 +1,6 @@
 # type: ignore
 import logging
+import os
 
 from riot import Venv
 
@@ -83,9 +84,7 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
 
 # NOTE: When NIGHTLY_BUILD is "true" (e.g. in GitLab CI), sets
 # DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED for the venv env.
-_nightly_build = (
-    True  # FIXME: forced true locally to reproduce/confirm nightly-only test fixes; revert before committing
-)
+_nightly_build = os.environ.get("NIGHTLY_BUILD") == "true"
 _base_env = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
@@ -95,6 +94,7 @@ _base_env = {
     "DD_PATCH_MODULES": "unittest:false",
     "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     "CARGO_BUILD_JOBS": "12",
+    "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",  # 2-second timeout
@@ -538,7 +538,7 @@ venv = Venv(
         # has version-specific code so tests are run across all supported versions
         Venv(
             name="dd_coverage",
-            command="pytest {cmdargs} tests/coverage -s",
+            command="pytest --no-cov {cmdargs} tests/coverage -s",
             pys=select_pys(),
         ),
         Venv(
@@ -563,6 +563,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/crashtracker/",
             pkgs={
@@ -607,6 +608,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
@@ -1316,6 +1318,9 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                    },
                     pys=["3.9"],
                     pkgs={
                         "flask": "~=0.12.0",
@@ -2024,6 +2029,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
                 # Disable coverage report upload for this suite: these tests exercise the
                 # coverage upload functionality themselves, so having the plugin also run
@@ -2088,16 +2094,22 @@ venv = Venv(
                 ],
                 "asynctest": "==0.13.0",
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             pys="3.9",
         ),
         Venv(
             name="pytest_bdd",
-            command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -2124,7 +2136,7 @@ venv = Venv(
         Venv(
             name="pytest_benchmark",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py",
+            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2132,14 +2144,20 @@ venv = Venv(
                     ">=3.1.0,<=4.0.0",
                 ],
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
         ),
         Venv(
             name="pytest:flaky",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py",
+            command="pytest {cmdargs} --no-cov -p no:flaky tests/contrib/pytest_flaky/",
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -3298,7 +3316,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
-                "ray[default]": ["~=2.46.0", "~=2.54.1"],
+                "ray[default]": ["~=2.46.0", latest],
             },
         ),
         Venv(
@@ -3552,6 +3570,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
@@ -3566,6 +3585,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
