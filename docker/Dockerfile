@@ -2,7 +2,7 @@
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
 # Note: Using trixie for GLIBC 2.38+ support (required for Python 3.14 native extensions)
-FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
 
 ARG TARGETARCH
 ARG RIOT_VERSION=0.22.0
