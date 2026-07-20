@@ -10,24 +10,24 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5e6fdd00000000",
+      "_dd.p.tid": "6a5e950600000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
       "error.message": "Chat.complete_async() got an unexpected keyword argument 'not_a_real_argument'",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/mistralai/patch.py\", line 85, in traced_async_chat_generate\n    resp = await func(*args, **kwargs)\nTypeError: Chat.complete_async() got an unexpected keyword argument 'not_a_real_argument'\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/mistralai/patch.py\", line 85, in traced_async_chat_generate\n    resp = await func(*args, **kwargs)\n                 ~~~~^^^^^^^^^^^^^^^^^\nTypeError: Chat.complete_async() got an unexpected keyword argument 'not_a_real_argument'\n",
       "error.type": "builtins.TypeError",
       "language": "python",
       "mistralai.request.model": "mistral-large-latest",
       "mistralai.request.provider": "mistral",
-      "runtime-id": "ea087d82c3834ba092a6129d24d9678f"
+      "runtime-id": "82c43f3c20704eae811c85e123231553"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 514.0
+      "process_id": 526.0
     },
-    "duration": 158625,
-    "start": 1784573917038026502
+    "duration": 282041,
+    "start": 1784583430288609468
   }]]

@@ -10,7 +10,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5e6fdc00000000",
+      "_dd.p.tid": "6a5e950600000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
       "error.message": "Chat.complete() got an unexpected keyword argument 'not_a_real_argument'",
@@ -19,15 +19,15 @@
       "language": "python",
       "mistralai.request.model": "mistral-large-latest",
       "mistralai.request.provider": "mistral",
-      "runtime-id": "ea087d82c3834ba092a6129d24d9678f"
+      "runtime-id": "82c43f3c20704eae811c85e123231553"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 514.0
+      "process_id": 526.0
     },
-    "duration": 356292,
-    "start": 1784573916980327127
+    "duration": 476625,
+    "start": 1784583430239973343
   }]]
