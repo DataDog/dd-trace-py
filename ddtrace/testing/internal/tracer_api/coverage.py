@@ -47,15 +47,27 @@ def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[
         return None  # covered file does not belong to current repo
 
 
+_FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
+
+
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
+        self._covered_file_paths: t.Optional[set[str]] = None
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
+        relative_to_str = str(relative_to)
+
+        if self._covered_file_paths is not None:
+            for absolute_path in self._covered_file_paths:
+                path_str = _relative_coverage_path(absolute_path, relative_to_str)
+                if path_str is not None:
+                    yield path_str, _FILE_LEVEL_BITMAP
+            return
+
         if not self._covered_lines:
             return
 
-        relative_to_str = str(relative_to)
         for absolute_path, covered_lines in self._covered_lines.items():
             path_str = _relative_coverage_path(absolute_path, relative_to_str)
             if path_str is not None:
@@ -67,7 +79,10 @@ def coverage_collection() -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
-        coverage_data._covered_lines = coverage_collector.get_covered_lines()
+        if ModuleCodeCollector.file_level_coverage_enabled():
+            coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
+        else:
+            coverage_data._covered_lines = coverage_collector.get_covered_lines()
 
 
 def install_coverage_percentage():
