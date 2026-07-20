@@ -24,6 +24,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import _SPECIAL_SET_TAG_KEYS
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
@@ -164,6 +165,7 @@ class Tracer(object):
 
         # globally set tags
         self._tags = config.tags.copy()
+        self._fast_tags, self._special_tags = self._split_tags(self._tags)
 
         # Stores custom wrappers executed by tracer.wrap()
         self._wrap_executor = None
@@ -586,8 +588,11 @@ class Tracer(object):
             span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
-        if self._tags:
-            span.set_tags(self._tags)
+        if self._fast_tags:
+            for k, v in self._fast_tags.items():
+                span._set_attribute(k, v)
+        if self._special_tags:
+            span.set_tags(self._special_tags)
 
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
@@ -979,6 +984,21 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
+        self._fast_tags, self._special_tags = self._split_tags(self._tags)
+
+    @staticmethod
+    def _split_tags(tags: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+        # PERF: pre-split global tags once (on assignment) instead of re-checking each
+        # key's special-case status on every span. Plain str/str non-special tags are set
+        # directly via `_set_attribute`; the rare special-cased keys still go through `set_tag`.
+        fast_tags = {}
+        special_tags = {}
+        for k, v in tags.items():
+            if type(k) is str and type(v) is str and k not in _SPECIAL_SET_TAG_KEYS:
+                fast_tags[k] = v
+            else:
+                special_tags[k] = v
+        return fast_tags, special_tags
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.

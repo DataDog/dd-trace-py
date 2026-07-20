@@ -198,7 +198,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     tags: Optional[dict[str, str]] = data.get("tags")
     if tags:
         for tk, tv in tags.items():
-            span.set_tag(tk, tv)
+            span._set_attribute(tk, tv)
     if data.get("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
