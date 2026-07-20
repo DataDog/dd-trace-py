@@ -13,10 +13,7 @@ def enabled() -> bool:
 
 
 def start() -> None:
-    if aiguard_config._ai_guard_enabled:
-        from ddtrace.aiguard._initialization import load_ai_guard
-
-        load_ai_guard()
+    load_ai_guard()
 
 
 def restart(join: bool = False) -> None:
