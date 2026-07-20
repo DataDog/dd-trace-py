@@ -45,6 +45,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -81,9 +82,12 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -144,7 +148,9 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -170,10 +176,15 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptVersionResponse
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -183,6 +194,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -221,6 +233,22 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
     "expected_outputs",
     "evaluators_results",
 )
+
+
+_ml_app_deprecation_warned = False
+
+
+def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) -> Optional[str]:
+    global _ml_app_deprecation_warned
+    if ml_app and not _ml_app_deprecation_warned:
+        _ml_app_deprecation_warned = True
+        deprecate(
+            "The `ml_app` argument is deprecated",
+            message="Use `agent_service` instead. `ml_app` will be removed in a future major version.",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+    return agent_service or ml_app
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -317,6 +345,14 @@ class LLMObsActivateDistributedHeadersError(Exception):
     """Error raised when activating distributed headers."""
 
     pass
+
+
+def _deprecate_prompt_label(method: str) -> None:
+    deprecate(
+        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+        category=DDTraceDeprecationWarning,
+    )
 
 
 @dataclass
@@ -714,6 +750,15 @@ class LLMObs(Service):
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
+        # Surface the agent attribution resolved at activation, but only on spans that
+        # actually have a resolved agent parent. Spans without one are left untouched.
+        agent_name = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME)
+        agent_span_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID)
+        if agent_name is not None or agent_span_id is not None:
+            meta["agent_attribution"] = {
+                "pagent_name": agent_name,
+                "pagent_span_id": agent_span_id,
+            }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         tags = self._llmobs_tags(span)
         _dd_attrs = {
@@ -859,13 +904,16 @@ class LLMObs(Service):
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
         sample_rate: Optional[float] = None,
+        agent_service: Optional[str] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
         """
         Enable LLM Observability tracing.
 
-        :param str ml_app: The name of your ml application.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The name of your agent service. Takes precedence over ``ml_app`` and
+                                  ``service``, in that order.
         :param bool integrations_enabled: set to `true` to enable LLM integrations.
         :param bool agentless_enabled: set to `true` to disable sending data that requires a Datadog Agent.
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
@@ -894,11 +942,16 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        if app_key:
+            # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
+            # before the app key was configured, so it rebuilds with the new key.
+            with cls._prompt_manager_lock:
+                cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
         config.service = service or config.service
-        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config._llmobs_ml_app = _resolve_agent_service(agent_service, ml_app) or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
         # Validate and fallback sample rates (inline arg --> env var --> 1.0)
         if sample_rate is not None and 0.0 <= sample_rate <= 1.0:
@@ -1067,13 +1120,28 @@ class LLMObs(Service):
     def publish_evaluator(
         cls,
         evaluator: BaseEvaluator,
-        ml_app: str,
+        ml_app: Optional[str] = None,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
+        agent_service: Optional[str] = None,
     ) -> dict[str, str]:
+        """
+        Publish a custom evaluator configuration.
+
+        :param BaseEvaluator evaluator: The evaluator to publish.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead. Required if ``agent_service`` is not provided.
+        :param str eval_name: The name to use for the published evaluator. Defaults to the evaluator name.
+        :param dict variable_mapping: A mapping from evaluator variables to span fields.
+        :param str agent_service: The agent service for this evaluator. Required if ``ml_app`` is not provided.
+        :returns: A dictionary containing the evaluator configuration UI URL.
+        """
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
 
+        resolved_agent_service = _resolve_agent_service(agent_service, ml_app)
+        if not isinstance(resolved_agent_service, str) or not resolved_agent_service.strip():
+            raise ValueError("`agent_service` must be provided as a non-empty string.")
+        ml_app = resolved_agent_service.strip()
         evaluation_payload = evaluator._build_publish_payload(
             ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
         )
@@ -1081,7 +1149,7 @@ class LLMObs(Service):
         cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)
 
         base_url = _get_base_url()
-        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
+        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app})
         return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
 
     @classmethod
@@ -1866,32 +1934,50 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        *,
+        version: Optional[int] = None,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
+        targeting_key: Optional[str] = None,
+        **attributes: Any,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
+        :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
+        :param targeting_key: Sticky bucketing key for A/B tests when resolving a version by environment.
+        :param attributes: Arbitrary targeting attributes used when resolving a version by environment.
 
         :returns: A ManagedPrompt object with template and rendering methods
         :raises ValueError: If the prompt cannot be fetched and no fallback is provided
 
         Example::
 
-            # Simple usage - returns the latest version
+            # Simple usage. If DD_ENV is set, an environment-scoped variant is resolved
+            # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
+
+            # Retrieve an exact version, independently of DD_ENV
+            prompt = LLMObs.get_prompt("greeting", version=2)
 
             # With explicit label and fallback
             prompt = LLMObs.get_prompt(
                 "greeting",
                 label="production",
                 fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Environment resolution with targeting (requires DD_ENV and agent mode)
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                targeting_key="user-123",
+                tier="premium",
             )
 
             # Use with annotation_context for observability
@@ -1903,8 +1989,17 @@ class LLMObs(Service):
                     messages=prompt.format(**variables)
                 )
         """
+        if label is not None:
+            _deprecate_prompt_label("get_prompt")
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.get_prompt(prompt_id, label, fallback)
+        return prompt_manager.get_prompt(
+            prompt_id,
+            version=version,
+            label=label,
+            fallback=fallback,
+            targeting_key=targeting_key,
+            **attributes,
+        )
 
     @classmethod
     def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
@@ -1914,8 +2009,10 @@ class LLMObs(Service):
             hot: If True, clear the hot (in-memory) cache. Defaults to True.
             warm: If True, clear the warm (file-based) cache. Defaults to True.
         """
-        if cls._prompt_manager is not None:
-            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+        if manager is not None:
+            manager.clear_cache(hot=hot, warm=warm)
         elif warm:
             # Clear file cache even if manager is not initialized
             cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
@@ -1926,7 +2023,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1934,21 +2031,198 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: Deprecated; set DD_ENV instead. Must be ``production`` or ``development``.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
         """
+        if label is not None:
+            _deprecate_prompt_label("refresh_prompt")
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
+    def create_prompt(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptResponse:
+        """Create a new prompt in the registry.
+
+        Args:
+            prompt_id: Unique identifier for the prompt.
+            template: List of chat messages defining the prompt template.
+            title: Optional human-readable title.
+            description: Optional description of the prompt.
+            user_version: Optional user-defined version string.
+            labels: Optional list containing ``production`` and/or ``development``.
+
+        Returns:
+            The created prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request (bad template, missing fields).
+            PromptConflictError: A prompt with this prompt_id already exists.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt(
+            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def create_prompt_version(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptVersionResponse:
+        """Create a new version of an existing prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+            template: List of chat messages defining the new version's template.
+            description: Optional description of this version.
+            user_version: Optional user-defined version string.
+            labels: Optional list containing ``production`` and/or ``development``.
+
+        Returns:
+            The created prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt_version(
+            prompt_id, template, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def update_prompt(
+        cls,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        """Update prompt metadata (title and/or description).
+
+        Args:
+            prompt_id: The prompt identifier.
+            title: New title for the prompt.
+            description: New description for the prompt.
+
+        Returns:
+            The updated prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt(prompt_id, title=title, description=description)
+
+    @classmethod
+    def update_prompt_version(
+        cls,
+        prompt_id: str,
+        version: int,
+        *,
+        labels: Optional[list[str]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        """Update a specific prompt version's metadata.
+
+        Args:
+            prompt_id: The prompt identifier.
+            version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
+            labels: New labels for the version. Values must be ``production`` and/or ``development``.
+            description: New description for the version.
+
+        Returns:
+            The updated prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt or version does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+
+    @classmethod
+    def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
+        """Delete a prompt and all its versions from the registry.
+
+        Also evicts the prompt from local caches.
+
+        Args:
+            prompt_id: The prompt identifier to delete.
+
+        Returns:
+            Confirmation with prompt_id and deleted_at timestamp.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.delete_prompt(prompt_id)
+
+    @classmethod
+    def list_prompts(cls) -> list[PromptResponse]:
+        """List all prompts.
+
+        Returns:
+            A list of prompts.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompts()
+
+    @classmethod
+    def list_prompt_versions(cls, prompt_id: str) -> list[PromptVersionResponse]:
+        """List all versions of a prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+
+        Returns:
+            A list of prompt versions.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompt_versions(prompt_id)
 
     @classmethod
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-
         if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -1959,10 +2233,12 @@ class LLMObs(Service):
         return PromptManager(
             api_key=api_key,
             base_url=base_url,
+            app_key=cls._app_key,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            agentless=should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled),
         )
 
     @classmethod
@@ -2072,6 +2348,11 @@ class LLMObs(Service):
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
                 context._meta[PROPAGATED_SAMPLING_DECISION] = sd
+            # Carry the nearest agent onto the context so spans created in in-process task
+            # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
+            # Stamped last so the budget check sees the full tagset.
+            parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
+            _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             return context
         return None
 
@@ -2083,9 +2364,12 @@ class LLMObs(Service):
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
         ml_app precedence: parent span._store > distributed context > global config > service.
-        session_id is optional and only propagated from span._store
+        session_id is optional and propagated from the parent span._store or the distributed context.
         """
         llmobs_parent = self._llmobs_context_provider.active()
+        # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
+        # (the parent already resolved its own attribution when it activated).
+        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(llmobs_parent)
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2099,7 +2383,7 @@ class LLMObs(Service):
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
                 llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
-                session_id = None
+                session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
@@ -2109,6 +2393,10 @@ class LLMObs(Service):
             sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        # Fall back to the trace-level default session when the parent chain carries none (e.g. a
+        # span under a session-less parent). The default is the first session set anywhere in the
+        # trace; an explicit session_id on this span still overrides it (applied after activation).
+        session_id = session_id or span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
 
         resolved_name = span.name
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
@@ -2121,6 +2409,7 @@ class LLMObs(Service):
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
+            "agent_service": ml_app,
             "ddtrace.version": __version__,
             "language": "python",
         }
@@ -2151,6 +2440,8 @@ class LLMObs(Service):
             span,
             name=resolved_name,
             parent_id=parent_id,
+            parent_agent_name=parent_agent_name,
+            parent_agent_span_id=parent_agent_span_id,
             trace_id=llmobs_trace_id,
             ml_app=ml_app,
             session_id=session_id,
@@ -2177,7 +2468,7 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
-        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         if name is None:
@@ -2193,15 +2484,20 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            ml_app=ml_app,
+            ml_app=agent_service,
         )
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
+        # First session in the trace becomes the trace-level default (first-writer wins), so later
+        # spans under a session-less parent fall back to it and it propagates across services.
+        effective_session_id = get_llmobs_session_id(span)
+        if effective_session_id and span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
+            span.context._meta[PROPAGATED_SESSION_ID_KEY] = effective_session_id
         log.debug(
-            "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
+            "Starting LLMObs span: %s, span_kind: %s, agent_service: %s",
             name,
             operation_kind,
-            ml_app,
+            agent_service,
         )
         return span
 
@@ -2213,6 +2509,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2223,8 +2520,9 @@ class LLMObs(Service):
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2240,7 +2538,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2250,6 +2548,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2257,8 +2556,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2268,7 +2568,7 @@ class LLMObs(Service):
             "tool",
             name=name,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2278,6 +2578,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2285,8 +2586,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2296,7 +2598,7 @@ class LLMObs(Service):
             "task",
             name=name,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2306,6 +2608,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2313,8 +2616,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2324,7 +2628,7 @@ class LLMObs(Service):
             "agent",
             name=name,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2334,6 +2638,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2341,8 +2646,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2352,7 +2658,7 @@ class LLMObs(Service):
             "workflow",
             name=name,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2364,6 +2670,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2375,8 +2682,9 @@ class LLMObs(Service):
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2392,7 +2700,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2402,6 +2710,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2409,8 +2718,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2420,7 +2730,7 @@ class LLMObs(Service):
             "retrieval",
             name=name,
             session_id=session_id,
-            ml_app=ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2430,6 +2740,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
         experiment_id: Optional[str] = None,
         run_id: Optional[str] = None,
         run_iteration: Optional[int] = None,
@@ -2443,14 +2754,17 @@ class LLMObs(Service):
         Trace an LLM experiment, only used internally by the experiments SDK.
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str experiment_id: The ID of the experiment to associate with this span and its children.
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+        span = cls._instance._start_span(
+            "experiment", name=name, session_id=session_id, agent_service=_resolve_agent_service(agent_service, ml_app)
+        )
 
         # root experiment span needs each baggage value mirrored into llmobs tags explicitly.
         # child spans automatically pick these up from baggage on activation.
@@ -2484,7 +2798,7 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        prompt: Optional[dict] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -2528,6 +2842,8 @@ class LLMObs(Service):
                                         optional keys: "name", "tool_id", "type" for function calling scenarios.
                                         "audio_parts" is an optional list of audio dictionaries, each with a required
                                         "mime_type" and one of "content" (base64-encoded audio) or "attachment_key".
+                                        "image_parts" is an optional list of image dictionaries, each with a required
+                                        "mime_type" and one of "content" (base64-encoded image) or "attachment_key".
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
@@ -2537,7 +2853,9 @@ class LLMObs(Service):
                                         of tool call dictionaries with required keys: "name", "arguments", and optional
                                         keys: "tool_id", "type" for function calling scenarios. "audio_parts" is an
                                         optional list of audio dictionaries, each with a required "mime_type" and one of
-                                        "content" (base64-encoded audio) or "attachment_key".
+                                        "content" (base64-encoded audio) or "attachment_key". "image_parts" is an
+                                        optional list of image dictionaries, each with a required "mime_type" and one of
+                                        "content" (base64-encoded image) or "attachment_key".
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
@@ -2611,10 +2929,17 @@ class LLMObs(Service):
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
+                    # Don't clobber a caller-supplied instrumentation-method tag (e.g. the
+                    # auto-tagging path in base.py) with the ANNOTATED default.
+                    prompt_tags = (
+                        {}
+                        if tags and PROMPT_TRACKING_INSTRUMENTATION_METHOD in tags
+                        else {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    )
                     _annotate_llmobs_span_data(
                         span,
                         prompt=cast(Prompt, validated_prompt),
-                        tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
+                        tags=prompt_tags,
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -2800,6 +3125,7 @@ class LLMObs(Service):
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
+        agent_service: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
@@ -2813,7 +3139,8 @@ class LLMObs(Service):
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
                             uniquely identifying the span associated with this evaluation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
-        :param str ml_app: The name of the ML application
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service for this evaluation metric.
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
@@ -2909,7 +3236,7 @@ class LLMObs(Service):
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
-            ml_app = resolve_ml_app(ml_app)
+            ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
 
             evaluation_tags = {
                 "ddtrace.version": __version__,
@@ -2988,6 +3315,7 @@ class LLMObs(Service):
         sort: str = "timestamp",
         include_attachments: bool = True,
         limit: int = 10,
+        agent_service: Optional[str] = None,
     ) -> list[dict]:
         """
         Retrieves LLM span events from the Datadog platform API.
@@ -2998,8 +3326,9 @@ class LLMObs(Service):
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
                                ``tool``, ``task``, ``embedding``, ``retrieval``.
         :param str span_name: Filter by span name.
-        :param str ml_app: Filter by ML application name. Defaults to ``DD_LLMOBS_ML_APP``
-                            if set; otherwise the query is not scoped to an ml_app.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: Filter by agent service name. Defaults to ``DD_LLMOBS_ML_APP``,
+                                    service name, or the default ML app name.
         :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
         :param str from_date: Start of the time range. Accepts ISO 8601, date math
                                (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
@@ -3015,7 +3344,7 @@ class LLMObs(Service):
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        ml_app = resolve_ml_app(ml_app)
+        ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
 
         optional_filters = (
             ("trace_id", trace_id),
@@ -3084,6 +3413,12 @@ class LLMObs(Service):
                 sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
             )
 
+        # Propagate the nearest agent so spans in the downstream process attribute correctly.
+        # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
+        # rather than overflowing x-datadog-tags.
+        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
+        _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
+
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
@@ -3146,6 +3481,11 @@ class LLMObs(Service):
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
+            # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
+            propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
+            propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3161,6 +3501,12 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+                if propagated_session_id is not None:
+                    llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
+                if propagated_agent_id is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+                if propagated_agent_name is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3170,6 +3516,12 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+            if propagated_session_id is not None:
+                llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
+            if propagated_agent_id is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+            if propagated_agent_name is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

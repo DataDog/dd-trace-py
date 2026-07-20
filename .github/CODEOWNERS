@@ -142,6 +142,7 @@ benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 benchmarks/bm/iast_fixtures*        @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
 # ddtrace files
+ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
@@ -153,6 +154,7 @@ ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
 # tests files
+tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
@@ -335,10 +337,6 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @Da
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions
-supported_versions_table.csv                    @DataDog/apm-core-python @DataDog/apm-idm-python
-supported_versions_output.json                  @DataDog/apm-core-python @DataDog/apm-idm-python
+supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
-
-# Tested versions
-tested_versions.json            @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/tested_versions/*       @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python
