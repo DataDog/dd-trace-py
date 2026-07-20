@@ -4,6 +4,7 @@ use pyo3::{intern, Bound, Py, PyAny, PyResult, Python};
 
 use crate::contextvar::{contextvar_get, safe_contextvar_set};
 use crate::event_hub::dispatch as event_dispatch;
+use crate::event_hub::has_listeners;
 
 /// Native base for `ddtrace._trace.provider.DefaultContextProvider`.
 ///
@@ -70,6 +71,12 @@ impl DefaultContextProvider {
     /// then emit `ddtrace.context_provider.activate` (listened to only by the profiler's
     /// stack collector). Mirrors the previous Python `activate` + `_activate_contextvar`.
     ///
+    /// PERF: `activate` runs ~2x per span (activate child on start, re-activate parent on
+    /// finish). The activate event has a listener only when the profiler is enabled, so in
+    /// the common case skip the args-tuple entirely — a `PyTuple` is a GC-tracked container,
+    /// so building one per activation adds gen0 GC pressure on a very hot path. `has_listeners`
+    /// is a cheap locked hashmap probe; gate the tuple + dispatch on it.
+    ///
     /// NOTE: uses the crash-safe set unconditionally. On CPython >=3.12 a plain
     /// `PyContextVar_Set` is safe and slightly cheaper; branching on version is a follow-up
     /// (the perf-harness runs 3.10, which takes the safe path either way).
@@ -80,13 +87,16 @@ impl DefaultContextProvider {
             None => return Ok(()),
         };
         safe_contextvar_set(py, var, ctx)?;
-        let args = PyTuple::new(py, [ctx])?;
-        event_dispatch(
-            py,
-            "ddtrace.context_provider.activate",
-            Some(args.into_any().unbind()),
-            false,
-        )
+        if has_listeners("ddtrace.context_provider.activate") {
+            let args = PyTuple::new(py, [ctx])?;
+            event_dispatch(
+                py,
+                "ddtrace.context_provider.activate",
+                Some(args.into_any().unbind()),
+                false,
+            )?;
+        }
+        Ok(())
     }
 
     /// Return the active span or context for the current execution.
