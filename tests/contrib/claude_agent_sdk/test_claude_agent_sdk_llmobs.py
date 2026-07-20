@@ -958,13 +958,8 @@ class TestLLMObsClaudeAgentSdk:
         claude_agent_sdk_llmobs,
         test_spans,
     ):
-        """Parallel tool calls in a single AssistantMessage produce sibling tool spans.
-
-        Every parallel tool span gets a link from the same llm span
-        (``llm#1 → tool#k``), every parallel tool span links to the next llm
-        span (``tool#k → llm#2``), no tool span links to any other tool span,
-        and every tool span shares the same ``parent_id`` (= step#1) so the
-        trace data records them as siblings, not a chain (MLOB-7551).
+        """Parallel tool calls in one AssistantMessage are siblings under step#1 (MLOB-7551),
+        with span links fanning out from llm#1 — not chained tool-to-tool.
         """
         prompt = "Run three Bash commands in parallel."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -983,8 +978,7 @@ class TestLLMObsClaudeAgentSdk:
         assert len(tool_spans) == 3
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
-        # Regression: MLOB-7551 — parallel tools must be siblings under step#1 in both the APM
-        # trace and the LLM Obs UI (which keys off the metastruct parent_id, not span.parent_id).
+        # MLOB-7551: tools sibling under step#1 in both trees (APM parent_id + LLM Obs metastruct).
         step1_id = str(step_spans[0].span_id)
         for tool_span in tool_spans:
             assert tool_span.parent_id == step_spans[0].span_id
@@ -1016,10 +1010,8 @@ class TestLLMObsClaudeAgentSdk:
         claude_agent_sdk_llmobs,
         test_spans,
     ):
-        """N separate AssistantMessages (one ToolUseBlock each), then one UserMessage with all N
-        ToolResultBlocks, still nest every tool span under one step span — the wire pattern the
-        real SDK emits for parallel tools. Regression for MLOB-7551; span-link topology is covered
-        by test_llmobs_parallel_tool_use_links_all_tools_to_assistant.
+        """N separate AssistantMessages (one ToolUseBlock each) still nest every tool under one
+        step — the wire pattern the real SDK emits for parallel tools (MLOB-7551).
         """
         prompt = "Run three Bash commands in parallel (one AssistantMessage each)."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -1029,19 +1021,59 @@ class TestLLMObsClaudeAgentSdk:
         step_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.step"], key=lambda s: s.start_ns)
         tool_spans = [s for s in spans if "tool" in s.name]
 
-        # Sequence: 3 × assistant(1 ToolUseBlock) → user(3 ToolResultBlocks) → final assistant(text)
-        # → result. The three ToolUseBlocks land before any ToolResultBlock, so they share one
-        # step span (step#1). The final text-only assistant message opens step#2.
+        # 3 tool blocks arrive before any result, so they share step#1; the final text message opens step#2.
         assert len(step_spans) == 2
         assert len(tool_spans) == 3
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
-        # Regression: MLOB-7551 — parallel tools must be siblings under step#1 in both the APM
-        # trace and the LLM Obs UI (which keys off the metastruct parent_id, not span.parent_id).
+        # MLOB-7551: tools sibling under step#1 in both trees (APM parent_id + LLM Obs metastruct).
         step1_id = str(step_spans[0].span_id)
         for tool_span in tool_spans:
             assert tool_span.parent_id == step_spans[0].span_id
             assert get_llmobs_parent_id(tool_span) == step1_id
+
+    async def test_llmobs_multi_round_parallel_tools_sibling_under_own_step(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_multi_round_parallel,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """Two parallel rounds across a step boundary: each round's tools sibling under their own step.
+
+        Round-2 tools must parent to the second step, never to a round-1 tool (MLOB-7551, both trees).
+        """
+        prompt = "Round 1: echo r1a and r1b in parallel. Then round 2: echo r2a and r2b in parallel."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        step_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.step"], key=lambda s: s.start_ns)
+        tool_spans = sorted([s for s in spans if "tool" in s.name], key=lambda s: s.start_ns)
+        step_ids = {s.span_id for s in step_spans}
+        step_ids_str = {str(s.span_id) for s in step_spans}
+        tool_ids = {s.span_id for s in tool_spans}
+        tool_ids_str = {str(s.span_id) for s in tool_spans}
+
+        assert len(tool_spans) == 4
+        assert len(step_spans) >= 2
+
+        apm_step_parents = set()
+        llmobs_step_parents = set()
+        for tool_span in tool_spans:
+            # every tool parents to a step, never another tool (APM tree)
+            assert tool_span.parent_id in step_ids and tool_span.parent_id not in tool_ids
+            # same invariant in the LLM Obs metastruct tree
+            llmobs_parent = get_llmobs_parent_id(tool_span)
+            assert llmobs_parent in step_ids_str and llmobs_parent not in tool_ids_str
+            apm_step_parents.add(tool_span.parent_id)
+            llmobs_step_parents.add(llmobs_parent)
+
+        # tools split across >=2 distinct steps (round 1 vs round 2), not chained
+        assert len(apm_step_parents) >= 2
+        assert len(llmobs_step_parents) >= 2
+        # first vs last tool live under different steps
+        assert tool_spans[0].parent_id != tool_spans[-1].parent_id
 
     async def test_llmobs_back_to_back_assistant_messages_link_llm_to_llm_directly(
         self,

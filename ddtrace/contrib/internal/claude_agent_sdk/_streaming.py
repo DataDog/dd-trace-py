@@ -344,12 +344,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
-        # AIDEV-NOTE: Tool spans belong to the current step, not the previously-opened tool span.
-        # BaseLLMIntegration.trace() hardcodes activate=True and defaults its parent to whichever
-        # span is active in each context provider, so without intervention parallel ToolUseBlocks
-        # chain on the prior in-flight tool span in BOTH the APM trace (via tracer.context_provider)
-        # and the LLM Obs UI (via LLMObs._llmobs_context_provider, which reads parent at span start
-        # in _on_span_start). Pin both: parent_context for APM, activate(step) for LLMObs.
+        # AIDEV-NOTE: Pin each tool span's parent to the current step in both trees — APM
+        # (parent_context) and LLM Obs (activate). Otherwise trace() defaults the parent to the
+        # active span, so parallel tools chain onto the prior open tool instead of nesting siblings.
         if self.current_step_span is not None and LLMObs.enabled:
             LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
         tool_span = self.integration.trace(

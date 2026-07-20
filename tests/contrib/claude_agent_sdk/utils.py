@@ -314,8 +314,7 @@ MOCK_PARALLEL_TOOL_USE_SEQUENCE = [
 ]
 
 
-# Parallel tools delivered as N AssistantMessages (1 ToolUseBlock each) + 1 UserMessage
-# carrying all N ToolResultBlocks — the wire pattern the SDK emits in practice (MLOB-7551).
+# Parallel tools as N AssistantMessages (1 ToolUseBlock each) + 1 UserMessage of results (MLOB-7551).
 MOCK_PARALLEL_BASH_TOOL_USE_SEQUENCE_SEPARATE_MESSAGES = [
     MOCK_SYSTEM_MESSAGE,
     create_mock_assistant_message_with_tool_use(
@@ -328,6 +327,44 @@ MOCK_PARALLEL_BASH_TOOL_USE_SEQUENCE_SEPARATE_MESSAGES = [
         [("Bash", {"command": "echo third"}, MOCK_PARALLEL_BASH_TOOL_IDS[2])],
     ),
     MOCK_PARALLEL_TOOL_RESULT_USER,
+    MOCK_FINAL_ASSISTANT,
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
+
+# Two parallel rounds separated by a ToolResult round-trip — MLOB-7551 across a step boundary.
+MOCK_MULTI_ROUND_TOOL_IDS = (
+    "toolu_round1_a",
+    "toolu_round1_b",
+    "toolu_round2_a",
+    "toolu_round2_b",
+)
+MOCK_MULTI_ROUND_PARALLEL_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_assistant_message_with_tool_use(
+        [
+            ("Bash", {"command": "echo r1a"}, MOCK_MULTI_ROUND_TOOL_IDS[0]),
+            ("Bash", {"command": "echo r1b"}, MOCK_MULTI_ROUND_TOOL_IDS[1]),
+        ],
+    ),
+    create_mock_user_message_with_tool_result(
+        [
+            (MOCK_MULTI_ROUND_TOOL_IDS[0], "r1a"),
+            (MOCK_MULTI_ROUND_TOOL_IDS[1], "r1b"),
+        ],
+    ),
+    create_mock_assistant_message_with_tool_use(
+        [
+            ("Bash", {"command": "echo r2a"}, MOCK_MULTI_ROUND_TOOL_IDS[2]),
+            ("Bash", {"command": "echo r2b"}, MOCK_MULTI_ROUND_TOOL_IDS[3]),
+        ],
+    ),
+    create_mock_user_message_with_tool_result(
+        [
+            (MOCK_MULTI_ROUND_TOOL_IDS[2], "r2a"),
+            (MOCK_MULTI_ROUND_TOOL_IDS[3], "r2b"),
+        ],
+    ),
     MOCK_FINAL_ASSISTANT,
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
