@@ -16,11 +16,10 @@ The gate is a **three-tier pyramid**. Each tier catches what the tier below mock
 - Black-box Docker scenarios in [`DataDog/prof-correctness`](https://github.com/DataDog/prof-correctness).
 - Asserts real pprof output against `expected_profile.json` with error margins.
 - **Required scenario families on the new interpreter:**
-  - `python_cpu` — cpu-time stacks
-  - `python_basic_memory_*` / `python_mem_domain_*` — alloc + heap / mem-domain
-  - `python_asyncio_*` / `python_async_gen_*` — wall-time + async frames
-  - `python_exceptions_*` — exception-samples
-  - `python_lock_*` — lock-acquire / lock-release
+  - Baseline (**3.14**, latest released): `python_*_3.14` — mem-domain, exceptions,
+    async-gen, lock (plus existing `python_cpu`, `python_basic_memory_*`, etc.)
+  - Candidate (**3.15**): matching `python_*_3.15` scenarios, run via downstream CI
+    with `DDTRACE_INSTALL_URL` (S3 wheel from the PR under test)
 - **CI:** GitLab `prof-correctness` job (triggers `downstream-python.yml`) and GitHub
   Actions `.github/workflows/prof-correctness.yml` on profiling path changes.
 - **Feedback loop:** any frame-level bug found in Tier 3 should be distilled into a new

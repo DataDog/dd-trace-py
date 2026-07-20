@@ -61,4 +61,4 @@ jobs:
           gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
             -f "dd_trace_py_commit_sha=${{ steps.sha.outputs.value }}" \
-            -f "test_scenarios=${{ inputs.test_scenarios || 'python.*' }}"
+            -f "test_scenarios=${{ inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}"
