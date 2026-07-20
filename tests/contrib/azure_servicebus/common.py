@@ -1,6 +1,10 @@
+from contextlib import contextmanager
 from datetime import datetime
 from datetime import timezone
+import fcntl
 import os
+import tempfile
+import time
 from typing import Union
 from uuid import uuid4
 
@@ -29,6 +33,62 @@ TRACE_CONTEXT_KEYS = [
     "traceparent",
     "tracestate",
 ]
+SERVICE_BUS_TEST_LOCK = os.path.join(tempfile.gettempdir(), "ddtrace_azure_servicebus_test.lock")
+RECEIVE_TIMEOUT_SECONDS = 30
+
+
+@contextmanager
+def servicebus_queue_lock():
+    # AIDEV-NOTE: CI runs this suite with parallelism > 1. All parametrized tests share queue.1
+    # with RECEIVE_AND_DELETE, so parallel workers can consume each other's messages.
+    with open(SERVICE_BUS_TEST_LOCK, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def drain_queue(receiver: ServiceBusReceiver):
+    while True:
+        messages = receiver.receive_messages(max_message_count=10, max_wait_time=1)
+        if not messages:
+            break
+
+
+async def drain_queue_async(receiver: ServiceBusReceiverAsync):
+    while True:
+        messages = await receiver.receive_messages(max_message_count=10, max_wait_time=1)
+        if not messages:
+            break
+
+
+def receive_all_messages(receiver: ServiceBusReceiver, message_length: int):
+    received_queue_messages = []
+    deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
+    while len(received_queue_messages) < message_length and time.monotonic() < deadline:
+        remaining = message_length - len(received_queue_messages)
+        received_queue_messages.extend(
+            receiver.receive_messages(
+                max_message_count=remaining,
+                max_wait_time=min(5, max(1, deadline - time.monotonic())),
+            )
+        )
+    return received_queue_messages
+
+
+async def receive_all_messages_async(receiver: ServiceBusReceiverAsync, message_length: int):
+    received_queue_messages = []
+    deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
+    while len(received_queue_messages) < message_length and time.monotonic() < deadline:
+        remaining = message_length - len(received_queue_messages)
+        received_queue_messages.extend(
+            await receiver.receive_messages(
+                max_message_count=remaining,
+                max_wait_time=min(5, max(1, deadline - time.monotonic())),
+            )
+        )
+    return received_queue_messages
 
 
 def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]):
@@ -103,7 +163,7 @@ def run_test(
         sender.schedule_messages(servicebus_messages, now)
         sender.schedule_messages(amqp_annotated_messages, now)
 
-    received_queue_messages = receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
+    received_queue_messages = receive_all_messages(receiver, message_length)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
@@ -153,7 +213,7 @@ async def run_test_async(
         await sender.schedule_messages(servicebus_messages, now)
         await sender.schedule_messages(amqp_annotated_messages, now)
 
-    received_queue_messages = await receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
+    received_queue_messages = await receive_all_messages_async(receiver, message_length)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
@@ -170,32 +230,37 @@ async def test_common():
     distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
     batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
 
-    if is_async:
-        client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
-        receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-        )
-        try:
-            await run_test_async(
-                sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+    with servicebus_queue_lock():
+        if is_async:
+            client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
+            sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+            receiver = client.get_queue_receiver(
+                queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
             )
-        finally:
-            await receiver.close()
-            await sender.close()
-            await client.close()
-    else:
-        client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
-        receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-        )
-        try:
-            run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
-        finally:
-            receiver.close()
-            sender.close()
-            client.close()
+            try:
+                await drain_queue_async(receiver)
+                await run_test_async(
+                    sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+                )
+            finally:
+                await receiver.close()
+                await sender.close()
+                await client.close()
+        else:
+            client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
+            sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+            receiver = client.get_queue_receiver(
+                queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+            )
+            try:
+                drain_queue(receiver)
+                run_test(
+                    sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+                )
+            finally:
+                receiver.close()
+                sender.close()
+                client.close()
 
 
 if __name__ == "__main__":
