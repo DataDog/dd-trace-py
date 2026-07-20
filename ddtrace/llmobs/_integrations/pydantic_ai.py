@@ -497,18 +497,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
         described: list[dict[str, Any]] = []
         for fn in fns:
             entry: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "prompt_function"}
+            signature: Optional[str] = None
             try:
                 sig = inspect.signature(fn)
                 # Drop default VALUES -- their repr can leak a secret, be huge, or raise a custom
-                # ``__repr__``; keep parameter names + annotations. Cap the rendered string like source.
+                # ``__repr__``; keep parameter names + annotations.
                 sig = sig.replace(
                     parameters=[p.replace(default=inspect.Parameter.empty) for p in sig.parameters.values()]
                 )
                 signature = str(sig)
-                if len(signature) <= _PROMPT_SOURCE_MAX_BYTES:
-                    entry["signature"] = signature
             except Exception:  # noqa: BLE001 - signature rendering must degrade, not drop the manifest
-                pass
+                signature = None
+            # Cap the rendered signature like source (an annotation's repr could be large).
+            if signature is not None and len(signature) <= _PROMPT_SOURCE_MAX_BYTES:
+                entry["signature"] = signature
             try:
                 doc = inspect.getdoc(fn)
             except Exception:  # noqa: BLE001 - a raising __doc__ descriptor must degrade, not drop the manifest
