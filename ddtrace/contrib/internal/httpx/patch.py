@@ -17,7 +17,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
