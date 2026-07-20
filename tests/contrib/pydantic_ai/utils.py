@@ -8,7 +8,6 @@ PYDANTIC_AI_TAGS = {
 def expected_calculate_square_tool():
     return [
         {
-            "type": "function",
             "name": "calculate_square_tool",
             "description": "Calculates the square of a number",
             "parameters": {"x": {"type": "integer", "required": True}},
@@ -19,7 +18,6 @@ def expected_calculate_square_tool():
 def expected_foo_tool():
     return [
         {
-            "type": "function",
             "name": "foo_tool",
             "description": "Return foo string",
             "parameters": {},
@@ -27,11 +25,14 @@ def expected_foo_tool():
     ]
 
 
-# The manifest groups the agent's captured definition. ``model`` / ``model_provider`` and -- for a normal
-# agent -- an ``output_type`` (defaulting to ``str``) and a ``behaviors.settings`` block (``retries`` /
-# ``tool_retries`` / ``end_strategy`` are present on every supported pydantic-ai version 0.8.1 / 1.0.0 /
-# 1.63.0) are always present; ``model_settings`` appears only when the agent sets it. Prompts are
-# ``{static, dynamic}`` (the dynamic-part shape is covered by the builder-driven ``test_manifest_*``
+# The manifest is ADDITIVE over origin/main: the shipped keys ``framework`` / ``name`` / ``model`` /
+# ``model_settings`` / ``instructions`` (str|None) / ``system_prompts`` (tuple) / ``tools`` (list) keep their
+# exact name + type -- emitted ALWAYS, even when empty/None, exactly as main does. For a normal agent the
+# builder also always emits the additive ``model_provider`` (computed from the model), ``output_type``
+# (defaulting to ``str``), and a flat ``settings`` block (``retries`` / ``tool_retries`` / ``end_strategy``
+# are present on every supported pydantic-ai version 0.8.1 / 1.0.0 / 1.63.0). Prompts are flat: static text
+# in ``instructions`` / ``system_prompts``, runtime resolvers in the separate ``dynamic_instructions`` /
+# ``dynamic_system_prompts`` lists (their descriptor shape is covered by the builder-driven ``test_manifest_*``
 # tests, so these end-to-end baselines carry only the static text). Per-test baselines.
 DEFAULT_OUTPUT_TYPE = {"name": "str"}
 DEFAULT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
@@ -44,46 +45,56 @@ def expected_agent_metadata(
     model_provider="openai",
     model_settings=None,
     instructions=None,
-    system_prompts=None,
-    capabilities=None,
+    system_prompts=None,  # a single static system-prompt string (or None)
+    tools=None,
+    dynamic_instructions=None,
+    dynamic_system_prompts=None,
+    sub_agents=None,
+    mcp_servers=None,
+    builtin_tools=None,
+    custom_toolsets=None,
     handoffs=None,
     guardrails=None,
     output_type=None,
     settings=None,
-    memory=None,
+    history_processors=None,
     tool_transforms=None,
     metadata=None,
 ) -> dict:
     manifest: dict = {"framework": "PydanticAI", "name": name}
     if model is not None:
         manifest["model"] = model
-    if model_provider is not None:  # mirrors the builder: computed from the model, present for gpt-4o
+    if model_provider is not None:  # additive; mirrors the builder -- computed from the model, present for gpt-4o
         manifest["model_provider"] = model_provider
-    if model_settings is not None:  # mirrors the builder: omitted when unset
-        manifest["model_settings"] = model_settings
 
-    # Prompts are ``{static: text}`` here; the dynamic-part shape is asserted by the builder-driven tests.
-    if instructions:
-        manifest["instructions"] = {"static": instructions}
-    if system_prompts:
-        manifest["system_prompts"] = {"static": system_prompts}
+    # FROZEN keys -- main emits each whenever its attr exists (i.e. always), even None/empty.
+    manifest["model_settings"] = model_settings
+    manifest["instructions"] = instructions
+    manifest["system_prompts"] = (system_prompts,) if system_prompts else ()
+    manifest["tools"] = tools if tools is not None else []
 
-    if capabilities:
-        manifest["capabilities"] = capabilities
-    if handoffs:
-        manifest["handoffs"] = handoffs
-    if guardrails:
-        manifest["guardrails"] = guardrails
+    # ADDITIVE lists -- present only when the agent actually has them.
+    for key, val in (
+        ("dynamic_instructions", dynamic_instructions),
+        ("dynamic_system_prompts", dynamic_system_prompts),
+        ("sub_agents", sub_agents),
+        ("mcp_servers", mcp_servers),
+        ("builtin_tools", builtin_tools),
+        ("custom_toolsets", custom_toolsets),
+        ("handoffs", handoffs),
+        ("guardrails", guardrails),
+    ):
+        if val:
+            manifest[key] = val
+
     manifest["output_type"] = output_type if output_type is not None else dict(DEFAULT_OUTPUT_TYPE)
 
-    # ``behaviors`` groups memory / tool-transforms / settings; ``settings`` is present for a normal agent.
-    behaviors: dict = {}
-    if memory:
-        behaviors["memory"] = memory
+    # Nice-to-haves are flat (no ``behaviors`` grouping); ``settings`` is present for a normal agent.
+    if history_processors:
+        manifest["history_processors"] = history_processors
     if tool_transforms:
-        behaviors["tool_transforms"] = tool_transforms
-    behaviors["settings"] = settings if settings is not None else dict(DEFAULT_SETTINGS)
-    manifest["behaviors"] = behaviors
+        manifest["tool_transforms"] = tool_transforms
+    manifest["settings"] = settings if settings is not None else dict(DEFAULT_SETTINGS)
 
     if metadata is not None:  # display-only
         manifest["metadata"] = metadata

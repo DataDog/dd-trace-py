@@ -1,9 +1,11 @@
 ---
 features:
   - |
-    LLM Observability: the ``pydantic_ai`` integration now captures a richer agent manifest on each
-    ``kind="agent"`` span -- the agent's model, prompts, capabilities (tools / MCP servers / builtins /
-    sub-agents), handoffs, guardrails, output type, memory, and settings -- as the raw material for agent
-    definition and versioning. MCP connection targets are scrubbed to ``scheme://host`` and captured
-    schemas and function sources are size-bounded, so avoid placing secrets in ``Field`` annotations,
-    dynamic-prompt / guardrail function bodies, or agent ``metadata``.
+    LLM Observability: the ``pydantic_ai`` integration now captures a structured agent manifest on each
+    ``kind="agent"`` span, using a cross-framework schema: ``agent_id`` / ``framework`` identity,
+    ``instructions``, a typed ``extra_instructions`` list (static system prompt + dynamic instruction /
+    system-prompt resolvers), a unified ``capabilities`` list (tools / sub-agents / builtin tools / MCP
+    servers / custom toolsets), ``memory_policies``, a ``config`` block, ``handoffs``, ``guardrails``, and a
+    ``custom`` catchall. MCP connection targets are scrubbed to ``scheme://host`` and captured schemas and
+    function sources are size-bounded, so avoid placing secrets in ``Field`` annotations, dynamic-prompt /
+    guardrail function bodies, or agent ``metadata``.
