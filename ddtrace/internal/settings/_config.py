@@ -28,6 +28,7 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
+from ddtrace.internal.schema import default
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -523,9 +524,6 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
-        self._is_user_provided_service = self.service is not None
-        _service_state.set_is_user_provided_service(self._is_user_provided_service)
-
         self._inferred_base_service = detect_service(sys.argv)
 
         # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
@@ -540,6 +538,9 @@ class Config(object):
             default_span_service_name = self._inferred_base_service or None
         else:
             default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
+        self._is_user_provided_service = self.service is not None and self.service != default_span_service_name 
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         if self.service is None and in_aws_lambda():
             self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)

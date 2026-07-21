@@ -42,7 +42,6 @@ config._add(
         distributed_tracing=asbool(env.get("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=config._http_client_tag_query_string,
         split_by_domain=asbool(env.get("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
-        _default_service=schematize_service_name("aiohttp_client"),
     ),
 )
 

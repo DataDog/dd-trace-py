@@ -13,6 +13,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -382,6 +383,8 @@ class SpanAggregator(SpanProcessor):
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
+            if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+                span.set_tag(_SERVICE_SOURCE, integration_name)
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if trace_id not in self._traces:

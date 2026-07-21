@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "aiohttp_client",
+    "service": "ddtrace_subprocess_dir",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -9,9 +9,8 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5eb92c00000000",
+      "_dd.p.tid": "6a5fdd4400000000",
       "_dd.svc_src": "aiohttp_client",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "aiohttp_client",
@@ -21,21 +20,21 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "f448d184d48d42409d3797e6a2c6622d",
+      "runtime-id": "f3ef7901cc524fee85fa6826d0818c58",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 592.0
+      "process_id": 557.0
     },
-    "duration": 3143125,
-    "start": 1784592684920182804
+    "duration": 2107791,
+    "start": 1784667460329798889
   },
      {
        "name": "TCPConnector.connect",
-       "service": "aiohttp_client",
+       "service": "ddtrace_subprocess_dir",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
@@ -43,12 +42,11 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "6a5fad2900000000",
-         "_dd.svc_src": "aiohttp_client",
+         "_dd.p.tid": "6a5fdd4400000000",
+         "_dd.svc_src": "aiohttp",
          "component": "aiohttp",
          "span.kind": "client"
        },
-       "duration": 924125,
-       "start": 1784655145071030463
+       "duration": 927458,
+       "start": 1784667460330017264
      }]]
