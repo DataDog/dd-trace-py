@@ -188,6 +188,36 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     assert len(child_samples) > 0
 
 
+def test_subprocess_inherited_bootstrap(tmp_path: Path) -> None:
+    """Children launched using subprocess with sys.executable (not ddtrace-run)
+    should inherit profiling bootstrap from a ddtrace-run parent.
+
+    Covers the generic child-process model used by launchers like torchrun
+    without using PyTorch in the test matrix.
+    """
+    filename = str(tmp_path / "pprof")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "_test_subprocess.py"),
+        env=env,
+    )
+    assert exitcode == 0, (stdout, stderr)
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    run_pid, popen_pid = list(s.strip() for s in stdout.strip().split("\n"))
+
+    for child_pid in (run_pid, popen_pid):
+        child_profile = pprof_utils.parse_newest_profile(f"{filename}.{child_pid}")
+        cpu_samples = pprof_utils.get_samples_with_value_type(child_profile, "cpu-time")
+        wall_samples = pprof_utils.get_samples_with_value_type(child_profile, "wall-time")
+        assert len(cpu_samples) > 0, f"no cpu-time samples for pid {child_pid}"
+        assert len(wall_samples) > 0, f"no wall-time samples for pid {child_pid}"
+
+
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),

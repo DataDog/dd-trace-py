@@ -216,6 +216,42 @@ class BotocoreDSMTest(TracerTestCase):
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_sqs_json_body(self):
+        # A JSON message body must still link the consumer pathway to the producer.
+        with (
+            mock.patch("time.time") as mt,
+        ):
+            mt.return_value = 1642544540
+
+            json_body = json.dumps(
+                {"tax_document_id": "5b51a91c", "process_type": "STANDARD_SOURCE", "job_type": "TAX"}
+            )
+
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody=json_body)
+
+            self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            first = pathway_stats_merged(processor)
+
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
+
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (

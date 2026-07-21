@@ -61,6 +61,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
+    AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
@@ -257,7 +258,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
         )
     )
 
-    # EPHEMERAL ADDRESSES
+    # Non-persistent addresses: RASP addresses run in a subcontext; the others (extract-schema,
+    # login/payment business logic) run on the main context with rule_type=None.
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
     CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
     SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
@@ -492,6 +494,14 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
     ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
     ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+    ENV_ANALYZE_STREAM_RESPONSES_ENABLED: Literal["DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"] = (
+        "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"
+    )
+    # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
+    # false to disable AI Guard auto-instrumentation for that specific provider.
+    ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
+    ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
+    ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
 
 
 class SCA(metaclass=Constant_Class):

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue in applications that fork where the security agent
+    could read stale process metadata, preventing security signals from being
+    correlated with APM traces.
