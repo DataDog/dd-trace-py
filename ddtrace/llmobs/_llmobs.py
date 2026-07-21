@@ -2051,6 +2051,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
@@ -2061,6 +2062,7 @@ class LLMObs(Service):
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy the first version to.
 
         Returns:
             The created prompt.
@@ -2073,7 +2075,13 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
-            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            title=title,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2085,6 +2093,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
@@ -2094,6 +2103,7 @@ class LLMObs(Service):
             description: Optional description of this version.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy this version to.
 
         Returns:
             The created prompt version.
@@ -2106,7 +2116,12 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
-            prompt_id, template, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2144,6 +2159,7 @@ class LLMObs(Service):
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Update a specific prompt version's metadata.
 
@@ -2152,6 +2168,7 @@ class LLMObs(Service):
             version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
             labels: New labels for the version. Values must be ``production`` and/or ``development``.
             description: New description for the version.
+            env_ids: Feature-flag environment IDs to deploy this version to.
 
         Returns:
             The updated prompt version.
@@ -2163,7 +2180,9 @@ class LLMObs(Service):
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+        return prompt_manager.update_prompt_version(
+            prompt_id, version, labels=labels, description=description, env_ids=env_ids
+        )
 
     @classmethod
     def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
