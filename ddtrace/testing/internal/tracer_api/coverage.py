@@ -56,7 +56,7 @@ _FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
-        self._covered_file_paths: t.Optional[set[str]] = None
+        self._covered_file_paths: t.Optional[t.Iterable[str]] = None
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         relative_to_str = str(relative_to)

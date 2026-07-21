@@ -341,7 +341,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cache_key = frozenset(covered_file_paths)
         cached_paths = self._file_level_covered_paths_cache.get(cache_key)
         if cached_paths is not None:
-            return set(cached_paths)
+            return cached_paths
 
         paths = set(covered_file_paths)
         for root_path in cache_key:
