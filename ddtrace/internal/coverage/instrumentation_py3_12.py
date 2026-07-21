@@ -265,8 +265,13 @@ def _instrument_with_monitoring(
     # Extract import names and collect line numbers
     lines, import_names = _extract_lines_and_imports(code, package, track_lines=track_lines)
 
-    # Recursively instrument nested code objects
+    # Recursively instrument nested code objects. In file-level mode, eager comprehension code objects do not need
+    # their own PY_START event: executing their enclosing code object already marks the file covered for the test, and
+    # comprehensions cannot contain import statements that would add dependency metadata. Generator expressions are not
+    # skipped because they can escape their defining context and execute in a later test.
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
+        if _USE_FILE_LEVEL_COVERAGE and nested_code.co_name in ("<listcomp>", "<dictcomp>", "<setcomp>"):
+            continue
         _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
         lines.update(nested_lines)
 
