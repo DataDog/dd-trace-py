@@ -6,6 +6,8 @@
 
 validate_supported_configurations_v2_local_file:
   extends: .validate_supported_configurations_v2_local_file
+  stage: .pre
+  needs: []
   variables:
     LOCAL_JSON_PATH: "supported-configurations.json"
     BACKFILLED: "true"
