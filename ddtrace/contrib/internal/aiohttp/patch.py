@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
