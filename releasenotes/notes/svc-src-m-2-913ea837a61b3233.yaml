@@ -1,6 +1,8 @@
+---
 fixes:
   - |
     tracing: Fixes an issue where `_dd.svc_src` was incorrectly set to `"m"` for spans with default service names
-  - "tracing: Fixes an issue where `service` was set to equal `_dd.base_service` for integrations without default service names \n"
+  - |
+    tracing: Fixes an issue where `service` was set to equal `_dd.base_service` for integrations without default service names 
   - |
     tracing: Fixes an issue where some integrations did not successfully apply user-defined service names to spans
