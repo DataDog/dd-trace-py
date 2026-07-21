@@ -274,6 +274,41 @@ class TestLLMObsPydanticAI:
         # callables are NOT captured here -- so a structured-only agent has no handoffs
         assert integration._get_agent_handoffs(agent) == []
 
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output_type verified on pydantic-ai >=1.63.0")
+    def test_manifest_output_type_union_captures_all_alternatives(self, pydantic_ai, pydantic_ai_llmobs):
+        """A multi-output union captures ALL alternatives, not just the first.
+
+        ``output_type=[Fruit, Vehicle]`` previously collapsed to ``Fruit`` (indistinguishable from a single
+        ``Fruit`` output). Now ``name`` joins the members and ``schema`` is the union (``anyOf``), so a
+        change to any alternative -- or adding/removing one -- is reflected. Output *functions* still route
+        to ``handoffs``, not here. Fails-on-revert: collapse to the first model and the union == single.
+        """
+        from pydantic import BaseModel
+
+        class Fruit(BaseModel):
+            kind: str
+
+        class Vehicle(BaseModel):
+            wheels: int
+
+        integration = pydantic_ai._datadog_integration
+        union = integration._get_agent_output_type(
+            pydantic_ai.Agent(model="gpt-4o", name="test_agent", output_type=[Fruit, Vehicle])
+        )
+        assert union["name"] == "Fruit | Vehicle"
+        # The union schema encodes BOTH alternatives, so it differs from a single-output Fruit.
+        blob = safe_json(union["schema"])
+        assert "Fruit" in blob and "Vehicle" in blob
+        single = integration._get_agent_output_type(
+            pydantic_ai.Agent(model="gpt-4o", name="test_agent", output_type=Fruit)
+        )
+        assert union != single  # regression: [Fruit, Vehicle] no longer collapses to Fruit
+        # A scalar + model union keeps both members (previously the scalar was dropped).
+        mixed = integration._get_agent_output_type(
+            pydantic_ai.Agent(model="gpt-4o", name="test_agent", output_type=[str, Fruit])
+        )
+        assert mixed["name"] == "str | Fruit"
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_mcp_capability(self, pydantic_ai, pydantic_ai_llmobs):
         """An MCP toolset is captured as a typed ``mcp`` capability entry.

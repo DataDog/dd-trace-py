@@ -608,27 +608,36 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return settings
 
     def _get_agent_output_type(self, agent: Any) -> dict[str, Any]:
-        """Build ``output_type`` ``{name, schema?}`` from ``agent.output_type`` (callables go to ``handoffs``)."""
+        """Build ``output_type`` ``{name, schema?}`` from ``agent.output_type`` (callables go to ``handoffs``).
+
+        A multi-output union (e.g. ``output_type=[Fruit, Vehicle]`` or ``NativeOutput([Fruit, Vehicle])``) is
+        captured in full: ``name`` joins the member names and ``schema`` is the union's JSON schema
+        (``anyOf``), so a change to any alternative -- or adding/removing one -- is reflected instead of
+        collapsing to the first. Member order is preserved.
+        """
         if not hasattr(agent, "output_type"):
             return {}
-        candidates = self._unwrap_output_markers(agent.output_type)
-        # Prefer a structured BaseModel; else the first non-callable type, so a union like
-        # ``[str, MyTool]`` still names ``str``.
-        model_candidate = None
-        scalar_candidate = None
-        for candidate in candidates:
-            if isinstance(candidate, type) and self._is_pydantic_model(candidate):
-                model_candidate = candidate
-                break
-            if scalar_candidate is None and not self._is_output_function(candidate):
-                scalar_candidate = candidate
-        chosen = model_candidate or scalar_candidate
-        if chosen is None:
+        # Only type candidates; output-function callables are captured as ``handoffs``, not here.
+        candidates = [c for c in self._unwrap_output_markers(agent.output_type) if not self._is_output_function(c)]
+        if not candidates:
             return {}
-        name = getattr(chosen, "__name__", None) or str(chosen)
-        output_type: dict[str, Any] = {"name": name}
-        if model_candidate is not None:
-            schema = self._bounded_output_schema(model_candidate)
+        if len(candidates) == 1:
+            return self._describe_single_output(candidates[0])
+        output_type: dict[str, Any] = {"name": " | ".join(getattr(c, "__name__", None) or str(c) for c in candidates)}
+        # Emit a schema when any alternative is a pydantic model (a union of bare scalars has none worth capturing).
+        if any(isinstance(c, type) and self._is_pydantic_model(c) for c in candidates):
+            schema = self._bounded_union_schema(candidates)
+            if schema is not None:
+                output_type["schema"] = schema
+            else:
+                output_type["schema_truncated"] = True
+        return output_type
+
+    def _describe_single_output(self, chosen: Any) -> dict[str, Any]:
+        """``{name, schema?}`` for a single output type -- ``schema`` only for a pydantic model."""
+        output_type: dict[str, Any] = {"name": getattr(chosen, "__name__", None) or str(chosen)}
+        if isinstance(chosen, type) and self._is_pydantic_model(chosen):
+            schema = self._bounded_output_schema(chosen)
             if schema is not None:
                 output_type["schema"] = schema
             else:
@@ -641,6 +650,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
         try:
             schema: dict[str, Any] = model.model_json_schema()
         except Exception:  # noqa: BLE001 - schema generation can raise on exotic models
+            return None
+        serialized = safe_json(schema)
+        if serialized is None or len(serialized) > _OUTPUT_SCHEMA_MAX_BYTES:
+            return None
+        return schema
+
+    @staticmethod
+    def _bounded_union_schema(candidates: list[Any]) -> Optional[dict[str, Any]]:
+        """Return the union of ``candidates``' JSON schema within ``_OUTPUT_SCHEMA_MAX_BYTES``, else ``None``."""
+        from typing import Union
+
+        from pydantic import TypeAdapter
+
+        try:
+            schema: dict[str, Any] = TypeAdapter(Union[tuple(candidates)]).json_schema()
+        except Exception:  # noqa: BLE001 - union schema generation can raise on exotic members
             return None
         serialized = safe_json(schema)
         if serialized is None or len(serialized) > _OUTPUT_SCHEMA_MAX_BYTES:
