@@ -64,7 +64,7 @@ def build_libddwaf_filename() -> str:
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
-    _asm_agentic_onboarding = DDConfig.var(Optional[str], APPSEC.AGENTIC_ONBOARDING, default=None)
+    _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
