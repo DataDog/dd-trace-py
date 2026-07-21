@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Resolves the untrusted deserialization sink's dependency on importing
+    ``yaml`` itself; the safe-loader classes are now captured from the application's own ``yaml``
+    module via an import hook. This avoids loading ``yaml`` before the application does and also
+    prevents false positives when a ``CSafeLoader`` is used.

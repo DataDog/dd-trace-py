@@ -12,10 +12,16 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+
+# "Safe" yaml loader classes, captured from the application's yaml module via a post-import
+# hook so we never force-load yaml ourselves; the hook re-fires on re-import to stay in sync.
+_yaml_safe_loaders: tuple[type, ...] = ()
+_YAML_HOOK_REGISTERED = False
 
 
 class UntrustedSerialization(VulnerabilityBase):
@@ -49,8 +55,18 @@ _MODULES = {
 }
 
 
+def _capture_yaml_safe_loaders(module) -> None:
+    """Capture the yaml "safe" loader classes from the imported yaml module."""
+    global _yaml_safe_loaders
+    _yaml_safe_loaders = tuple(
+        loader
+        for loader in (getattr(module, "SafeLoader", None), getattr(module, "CSafeLoader", None))
+        if loader is not None
+    )
+
+
 def patch():
-    global _IS_PATCHED
+    global _IS_PATCHED, _YAML_HOOK_REGISTERED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
 
@@ -58,6 +74,11 @@ def patch():
         return
 
     _IS_PATCHED = True
+
+    if not _YAML_HOOK_REGISTERED:
+        # Track the application's yaml module lazily instead of importing it.
+        ModuleWatchdog.after_module_imported("yaml")(_capture_yaml_safe_loaders)
+        _YAML_HOOK_REGISTERED = True
 
     iast_funcs = WrapFunctonsForIAST()
     for module, function in _MODULES:
@@ -84,18 +105,13 @@ def _is_yaml_safe_load(args, kwargs):
     """Return True when a yaml "safe" loader is explicitly provided.
 
     Detects yaml.load(..., SafeLoader) or yaml.load(..., Loader=SafeLoader) patterns.
-    The function imports yaml lazily to avoid hard dependency at import time.
+    The safe loader classes are captured from the application's yaml module via a
+    post-import hook, so we never import yaml ourselves.
     """
-    try:
-        import yaml
-
-        loader_kw = kwargs.get("Loader") or kwargs.get("loader")
-        loader_pos = args[1] if len(args) > 1 else None
-        loader = loader_kw or loader_pos
-        return loader is not None and (loader is getattr(yaml, "SafeLoader", object()))
-    except Exception:
-        # If yaml is not importable or anything fails, do not treat as safe
+    if not _yaml_safe_loaders:
         return False
+    loader = kwargs.get("Loader") or kwargs.get("loader") or (args[1] if len(args) > 1 else None)
+    return any(loader is safe_loader for safe_loader in _yaml_safe_loaders)
 
 
 def _iast_report_untrusted_serializastion(code_string: Text):
