@@ -2,7 +2,6 @@ import abc
 import contextvars
 import sys
 from typing import Any
-from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -46,18 +45,13 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
-    def __init__(self) -> None:
-        self._activation_callback: Optional[Callable[[Optional[ActiveTrace]], None]] = None
-
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
 
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        core.dispatch("ddtrace.context_provider.activate", (ctx,))
-        if self._activation_callback:
-            self._activation_callback(ctx)
+        core.dispatch("ddtrace.context_provider.activate", (self, ctx))
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:

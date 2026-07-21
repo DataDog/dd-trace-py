@@ -71,10 +71,6 @@ log = get_logger(__name__)
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
-if sys.platform == "linux":
-    from ddtrace.internal.native._native import detach_otel_thread_context
-    from ddtrace.internal.native._native import update_otel_thread_context
-
 
 def _function_has_class_scope(f: Callable) -> bool:
     """Return True if ``f`` is a method defined directly on a class (not a nested local function)."""
@@ -130,15 +126,6 @@ def _default_span_processors_factory(
     return span_processors
 
 
-if sys.platform == "linux":
-
-    def _sync_otel_thread_context(ctx: Optional[Union[Context, Span]]) -> None:
-        if type(ctx) is Span:
-            update_otel_thread_context(ctx, ctx._local_root_value)
-        else:
-            detach_otel_thread_context()
-
-
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -182,8 +169,6 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        if sys.platform == "linux":
-            self.context_provider._activation_callback = _sync_otel_thread_context
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -399,9 +384,6 @@ class Tracer(object):
             )
 
         if context_provider is not None:
-            if sys.platform == "linux":
-                self.context_provider._activation_callback = None
-                context_provider._activation_callback = _sync_otel_thread_context
             self.context_provider = context_provider
 
     def _generate_diagnostic_logs(self):
@@ -431,7 +413,7 @@ class Tracer(object):
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
-            self.context_provider.activate(active)
+            core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
     def _recreate(
         self,
@@ -997,3 +979,20 @@ class Tracer(object):
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
         finally:
             self._shutdown_lock.release()
+
+
+if sys.platform == "linux":
+    from ddtrace.internal.native._native import detach_otel_thread_context
+    from ddtrace.internal.native._native import update_otel_thread_context
+
+    def _sync_otel_thread_context(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
+        tracer = Tracer._instance
+        if tracer is None or provider is not tracer.context_provider:
+            return
+
+        if type(ctx) is Span:
+            update_otel_thread_context(ctx, ctx._local_root_value)
+        else:
+            detach_otel_thread_context()
+
+    core.on("ddtrace.context_provider.activate", _sync_otel_thread_context)
