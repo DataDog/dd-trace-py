@@ -55,20 +55,6 @@ def _asm_manual_keep(span: Span) -> None:
     add_trace_source(span, TraceSource.ASM)
 
 
-def _aiguard_manual_keep(span: Span) -> None:
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.constants import TraceSource
-    from ddtrace.internal.sampling import SamplingMechanism
-    from ddtrace.internal.sampling import add_trace_source
-
-    span._override_sampling_decision(USER_KEEP)
-    # set decision maker to AI_GUARD = -13
-    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.AI_GUARD}")
-
-    # set trace source propagation tag (_dd.p.ts) with the AI Guard bit
-    add_trace_source(span, TraceSource.AI_GUARD)
-
-
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
     MAX_DEPTH = 6
     stack = [(prefix, metadata, 1)]

@@ -192,6 +192,9 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._store_metadata()
+
+    def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=__version__,
@@ -405,6 +408,7 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
@@ -586,11 +590,11 @@ class Tracer(object):
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
 
-        if config.env:
+        if config.env and not config._otel_trace_semantics_enabled:
             span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        if config.version and not config._otel_trace_semantics_enabled:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
