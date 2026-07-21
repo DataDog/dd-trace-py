@@ -160,51 +160,51 @@ def _version_match_score(package_spec: Any) -> int:
     return score
 
 
-def _find_version_matched_child(base_venv: Venv, target: dict[str, Any]) -> Venv | None:
-    """Find the child Venv whose package constraints best match the requested version."""
+def _find_matching_child(base_venv: Venv, target: dict[str, Any], py: str) -> Venv | None:
+    """Find the child Venv whose Python and package constraints best match the target."""
     package = target["package"]
     target_versions = target["version_to_test"]
     matches = []
     for child in base_venv.venvs:
-        child_pkgs = getattr(child, "pkgs", None) or {}
-        if package not in child_pkgs:
+        if py not in _get_venv_python_versions(child):
             continue
-        package_spec = child_pkgs[package]
-        if _target_versions_match_package_spec(target_versions, package_spec):
+        child_pkgs = getattr(child, "pkgs", None) or {}
+        package_spec = child_pkgs.get(package)
+        if package_spec is not None and _target_versions_match_package_spec(target_versions, package_spec):
             matches.append((_version_match_score(package_spec), child))
     if not matches:
-        return None
+        return next((child for child in base_venv.venvs if py in _get_venv_python_versions(child)), None)
     return max(matches, key=lambda item: item[0])[1]
 
 
-def _merge_base_child_defaults(
-    base_venv: Venv, target: dict[str, Any]
-) -> tuple[str | None, dict[str, Any], dict[str, Any] | None]:
-    """Merge package/env/command defaults from matching base child Venvs."""
-    matched_python_children = []
-    matched_child_ids = set()
+def _partition_target_by_child(base_venv: Venv, target: dict[str, Any]) -> list[tuple[dict[str, Any], Venv | None]]:
+    """Partition a target so each result inherits from exactly one original child Venv."""
+    partitions: list[tuple[dict[str, Any], Venv | None]] = []
+    partition_by_child_id: dict[int | None, dict[str, Any]] = {}
     for py in target["pys"]:
-        for child in base_venv.venvs:
-            if py not in _get_venv_python_versions(child):
-                continue
-            child_id = id(child)
-            if child_id not in matched_child_ids:
-                matched_python_children.append(child)
-                matched_child_ids.add(child_id)
-            break
+        child = _find_matching_child(base_venv, target, py)
+        child_id = id(child) if child is not None else None
+        partition = partition_by_child_id.get(child_id)
+        if partition is None:
+            partition = dict(target)
+            partition["pys"] = []
+            partition_by_child_id[child_id] = partition
+            partitions.append((partition, child))
+        partition["pys"].append(py)
+    return partitions
 
-    version_child = _find_version_matched_child(base_venv, target)
 
+def _merge_base_child_defaults(
+    base_venv: Venv, target: dict[str, Any], child: Venv | None
+) -> tuple[str | None, dict[str, Any], dict[str, Any] | None]:
+    """Merge package/env/command defaults from one matching base child Venv."""
     pkgs = dict(getattr(base_venv, "pkgs", None) or {})
     env = dict(getattr(base_venv, "env", None) or {})
     command = getattr(base_venv, "command", None)
-    for child in matched_python_children:
+    if child is not None:
+        command = getattr(child, "command", None) or command
         pkgs.update(getattr(child, "pkgs", None) or {})
         env.update(getattr(child, "env", None) or {})
-    if version_child is not None:
-        command = getattr(version_child, "command", None) or command
-        pkgs.update(getattr(version_child, "pkgs", None) or {})
-        env.update(getattr(version_child, "env", None) or {})
 
     pkgs[target["package"]] = target["version_to_test"]
     pkgs.update(target["pkgs"])
@@ -224,18 +224,21 @@ def generate_new_riot_venvs(test_spec, base_venvs):
         if base_venv is None:
             raise RuntimeError(f"No Riot venv exists for version support integration {integration_name!r}")
         for target in targets:
-            command, pkgs, env = _merge_base_child_defaults(base_venv, target)
-            kwargs = {
-                "pys": target["pys"],
-                "pkgs": pkgs,
-            }
-            if command:
-                kwargs["command"] = command
-            if env:
-                kwargs["env"] = env
-            child = Venv(**kwargs)
-            child.version_support_pys = target["pys"]  # type: ignore[attr-defined]
-            children.append(child)
+            # AIDEV-NOTE: Riot child Venvs are alternative matrices, not composable layers.
+            # Keep Python-specific constraints isolated when a target spans multiple children.
+            for partition, base_child in _partition_target_by_child(base_venv, target):
+                command, pkgs, env = _merge_base_child_defaults(base_venv, partition, base_child)
+                kwargs = {
+                    "pys": partition["pys"],
+                    "pkgs": pkgs,
+                }
+                if command:
+                    kwargs["command"] = command
+                if env:
+                    kwargs["env"] = env
+                child = Venv(**kwargs)
+                child.version_support_pys = partition["pys"]  # type: ignore[attr-defined]
+                children.append(child)
 
         base_venv.venvs = children
 
