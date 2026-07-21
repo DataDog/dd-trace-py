@@ -1529,7 +1529,7 @@ def pytest_load_initial_conftests(
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true")))
+    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
 def pytest_configure(config: pytest.Config) -> None:
