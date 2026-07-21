@@ -181,7 +181,9 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = DefaultContextProvider()
+        self._context_provider: BaseContextProvider = DefaultContextProvider()
+        if sys.platform == "linux":
+            self._context_provider._add_activation_listener(_sync_otel_thread_context)
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -231,8 +233,7 @@ class Tracer(object):
     @context_provider.setter
     def context_provider(self, value: BaseContextProvider) -> None:
         if sys.platform == "linux":
-            if hasattr(self, "_context_provider"):
-                self._context_provider._remove_activation_listener(_sync_otel_thread_context)
+            self._context_provider._remove_activation_listener(_sync_otel_thread_context)
             value._add_activation_listener(_sync_otel_thread_context)
         self._context_provider = value
 
