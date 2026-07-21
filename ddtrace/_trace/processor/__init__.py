@@ -424,15 +424,11 @@ class SpanAggregator(SpanProcessor):
         ):
             try:
                 spans = tp.process_trace(spans) or []
+                if not spans:
+                    break
             except Exception:
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
-                continue
-            if not spans:
-                break
 
-        # Any spans removed by the trace processors (filtered out or the whole trace dropped)
-        # are definitively dropped here and never reach the writer. Batch them alongside the
-        # span created/finished counts.
         dropped = len(finished) - len(spans)
         if dropped > 0:
             with self._lock:
