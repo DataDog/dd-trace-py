@@ -4,12 +4,11 @@ import platform
 import sys
 import traceback
 from types import TracebackType
-from typing import Any
-from typing import Callable
 from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
+from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
@@ -176,9 +175,6 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     return config, receiver_config, metadata
 
 
-_original_excepthook: Callable[[type[BaseException], BaseException, Optional[TracebackType]], Any] = sys.__excepthook__
-
-
 def _unhandled_exception_reporter(
     exc_type: type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
 ) -> None:
@@ -207,8 +203,6 @@ def _unhandled_exception_reporter(
             crashtracker_report_unhandled_exception(exception_type, exception_message, frames)
     except Exception:
         log.debug("Failed to report unhandled exception to crashtracker", exc_info=True)
-
-    _original_excepthook(exc_type, exc_value, exc_traceback)
 
 
 def is_started() -> bool:
@@ -244,9 +238,7 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             except Exception:  # nosec: B110
                 pass
         crashtracker_init(config, receiver_config, metadata)
-        global _original_excepthook
-        _original_excepthook = sys.excepthook
-        sys.excepthook = _unhandled_exception_reporter
+        excepthook.register(_unhandled_exception_reporter)
 
         if stack_mod is not None:
             try:

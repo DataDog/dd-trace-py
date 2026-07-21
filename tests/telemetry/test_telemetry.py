@@ -380,13 +380,19 @@ def test_installed_excepthook():
     # importing ddtrace initializes the telemetry writer and installs the excepthook
     import ddtrace  # noqa: F401
 
-    assert sys.excepthook.__name__ == "_telemetry_excepthook"
+    # ddtrace installs a single dispatching hook that fans out to registered callbacks
+    from ddtrace.internal import excepthook
+
+    assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
     from ddtrace.internal.telemetry import telemetry_writer
 
     assert telemetry_writer._enabled is True
+    assert telemetry_writer._telemetry_excepthook in excepthook._hooks
     telemetry_writer.uninstall_excepthook()
-    assert sys.excepthook.__name__ != "_telemetry_excepthook"
+    assert telemetry_writer._telemetry_excepthook not in excepthook._hooks
+    # The dispatcher stays installed even after a component unregisters
+    assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
 
 def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):
