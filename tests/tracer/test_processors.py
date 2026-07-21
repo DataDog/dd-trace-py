@@ -114,7 +114,7 @@ def test_aggregator_records_tp_drop_when_processor_drops_trace():
     aggr.on_span_start(span)
     span.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["tp_drop"] == 1
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
     assert aggr.writer.pop() == []
 
 
@@ -137,7 +137,7 @@ def test_aggregator_records_tp_drop_for_partial_processor_drop():
     child.finish()
     parent.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["tp_drop"] == 1
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
 
 
 def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
@@ -149,7 +149,7 @@ def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
     aggr.on_span_start(span)
     span.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["tp_drop"] == 0
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 0
     assert aggr.writer.pop() == [span]
 
 
@@ -586,15 +586,15 @@ def test_span_dropped_metrics():
 
         # 250 dropped spans are flushed in batches of 100.
         assert dropped_calls(mock_tm) == [
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "tp_drop"),)),
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "tp_drop"),)),
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
         ]
 
         mock_tm.reset_mock()
         tracer.shutdown()
         # The remaining 50 dropped spans are flushed on shutdown.
         assert dropped_calls(mock_tm) == [
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 50, tags=(("reason", "tp_drop"),)),
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 50, tags=(("reason", "trace_processor"),)),
         ]
 
 
