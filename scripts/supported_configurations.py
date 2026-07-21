@@ -227,6 +227,25 @@ def _resolve_env_name_arg(
     return None
 
 
+def _collect_all_exports(module: ast.Module) -> set[str]:
+    """Return string literals listed in a module-level ``__all__ = [...]`` assignment.
+
+    These are export names, not environment variables, even when they happen to match
+    the ``DD_*``/``_DD_*`` naming pattern (e.g. re-exporting a ``contextvars.ContextVar``).
+    """
+    exports: set[str] = set()
+    for stmt in module.body:
+        if not isinstance(stmt, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "__all__" for target in stmt.targets):
+            continue
+        if isinstance(stmt.value, (ast.List, ast.Tuple)):
+            for elt in stmt.value.elts:
+                if literal := _literal_str(elt):
+                    exports.add(literal)
+    return exports
+
+
 def _class_prefix(class_node: ast.ClassDef) -> str | None:
     """Return the literal value of ``__prefix__`` set on this class, if any.
 
@@ -386,18 +405,22 @@ def check_registry(data: dict) -> int:
             text = path.read_text(errors="ignore")
         except OSError:
             continue
-        for m in pattern.finditer(text):
-            var = m.group(1)
-            if var not in all_known:
-                missing.add(var)
-        # ast.parse is expensive; skip files that can't define envier configs.
-        if "DDConfig" in text:
+        candidates = {m.group(1) for m in pattern.finditer(text)}
+        # ast.parse is expensive; skip files that can't define envier configs or exports.
+        module = None
+        if candidates or "DDConfig" in text:
             try:
                 module = ast.parse(text)
             except SyntaxError:
-                pass
-            else:
+                module = None
+        if module is not None:
+            if candidates:
+                candidates -= _collect_all_exports(module)
+            if "DDConfig" in text:
                 _scan_envier_module(module, envier_vars, private_registry_mismatches)
+        for var in candidates:
+            if var not in all_known:
+                missing.add(var)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
     assigns = {
