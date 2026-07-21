@@ -311,12 +311,13 @@ class Tracer(object):
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
+        cfg = config
         log_context = {
             LOG_ATTR_TRACE_ID: trace_id,
             LOG_ATTR_SPAN_ID: span_id,
-            LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
-            LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
-            LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_SERVICE: cfg.service or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_VERSION: cfg.version or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_ENV: cfg.env or LOG_ATTR_VALUE_EMPTY,
         }
         core.dispatch("trace.log_correlation_context", (log_context,))
         return log_context
@@ -483,6 +484,8 @@ class Tracer(object):
         Note: be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
+        cfg = config  # PERF: config.* is read many times throughout this method
+
         if self._new_process:
             self._new_process = False
 
@@ -495,8 +498,9 @@ class Tracer(object):
                 # If the child_of span was active then activate the new context
                 # containing it so that the strong span referenced is removed
                 # from the execution.
-                if self.context_provider.active() is child_of:
-                    self.context_provider.activate(new_ctx)
+                ctx_provider = self.context_provider
+                if ctx_provider.active() is child_of:
+                    ctx_provider.activate(new_ctx)
                 child_of = new_ctx
 
         parent: Optional[Span] = None
@@ -526,16 +530,16 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = config.service
+                service = cfg.service
         else:
-            if service in config._integration_default_services:
+            if service in cfg._integration_default_services:
                 service_source = service
             else:
                 service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:
-            service = config.service_mapping.get(service, service)
+            service = cfg.service_mapping.get(service, service)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
@@ -552,19 +556,20 @@ class Tracer(object):
                 links=links,
                 on_finish=[self._on_span_finish],
             )
+            set_attr = span._set_attribute  # PERF: bound once, called for the metas loop and common tags below
 
             # Extra attributes when from a local parent
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
-                if span._parent.service == service:
+                if parent.service == service:
                     span._service_entry_span = parent._service_entry_span
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._set_attribute(k, v)
+                    set_attr(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -576,40 +581,44 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
-            if config._report_hostname:
-                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
+            set_attr = span._set_attribute  # PERF: bound once, called for the common tags below
+            if cfg._report_hostname:
+                set_attr(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span._set_attribute("runtime-id", get_runtime_id())
-            span._set_attribute(PID, self._pid)
+            set_attr("runtime-id", get_runtime_id())
+            set_attr(PID, self._pid)
 
         # Apply default global tags.
-        if self._tags:
-            span.set_tags(self._tags)
+        tags = self._tags
+        if tags:
+            span.set_tags(tags)
 
         if service and service_source:
-            span._set_attribute(_SERVICE_SOURCE, service_source)
+            set_attr(_SERVICE_SOURCE, service_source)
 
-        if config.env:
-            span._set_attribute(ENV_KEY, config.env)
+        env = cfg.env
+        if env:
+            set_attr(ENV_KEY, env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        version = cfg.version
+        if version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (
+            if (root_span is None and service == cfg.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_attribute(VERSION_KEY, config.version)
+                set_attr(VERSION_KEY, version)
 
         if activate:
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
+        if self.enabled or asm_config._apm_opt_out or cfg._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -636,8 +645,6 @@ class Tracer(object):
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
-        # Debug check: if the finishing span has a parent and its parent
-        # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
@@ -645,12 +652,13 @@ class Tracer(object):
         core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
+        enabled = self.enabled
+        if enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
 
-        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
+        log.debug("finishing span - %r (enabled:%s)", span, enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -780,8 +788,9 @@ class Tracer(object):
 
         @functools.wraps(f)
         def func_wrapper(*args, **kwargs):
-            if self._wrap_executor is not None:
-                return self._wrap_executor(
+            wrap_executor = self._wrap_executor
+            if wrap_executor is not None:
+                return wrap_executor(
                     self,
                     f,
                     args,
@@ -923,8 +932,9 @@ class Tracer(object):
                 def func_wrapper(*args, **kwargs):
                     # if a wrap executor has been configured, it is used instead
                     # of the default tracing function
-                    if self._wrap_executor is not None:
-                        return self._wrap_executor(
+                    wrap_executor = self._wrap_executor
+                    if wrap_executor is not None:
+                        return wrap_executor(
                             self,
                             f,
                             args,
