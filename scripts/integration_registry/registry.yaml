@@ -669,13 +669,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.4
-      max: 3.12.0
+      max: 3.14.0
     mlflow-skinny:
-      min: 3.12.0
-      max: 3.12.0
+      min: 3.14.0
+      max: 3.14.0
     mlflow-tracing:
-      min: 3.12.0
-      max: 3.12.0
+      min: 3.14.0
+      max: 3.14.0
 
 - integration_name: molten
   is_external_package: true
