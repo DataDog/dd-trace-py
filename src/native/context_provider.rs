@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 
 use pyo3::{
     exceptions::{PyNotImplementedError, PyTypeError},
-    types::{PyAnyMethods as _, PyDict, PyModule, PyModuleMethods as _, PyTuple},
+    types::{PyAnyMethods as _, PyDict, PyModule, PyModuleMethods as _, PyTuple, PyType},
     Bound, Py, PyAny, PyResult, Python,
 };
 
@@ -121,20 +121,31 @@ fn call_activate<'py>(
 /// and implement:
 /// * the ``active`` method, that returns the current active ``Context``
 /// * the ``activate`` method, that sets the current active ``Context``
-#[pyo3::pyclass(subclass, module = "ddtrace.internal._native")]
+// `dict` gives instances a `__dict__`, so external code (mocks, monkeypatches,
+// instrumentation) can still set/replace attributes like `activate` on a live
+// provider -- native pyclasses have no instance dict by default, which would
+// otherwise make method attributes read-only.
+#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal._native")]
 pub struct BaseContextProvider;
 
 #[pyo3::pymethods]
 impl BaseContextProvider {
+    /// Takes `cls` so only a *direct* instantiation of `BaseContextProvider`
+    /// is rejected -- a concrete subclass (e.g. one passed to
+    /// `Tracer.configure(context_provider=...)`) must still be constructible,
+    /// mirroring the old `abc.ABCMeta` behavior where only the base type
+    /// itself was blocked.
     #[new]
-    fn new() -> PyResult<Self> {
-        // Mirrors the old `abc.ABCMeta` behavior: this class only exists to be
-        // subclassed (by `DefaultContextProvider`, which provides its own
-        // `__new__` and so never reaches this one).
-        Err(PyTypeError::new_err(
-            "Can't instantiate abstract class BaseContextProvider without an implementation \
-             for abstract methods '_has_active_context', 'active'",
-        ))
+    #[classmethod]
+    fn new(cls: &Bound<'_, PyType>) -> PyResult<Self> {
+        if cls.is(cls.py().get_type::<Self>()) {
+            Err(PyTypeError::new_err(
+                "Can't instantiate abstract class BaseContextProvider without an implementation \
+                 for abstract methods '_has_active_context', 'active'",
+            ))
+        } else {
+            Ok(Self)
+        }
     }
 
     fn _has_active_context(&self) -> PyResult<bool> {
