@@ -854,7 +854,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime(), self._api_version == "v0.5")
+        return builder.build(
+            get_native_runtime(), self._api_version == "v0.5" or not agent_config.trace_native_span_events
+        )
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
