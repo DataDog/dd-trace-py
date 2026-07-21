@@ -5675,6 +5675,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "45000",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": [
       {
         "implementation": "A",
