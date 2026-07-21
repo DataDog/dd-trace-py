@@ -28,20 +28,6 @@ setup_rust() {
   section_end "install_rust"
 }
 
-# Install a zlib-capable system LLD for musllinux builds. The rustup-provided
-# rust-lld lacks zlib support for both x86-64 and aarch64 musl host toolchains.
-setup_system_lld() {
-  if [[ ! -f /etc/alpine-release ]]; then
-    return
-  fi
-
-  section_start "install_lld" "System LLD linker"
-  apk add --no-cache lld
-  command -v ld.lld
-  ld.lld --version
-  section_end "install_lld"
-}
-
 # Setup Python (verify/install uv if needed)
 setup_python() {
   section_start "setup_python" "Setting up Python ${UV_PYTHON}"
@@ -141,7 +127,6 @@ repair_wheel() {
 setup() {
   setup_env
   setup_python
-  setup_system_lld
   setup_rust
 }
 

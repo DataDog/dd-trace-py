@@ -1,7 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-  ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
+  ALPINE_BUILD_IMAGE_TAG: "v125884040-bfb38cc-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -23,11 +23,11 @@ variables:
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v113741357-d2b8243-manylinux2014_aarch64"
-  - "v113741589-d2b8243-musllinux_1_2_aarch64"
+  - "v125884037-bfb38cc-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
-  - "v113741491-d2b8243-musllinux_1_2_x86_64"
+  - "v125884038-bfb38cc-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -73,7 +73,7 @@ variables:
 "build sdist":
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
-  tags: [ "arch:${ARCH_TAG}" ]
+  tags: ["arch:${ARCH_TAG}"]
   variables:
     DD_CYTHONIZE: "0"
     ARCH_TAG: "amd64"
@@ -90,7 +90,7 @@ variables:
 "build linux":
   extends: .build_base
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
-  tags: [ "arch:$ARCH_TAG" ]
+  tags: ["arch:$ARCH_TAG"]
   variables:
     # S3-backed sccache for Linux builds
     SCCACHE_BUCKET: "dd-trace-py-builds"
@@ -167,14 +167,14 @@ variables:
 
 "build macos amd64":
   extends: .build_macos_base
-  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  tags: ["macos:sonoma-amd64", "specific:true"]
   variables:
     ARCH_TAG: "amd64"
 
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
-  tags: [ "macos:tart" ]
+  tags: ["macos:tart"]
   variables:
     ARCH_TAG: "arm64"
     # Use bash instead of the Tart VM's default zsh
@@ -253,10 +253,9 @@ variables:
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
 
-
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
-  tags: [ "arch:arm64" ]
+  tags: ["arch:arm64"]
   stage: package
   variables:
     CARGO_BUILD_JOBS: "12"
@@ -269,7 +268,6 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
-    - apk add --no-cache lld
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - twine check ${SDIST_FILE}
@@ -297,7 +295,7 @@ variables:
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   stage: package
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
@@ -322,7 +320,7 @@ variables:
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   stage: package
   needs:
     - job: "build linux"
@@ -356,7 +354,7 @@ download_dependency_wheels:
 
 "upload all":
   extends: .upload_wheels_base
-  needs: [ "ddtrace package", "package version" ]
+  needs: ["ddtrace package", "package version"]
   script:
     - !reference [.upload_wheels_base, script]
     - |
@@ -388,7 +386,7 @@ download_dependency_wheels:
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   stage: package
   script:
     - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
@@ -410,7 +408,7 @@ download_dependency_wheels:
 # DEV: "ddtrace package" has a limit of 50 jobs it can depend on
 "collect windows wheels":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   stage: package
   needs:
     - job: "build windows"
@@ -427,10 +425,10 @@ download_dependency_wheels:
 # Aggregate and validate all built wheels
 .package_base:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   stage: package
   before_script:
-    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
+    - pip install 'packaging>=24.0,<26' # ci-deps: allow
   artifacts:
     when: always
     paths:
