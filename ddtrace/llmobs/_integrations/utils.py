@@ -30,6 +30,21 @@ from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+
+# Audio helpers were moved to audio_utils.py to keep this module manageable; re-export the
+# public names here so existing ``from ...utils import <helper>`` imports keep working.
+from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_variant  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
@@ -368,12 +383,6 @@ def openai_set_meta_tags_from_completion(
     )
 
 
-def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
-    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
-    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
-    return AudioPart(mime_type=mime_type, content=content)
-
-
 def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     """Build an ``ImagePart`` from raw image bytes (base64-encoded) or an existing base64 string."""
     content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
@@ -418,18 +427,6 @@ class _InlineImageBudget:
             self._remaining -= size
             return True
         return False
-
-
-# OpenAI audio ``format`` values that don't map to ``audio/<format>``.
-_OPENAI_AUDIO_MIME_TYPES = {
-    "mp3": "audio/mpeg",
-}
-
-
-def audio_mime_type_from_format(fmt: str) -> str:
-    """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
-    fmt = (fmt or "").strip().lower()
-    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
 
 
 def _parse_base64_image_data_url(url: str) -> Optional[tuple[str, str]]:
