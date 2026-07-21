@@ -99,7 +99,7 @@ def _iter_agent_tools(agent: Any):
         try:
             from pydantic_ai.toolsets import FunctionToolset
         except Exception:  # noqa: BLE001 - toolset module layout varies by version
-            FunctionToolset = None  # type: ignore[assignment,misc]
+            FunctionToolset = None
         toolsets = [t for t in user_toolsets if FunctionToolset is None or isinstance(t, FunctionToolset)]
         if function_toolset is not None:
             toolsets.append(function_toolset)
