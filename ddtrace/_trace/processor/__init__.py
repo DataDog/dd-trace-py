@@ -431,8 +431,7 @@ class SpanAggregator(SpanProcessor):
 
         num_dropped = len(finished) - len(spans)
         if num_dropped > 0:
-            with self._lock:
-                self._span_metrics["spans_dropped"]["tp_drop"] += num_dropped
+            self._span_metrics["spans_dropped"]["tp_drop"] += num_dropped
 
         if spans:
             # Get sampling information from the root span
