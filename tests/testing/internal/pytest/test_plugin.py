@@ -255,6 +255,75 @@ class TestSkippingAndITRFeatures:
         assert result is None
         assert not plugin._itr_ignored_suite_paths
 
+    def test_pytest_ignore_collect_returns_none_for_nested_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None for unskippable markers nested in pytest.param."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "@pytest.mark.parametrize(\n"
+            "    'value',\n"
+            "    [pytest.param(1, marks=pytest.mark.skipif(False, reason='datadog_itr_unskippable'))],\n"
+            ")\n"
+            "def test_x(value): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_constant_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker uses module-level constants."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "NEVER = False\n"
+            "REASON = 'datadog_itr_unskippable'\n"
+            "@pytest.mark.skipif(NEVER, reason=REASON)\n"
+            "def test_x(): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
     def test_pytest_ignore_collect_ignores_comment_only_unskippable_marker(self, tmp_path: Path) -> None:
         """A comment mentioning datadog_itr_unskippable does not force suite collection."""
         workspace = tmp_path

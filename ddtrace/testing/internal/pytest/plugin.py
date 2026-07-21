@@ -1671,7 +1671,33 @@ def _get_skipif_condition(marker: pytest.Mark) -> t.Any:
     return condition
 
 
-def _ast_call_is_itr_unskippable_skipif(node: ast.AST) -> bool:
+_UNKNOWN_AST_VALUE = object()
+
+
+def _ast_resolve_constant(node: t.Optional[ast.AST], constants: dict[str, t.Any]) -> t.Any:
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id, _UNKNOWN_AST_VALUE)
+    return _UNKNOWN_AST_VALUE
+
+
+def _ast_collect_module_constants(tree: ast.Module) -> dict[str, t.Any]:
+    constants: dict[str, t.Any] = {}
+
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Constant):
+            for target in statement.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = statement.value.value
+        elif isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            if isinstance(statement.value, ast.Constant):
+                constants[statement.target.id] = statement.value.value
+
+    return constants
+
+
+def _ast_call_is_itr_unskippable_skipif(node: ast.AST, constants: dict[str, t.Any]) -> bool:
     if not isinstance(node, ast.Call):
         return False
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "skipif":
@@ -1685,20 +1711,12 @@ def _ast_call_is_itr_unskippable_skipif(node: ast.AST) -> bool:
         elif keyword.arg == "reason":
             reason = keyword.value
 
-    return (
-        isinstance(condition, ast.Constant)
-        and condition.value is False
-        and isinstance(reason, ast.Constant)
-        and reason.value == ITR_UNSKIPPABLE_REASON
+    condition_value = _ast_resolve_constant(condition, constants)
+    reason_value = _ast_resolve_constant(reason, constants)
+
+    return reason_value == ITR_UNSKIPPABLE_REASON and (
+        condition_value is False or condition_value is _UNKNOWN_AST_VALUE
     )
-
-
-def _ast_expr_contains_itr_unskippable_marker(node: ast.AST) -> bool:
-    if _ast_call_is_itr_unskippable_skipif(node):
-        return True
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return any(_ast_expr_contains_itr_unskippable_marker(item) for item in node.elts)
-    return False
 
 
 def _source_has_itr_unskippable_marker(source: str) -> bool:
@@ -1715,14 +1733,10 @@ def _source_has_itr_unskippable_marker(source: str) -> bool:
     except SyntaxError:
         return True
 
+    constants = _ast_collect_module_constants(tree)
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if any(_ast_call_is_itr_unskippable_skipif(decorator) for decorator in node.decorator_list):
-                return True
-        elif isinstance(node, ast.Assign):
-            if any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets):
-                if _ast_expr_contains_itr_unskippable_marker(node.value):
-                    return True
+        if _ast_call_is_itr_unskippable_skipif(node, constants):
+            return True
 
     return False
 
