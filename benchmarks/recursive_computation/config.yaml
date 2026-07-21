@@ -3,6 +3,8 @@ shallow: &base
   enable_sleep: false
   sleep_duration: 0.1
   profiler_enabled: false
+  gc_frames_enabled: false
+  force_cyclic_gc: false
 
 medium: 
   <<: *base
@@ -16,3 +18,10 @@ deep-profiled:
   <<: *base
   max_depth: 400
   profiler_enabled: true
+
+deep-profiled-gc:
+  <<: *base
+  max_depth: 400
+  profiler_enabled: true
+  gc_frames_enabled: true
+  force_cyclic_gc: true

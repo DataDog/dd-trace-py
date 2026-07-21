@@ -81,6 +81,18 @@ class CodeProvenance:
             )
         )
 
+        # Runtime frames pushed by the profiler use a synthetic "<runtime>" filename.
+        # Register it separately so GC and future runtime frames are attributed to
+        # third-party code without conflating them with native call frames.
+        self.libraries.append(
+            Library(
+                kind="library",
+                name="runtime",
+                version="",
+                paths={"<runtime>"},
+            )
+        )
+
         module_to_distribution: dict[str, Distribution] = _package_for_root_module_mapping() or {}
 
         libraries: dict[str, Library] = {}

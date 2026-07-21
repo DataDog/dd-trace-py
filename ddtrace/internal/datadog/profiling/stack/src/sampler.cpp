@@ -3,6 +3,7 @@
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
+#include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
 #include "thread_span_links.hpp"
 
@@ -248,8 +249,9 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
     if (max_threads_per_sample == 0) {
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+            PyObject* gc_frame = gc_enabled_ ? GCFrameTracker::get().capture(interp.interp_addr) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us);
+                auto success = thread.sample(*echion, tstate, wall_time_us, gc_frame);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -259,8 +261,9 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
         thread_candidates.clear();
 
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+            PyObject* gc_frame = gc_enabled_ ? GCFrameTracker::get().capture(interp.interp_addr) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                thread_candidates.push_back(*tstate);
+                thread_candidates.push_back({ *tstate, gc_frame });
             });
         });
 
@@ -310,11 +313,11 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
             // thread registers with same ID), causing the new ThreadInfo to be paired with
             // the old tstate. This window is a few microseconds and pthread_t reuse within
             // it is unlikely.
-            auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+            auto it = echion->thread_info_map().find(thread_candidates[i].tstate.thread_id);
             if (it == echion->thread_info_map().end()) {
                 // Thread was unregistered; try to fill from overflow
                 for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
-                    auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                    auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].tstate.thread_id);
                     if (fb_it != echion->thread_info_map().end()) {
                         thread_candidates[i] = thread_candidates[fallback_idx];
                         it = fb_it;
@@ -327,7 +330,8 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
                     continue;
                 }
             }
-            auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
+            auto success = it->second->sample(
+              *echion, &thread_candidates[i].tstate, effective_wall_time_us, thread_candidates[i].gc_frame);
             if (success) {
                 Sample::profile_borrow().stats().increment_sample_count();
             }
@@ -564,6 +568,7 @@ Sampler::restart_after_fork()
 static void
 stack_atfork_prepare()
 {
+    GCFrameTracker::get().prefork();
     Sampler::get().prefork();
 }
 
@@ -571,6 +576,7 @@ static void
 stack_atfork_parent()
 {
     Sampler::get().postfork_parent();
+    GCFrameTracker::get().postfork_parent();
 }
 
 static void
@@ -592,6 +598,10 @@ stack_postfork_cleanup()
 void
 stack_atfork_child()
 {
+    // Recreate synchronization and discard any pre-fork fallback GC frame.
+    // Registered callback objects intentionally remain in gc.callbacks.
+    GCFrameTracker::get().postfork_child();
+
     // Clean up Sampler state, do not start the Sampler yet.
     stack_postfork_cleanup();
 

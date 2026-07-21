@@ -21,6 +21,7 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
             break; // Cycle detected or failed to advance
         }
         prev_interp_addr = interp_addr;
+        interpreter_info.interp_addr = reinterpret_cast<PyInterpreterState*>(interp_addr);
 
         // Always read next pointer first - we need it to advance
         if (copy_type(interp_addr + offsetof(PyInterpreterState, next), interpreter_info.next))

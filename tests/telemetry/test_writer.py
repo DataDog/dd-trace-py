@@ -395,6 +395,7 @@ import opentelemetry
         {"name": "DD_PROFILING_PYTORCH_MAX_FRAMES", "origin": "default", "value": 128},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_STACK_GC_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_STACK_NATIVE_FRAMES", "origin": "default", "value": True},
         {"name": "DD_PROFILING_STACK_UVLOOP", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
