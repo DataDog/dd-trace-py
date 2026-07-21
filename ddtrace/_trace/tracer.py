@@ -200,6 +200,9 @@ class Tracer(object):
 
         self._new_process = False
 
+        # PERF: cache the bound method to avoid a fresh allocation on every start_span() call.
+        self._on_span_finish_cb = self._on_span_finish
+
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=__version__,
@@ -503,6 +506,8 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
+        # PERF: local binding avoids repeated global lookups on the `config` module.
+        cfg = config
         parent: Optional[Span] = None
         context: Optional[Context] = None
         trace_id: Optional[int] = None
@@ -530,16 +535,17 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = config.service
+                service = cfg.service
         else:
-            if service in config._integration_default_services:
+            if service in cfg._integration_default_services:
                 service_source = service
             else:
                 service_source = "m"
 
         # Update the service name based on any mapping
-        if service is not None:
-            service = config.service_mapping.get(service, service)
+        # PERF: skip the dict lookup entirely when no mapping is configured (the common case).
+        if service is not None and cfg.service_mapping:
+            service = cfg.service_mapping.get(service, service)
 
         links = context._span_links if not parent and context else None
         if trace_id or links or (context and context._baggage):
@@ -554,21 +560,24 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 links=links,
-                on_finish=[self._on_span_finish],
+                on_finish=[self._on_span_finish_cb],
             )
+            # PERF: bind the method once; span._set_attribute allocates a new bound method per access.
+            _set = span._set_attribute
 
             # Extra attributes when from a local parent
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
-                if span._parent.service == service:
+                # PERF: use the `parent` local instead of the native span._parent getter.
+                if parent.service == service:
                     span._service_entry_span = parent._service_entry_span
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in _METAS_NOT_TO_PROPAGATE:
-                    span._set_attribute(k, v)
+                    _set(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -578,41 +587,44 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
-                on_finish=[self._on_span_finish],
+                on_finish=[self._on_span_finish_cb],
             )
-            if config._report_hostname:
-                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
+            # PERF: see comment above; avoids a bound-method alloc per _set_attribute call below.
+            _set = span._set_attribute
+            if cfg._report_hostname:
+                _set(_HOSTNAME_KEY, hostname.get_hostname())
 
-        if not span._parent:
-            span._set_attribute("runtime-id", get_runtime_id())
-            span._set_attribute(PID, self._pid)
+        # PERF: `parent` local is equivalent to span._parent here, avoids the native getter.
+        if not parent:
+            _set("runtime-id", get_runtime_id())
+            _set(PID, self._pid)
 
         # Apply default global tags.
         if self._fast_tags:
             for k, v in self._fast_tags.items():
-                span._set_attribute(k, v)
+                _set(k, v)
         if self._special_tags:
             span.set_tags(self._special_tags)
 
         if service and service_source:
-            span._set_attribute(_SERVICE_SOURCE, service_source)
+            _set(_SERVICE_SOURCE, service_source)
 
-        env = config.env
+        env = cfg.env
         if env:
-            span._set_attribute(ENV_KEY, env)
+            _set(ENV_KEY, env)
 
         # Only set the version tag on internal spans.
-        version = config.version
+        version = cfg.version
         if version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (
+            if (root_span is None and service == cfg.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_attribute(VERSION_KEY, version)
+                _set(VERSION_KEY, version)
 
         if activate:
             self.context_provider.activate(span)
