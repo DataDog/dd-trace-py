@@ -6,53 +6,53 @@
         "python_versions": {
             "3.9": {
                 "minimum_package_version": "1.0.7",
-                "maximum_package_version": "3.1.0",
+                "maximum_package_version": "3.5.0",
                 "tested_versions": [
                     "1.0.7",
                     "1.4.2",
                     "2.0.1",
-                    "3.1.0"
+                    "3.5.0"
                 ]
             },
             "3.10": {
                 "minimum_package_version": "1.0.7",
-                "maximum_package_version": "3.1.0",
+                "maximum_package_version": "3.7.0",
                 "tested_versions": [
                     "1.0.7",
                     "1.4.2",
                     "2.0.1",
-                    "3.1.0"
+                    "3.7.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "1.0.7",
-                "maximum_package_version": "3.1.0",
+                "maximum_package_version": "3.7.0",
                 "tested_versions": [
                     "1.0.7",
                     "1.4.2",
                     "2.0.1",
-                    "3.1.0"
+                    "3.7.0"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "3.1.0",
-                "maximum_package_version": "3.1.0",
+                "minimum_package_version": "3.7.0",
+                "maximum_package_version": "3.7.0",
                 "tested_versions": [
-                    "3.1.0"
+                    "3.7.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.1.0",
-                "maximum_package_version": "3.1.0",
+                "minimum_package_version": "3.7.0",
+                "maximum_package_version": "3.7.0",
                 "tested_versions": [
-                    "3.1.0"
+                    "3.7.0"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "3.1.0",
-                "maximum_package_version": "3.1.0",
+                "minimum_package_version": "3.7.0",
+                "maximum_package_version": "3.7.0",
                 "tested_versions": [
-                    "3.1.0"
+                    "3.7.0"
                 ]
             }
         }
@@ -64,53 +64,53 @@
         "python_versions": {
             "3.9": {
                 "minimum_package_version": "1.15.32",
-                "maximum_package_version": "1.42.19",
+                "maximum_package_version": "1.42.91",
                 "tested_versions": [
                     "1.15.32",
                     "1.20.106",
                     "1.22.8",
-                    "1.42.19"
+                    "1.42.91"
                 ]
             },
             "3.10": {
                 "minimum_package_version": "1.15.32",
-                "maximum_package_version": "1.42.19",
+                "maximum_package_version": "1.43.0",
                 "tested_versions": [
                     "1.15.32",
                     "1.20.106",
                     "1.22.8",
-                    "1.42.19"
+                    "1.43.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "1.15.32",
-                "maximum_package_version": "1.42.19",
+                "maximum_package_version": "1.43.0",
                 "tested_versions": [
                     "1.15.32",
                     "1.20.106",
                     "1.22.8",
-                    "1.42.19"
+                    "1.43.0"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "1.42.19",
-                "maximum_package_version": "1.42.19",
+                "minimum_package_version": "1.43.0",
+                "maximum_package_version": "1.43.0",
                 "tested_versions": [
-                    "1.42.19"
+                    "1.43.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "1.42.19",
-                "maximum_package_version": "1.42.19",
+                "minimum_package_version": "1.43.0",
+                "maximum_package_version": "1.43.0",
                 "tested_versions": [
-                    "1.42.19"
+                    "1.43.0"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "1.42.19",
-                "maximum_package_version": "1.42.19",
+                "minimum_package_version": "1.43.0",
+                "maximum_package_version": "1.43.0",
                 "tested_versions": [
-                    "1.42.19"
+                    "1.43.0"
                 ]
             }
         }
@@ -2075,42 +2075,42 @@
             },
             "3.10": {
                 "minimum_package_version": "0.64.0",
-                "maximum_package_version": "0.136.3",
+                "maximum_package_version": "0.139.0",
                 "tested_versions": [
                     "0.64.0",
                     "0.90.1",
-                    "0.136.3"
+                    "0.139.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "0.86.0",
-                "maximum_package_version": "0.136.3",
+                "maximum_package_version": "0.139.0",
                 "tested_versions": [
                     "0.86.0",
-                    "0.136.3"
+                    "0.139.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "0.86.0",
-                "maximum_package_version": "0.136.3",
+                "maximum_package_version": "0.139.0",
                 "tested_versions": [
                     "0.86.0",
-                    "0.136.3"
+                    "0.139.0"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "0.86.0",
-                "maximum_package_version": "0.137.1",
+                "maximum_package_version": "0.139.0",
                 "tested_versions": [
                     "0.86.0",
-                    "0.137.1"
+                    "0.139.0"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "0.136.3",
-                "maximum_package_version": "0.136.3",
+                "minimum_package_version": "0.139.0",
+                "maximum_package_version": "0.139.0",
                 "tested_versions": [
-                    "0.136.3"
+                    "0.139.0"
                 ]
             }
         }
@@ -3418,42 +3418,42 @@
         "python_versions": {
             "3.10": {
                 "minimum_package_version": "1.10.1",
-                "maximum_package_version": "1.27.2",
+                "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.10.1",
-                    "1.27.2"
+                    "1.28.1"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "1.10.1",
-                "maximum_package_version": "1.27.2",
+                "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.10.1",
-                    "1.27.2"
+                    "1.28.1"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "1.10.1",
-                "maximum_package_version": "1.27.2",
+                "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.10.1",
-                    "1.27.2"
+                    "1.28.1"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "1.10.1",
-                "maximum_package_version": "1.27.2",
+                "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.10.1",
-                    "1.27.2"
+                    "1.28.1"
                 ]
             },
             "3.14": {
                 "minimum_package_version": "1.10.1",
-                "maximum_package_version": "1.27.2",
+                "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.10.1",
-                    "1.27.2"
+                    "1.28.1"
                 ]
             }
         }
@@ -3465,42 +3465,42 @@
         "python_versions": {
             "3.10": {
                 "minimum_package_version": "2.0.5",
-                "maximum_package_version": "2.4.9",
+                "maximum_package_version": "2.7.0",
                 "tested_versions": [
                     "2.0.5",
-                    "2.4.9"
+                    "2.7.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "2.0.5",
-                "maximum_package_version": "2.4.9",
+                "maximum_package_version": "2.7.0",
                 "tested_versions": [
                     "2.0.5",
-                    "2.4.9"
+                    "2.7.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "2.0.5",
-                "maximum_package_version": "2.4.9",
+                "maximum_package_version": "2.7.0",
                 "tested_versions": [
                     "2.0.5",
-                    "2.4.9"
+                    "2.7.0"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "2.0.5",
-                "maximum_package_version": "2.4.9",
+                "maximum_package_version": "2.7.0",
                 "tested_versions": [
                     "2.0.5",
-                    "2.4.9"
+                    "2.7.0"
                 ]
             },
             "3.14": {
                 "minimum_package_version": "2.0.5",
-                "maximum_package_version": "2.4.9",
+                "maximum_package_version": "2.7.0",
                 "tested_versions": [
                     "2.0.5",
-                    "2.4.9"
+                    "2.7.0"
                 ]
             }
         }
@@ -4600,26 +4600,26 @@
         "python_versions": {
             "3.11": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.54.1",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.54.1"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.54.1",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.54.1"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "2.46.0",
-                "maximum_package_version": "2.49.2",
+                "maximum_package_version": "2.54.1",
                 "tested_versions": [
                     "2.46.0",
-                    "2.49.2"
+                    "2.54.1"
                 ]
             }
         },
@@ -5089,42 +5089,42 @@
             },
             "3.10": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             },
             "3.14": {
                 "minimum_package_version": "20.2.0",
-                "maximum_package_version": "25.5.0",
+                "maximum_package_version": "26.1.0",
                 "tested_versions": [
                     "20.2.0",
-                    "25.5.0"
+                    "26.1.0"
                 ]
             }
         }

@@ -192,11 +192,15 @@ class PytestTestCaseBase(TracerTestCase):
                 CIVisibility.disable()
             CIVisibility._resume(_suspended)
 
-    def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
+    def subprocess_run(self, *args, env: t.Optional[dict[str, t.Optional[str]]] = None):
         """Execute test script with test tracer."""
         _base_env = dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false")
         if env is not None:
-            _base_env.update(env)
+            for key, value in env.items():
+                if value is None:
+                    _base_env.pop(key, None)
+                else:
+                    _base_env[key] = value
         with _ci_override_env(_base_env):
             return self.testdir.runpytest_subprocess(*args)
 
@@ -334,6 +338,51 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         test_span = spans[0]
         assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+
+    def test_legacy_plugin_env_var_emits_deprecation_warning(self):
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+
+        result.assert_outcomes(passed=1)
+        output = result.stdout.str() + result.stderr.str()
+        assert "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated" in output
+
+    def test_legacy_plugin_env_var_does_not_emit_deprecation_warning_when_unset(self):
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name, env={"DD_PYTEST_USE_NEW_PLUGIN": None})
+
+        result.assert_outcomes(passed=1)
+        output = result.stdout.str() + result.stderr.str()
+        assert "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated" not in output
+
+    def test_legacy_plugin_env_var_does_not_emit_deprecation_warning_when_true(self):
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name, env={"DD_PYTEST_USE_NEW_PLUGIN": "true"})
+
+        result.assert_outcomes(passed=1)
+        output = result.stdout.str() + result.stderr.str()
+        assert "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated" not in output
 
     def test_pytest_command_test_session_name(self):
         """Test that the pytest run command is used to set the test session name."""

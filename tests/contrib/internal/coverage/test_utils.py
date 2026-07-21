@@ -14,13 +14,17 @@ class TestCoverageUtils:
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
         mock_is_pytest_cov_enabled = Mock(return_value=False)
-        mock_stop_coverage = Mock()
+        lifecycle_calls = []
+        mock_stop_coverage = Mock(side_effect=lambda **kwargs: lifecycle_calls.append("stop"))
 
         test_lcov_content = b"SF:test_file.py\nDA:1,1\nDA:2,1\nend_of_record\n"
 
         with (
             patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=85.5) as mock_generate,
+            patch(
+                "ddtrace.contrib.internal.coverage.utils._generate_lcov_report",
+                side_effect=lambda *args, **kwargs: lifecycle_calls.append("report") or 85.5,
+            ) as mock_generate,
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink") as mock_unlink,
             patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
@@ -38,9 +42,10 @@ class TestCoverageUtils:
 
             # Coverage should be stopped since pytest-cov is disabled
             mock_stop_coverage.assert_called_once_with(save=True)
+            assert lifecycle_calls == ["stop", "report"]
 
             # Verify success log
-            mock_log.info.assert_called_with("Successfully uploaded coverage report")
+            mock_log.debug.assert_called_with("Successfully uploaded coverage report")
 
     def test_handle_coverage_report_upload_failure(self):
         """Test handling of upload failure."""

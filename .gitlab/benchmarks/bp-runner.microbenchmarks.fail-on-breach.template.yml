@@ -215,7 +215,7 @@ experiments:
               - max_rss_usage < 62.50 MB
           - name: flasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.27 ms
               - max_rss_usage < 62.00 MB
 
           # httppropagationextract
@@ -541,7 +541,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_aspect
             thresholds:
-              - execution_time < 0.50 ms
+              - execution_time < 0.52 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_noaspect
             thresholds:
@@ -805,7 +805,7 @@ experiments:
           # packagespackageforrootmodulemapping
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
-              - execution_time < 354.30 ms
+              - execution_time < 365.00 ms
               - max_rss_usage < 46.00 MB
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:

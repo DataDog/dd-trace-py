@@ -665,7 +665,7 @@ class Config(object):
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._otel_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
         self._client_side_stats_obfuscation = _get_config(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
@@ -721,6 +721,13 @@ class Config(object):
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
         self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
+        if "DD_LLMOBS_ML_APP" in env:
+            deprecate(
+                "DD_LLMOBS_ML_APP is deprecated",
+                message="Use DD_SERVICE instead to identify your agentic service.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
