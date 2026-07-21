@@ -1,5 +1,5 @@
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -12,7 +12,7 @@ def load_ai_guard() -> None:
     global _AI_GUARD_TO_BE_LOADED
     if _AI_GUARD_TO_BE_LOADED:
         try:
-            if not ai_guard_config._ai_guard_enabled:
+            if not aiguard_config._ai_guard_enabled:
                 return
 
             from ddtrace.aiguard._listener import ai_guard_listen
