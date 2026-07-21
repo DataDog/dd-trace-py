@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI Realtime API integration now emits a dedicated ``tool`` span for
+    each function or MCP call the model makes, nested under its turn span and recording the call's
+    arguments and result.
