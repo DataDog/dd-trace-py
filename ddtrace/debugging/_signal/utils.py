@@ -106,6 +106,25 @@ def _(numpy: ModuleType) -> None:
     ARRAY_TYPES = frozenset((list, deque)) | ndarray_set
 
 
+def _is_namedtuple_type(cls: type) -> bool:
+    if not (isinstance(cls, type) and issubclass(cls, tuple)):
+        return False
+
+    bases = cls.__bases__
+    if len(bases) != 1 or bases[0] is not tuple:
+        return False
+
+    fields = getattr(cls, "_fields", None)
+    return isinstance(fields, tuple) and all(type(f) is str for f in fields)
+
+
+def _fields_of(value: Any) -> dict[str, Any]:
+    if _is_namedtuple_type(type(value)):
+        return dict(zip(value._fields, value))
+
+    return get_fields(value)
+
+
 def _serialize_collection(
     value: Collection[Any], brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
 ) -> str:
@@ -163,7 +182,7 @@ def serialize(
         ", ".join(
             (
                 "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                for k, v in islice(get_fields(value).items(), maxfields)
+                for k, v in islice(_fields_of(value).items(), maxfields)
                 if not redact(k)
             )
         ),
@@ -401,7 +420,7 @@ def capture_value(
             "notCapturedReason": cond.__name__,
         }
 
-    fields = get_fields(value)
+    fields = _fields_of(value)
 
     # Capture exception chain for exceptions
     if _isinstance(value, BaseException):

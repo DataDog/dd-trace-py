@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from collections import defaultdict
+from collections import namedtuple
 import inspect
 import json
 import sys
 import threading
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
 from typing import cast
 
@@ -53,6 +55,19 @@ class Tree(object):
 
 
 tree = Tree("root", Node("0", Node("0l", Node("0ll"), Node("0lr")), Node("0r", Node("0rl"))))
+
+
+PointFunctional = namedtuple("PointFunctional", ["x", "y"])
+
+
+class PointTyped(NamedTuple):
+    x: int
+    y: int
+
+
+class Credentials(NamedTuple):
+    username: str
+    password: str
 
 
 @pytest.mark.parametrize(
@@ -924,3 +939,52 @@ def test_numpy_import_hook_expands_types_end_to_end():
     assert numpy.float64 in utils.SIMPLE_TYPES
     assert numpy.ndarray in utils.CONTAINER_TYPES
     assert numpy.ndarray in utils.ARRAY_TYPES
+
+
+@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+def test_is_namedtuple_type_detects_both_flavors(_type):
+    # collections.namedtuple() and typing.NamedTuple produce classes that
+    # behave identically at runtime (both are plain tuple subclasses with a
+    # _fields tuple), so a single structural check must accept both.
+    assert utils._is_namedtuple_type(_type)
+
+
+@pytest.mark.parametrize(
+    "_type",
+    [
+        tuple,
+        list,
+        dict,
+        type("PlainTupleSubclass", (tuple,), {}),
+        type("FurtherSubclass", (PointFunctional,), {}),
+    ],
+)
+def test_is_namedtuple_type_rejects_non_namedtuples(_type):
+    assert not utils._is_namedtuple_type(_type)
+
+
+@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+def test_serialize_namedtuple(_type):
+    assert utils.serialize(_type(1, 2)) == "%s(x=1, y=2)" % _type.__name__
+
+
+@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+def test_capture_value_namedtuple(_type):
+    assert utils.capture_value(_type(1, 2)) == {
+        "type": _type.__qualname__,
+        "fields": {
+            "x": {"type": "int", "value": "1"},
+            "y": {"type": "int", "value": "2"},
+        },
+    }
+
+
+def test_capture_value_namedtuple_redacts_sensitive_fields():
+    result = utils.capture_value(Credentials("admin", "secret"))
+    assert result == {
+        "type": Credentials.__qualname__,
+        "fields": {
+            "username": {"type": "str", "value": "'admin'"},
+            "password": utils.redacted_value("secret"),
+        },
+    }
