@@ -774,9 +774,9 @@ class TestLLMObsAnthropic:
         # Missing media_type -> None (images have no sensible default mime, unlike audio).
         no_mime = {"type": "image", "source": {"type": "base64", "data": "iVBORw0KGgo="}}
         assert _extract_anthropic_image_part(no_mime) is None
-        # Oversized inline image -> None (kept as the marker so the message text survives the 5MB cap).
+        # Extract-only: size is enforced by the caller's budget, so an oversized inline image still extracts.
         oversized = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "A" * 4_600_000}}
-        assert _extract_anthropic_image_part(oversized) is None
+        assert _extract_anthropic_image_part(oversized) == {"mime_type": "image/png", "content": "A" * 4_600_000}
 
     def test_extract_input_message_image_markers_unit(self):
         """Input-message builder dispatches image blocks: captured base64 -> image_parts; oversized base64
@@ -808,6 +808,12 @@ class TestLLMObsAnthropic:
         # URL source -> generic detected marker (capture is bytes-only).
         url_src = {"type": "url", "url": "https://example.com/x.png"}
         assert integration._extract_input_message([_img_msg(url_src)])[0]["content"] == "([IMAGE DETECTED])"
+
+        # Cumulative: two images (each fits) across a request exceed the shared budget -> second is a marker.
+        half = {"type": "base64", "media_type": "image/png", "data": "A" * 2_300_000}
+        cumulative = integration._extract_input_message([_img_msg(half), _img_msg(half)])
+        assert cumulative[0]["image_parts"] == [{"mime_type": "image/png", "content": "A" * 2_300_000}]
+        assert cumulative[1]["content"] == "[image omitted: too large]"
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     def test_tools_sync(self, anthropic, anthropic_llmobs, test_spans, request_vcr):

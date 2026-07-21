@@ -16,7 +16,7 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import _image_within_inline_budget
+from ddtrace.llmobs._integrations.utils import _InlineImageBudget
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -41,23 +41,18 @@ _VERTEX_MODEL_PROVIDER = "google"
 
 
 def _extract_anthropic_image_part(block: Any) -> Optional[ImagePart]:
-    """Return an ImagePart for a base64 Anthropic image block, else ``None``.
+    """Return an ImagePart for an inline base64 Anthropic image block, else ``None``.
 
-    Only inline base64 ``str``/``bytes`` sources are captured (bytes-only); URL sources and non-inline
-    data (e.g. a file ``Path``) are not fetched or read.
+    Extract-only and bytes-only: URL and non-inline sources (e.g. a file ``Path``) are not fetched;
+    size/budget enforcement is the caller's job (see ``_InlineImageBudget``).
     """
     source = _get_attr(block, "source", {}) or {}
     if _get_attr(source, "type", "") != "base64":
         return None
     data = _get_attr(source, "data", "")
     media_type = _get_attr(source, "media_type", "")
-    # Require media_type: unlike audio (which defaults to audio/wav) an image has no sensible default
-    # mime, and an image_part without a mime type cannot be rendered.
+    # Require media_type: an image_part with no mime can't be rendered (images have no default).
     if not data or not media_type or not isinstance(data, (str, bytes)):
-        return None
-    if not _image_within_inline_budget(data):
-        # Too large to inline safely: return None so the caller keeps the ([IMAGE DETECTED]) marker
-        # and the message's text survives the per-event size limit (see _MAX_INLINE_IMAGE_B64_BYTES).
         return None
     return format_image_part(data, str(media_type))
 
@@ -148,6 +143,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             log.warning("Anthropic input must be a list of messages.")
 
         input_messages: list[Message] = []
+        # One budget shared across all messages/blocks so cumulative inline-image bytes can't blow the cap.
+        image_budget = _InlineImageBudget()
         if system_prompt is not None:
             messages = [{"content": system_prompt, "role": "system"}] + messages
 
@@ -173,24 +170,18 @@ class AnthropicIntegration(BaseLLMIntegration):
 
                     elif content_type == "image":
                         image_part = _extract_anthropic_image_part(block)
-                        if image_part is not None:
-                            # Inline base64 image captured as a structured image_part; no marker.
+                        if image_part is None:
+                            # URL / Path / non-inline source: not fetched (capture is bytes-only).
+                            input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                        elif image_budget.take(image_part["content"]):
+                            # Captured as a structured image_part; no marker.
                             image_message: Message = Message(content="", role=str(role))
                             image_message["image_parts"] = [image_part]
                             input_messages.append(image_message)
                         else:
-                            # image_part is None for a non-base64 source (e.g. a URL we do not fetch --
-                            # capture is bytes-only), a non-inline source (e.g. a file Path), OR an inline
-                            # base64 image too large to keep. Only the last is "oversized": give it a
-                            # distinct, searchable marker so the omission is diagnosable; everything else
-                            # keeps ([IMAGE DETECTED]). Mirror _extract_anthropic_image_part's isinstance
-                            # guard so a non-str/bytes source (Path) never reaches the size helper.
-                            source = _get_attr(block, "source", {}) or {}
-                            data = _get_attr(source, "data", "")
-                            if isinstance(data, (str, bytes)) and data and not _image_within_inline_budget(data):
-                                input_messages.append(Message(content=IMAGE_TOO_LARGE_MARKER, role=str(role)))
-                            else:
-                                input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                            # Over the inline-image budget (individually or cumulatively): distinct
+                            # marker so the text/response survive the size limit.
+                            input_messages.append(Message(content=IMAGE_TOO_LARGE_MARKER, role=str(role)))
 
                     elif content_type == "thinking":
                         thinking_text = _get_attr(block, "thinking", "")

@@ -5,7 +5,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.utils import _MAX_INLINE_IMAGE_B64_BYTES
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
-from ddtrace.llmobs._integrations.utils import _image_within_inline_budget
+from ddtrace.llmobs._integrations.utils import _InlineImageBudget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _parse_base64_image_data_url
@@ -122,11 +122,16 @@ def test_extract_content_parts_image_marker_fallback_for_url():
     assert audio_parts == []
 
 
-def test_image_within_inline_budget():
-    """The size guard passes small base64 images and rejects ones that would risk the per-event drop."""
-    assert _image_within_inline_budget("A" * 1000) is True
-    assert _image_within_inline_budget("A" * (_MAX_INLINE_IMAGE_B64_BYTES + 1)) is False
-    assert _image_within_inline_budget(b"\x00" * (5 * 1024 * 1024)) is False  # 5MB raw -> ~6.7MB base64
+def test_inline_image_budget():
+    """The budget accepts images within the per-request cap and rejects oversized and cumulative overflow."""
+    budget = _InlineImageBudget()
+    assert budget.take("A" * 1000) is True
+    assert budget.take(b"\x00" * (5 * 1024 * 1024)) is False  # 5MB raw -> ~6.7MB base64, over the cap
+    # Cumulative: two images that each fit but together exceed the cap -> the second is rejected.
+    budget2 = _InlineImageBudget()
+    half = "A" * (_MAX_INLINE_IMAGE_B64_BYTES // 2 + 10)
+    assert budget2.take(half) is True
+    assert budget2.take(half) is False
 
 
 def test_extract_content_parts_image_marker_fallback_when_oversized():
@@ -141,6 +146,29 @@ def test_extract_content_parts_image_marker_fallback_when_oversized():
     assert text == "hello\n[image omitted: too large]"
     assert image_parts == []
     assert audio_parts == []
+
+
+def test_extract_content_parts_cumulative_image_budget():
+    """Two inline images that each fit but together exceed the budget: first captured, second a marker."""
+    half = "data:image/png;base64," + ("A" * (_MAX_INLINE_IMAGE_B64_BYTES // 2 + 10))
+    text, audio_parts, image_parts = _extract_content_parts(
+        [
+            {"type": "image_url", "image_url": {"url": half}},
+            {"type": "image_url", "image_url": {"url": half}},
+        ]
+    )
+    assert len(image_parts) == 1  # first fits; second exceeds the cumulative budget
+    assert text == "[image omitted: too large]"
+
+
+def test_extract_content_parts_budget_shared_across_calls():
+    """A shared budget carries across messages: an image captured in one call exhausts it for the next."""
+    budget = _InlineImageBudget()
+    big = "data:image/png;base64," + ("A" * (_MAX_INLINE_IMAGE_B64_BYTES - 100))
+    _, _, first = _extract_content_parts([{"type": "image_url", "image_url": {"url": big}}], budget)
+    text, _, second = _extract_content_parts([{"type": "image_url", "image_url": {"url": big}}], budget)
+    assert len(first) == 1  # first call captures
+    assert second == [] and text == "[image omitted: too large]"  # shared budget exhausted -> marker
 
 
 def test_extract_content_parts_mixed_text_image_audio():
