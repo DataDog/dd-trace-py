@@ -208,6 +208,44 @@ def test_aggregator_reset_with_args():
     assert len(aggr._span_metrics["spans_created"]) == 1
 
 
+def test_aggregator_reset_after_fork_does_not_recreate_writer():
+    """
+    Test that reset_after_fork() rebuilds the writer's fork-unsafe internals in place (via
+    writer.reset_after_fork()) rather than replacing the writer object with recreate(), and
+    resets trace buffers/span metrics like reset() does. Unlike reset(), it must never call
+    writer.recreate()/stop()/join(), since the worker's OS thread does not survive a fork.
+    """
+    dd_proc = DummyProcessor()
+    user_proc = DummyProcessor()
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=1,
+        dd_processors=[dd_proc],
+        user_processors=[user_proc],
+    )
+    writer = NativeWriter("http://localhost:8126")
+    aggr.writer = writer
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+
+    assert span.trace_id in aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 1
+
+    with (
+        mock.patch.object(writer, "recreate") as mock_recreate,
+        mock.patch.object(writer, "reset_after_fork") as mock_reset_after_fork,
+    ):
+        aggr.reset_after_fork()
+
+    mock_recreate.assert_not_called()
+    mock_reset_after_fork.assert_called_once()
+    assert aggr.writer is writer
+    assert dd_proc in aggr.dd_processors
+    assert user_proc in aggr.user_processors
+    assert not aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 0
+
+
 def test_aggregator_bad_processor():
     class Proc(TraceProcessor):
         def process_trace(self, trace):

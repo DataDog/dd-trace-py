@@ -21,6 +21,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -991,6 +992,63 @@ def test_writer_recreate_keeps_response_callback():
     writer = writer.recreate()
     assert isinstance(writer, NativeWriter)
     assert writer._response_cb is response_callback
+
+
+@pytest.mark.parametrize("writer_class", (AgentlessTraceWriter, NativeWriter))
+def test_reset_after_fork_does_not_stop_or_join_worker(writer_class):
+    """reset_after_fork() must never touch the (already-gone) periodic worker.
+
+    Unlike recreate(), it must not call stop()/join() -- those would block forever in a forked
+    child, since the worker's OS thread does not survive fork and fork-safety hooks already
+    guarantee it was stopped before the fork happened.
+    """
+    writer_args = ("http://dne:1234", "an-api-key") if writer_class is AgentlessTraceWriter else ("http://dne:1234",)
+    writer = writer_class(*writer_args)
+    writer.start()
+    try:
+        with mock.patch.object(writer, "stop") as mock_stop, mock.patch.object(writer, "join") as mock_join:
+            writer.reset_after_fork()
+            mock_stop.assert_not_called()
+            mock_join.assert_not_called()
+    finally:
+        writer._worker = None
+        writer.status = ServiceStatus.STOPPED
+
+
+def test_reset_after_fork_http_writer_drops_connection_and_buffers():
+    writer = AgentlessTraceWriter("http://dne:1234", "an-api-key")
+    writer._encoder.put([Span("foobar")])
+    conn = mock.Mock()
+    writer._conn = conn
+    old_clients = list(writer._clients)
+
+    writer.reset_after_fork()
+
+    conn.close.assert_called_once()
+    assert writer._conn is None
+    assert writer._clients != old_clients
+    assert writer._worker is None
+    assert writer.status == ServiceStatus.STOPPED
+
+
+def test_reset_after_fork_native_writer_rebuilds_exporter():
+    writer = NativeWriter("http://dne:1234")
+    # The native TraceExporter type doesn't allow patching its methods directly, so swap in a
+    # mock to spy on the calls reset_after_fork() makes against the old exporter before discarding it.
+    old_exporter = mock.Mock(spec=writer._exporter)
+    writer._exporter = old_exporter
+    old_clients = list(writer._clients)
+
+    writer.reset_after_fork()
+
+    # The old exporter must be explicitly drop()'d before being discarded. Otherwise, letting its
+    # refcount hit zero triggers the Rust-side Drop impl, which calls the blocking shutdown() --
+    # and since the shared runtime's worker threads don't survive fork, that call can hang forever.
+    old_exporter.drop.assert_called_once_with()
+    assert writer._exporter is not old_exporter
+    assert writer._clients != old_clients
+    assert writer._worker is None
+    assert writer.status == ServiceStatus.STOPPED
 
 
 @pytest.mark.parametrize(

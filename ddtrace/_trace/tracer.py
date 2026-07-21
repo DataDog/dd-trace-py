@@ -403,12 +403,22 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        self._reset_after_fork()
         self._new_process = True
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (active,))
+
+    def _reset_after_fork(self) -> None:
+        """Re-initialize the tracer's processors and trace writer after a fork, without blocking.
+
+        See SpanAggregator.reset_after_fork() for why this must not go through _recreate().
+        """
+        self._span_aggregator.reset_after_fork()
+        self._span_processors = _default_span_processors_factory(
+            self._endpoint_call_counter_span_processor,
+        )
 
     def _recreate(
         self,
@@ -419,7 +429,10 @@ class Tracer(object):
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
-        """Re-initialize the tracer's processors and trace writer"""
+        """Re-initialize the tracer's processors and trace writer.
+
+        This must not be used after a fork -- see _reset_after_fork().
+        """
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
         self._span_aggregator.reset(

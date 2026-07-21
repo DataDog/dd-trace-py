@@ -1873,6 +1873,39 @@ def test_fork_pid():
     assert exit_code == 12
 
 
+def test_tracer_child_after_fork_uses_reset_after_fork_not_recreate(tracer):
+    """
+    _child_after_fork() must go through SpanAggregator.reset_after_fork(), never reset()/recreate() --
+    the writer's periodic thread does not survive a fork, so recreate() (which stops and joins the
+    worker) would block forever in the child.
+    """
+    with (
+        mock.patch.object(tracer._span_aggregator, "reset_after_fork") as mock_reset_after_fork,
+        mock.patch.object(tracer._span_aggregator, "reset") as mock_reset,
+    ):
+        tracer._child_after_fork()
+
+    mock_reset_after_fork.assert_called_once_with()
+    mock_reset.assert_not_called()
+
+
+def test_tracer_recreate_uses_reset_not_reset_after_fork(tracer):
+    """
+    Non-fork callers of _recreate() (Tracer.configure(), CI Visibility's recorder, the Tornado
+    integration) rely on it fully rebuilding the writer -- e.g. to pick up a new intake URL or
+    updated api_version -- so it must keep going through SpanAggregator.reset()/writer.recreate(),
+    not the fork-only lightweight reset_after_fork() path.
+    """
+    with (
+        mock.patch.object(tracer._span_aggregator, "reset_after_fork") as mock_reset_after_fork,
+        mock.patch.object(tracer._span_aggregator, "reset") as mock_reset,
+    ):
+        tracer._recreate()
+
+    mock_reset.assert_called_once()
+    mock_reset_after_fork.assert_not_called()
+
+
 @pytest.mark.subprocess
 def test_tracer_api_version():
     from ddtrace.internal.encoding import MsgpackEncoderV05

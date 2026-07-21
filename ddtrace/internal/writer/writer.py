@@ -127,6 +127,16 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def reset_after_fork(self) -> None:
+        """Reset the writer's state in a forked child.
+
+        Unlike :meth:`recreate`, this must not stop/join the periodic worker: fork-safety
+        hooks already guarantee it was stopped before the fork, and its OS thread does not
+        survive fork regardless. Only fork-unsafe resources (buffers, sockets, native
+        handles) need to be dropped/rebuilt here.
+        """
+
+    @abc.abstractmethod
     def write(self, spans: Optional[list["Span"]] = None) -> None:
         pass
 
@@ -157,6 +167,9 @@ class LogWriter(TraceWriter):
         return writer
 
     def stop(self, timeout: Optional[float] = None) -> None:
+        return
+
+    def reset_after_fork(self) -> None:
         return
 
     def write(self, spans: Optional[list["Span"]] = None) -> None:
@@ -508,6 +521,22 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
         self.join(timeout=timeout)
+
+    def reset_after_fork(self) -> None:
+        # The periodic worker's OS thread does not survive fork; forksafe hooks already
+        # guarantee it was stopped before the fork happened, so there's nothing to stop()/join()
+        # here. The connection's socket fd is inherited/shared with the parent though, so it
+        # must be dropped (not reused) -- a fresh one is opened lazily on next flush, same as
+        # for a newly constructed writer.
+        self._reset_connection()
+        self._clients = [
+            client.__class__(self._buffer_size, self._max_payload_size)  # type: ignore[call-arg,arg-type]
+            for client in self._clients
+        ]
+        self._metrics = defaultdict(int)
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._worker = None
+        self.status = service.ServiceStatus.STOPPED
 
     def on_shutdown(self):
         try:
@@ -1098,6 +1127,28 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
         self.join(timeout=timeout)
+
+    def reset_after_fork(self) -> None:
+        # The periodic worker's OS thread does not survive fork; forksafe hooks already
+        # guarantee it was stopped before the fork happened, so there's nothing to stop()/join()
+        # here. The exporter's own background workers (agent /info poller, telemetry, stats
+        # flush) are dropped by the shared native runtime's fork handling and are never
+        # resurrected for an existing TraceExporter, so it must be rebuilt to get them back.
+        #
+        # The old exporter must be explicitly drop()'d (a no-op discard) before being replaced.
+        # Otherwise, letting its refcount hit zero here triggers TraceExporterPy's Rust Drop impl,
+        # which calls the blocking, network-aware shutdown() -- and since the shared runtime's
+        # worker threads are gone post-fork, that call can hang forever instead of timing out.
+        self._exporter.drop()
+        self._exporter = self._create_exporter()
+        self._clients = [
+            client.__class__(self._buffer_size, self._max_payload_size)  # type: ignore[call-arg,arg-type]
+            for client in self._clients
+        ]
+        self._metrics = defaultdict(int)
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._worker = None
+        self.status = service.ServiceStatus.STOPPED
 
     def on_shutdown(self):
         try:
