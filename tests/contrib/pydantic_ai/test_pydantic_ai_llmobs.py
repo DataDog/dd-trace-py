@@ -615,6 +615,66 @@ class TestLLMObsPydanticAI:
             }
         ]
 
+    @pytest.mark.skipif(
+        PYDANTIC_AI_VERSION < (1, 63, 0), reason="output-function handoffs verified on pydantic-ai >=1.63.0"
+    )
+    def test_manifest_handoff_description_is_bounded(self, pydantic_ai, pydantic_ai_llmobs):
+        """Regression: an output-function handoff's ``description`` is byte-capped like every other captured
+        text field.
+
+        The handoff ``description`` (marker ``description`` or the function docstring) rides every agent span;
+        an oversized one must be dropped and flagged ``description_truncated`` rather than emitted, or it
+        could push the event over the size limit and evict the user's real I/O. A small description is kept.
+        Fails-on-revert: drop the cap and the oversized description is emitted in full.
+        """
+        integration = pydantic_ai._datadog_integration
+
+        def big_handoff(text: str) -> str:
+            return text
+
+        big_handoff.__doc__ = "d" * (_PROMPT_SOURCE_MAX_BYTES + 1)
+        big = integration._get_agent_handoffs(pydantic_ai.Agent(model="gpt-4o", name="a", output_type=big_handoff))
+        assert len(big) == 1
+        assert big[0]["description_truncated"] is True
+        assert "description" not in big[0]
+
+        def small_handoff(text: str) -> str:
+            """Route to the sub agent."""
+            return text
+
+        small = integration._get_agent_handoffs(pydantic_ai.Agent(model="gpt-4o", name="a", output_type=small_handoff))
+        assert small[0]["description"] == "Route to the sub agent."
+        assert "description_truncated" not in small[0]
+
+    def test_manifest_build_failure_does_not_blank_agent_span(self, pydantic_ai, pydantic_ai_llmobs):
+        """Regression: a manifest-build exception degrades to no-manifest, NOT a blanked agent span.
+
+        ``_build_agent_manifest`` does a lot (closure walks, ``inspect.getsource``, ``model_json_schema``), so
+        it can raise. It is now called AFTER the name/input/output annotation in ``_llmobs_set_tags_agent``,
+        so those survive even when the manifest raises (``llmobs_set_tags`` logs and bails on the raise, so
+        anything annotated before it persists). Fails-on-revert: move the ``_tag_agent_manifest`` call back
+        above the annotation and the name/input/output are lost when the manifest raises.
+        """
+        integration = pydantic_ai._datadog_integration
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+
+        annotate_calls = []
+        with mock.patch(
+            "ddtrace.llmobs._integrations.pydantic_ai._annotate_llmobs_span_data",
+            side_effect=lambda *a, **k: annotate_calls.append(k),
+        ):
+            with mock.patch.object(type(integration), "_build_agent_manifest", side_effect=RuntimeError("boom")):
+                with pytest.raises(RuntimeError):
+                    integration._llmobs_set_tags_agent(mock.MagicMock(), ["Hello, world!"], {"instance": agent}, None)
+
+        annotated_keys = {key for call in annotate_calls for key in call}
+        # name/input/output were annotated BEFORE the manifest raised.
+        assert {"name", "input_value", "output_value"} <= annotated_keys, annotate_calls
+        input_value = next((c["input_value"] for c in annotate_calls if "input_value" in c), None)
+        assert input_value == "Hello, world!"
+        # the manifest annotation never happened (build raised before its annotate call).
+        assert not any("agent_manifest" in call for call in annotate_calls), annotate_calls
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output markers verified on pydantic-ai >=1.63.0")
     def test_manifest_tool_output_marker_keeps_schema(self, pydantic_ai, pydantic_ai_llmobs):
         """A ``ToolOutput`` wrapping a Pydantic model keeps its schema and emits no handoff."""
