@@ -7,8 +7,8 @@ from yarl import URL
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
-from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanKind
@@ -60,7 +60,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         super().__init__(obj)
 
     async def connect(self, req, *args, **kwargs):
-        service: Optional[str] = ext_service(config, config.aiohttp_client)
+        service: Optional[str] = int_service(None, config.aiohttp_client)
         with core.context_with_event(
             TracingEvent.create(
                 component=config.aiohttp.integration_name,
@@ -76,7 +76,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
     async def _create_connection(self, req, *args, **kwargs):
-        service: Optional[str] = ext_service(config, config.aiohttp_client)
+        service: Optional[str] = int_service(None, config.aiohttp_client)
         with core.context_with_event(
             TracingEvent.create(
                 component=config.aiohttp.integration_name,
@@ -109,7 +109,7 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
     kwargs["headers"] = headers
 
     service: Optional[str] = (
-        url.host if config.aiohttp_client.split_by_domain else ext_service(config, config.aiohttp_client)
+        url.host if config.aiohttp_client.split_by_domain else int_service(None, config.aiohttp_client)
     )
 
     # Params can be included separately from the URL, so include them in query extraction.

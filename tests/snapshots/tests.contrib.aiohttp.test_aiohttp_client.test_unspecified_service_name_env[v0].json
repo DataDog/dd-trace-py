@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "ddtrace_subprocess_dir",
+    "service": "aiohttp_client",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -9,9 +9,10 @@
     "type": "http",
     "error": 0,
     "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5e719100000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "6a5eb92c00000000",
+      "_dd.svc_src": "aiohttp_client",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "aiohttp_client",
       "http.method": "GET",
@@ -20,21 +21,21 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "235e1cc5ed05430c8c98cba0560b5d29",
+      "runtime-id": "f448d184d48d42409d3797e6a2c6622d",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 762.0
+      "process_id": 592.0
     },
-    "duration": 2640208,
-    "start": 1784574353771162052
+    "duration": 3143125,
+    "start": 1784592684920182804
   },
      {
        "name": "TCPConnector.connect",
-       "service": "ddtrace_subprocess_dir",
+       "service": "aiohttp_client",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
@@ -42,11 +43,12 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "6a5e719100000000",
-         "_dd.svc_src": "aiohttp",
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.p.tid": "6a5eb92c00000000",
+         "_dd.svc_src": "m",
          "component": "aiohttp",
          "span.kind": "client"
        },
-       "duration": 1236083,
-       "start": 1784574353771418510
+       "duration": 963875,
+       "start": 1784592684920415804
      }]]
