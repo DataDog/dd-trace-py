@@ -407,7 +407,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         handoffs = _sorted_definition_list(self._get_agent_handoffs(agent), ("name",))
         if handoffs:
             manifest["handoffs"] = handoffs
-        guardrails = _sorted_definition_list(self._get_guardrails(agent), ("name",))
+        # Output validators run as a chained pipeline (each receives the previous validator's output), so
+        # their order is semantic -- preserve registration order, do NOT sort.
+        guardrails = self._get_guardrails(agent)
         if guardrails:
             manifest["guardrails"] = guardrails
         output_type = self._get_agent_output_type(agent)

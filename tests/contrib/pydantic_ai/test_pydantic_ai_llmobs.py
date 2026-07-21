@@ -839,9 +839,8 @@ class TestLLMObsPydanticAI:
         assert manifest["instructions"] is None
 
     def test_manifest_restores_system_prompts_and_omits_dependencies(self, pydantic_ai, pydantic_ai_llmobs):
-        """Regression: a static ``system_prompt`` is RESTORED to the manifest (it was dropped by the RFC
-        Phase-1 rework) as the frozen ``system_prompts`` LIST, while the removed ``dependencies`` field stays
-        gone. ``deps_type`` lives under the flat ``settings`` key.
+        """A static ``system_prompt`` is captured in the ``system_prompts`` list, while a ``dependencies``
+        field is not emitted -- the dependency type surfaces under ``settings.deps_type`` instead.
         """
         integration = pydantic_ai._datadog_integration
 
@@ -1052,9 +1051,9 @@ class TestLLMObsPydanticAI:
         assert settings["tool_retries"] == 7, settings
 
     def test_manifest_top_level_shape(self, pydantic_ai, pydantic_ai_llmobs):
-        """The manifest's top-level shape is FLAT and additive: identity + model + the frozen
-        ``instructions`` (str) / ``tools`` (list) + the unified ``capabilities`` superset + ``output_type``
-        + a flat ``settings`` -- no ``behaviors`` grouping, no legacy ``definition`` wrapper. Builder-driven.
+        """The manifest's top-level shape is flat: identity + model + ``instructions`` (str) / ``tools``
+        (list) + the ``capabilities`` list + ``output_type`` + a flat ``settings`` -- no grouped
+        ``behaviors`` key and no ``definition`` wrapper. Builder-driven.
         """
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(
@@ -1085,12 +1084,11 @@ class TestLLMObsPydanticAI:
         assert "definition" not in manifest
 
     def test_manifest_additive_over_shipped_contract(self, pydantic_ai, pydantic_ai_llmobs):
-        """GUARANTEE: the manifest is strictly additive over origin/main -- the shipped ``instructions``
+        """The manifest is additive over the previously shipped manifest -- the shipped ``instructions``
         (str|None) / ``system_prompts`` (list/tuple) / ``tools`` (flat list, always present) keep their
-        exact name + type, so existing consumers see no change. The additive ``capabilities`` superset is a
-        SIBLING of the flat ``tools`` list (it never replaces it), and the earlier ``behaviors`` grouping
-        was never adopted. Pins "no shipped-key re-break". Builder-driven so it runs on every pin; checks a
-        minimal and a rich agent.
+        exact name + type, so existing consumers see no change. The ``capabilities`` list is a sibling of
+        the flat ``tools`` list (it never replaces it), and no grouped ``behaviors`` key is emitted.
+        Builder-driven so it runs on every pin; checks a minimal and a rich agent.
         """
         from pydantic import BaseModel
 
@@ -1128,9 +1126,11 @@ class TestLLMObsPydanticAI:
         assert "capabilities" not in integration._build_agent_manifest(minimal)
 
     def test_manifest_captures_guardrails(self, pydantic_ai, pydantic_ai_llmobs):
-        """``@agent.output_validator`` functions are captured as ``guardrails`` -- full descriptors
-        (name / signature / doc / source) so a guardrail *change* is detectable, for versioning. The names
-        are derivable from the descriptors. Order-incidental -> sorted by name.
+        """``@agent.output_validator`` functions are captured as ``guardrails`` with full descriptors
+        (name / signature / doc / source), so a change to a validator is detectable.
+
+        Output validators run as a chained pipeline (each receives the previous validator's output), so
+        their order is semantic and is preserved as registered -- not sorted.
         """
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -1147,9 +1147,32 @@ class TestLLMObsPydanticAI:
 
         manifest = integration._build_agent_manifest(agent)
         guardrails = {g["name"]: g for g in manifest["guardrails"]}
-        assert [g["name"] for g in manifest["guardrails"]] == ["reject_ungrounded", "strip_pii"]
+        # Registration order is preserved (strip_pii registered first), NOT sorted alphabetically.
+        assert [g["name"] for g in manifest["guardrails"]] == ["strip_pii", "reject_ungrounded"]
         assert guardrails["reject_ungrounded"]["doc"] == "Reject ungrounded output."
         assert "def strip_pii(ctx, output):" in guardrails["strip_pii"]["source"]
+
+    def test_manifest_guardrails_order_is_preserved(self, pydantic_ai, pydantic_ai_llmobs):
+        """Output validators chain (each sees the prior's output), so guardrail order is SEMANTIC and must
+        NOT be sorted: registering in reversed order yields a different manifest. Fails-on-revert if the
+        guardrails list is sorted.
+        """
+        integration = pydantic_ai._datadog_integration
+
+        def alpha(ctx, output):
+            return output
+
+        def bravo(ctx, output):
+            return output
+
+        def names_for(order):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            for validator in order:
+                agent.output_validator(validator)
+            return [g["name"] for g in integration._build_agent_manifest(agent)["guardrails"]]
+
+        assert names_for([alpha, bravo]) == ["alpha", "bravo"]
+        assert names_for([bravo, alpha]) == ["bravo", "alpha"]
 
     def test_manifest_captures_tool_transforms(self, pydantic_ai, pydantic_ai_llmobs):
         """``prepare_tools`` / ``prepare_output_tools`` are captured as ``tool_transforms`` with a ``scope``
@@ -1231,10 +1254,10 @@ class TestLLMObsPydanticAI:
         assert [p["name"] for p in m_ba["memory_policies"]] == ["beta", "alpha"]
 
     def test_manifest_tools_preserve_registration_order(self, pydantic_ai, pydantic_ai_llmobs):
-        """The frozen ``tools`` list preserves registration order (matching origin/main, which iterates the
-        tools dict) -- it is NOT sorted. Two agents registering the same tools in reversed order therefore
-        produce DIFFERENT ``tools`` orderings. (Order-INCIDENTAL siblings like ``sub_agents`` / ``mcp_servers``
-        are sorted via ``_sorted_definition_list``; ``tools`` is not.) Builder-driven.
+        """The ``tools`` list preserves registration order -- it is NOT sorted. Two agents registering the
+        same tools in reversed order therefore produce different ``tools`` orderings. (Order-incidental
+        siblings like ``capabilities`` are sorted via ``_sorted_definition_list``; ``tools`` is not.)
+        Builder-driven.
         """
         integration = pydantic_ai._datadog_integration
         manifest_ab = integration._build_agent_manifest(
@@ -1540,65 +1563,33 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
-        from pydantic_ai.messages import ModelRequest
-        from pydantic_ai.messages import UserPromptPart
-
-        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
-        with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            result = await agent.run(message_history=message_history)
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[0]),
-            span_kind="agent",
-            name="test_agent",
-            input_value="Hello from history!",
-            output_value=result.output,
-            metadata=expected_agent_metadata(),
-            tags=PYDANTIC_AI_TAGS,
-        )
-
-    async def test_agent_run_stream_with_message_history(
-        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    @pytest.mark.parametrize("invoke", ["run", "run_stream", "iter"])
+    async def test_agent_message_history_sets_input_value(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, invoke
     ):
-        """Test that INPUT_VALUE is set from message_history for run_stream."""
+        """INPUT_VALUE is taken from message_history when no user_prompt is passed -- across run /
+        run_stream / iter. Each extracts output differently, but the input-from-history behavior is shared.
+        """
         from pydantic_ai.messages import ModelRequest
         from pydantic_ai.messages import UserPromptPart
 
         message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
-        output = ""
-        with request_vcr.use_cassette("agent_run_stream.yaml"):
+        cassette = "agent_run_stream.yaml" if invoke == "run_stream" else "agent_iter.yaml"
+        with request_vcr.use_cassette(cassette):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            async with agent.run_stream(message_history=message_history) as result:
-                async for chunk in result.stream(debounce_by=None):
-                    output = chunk
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[0]),
-            span_kind="agent",
-            name="test_agent",
-            input_value="Hello from history!",
-            output_value=output,
-            metadata=expected_agent_metadata(),
-            tags=PYDANTIC_AI_TAGS,
-        )
-
-    async def test_agent_iter_with_message_history(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """Test that INPUT_VALUE is set from message_history for iter."""
-        from pydantic_ai.messages import ModelRequest
-        from pydantic_ai.messages import UserPromptPart
-
-        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
-        with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            async with agent.iter(message_history=message_history) as agent_run:
-                async for _ in agent_run:
-                    pass
-                output = agent_run.result.output
+            if invoke == "run":
+                result = await agent.run(message_history=message_history)
+                output = result.output
+            elif invoke == "run_stream":
+                output = ""
+                async with agent.run_stream(message_history=message_history) as result:
+                    async for chunk in result.stream(debounce_by=None):
+                        output = chunk
+            else:  # iter
+                async with agent.iter(message_history=message_history) as agent_run:
+                    async for _ in agent_run:
+                        pass
+                    output = agent_run.result.output
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert_llmobs_span_data(

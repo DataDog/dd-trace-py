@@ -25,17 +25,8 @@ def expected_foo_tool():
     ]
 
 
-# The manifest is the LOCKED cross-framework shape, ADDITIVE over origin/main: the shipped keys
-# ``framework`` / ``name`` / ``model`` / ``model_settings`` / ``instructions`` (str|None) /
-# ``system_prompts`` (tuple) / ``tools`` (list) keep their exact name + type -- emitted ALWAYS, even
-# when empty/None, exactly as main does. For a normal agent the builder also always emits the additive
-# ``model_provider`` (computed from the model), ``output_type`` (defaulting to ``str``), and a flat
-# ``settings`` block (``retries`` / ``tool_retries`` / ``end_strategy`` are present on every supported
-# pydantic-ai version 0.8.1 / 1.0.0 / 1.63.0). Function tools appear in BOTH the flat ``tools`` list
-# (registration order, back-compat) AND the unified ``capabilities`` superset (order-incidental ->
-# sorted by ``(type, name)``). Dynamic prompt resolvers live in the separate ``extra_instructions``
-# list (their descriptor shape is covered by the builder-driven ``test_manifest_*`` tests, so these
-# end-to-end baselines carry only static text + function-tool capabilities). Per-test baselines.
+# Expected ``_dd.agent_manifest`` for a given agent shape, mirroring the builder's output. Keys the
+# builder always emits are always set here; the rest are included only when non-empty.
 DEFAULT_OUTPUT_TYPE = {"name": "str"}
 DEFAULT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
 
@@ -70,29 +61,26 @@ def expected_agent_metadata(
     manifest: dict = {"framework": "PydanticAI", "name": name}
     if model is not None:
         manifest["model"] = model
-    if model_provider is not None:  # additive; mirrors the builder -- computed from the model, present for gpt-4o
+    if model_provider is not None:
         manifest["model_provider"] = model_provider
 
-    # FROZEN keys -- main emits each whenever its attr exists (i.e. always), even None/empty.
+    # Always set, even when None/empty.
     manifest["model_settings"] = model_settings
     manifest["instructions"] = instructions
     manifest["system_prompts"] = (system_prompts,) if system_prompts else ()
 
-    # ADDITIVE ordered list of dynamic prompt resolvers (present only when the agent has them).
     if extra_instructions:
         manifest["extra_instructions"] = extra_instructions
 
     manifest["tools"] = tools if tools is not None else []
 
-    # Unified ``capabilities`` superset -- present only when non-empty. For these end-to-end baselines
-    # the only capabilities are the agent's function tools, so auto-derive from ``tools`` (sorted by
-    # ``(type, name)`` to match the builder's ``_sorted_definition_list``) unless overridden.
+    # Auto-derive capabilities from the function tools (sorted by (type, name) to match the builder)
+    # unless the caller passes them explicitly.
     if capabilities is None and tools:
         capabilities = sorted((_capability_from_tool(t) for t in tools), key=lambda c: (c["type"], c["name"]))
     if capabilities:
         manifest["capabilities"] = capabilities
 
-    # ADDITIVE order-incidental lists -- present only when the agent actually has them.
     if handoffs:
         manifest["handoffs"] = handoffs
     if guardrails:
@@ -100,7 +88,6 @@ def expected_agent_metadata(
 
     manifest["output_type"] = output_type if output_type is not None else dict(DEFAULT_OUTPUT_TYPE)
 
-    # Nice-to-haves are flat (no ``behaviors`` grouping); ``settings`` is present for a normal agent.
     if memory_policies:
         manifest["memory_policies"] = memory_policies
     if tool_transforms:
