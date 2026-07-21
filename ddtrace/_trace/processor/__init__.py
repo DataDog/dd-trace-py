@@ -374,8 +374,7 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
+        log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
