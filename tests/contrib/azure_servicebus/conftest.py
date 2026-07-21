@@ -1,12 +1,11 @@
 import os
 
 from azure.core.exceptions import ResourceNotFoundError
-from azure.servicebus.management import ServiceBusAdministrationClient
 import pytest
 
-from tests.contrib.azure_servicebus.common import MANAGEMENT_CONNECTION_STRING
 from tests.contrib.azure_servicebus.common import PARALLEL_QUEUE_COUNT
 from tests.contrib.azure_servicebus.common import get_queue_name
+from tests.contrib.azure_servicebus.common import servicebus_administration_client
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -18,7 +17,7 @@ def ensure_servicebus_test_queue():
     if not os.environ.get("CI") or queue_name == "queue.1":
         return
 
-    admin_client = ServiceBusAdministrationClient.from_connection_string(MANAGEMENT_CONNECTION_STRING)
+    admin_client = servicebus_administration_client()
     try:
         try:
             admin_client.get_queue(queue_name)

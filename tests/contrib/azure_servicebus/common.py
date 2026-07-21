@@ -13,7 +13,7 @@ from azure.servicebus import ServiceBusSender
 from azure.servicebus.aio import ServiceBusClient as ServiceBusClientAsync
 from azure.servicebus.aio import ServiceBusReceiver as ServiceBusReceiverAsync
 from azure.servicebus.aio import ServiceBusSender as ServiceBusSenderAsync
-from azure.servicebus.amqp import AmqpAnnotatedMessage
+from azure.servicebus.management import ServiceBusAdministrationClient
 import pytest
 
 
@@ -21,11 +21,9 @@ CONNECTION_STRING = (
     "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;"
     "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 )
-# Administration client uses the emulator HTTP management port, not the AMQP messaging port.
-MANAGEMENT_CONNECTION_STRING = (
-    "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;"
-    "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
-)
+EMULATOR_HOST = os.environ.get("AZURE_SERVICEBUS_EMULATOR_HOST", "localhost")
+EMULATOR_HTTP_PORT = int(os.environ.get("AZURE_SERVICEBUS_EMULATOR_HTTP_PORT", "5300"))
+
 PARALLEL_QUEUE_COUNT = 4
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
@@ -47,6 +45,16 @@ def get_queue_name() -> str:
     node_index = int(os.environ.get("CI_NODE_INDEX", "1"))
     queue_index = ((node_index - 1) % PARALLEL_QUEUE_COUNT) + 1
     return f"queue.{queue_index}"
+
+def servicebus_administration_client() -> ServiceBusAdministrationClient:
+    management_connection_string = (
+        f"Endpoint=sb://{EMULATOR_HOST}:{EMULATOR_HTTP_PORT};SharedAccessKeyName=RootManageSharedAccessKey;"
+        "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    )
+    admin_client = ServiceBusAdministrationClient.from_connection_string(management_connection_string)
+    # AIDEV-NOTE: Python SDK management defaults to HTTPS; emulator serves HTTP on EMULATOR_HTTP_PORT.
+    admin_client._impl._client._base_url = f"http://{EMULATOR_HOST}:{EMULATOR_HTTP_PORT}"
+    return admin_client
 
 
 def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]):
