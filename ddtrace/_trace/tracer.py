@@ -7,7 +7,6 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-import sys
 from threading import Lock
 from typing import Any
 from typing import AsyncGenerator
@@ -979,20 +978,3 @@ class Tracer(object):
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
         finally:
             self._shutdown_lock.release()
-
-
-if sys.platform == "linux":
-    from ddtrace.internal.native._native import detach_otel_thread_context
-    from ddtrace.internal.native._native import update_otel_thread_context
-
-    def _sync_otel_thread_context(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
-        tracer = Tracer._instance
-        if tracer is None or provider is not tracer.context_provider:
-            return
-
-        if type(ctx) is Span:
-            update_otel_thread_context(ctx, ctx._local_root_value)
-        else:
-            detach_otel_thread_context()
-
-    core.on("ddtrace.context_provider.activate", _sync_otel_thread_context)
