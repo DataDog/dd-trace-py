@@ -1,0 +1,21 @@
+# Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "ddtrace-heap-gotter"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "dd_heap_gotter"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+debug = "line-tables-only"
+codegen-units = 1
+
+[dependencies]
+libdd-profiling-heap-gotter-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "13b2491994128f9cec5e66240a7fb8cedeae80e6", default-features = false }

@@ -113,6 +113,7 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 NATIVE_CRATE = HERE / "src" / "native"
+NATIVE_HEAP_GOTTER_CRATE = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
@@ -123,6 +124,7 @@ CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{s
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -844,6 +846,12 @@ class CustomBuildExt(build_ext):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
+        if BUILD_NATIVE_HEAP_GOTTER:
+            if CURRENT_OS != "Linux" or not is_64_bit_python():
+                raise RuntimeError("DD_PROFILING_NATIVE_HEAP_BUILD is only supported on Linux 64-bit")
+            with _time_phase("build_heap_gotter"):
+                self.build_heap_gotter()
+
         # Build all declared shared C++ dependencies before extension builds.
         with _time_phase("build_shared_deps"):
             self.build_shared_deps()
@@ -1005,6 +1013,36 @@ class CustomBuildExt(build_ext):
             print(f"Built libdd_wrapper shared library: {wrapper_name}")
         else:
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
+
+    def build_heap_gotter(self) -> None:
+        suffix = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
+        name = f"libdd_heap_gotter{suffix}"
+        output_dir = Path(__file__).parent / (
+            Path("ddtrace/internal/datadog/profiling")
+            if IS_EDITABLE or getattr(self, "inplace", False)
+            else Path(self.build_lib) / "ddtrace/internal/datadog/profiling"
+        )
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        subprocess.run(
+            [
+                "cargo",
+                "build",
+                "--release",
+                "--manifest-path",
+                str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
+                *DD_CARGO_ARGS,
+            ],
+            check=True,
+        )
+
+        built = NATIVE_HEAP_GOTTER_CRATE / "target" / "release" / "libdd_heap_gotter.so"
+        if not built.exists():
+            raise RuntimeError(f"Not able to find {built}")
+
+        library = output_dir / name
+        shutil.copy2(built, library)
+        subprocess.run(["patchelf", "--set-soname", name, library], check=True)
 
     def build_shared_deps(self) -> None:
         """Build all shared C++ dependencies declared in SHARED_DEPS.
@@ -1750,7 +1788,9 @@ setup(
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"]
+            + (["libdd_heap_gotter*.*"] if BUILD_NATIVE_HEAP_GOTTER else [])
+            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
