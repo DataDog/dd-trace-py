@@ -48,46 +48,50 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
     if not chunks:
         return None
 
-    text_parts: list[str] = []
-    thinking_parts: list[str] = []
-    tool_calls_map: dict[int, dict[str, Any]] = {}
-    role: Optional[str] = None
+    choice_states: dict[int, dict[str, Any]] = {}
     usage = None
 
     for event in chunks:
         chunk = _get_attr(event, "data", event)
         usage = usage or _get_attr(chunk, "usage", None)
-        choices = _get_attr(chunk, "choices", [])
-        if not isinstance(choices, list):
+        choices_in_chunk = _get_attr(chunk, "choices", [])
+        if not isinstance(choices_in_chunk, list):
             continue
-
-        for choice in choices:
+        for choice in choices_in_chunk:
             delta = _get_attr(choice, "delta", None)
             if delta is None:
                 continue
+            index = _get_attr(choice, "index", 0)
+            curr_state = choice_states.setdefault(
+                index, {"text_parts": [], "thinking_parts": [], "tool_calls_map": {}, "role": None}
+            )
 
-            chunk_role = _get_attr(delta, "role", None)
-            if isinstance(chunk_role, str):
-                role = chunk_role
+            role = _get_attr(delta, "role", None)
+            if isinstance(role, str):
+                curr_state["role"] = role
 
             content = _get_attr(delta, "content", None)
             if isinstance(content, str):
-                text_parts.append(content)
+                curr_state["text_parts"].append(content)
             elif isinstance(content, list):
-                _process_thinking(content, text_parts, thinking_parts)
+                _process_thinking(content, curr_state["text_parts"], curr_state["thinking_parts"])
 
             tool_calls = _get_attr(delta, "tool_calls", None)
             if isinstance(tool_calls, list):
-                _accumulate_tool_calls(tool_calls_map, tool_calls)
+                _accumulate_tool_calls(curr_state["tool_calls_map"], tool_calls)
 
     messages: list[dict[str, Any]] = []
-    if thinking_parts:
-        messages.append({"message": {"role": "reasoning", "content": "".join(thinking_parts)}})
-
-    message: dict[str, Any] = {"role": role or "assistant", "content": "".join(text_parts)}
-    if tool_calls_map:
-        message["tool_calls"] = list(tool_calls_map.values())
-    messages.append({"message": message})
+    for index in sorted(choice_states):
+        curr_state = choice_states[index]
+        if curr_state["thinking_parts"]:
+            messages.append({"message": {"role": "reasoning", "content": "".join(curr_state["thinking_parts"])}})
+        message: dict[str, Any] = {
+            "role": curr_state["role"] or "assistant",
+            "content": "".join(curr_state["text_parts"]),
+        }
+        if curr_state["tool_calls_map"]:
+            message["tool_calls"] = list(curr_state["tool_calls_map"].values())
+        messages.append({"message": message})
 
     merged_response: dict[str, Any] = {"choices": messages}
     if usage is not None:

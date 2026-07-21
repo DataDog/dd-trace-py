@@ -1,3 +1,4 @@
+from ddtrace.contrib.internal.mistralai._utils import _join_chunks
 from ddtrace.llmobs._integrations.mistralai import EMBED_METADATA_PARAMS
 from ddtrace.llmobs._integrations.mistralai import GENERATE_METADATA_PARAMS
 
@@ -62,3 +63,18 @@ def get_expected_embed_metadata():
         if value is not None:
             metadata[param] = value
     return metadata
+
+
+def _chunk(index, content):
+    return {"choices": [{"index": index, "delta": {"role": "assistant", "content": content}}]}
+
+
+def test_join_chunks_multiple_choices_are_not_interleaved():
+    chunks = [_chunk(0, "Hello"), _chunk(1, "Bonjour"), _chunk(0, " world"), _chunk(1, " monde")]
+
+    merged = _join_chunks(chunks)
+
+    assert merged["choices"] == [
+        {"message": {"role": "assistant", "content": "Hello world"}},
+        {"message": {"role": "assistant", "content": "Bonjour monde"}},
+    ]
