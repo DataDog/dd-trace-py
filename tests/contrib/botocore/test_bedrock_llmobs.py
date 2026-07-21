@@ -5,6 +5,7 @@ from mock import patch as mock_patch
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -17,6 +18,7 @@ from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -291,6 +293,41 @@ class TestLLMObsBedrock:
                 "total_tokens": response["usage"]["totalTokens"],
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
+            tags=BEDROCK_TAGS,
+        )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_resolves_application_inference_profile(
+        self, bedrock_client, request_vcr, bedrock_llmobs, test_spans
+    ):
+        """With resolution enabled, an application-inference-profile ARN modelId is reported as its
+        underlying foundation model, and the internal GetInferenceProfile call produces no span.
+        """
+        profile_arn = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/1arbu5hu2sjr"
+        _clear_inference_profile_cache()
+        with override_config("botocore", {"bedrock_resolve_inference_profile": True}):
+            with request_vcr.use_cassette("bedrock_converse_inference_profile.yaml"):
+                response = bedrock_client.converse(
+                    modelId=profile_arn,
+                    messages=[{"role": "user", "content": [{"text": "Explain distributed tracing in one sentence."}]}],
+                    inferenceConfig={"maxTokens": 100, "temperature": 0.0},
+                )
+        _clear_inference_profile_cache()
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1  # the internal bedrock:GetInferenceProfile call is untraced
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name="anthropic.claude-haiku-4-5-20251001-v1:0",
+            model_provider="amazon_bedrock",
+            input_messages=[{"role": "user", "content": "Explain distributed tracing in one sentence."}],
+            output_messages=[{"role": "assistant", "content": response["output"]["message"]["content"][0]["text"]}],
+            metrics={
+                "input_tokens": response["usage"]["inputTokens"],
+                "output_tokens": response["usage"]["outputTokens"],
+                "total_tokens": response["usage"]["totalTokens"],
+            },
             tags=BEDROCK_TAGS,
         )
 
