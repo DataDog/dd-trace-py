@@ -497,8 +497,12 @@ def call_waf_callback(
     if env is not None and env.waf_callable is not None:
         return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
 
-    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
-    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    if rule_type is None:
+        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    else:
+        # RASP calls out of context are benign (e.g. outbound request with no active request)
+        logger.debug(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
     return None
 
 
