@@ -3,6 +3,7 @@
 from pathlib import Path
 import tempfile
 from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +26,19 @@ class TestCoverageIntegration:
         # Stop coverage
         coverage_patch.stop_coverage(save=False, erase=True)
         assert not coverage_patch.is_coverage_running()
+
+    def test_stop_coverage_does_not_modify_external_instance(self) -> None:
+        """Coverage sessions started by tools such as pytest-cov remain externally managed."""
+        external_cov = Mock()
+
+        with patch.object(coverage_patch.Coverage, "current", return_value=external_cov):
+            assert coverage_patch.start_coverage() is external_cov
+
+        assert coverage_patch.stop_coverage(save=True, erase=True) is external_cov
+        external_cov.stop.assert_not_called()
+        external_cov.save.assert_not_called()
+        external_cov.erase.assert_not_called()
+        coverage_patch.reset_coverage_state()
 
     def test_generate_lcov_report_returns_percentage(self) -> None:
         """Test that generating LCOV report returns coverage percentage."""
@@ -356,6 +370,8 @@ class TestCoveragePatching:
         # Should be able to get the same instance
         same_cov = coverage_patch.get_coverage_instance()
         assert same_cov is not None
+
+        coverage_patch.stop_coverage(save=False, erase=True)
 
         # Set a different instance
         mock_cov = Mock()

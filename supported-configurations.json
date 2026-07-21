@@ -317,8 +317,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
-        "sensitive": true
+        "default": ""
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
