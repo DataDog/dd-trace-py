@@ -1,3 +1,6 @@
+# Triggers prof-correctness downstream-python on profiling path changes.
+# Default scenarios: python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)
+# See DataDog/prof-correctness scenarios/python_downstream_gate/README.md
 name: Profiling correctness
 
 on:
@@ -24,7 +27,7 @@ on:
       test_scenarios:
         description: prof-correctness scenario regexp
         required: false
-        default: python.*
+        default: python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)
         type: string
 
 permissions:

@@ -573,8 +573,8 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 # Trigger profiling correctness tests with just-built wheels.
-# Runs the prof-correctness test suite (Python scenarios) against the wheels
-# uploaded to S3 for this commit.
+# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
+# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
 prof-correctness:
   stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
@@ -586,6 +586,7 @@ prof-correctness:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
+        - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
@@ -601,11 +602,12 @@ prof-correctness:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
       fi
     - |
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
-      # Trigger pipeline, but do not wait for the job to complete
+      TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
+        -f "test_scenarios=${TEST_SCENARIOS}"
 
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
