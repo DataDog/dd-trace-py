@@ -13,6 +13,7 @@ from azure.servicebus import ServiceBusSender
 from azure.servicebus.aio import ServiceBusClient as ServiceBusClientAsync
 from azure.servicebus.aio import ServiceBusReceiver as ServiceBusReceiverAsync
 from azure.servicebus.aio import ServiceBusSender as ServiceBusSenderAsync
+from azure.servicebus.amqp import AmqpAnnotatedMessage
 from azure.servicebus.management import ServiceBusAdministrationClient
 import pytest
 
@@ -45,6 +46,7 @@ def get_queue_name() -> str:
     node_index = int(os.environ.get("CI_NODE_INDEX", "1"))
     queue_index = ((node_index - 1) % PARALLEL_QUEUE_COUNT) + 1
     return f"queue.{queue_index}"
+
 
 def servicebus_administration_client() -> ServiceBusAdministrationClient:
     management_connection_string = (
