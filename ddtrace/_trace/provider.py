@@ -47,14 +47,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     """
 
     def __init__(self) -> None:
-        self._activation_listeners: list[Callable[[Optional[ActiveTrace]], None]] = []
-
-    def _add_activation_listener(self, listener: Callable[[Optional[ActiveTrace]], None]) -> None:
-        self._activation_listeners.append(listener)
-
-    def _remove_activation_listener(self, listener: Callable[[Optional[ActiveTrace]], None]) -> None:
-        if listener in self._activation_listeners:
-            self._activation_listeners.remove(listener)
+        self._activation_callback: Optional[Callable[[Optional[ActiveTrace]], None]] = None
 
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
@@ -63,8 +56,8 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
         core.dispatch("ddtrace.context_provider.activate", (ctx,))
-        for listener in self._activation_listeners:
-            listener(ctx)
+        if self._activation_callback:
+            self._activation_callback(ctx)
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:

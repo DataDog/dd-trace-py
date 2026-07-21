@@ -12,10 +12,8 @@ def test_context_provider_activation_listener() -> None:
     def listener(ctx: Optional[ActiveTrace]) -> None:
         activated_contexts.append(ctx)
 
-    provider._add_activation_listener(listener)
+    provider._activation_callback = listener
     context = Context()
     provider.activate(context)
-    provider._remove_activation_listener(listener)
-    provider.activate(None)
 
     assert activated_contexts == [context]

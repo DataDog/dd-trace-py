@@ -181,9 +181,9 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self._context_provider: BaseContextProvider = DefaultContextProvider()
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
         if sys.platform == "linux":
-            self._context_provider._add_activation_listener(_sync_otel_thread_context)
+            self.context_provider._activation_callback = _sync_otel_thread_context
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -225,17 +225,6 @@ class Tracer(object):
             self._config_on_disk = store_metadata(metadata)
         except Exception as e:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
-
-    @property
-    def context_provider(self) -> BaseContextProvider:
-        return self._context_provider
-
-    @context_provider.setter
-    def context_provider(self, value: BaseContextProvider) -> None:
-        if sys.platform == "linux":
-            self._context_provider._remove_activation_listener(_sync_otel_thread_context)
-            value._add_activation_listener(_sync_otel_thread_context)
-        self._context_provider = value
 
     @property
     def _agent_url(self) -> Optional[str]:
@@ -410,6 +399,9 @@ class Tracer(object):
             )
 
         if context_provider is not None:
+            if sys.platform == "linux":
+                self.context_provider._activation_callback = None
+                context_provider._activation_callback = _sync_otel_thread_context
             self.context_provider = context_provider
 
     def _generate_diagnostic_logs(self):
