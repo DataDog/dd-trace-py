@@ -95,6 +95,26 @@ fn none_or_clone<'py>(v: &Bound<'py, PyAny>) -> Option<Bound<'py, PyAny>> {
     }
 }
 
+/// Invoke `self.activate(ctx)` from within `active`/`_update_active`.
+///
+/// Fast path: when `slf` is *exactly* a `DefaultContextProvider` (the common
+/// case), call the native method directly and skip the Python method-resolution
+/// (`_PyType_Lookup` + `GenericGetAttr`) that `call_method1` incurs. A Python
+/// subclass (CIContextProvider, LLMObsContextProvider, ...) may override
+/// `activate`, so route through Python dispatch for those.
+#[inline]
+fn call_activate<'py>(
+    slf: &Bound<'py, DefaultContextProvider>,
+    py: Python<'py>,
+    ctx: Option<Bound<'py, PyAny>>,
+) -> PyResult<()> {
+    if slf.is_exact_instance_of::<DefaultContextProvider>() {
+        DefaultContextProvider::activate(slf, py, ctx)
+    } else {
+        slf.call_method1("activate", (ctx,)).map(|_| ())
+    }
+}
+
 /// A ``ContextProvider`` is an interface that provides the blueprint
 /// for a callable class, capable to retrieve the current active
 /// ``Context`` instance. Context providers must inherit this class
@@ -121,7 +141,7 @@ impl BaseContextProvider {
         Err(PyNotImplementedError::new_err(()))
     }
 
-    #[pyo3(signature = (ctx=None))]
+    #[pyo3(signature = (ctx))]
     fn activate(&self, py: Python<'_>, ctx: Option<Bound<'_, PyAny>>) -> PyResult<()> {
         dispatch_activate(py, ctx.as_ref())
     }
@@ -166,7 +186,7 @@ impl DefaultContextProvider {
     }
 
     /// Makes the given context active in the current execution.
-    #[pyo3(signature = (ctx=None))]
+    #[pyo3(signature = (ctx))]
     fn activate<'py>(
         slf: &Bound<'py, Self>,
         py: Python<'py>,
@@ -188,11 +208,15 @@ impl DefaultContextProvider {
         }
         match item.cast::<SpanData>() {
             Ok(span) => {
-                let span = span.clone();
-                // Dispatched via `call_method1` so subclass overrides of
-                // `_update_active` -- e.g. LLMObsContextProvider -- are honored.
-                slf.call_method1("_update_active", (span,))
-                    .map(none_or_unbind)
+                // Fast path: an exact `DefaultContextProvider` calls the native
+                // `_update_active` directly. A subclass (e.g. LLMObsContextProvider)
+                // may override it, so route those through Python dispatch.
+                if slf.is_exact_instance_of::<DefaultContextProvider>() {
+                    Self::_update_active(slf, py, span.clone().into_any())
+                } else {
+                    slf.call_method1("_update_active", (span.clone(),))
+                        .map(none_or_unbind)
+                }
             }
             Err(_) => Ok(Some(item.unbind())),
         }
@@ -230,9 +254,7 @@ impl DefaultContextProvider {
                 if let Some(parent_context) = parent_context {
                     // `_reactivate` lives on the pure-Python Context -- still a getattr.
                     if parent_context.getattr("_reactivate")?.is_truthy()? {
-                        // self.activate(...): a subclass (e.g. CIContextProvider) may
-                        // override `activate` without overriding `_update_active`.
-                        slf.call_method1("activate", (parent_context.clone(),))?;
+                        call_activate(slf, py, Some(parent_context.clone()))?;
                         return Ok(Some(parent_context.unbind()));
                     }
                 }
@@ -241,8 +263,7 @@ impl DefaultContextProvider {
             current = parent.unwrap_or_else(|| py.None().into_bound(py));
         }
         if !current.is(&original) {
-            // self.activate(...): same reason as above.
-            slf.call_method1("activate", (none_or_clone(&current),))?;
+            call_activate(slf, py, none_or_clone(&current))?;
         }
         Ok(none_or_unbind(current))
     }
