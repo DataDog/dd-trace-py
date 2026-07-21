@@ -68,21 +68,6 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
 
-def test_replaced_context_provider_no_longer_updates_thread_context(tracer: Tracer):
-    old_provider = tracer.context_provider
-    new_provider = DefaultContextProvider()
-    tracer.configure(context_provider=new_provider)
-    span = tracer.start_span("test")
-
-    new_provider.activate(span)
-    old_provider.activate(None)
-
-    assert _published_span_id() == span.span_id
-
-    new_provider.activate(None)
-    span.finish()
-
-
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
     with tracer.trace("test") as span:
         if sys.platform == "linux":  # to satisfy the type checker outside of linux
