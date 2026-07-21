@@ -441,48 +441,48 @@
         "python_versions": {
             "3.9": {
                 "minimum_package_version": "0.28.1",
-                "maximum_package_version": "0.74.1",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
                     "0.28.1",
-                    "0.74.1"
+                    "0.117.0"
                 ]
             },
             "3.10": {
                 "minimum_package_version": "0.28.1",
-                "maximum_package_version": "0.74.1",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
                     "0.28.1",
-                    "0.74.1"
+                    "0.117.0"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "0.28.1",
-                "maximum_package_version": "0.74.1",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
                     "0.28.1",
-                    "0.74.1"
+                    "0.117.0"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "0.28.1",
-                "maximum_package_version": "0.74.1",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
                     "0.28.1",
-                    "0.74.1"
+                    "0.117.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "0.74.1",
-                "maximum_package_version": "0.74.1",
+                "minimum_package_version": "0.117.0",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
-                    "0.74.1"
+                    "0.117.0"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "0.74.1",
-                "maximum_package_version": "0.74.1",
+                "minimum_package_version": "0.117.0",
+                "maximum_package_version": "0.117.0",
                 "tested_versions": [
-                    "0.74.1"
+                    "0.117.0"
                 ]
             }
         }
