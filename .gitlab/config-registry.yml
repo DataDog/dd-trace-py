@@ -6,7 +6,7 @@
 
 validate_supported_configurations_v2_local_file:
   extends: .validate_supported_configurations_v2_local_file
-  stage: .pre
+  stage: tests
   needs: []
   variables:
     LOCAL_JSON_PATH: "supported-configurations.json"
@@ -14,6 +14,8 @@ validate_supported_configurations_v2_local_file:
 
 update_central_configurations_version_range_v2:
   extends: .update_central_configurations_version_range_v2
+  stage: tests
+  needs: []
   variables:
     LOCAL_REPO_NAME: "dd-trace-py"
     LOCAL_JSON_PATH: "supported-configurations.json"
