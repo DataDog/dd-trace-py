@@ -709,6 +709,85 @@ def test_bazel_manifest_parses_escaped_entries(
     assert _p._is_bazel_runfiles_dir(sp)
 
 
+def test_manifest_records_innermost_site_packages_root(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An outer dir named site-packages must not shadow the real dependency root.
+
+    When a manifest real path contains an earlier "/site-packages/" component
+    before the actual dependency root (e.g.
+    ".../site-packages/workspace/.../dep/site-packages/pkg.py"), recording only
+    the first marker points the gate at the wrong directory and the dependency
+    scan is skipped. Every candidate root must be recorded so the innermost
+    dependency site-packages is recognized too.
+    """
+    inner_sp = tmp_path / "site-packages" / "workspace" / "dep" / "site-packages"
+    inner_sp.mkdir(parents=True)
+    target = inner_sp / "pkg" / "__init__.py"
+    target.parent.mkdir()
+    target.write_text("")
+
+    manifest = tmp_path / "app.runfiles_manifest"
+    manifest.write_text(f"app/pkg/__init__.py {target}\n")
+
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.setenv("RUNFILES_MANIFEST_FILE", str(manifest))
+
+    from ddtrace.internal import packages as _p
+
+    roots = _p._bazel_manifest_site_packages()
+
+    # Both the outer and the innermost site-packages markers are recorded.
+    assert str((tmp_path / "site-packages").resolve()) in roots
+    assert str(inner_sp.resolve()) in roots
+    # The gate must accept the innermost (real) dependency site-packages.
+    assert _p._is_bazel_runfiles_dir(inner_sp)
+
+
+def test_manifest_accepts_venv_symlinked_site_packages(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A binary-venv site-packages of symlinks into the real root is accepted.
+
+    rules_python can expose deps through a venv whose site-packages entries are
+    symlinks into the real repository site-packages. importlib.metadata then
+    discovers the dist under the (non-symlink) venv dir, which is absent from
+    the manifest's real-path roots. The gate must follow a symlinked entry to
+    its real parent and still recognize the venv dir as a runfiles dependency
+    dir, otherwise the no-RECORD scan is skipped and those packages stay
+    unresolved.
+    """
+    real_sp = tmp_path / "repo" / "site-packages"
+    real_pkg = real_sp / "pkg"
+    real_pkg.mkdir(parents=True)
+    (real_pkg / "__init__.py").write_text("")
+
+    # Virtual venv site-packages: a real dir whose entry symlinks into real_sp.
+    venv_sp = tmp_path / "venv" / "site-packages"
+    venv_sp.mkdir(parents=True)
+    (venv_sp / "pkg").symlink_to(real_pkg, target_is_directory=True)
+
+    manifest = tmp_path / "app.runfiles_manifest"
+    manifest.write_text(f"app/pkg/__init__.py {real_pkg / '__init__.py'}\n")
+
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.setenv("RUNFILES_MANIFEST_FILE", str(manifest))
+
+    from ddtrace.internal import packages as _p
+
+    roots = _p._bazel_manifest_site_packages()
+
+    # Only the real site-packages is a manifest root; the venv dir is not.
+    assert str(real_sp.resolve()) in roots
+    assert str(venv_sp.resolve()) not in roots
+    # ...but the gate must still accept the venv dir via the symlinked entry.
+    assert _p._is_bazel_runfiles_dir(venv_sp)
+
+
 def test_strategy1_skips_bare_namespace_root_when_scan_skipped(
     tmp_path: Path,
     reset_packages_caches,
