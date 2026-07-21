@@ -61,7 +61,7 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "context",
+        "_context",
         "_store",
         # Internal attributes
         "_parent_context",
@@ -112,14 +112,12 @@ class Span(SpanData):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
-        # PERF: cache trace_id/span_id to avoid repeated Rust property calls
-        _trace_id = self.trace_id
-        _span_id = self.span_id
-        self.context: Context = (
-            context.copy(_trace_id, _span_id)
-            if context
-            else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
-        )
+        # PERF: build the span's Context lazily on first access (see the `context`
+        # property). Most spans never have their context read: short-lived leaf
+        # spans, and any span created but never activated or propagated. Creating
+        # a Context eagerly here costs an allocation plus a native RLock per span,
+        # which dominates root-span creation in the microbenchmarks.
+        self._context: Optional[Context] = None
 
         if links:
             for link in links:
@@ -131,10 +129,53 @@ class Span(SpanData):
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
+    @property
+    def context(self) -> Context:
+        """The trace context for this span, created lazily on first access.
+
+        The context shares the trace-level state (``_meta``, ``_metrics``,
+        ``_baggage`` and lock) with its parent while carrying this span's own
+        ``trace_id``/``span_id``. It is only materialized when something actually
+        reads it (child-span creation, propagation, sampling, etc.).
+        """
+        ctx = self._context
+        if ctx is None:
+            parent = self._parent_context
+            if parent is not None:
+                ctx = parent.copy(self.trace_id, self.span_id)
+            else:
+                ctx = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+            self._context = ctx
+        return ctx
+
+    @context.setter
+    def context(self, value: Context) -> None:
+        self._context = value
+
+    def _context_for_child(self) -> Context:
+        """Return the context a child span should inherit trace-level state from.
+
+        Reuses a context that already holds this trace's shared
+        ``_meta``/``_metrics``/``_baggage``/lock — this span's own context if it
+        was built, otherwise its (local) parent-context — so a deep local trace
+        materializes a single Context instead of one per span. A remote
+        parent-context is never handed down: a local child's parent-context must
+        stay local so ``_is_remote``/reactivation keep their meaning, so a
+        distributed entry span materializes its (local) context once here.
+        """
+        ctx = self._context
+        if ctx is not None:
+            return ctx
+        parent = self._parent_context
+        if parent is not None and not parent._is_remote:
+            return parent
+        return self.context
+
     def _update_tags_from_context(self) -> None:
-        with self.context:
-            self._set_default_attributes(self.context._meta)
-            self._set_default_attributes(self.context._metrics)
+        ctx = self.context
+        with ctx:
+            self._set_default_attributes(ctx._meta)
+            self._set_default_attributes(ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:
         if self._ignored_exceptions is None:

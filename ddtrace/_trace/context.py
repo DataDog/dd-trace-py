@@ -227,15 +227,20 @@ class Context(object):
 
     def copy(self, trace_id: int, span_id: int) -> "Context":
         """Return a shallow copy of the context with the given correlation IDs."""
-        return self.__class__(
-            trace_id=trace_id,
-            span_id=span_id,
-            meta=self._meta,
-            metrics=self._metrics,
-            lock=self._lock,
-            baggage=self._baggage,
-            is_remote=False,
-        )
+        # PERF: copy() is run once per child span, use __new__ + direct assignment to avoid the
+        # overhead in __init__'s kwargs packing, dd_origin regex, and other processing. This
+        # optimization holds true if we trust that this data has been validated already.
+        ctx = Context.__new__(Context)
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        ctx._baggage = self._baggage
+        ctx._lock = self._lock
+        ctx.trace_id = trace_id
+        ctx.span_id = span_id
+        ctx._is_remote = False
+        ctx._reactivate = False
+        ctx._span_links = []
+        return ctx
 
     def _with_baggage_item(self, key: str, value: Any) -> "Context":
         """Returns a copy of this span with a new baggage item.
