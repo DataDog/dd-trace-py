@@ -348,8 +348,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             return cached_paths
 
         paths = set(covered_file_paths)
+        import_time_covered = self._import_time_covered
         for root_path in cache_key:
-            paths.update(self._get_import_time_dependency_paths(root_path))
+            if root_path in import_time_covered:
+                paths.update(self._get_import_time_dependency_paths(root_path))
 
         self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
         return paths
