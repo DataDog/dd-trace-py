@@ -3525,17 +3525,17 @@
                 ]
             },
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
@@ -3546,17 +3546,17 @@
         "auto-instrumented": false,
         "python_versions": {
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
@@ -3567,17 +3567,17 @@
         "auto-instrumented": false,
         "python_versions": {
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
