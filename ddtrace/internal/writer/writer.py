@@ -657,7 +657,8 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         default = "v0.4"
     resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
-        log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        if not agent_config.trace_otlp_export_enabled:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"
     if config._llmobs_enabled and resolved != "v0.4":
         log.warning(
@@ -839,10 +840,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if metrics_headers:
                 builder.set_otlp_metrics_headers(metrics_headers)
             builder.set_connection_timeout(otel_config.exporter.METRICS_TIMEOUT)
-            # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
-            # attributes on the exported metric.
-            if config._otel_semantics_enabled:
-                builder.enable_otel_trace_semantics()
+        # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
+        # attributes on the exported metric.
+        if config._otel_trace_semantics_enabled and (
+            self._otlp_endpoint is not None or self._otlp_metrics_endpoint is not None
+        ):
+            builder.enable_otel_trace_semantics()
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
 
