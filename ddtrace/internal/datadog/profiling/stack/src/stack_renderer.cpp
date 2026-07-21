@@ -275,6 +275,18 @@ StackRenderer::render_stack_end()
     sample = nullptr;
 }
 
+void
+StackRenderer::abort_sample()
+{
+    if (sample == nullptr) {
+        return;
+    }
+
+    // Return the partially-built sample to the pool without flushing it.
+    SampleManager::drop_sample(sample);
+    sample = nullptr;
+}
+
 Datadog::StackRenderer::StackRenderer()
 {
     function_id_cache.reserve(100'000);

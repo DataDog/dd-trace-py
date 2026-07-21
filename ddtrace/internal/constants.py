@@ -1,7 +1,41 @@
+from typing import Any
+from typing import Generator
+from typing import Iterator
+
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+
+
+class Constant_Class(type):
+    """
+    metaclass for Constant Classes
+    - You can access constants with APPSEC.ENV or APPSEC["ENV"]
+    - Direct assignment will fail: APPSEC.ENV = "something" raise TypeError, like other immutable types
+    - Constant Classes can be iterated:
+        for constant_name, constant_value in APPSEC: ...
+    """
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
+
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        def aux() -> Generator[tuple[str, Any], Any, None]:
+            for t in self.__dict__.items():
+                if not t[0].startswith("_"):
+                    yield t
+
+        return aux()
+
+    def get(self, k: str, default: Any = None) -> Any:
+        return self.__dict__.get(k, default)
+
+    def __contains__(self, k: str) -> bool:
+        return k in self.__dict__
+
+    def __getitem__(self, k: str) -> Any:
+        return self.__dict__[k]
 
 
 PROPAGATION_STYLE_DATADOG = "datadog"

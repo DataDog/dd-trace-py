@@ -86,6 +86,9 @@ class StackRenderer
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();
 
+    // Drop a partially-built sample without flushing it.
+    void abort_sample();
+
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
 };

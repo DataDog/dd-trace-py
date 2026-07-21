@@ -22,7 +22,11 @@ PCT_COVERED_KEY = "pct_covered"
 
 # Coverage instance and percentage cache
 _coverage_instance: Optional[Any] = None
+_owns_coverage_instance = False
 _cached_coverage_percentage: Optional[float] = None
+
+# AIDEV-NOTE: External tools such as pytest-cov can own Coverage.current(). We may cache
+# their instance to generate reports, but must never stop, save, or erase it.
 
 
 def get_version() -> str:
@@ -136,8 +140,6 @@ def start_coverage(
     Returns:
         The Coverage instance, or None if coverage.py is not available
     """
-    global _coverage_instance
-
     if Coverage is None:
         log.debug("coverage.py is not available")
         return None
@@ -147,7 +149,8 @@ def start_coverage(
         existing = Coverage.current()
         if existing is not None:
             log.debug("Coverage is already running")
-            set_coverage_instance(existing)
+            if existing is not _coverage_instance:
+                set_coverage_instance(existing)
             return existing
     except Exception:
         log.debug("Failed to access running coverage", exc_info=True)
@@ -163,7 +166,7 @@ def start_coverage(
             **kwargs,
         )
         cov.start()
-        set_coverage_instance(cov)
+        _set_coverage_instance(cov, owned=True)
         log.debug("Started coverage collection")
         return cov
     except Exception as e:
@@ -189,6 +192,10 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
     if cov is None:
         log.debug("No coverage instance is running")
         return None
+
+    if not _owns_coverage_instance:
+        log.debug("Coverage instance is externally managed; skipping stop")
+        return cov
 
     try:
         cov.stop()
@@ -234,17 +241,23 @@ def set_coverage_instance(cov_instance: Any) -> None:
     Args:
         cov_instance: The coverage instance to set
     """
-    global _coverage_instance
-    _coverage_instance = cov_instance
+    _set_coverage_instance(cov_instance, owned=False)
     log.debug("Set coverage instance")
+
+
+def _set_coverage_instance(cov_instance: Any, owned: bool) -> None:
+    global _coverage_instance, _owns_coverage_instance
+    _coverage_instance = cov_instance
+    _owns_coverage_instance = owned
 
 
 def reset_coverage_state() -> None:
     """
     Reset all coverage state.
     """
-    global _coverage_instance, _cached_coverage_percentage
+    global _coverage_instance, _owns_coverage_instance, _cached_coverage_percentage
     _coverage_instance = None
+    _owns_coverage_instance = False
     _cached_coverage_percentage = None
     log.debug("Reset coverage state")
 
@@ -332,7 +345,7 @@ def get_coverage_data() -> dict[str, Any]:
 def erase_coverage() -> None:
     """Erase all coverage data and clear the cache."""
     cov = get_coverage_instance()
-    if cov:
+    if cov and _owns_coverage_instance:
         try:
             cov.erase()
         except Exception as e:
