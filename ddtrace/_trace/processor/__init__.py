@@ -316,6 +316,8 @@ class SpanAggregator(SpanProcessor):
 
     SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
 
+    _SPAN_COUNT_METRICS_BATCH_SIZE = 100
+
     def __init__(
         self,
         partial_flush_enabled: bool,
@@ -374,7 +376,7 @@ class SpanAggregator(SpanProcessor):
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
-            self._queue_span_count_metrics("spans_created", "integration_name")
+            self._queue_span_count_metrics("spans_created", "integration_name", force_flush=False)
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
@@ -398,7 +400,7 @@ class SpanAggregator(SpanProcessor):
                 finished = trace.spans
                 del self._traces[trace_id]
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
-                self._queue_span_count_metrics("spans_finished", "integration_name")
+                self._queue_span_count_metrics("spans_finished", "integration_name", force_flush=False)
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
@@ -432,6 +434,7 @@ class SpanAggregator(SpanProcessor):
         num_dropped = len(finished) - len(spans)
         if num_dropped > 0:
             self._span_metrics["spans_dropped"]["trace_processor"] += num_dropped
+            self._queue_span_count_metrics("spans_dropped", "reason", force_flush=False)
 
         if spans:
             # Get sampling information from the root span
@@ -477,13 +480,13 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_created", "integration_name", 1)
+        self._queue_span_count_metrics("spans_created", "integration_name", force_flush=True)
         # on_span_finish(...) queues span finish metrics in batches of 100.
         # This ensures all remaining counts are sent before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        self._queue_span_count_metrics("spans_finished", "integration_name", force_flush=True)
         # on_span_finish(...) queues dropped span metrics in batches of 100.
         # This ensures all remaining counts are sent before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_dropped", "reason", 1)
+        self._queue_span_count_metrics("spans_dropped", "reason", force_flush=True)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unsent_spans = [
@@ -505,11 +508,13 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
+    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, force_flush: bool) -> None:
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
-        if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
+        if config._telemetry_enabled and (
+            force_flush or sum(self._span_metrics[metric_name].values()) >= self._SPAN_COUNT_METRICS_BATCH_SIZE
+        ):
             for tag_value, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
