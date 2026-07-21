@@ -90,18 +90,18 @@ def wrap_function(instance, func, name=None, resource=None):
 
 def simple_call_wrapper(name, span_type=None):
     @with_tracing_enabled
-    def wrapper(wrapped, instance, args, kwargs):
+    def wrapper(wrapped, args, kwargs):
         return _wrap_call(wrapped, name, span_type=span_type, args=args, kwargs=kwargs)
 
     return wrapper
 
 
 def with_tracing_enabled(func):
-    """Helper to wrap a function wrapper and ensure tracing is enabled."""
+    """Helper to wrap a bytecode-wrapped (wrapped, args, kwargs) function and ensure tracing is enabled."""
 
-    def wrapper(wrapped, instance, args, kwargs):
+    def wrapper(wrapped, args, kwargs):
         if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
-        return func(wrapped, instance, args, kwargs)
+        return func(wrapped, args, kwargs)
 
     return wrapper
