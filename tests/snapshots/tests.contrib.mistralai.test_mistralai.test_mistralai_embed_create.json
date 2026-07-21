@@ -10,21 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5e950600000000",
+      "_dd.p.tid": "6a4557dd00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
       "language": "python",
       "mistralai.request.model": "mistral-embed",
       "mistralai.request.provider": "mistral",
-      "runtime-id": "82c43f3c20704eae811c85e123231553"
+      "runtime-id": "9eebf6a14a584f5794c58241e38a5521"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 526.0
+      "process_id": 4554.0
     },
-    "duration": 7096833,
-    "start": 1784583430378371593
+    "duration": 5063250,
+    "start": 1782929373178607251
   }]]
