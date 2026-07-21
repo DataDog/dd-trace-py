@@ -6,8 +6,10 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
@@ -33,11 +35,18 @@ class TestAiguardManualKeep:
             _aiguard_manual_keep(span)
             assert span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
-    def test_aiguard_manual_keep_does_not_set_propagation_header(self, tracer):
-        """_aiguard_manual_keep does NOT set the ASM security propagation header (_dd.p.ts)."""
+    def test_aiguard_manual_keep_sets_trace_source_bit(self, tracer):
+        """_aiguard_manual_keep sets the AI Guard bit (0x20 -> "20") on _dd.p.ts."""
         with tracer.trace("root_span") as span:
             _aiguard_manual_keep(span)
-            assert "_dd.p.ts" not in span.context._meta
+            assert span.context._meta[TRACE_SOURCE_PROPAGATION_KEY] == "20"
+
+    def test_aiguard_and_asm_trace_source_bits_are_ored(self, tracer):
+        """ASM (0x02) and AI Guard (0x20) bits accumulate into "22" regardless of order."""
+        with tracer.trace("root_span") as span:
+            _asm_manual_keep(span)
+            _aiguard_manual_keep(span)
+            assert span.context._meta[TRACE_SOURCE_PROPAGATION_KEY] == "22"
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_evaluate_sets_manual_keep_on_root_span(self, mock_execute_request, tracer, test_spans):

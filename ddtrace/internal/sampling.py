@@ -22,6 +22,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
@@ -264,6 +265,23 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     span.context.sampling_priority = priorities[priority_index]
+
+
+def add_trace_source(span: Span, source: int) -> None:
+    """OR ``source`` (a ``TraceSource`` bit) into the span's ``_dd.p.ts`` trace-source mask.
+
+    Marks that an enabled product originated or retained the trace so it is kept when APM
+    tracing is disabled. The mask is serialized as a min 2-char lowercase hex string, so
+    combined products accumulate (e.g. ASM + AI Guard -> "22").
+    """
+    meta = span.context._meta
+    try:
+        mask = int(meta.get(TRACE_SOURCE_PROPAGATION_KEY, "0"), 16)
+    except (TypeError, ValueError):
+        mask = 0
+    value = "%02x" % (mask | source)
+    span._set_attribute(TRACE_SOURCE_PROPAGATION_KEY, value)
+    meta[TRACE_SOURCE_PROPAGATION_KEY] = value
 
 
 def _inherit_sampling_tags(target: Span, source: Span):

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AI Guard: AI Guard now marks the traces it evaluates so they are retained and
+    propagated downstream when APM tracing is disabled (``DD_APM_TRACING_ENABLED=false``),
+    ensuring AI Guard activity remains visible even with tracing turned off.

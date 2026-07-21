@@ -34,6 +34,9 @@ SAMPLING_HASH_MODULO = 1 << 64
 # and other tracers to allow chained sampling
 SAMPLING_KNUTH_FACTOR = 1111111111111111111
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
+# Propagated tag consolidating which product(s) originated/retained a trace as an
+# 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See ``TraceSource``.
+TRACE_SOURCE_PROPAGATION_KEY = "_dd.p.ts"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
@@ -137,6 +140,23 @@ class SamplingMechanism(object):
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
     AI_GUARD = 13
+
+
+class TraceSource(object):
+    """Bit values for the ``_dd.p.ts`` (trace source) propagation tag.
+
+    Each enabled product ORs its bit into the mask to signal it originated or retained
+    the trace, so the trace is kept when APM tracing is disabled (DD_TRACE_ENABLED RFC).
+    Serialized as a min 2-char, case-insensitive hex string (e.g. "20" for AI Guard,
+    "22" for ASM + AI Guard). APM (0x01) is implicit and should not be set explicitly.
+    """
+
+    APM = 0x01
+    ASM = 0x02
+    DSM = 0x04
+    DJM = 0x08
+    DBM = 0x10
+    AI_GUARD = 0x20
 
 
 SAMPLING_MECHANISM_TO_PRIORITIES = {
