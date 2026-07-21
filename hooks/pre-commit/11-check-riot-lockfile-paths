@@ -1,0 +1,50 @@
+#!/bin/sh
+# Reject machine-local file:// URLs in riot lockfiles.
+# Lockfiles are generated in CI with paths under file:///home/bits/project/.
+
+LOCKFILE_RE='^\.riot/requirements/.*\.txt$'
+
+check_lockfile_paths() {
+    label=$1
+    shift
+    failed=0
+    for f in "$@"; do
+        [ -n "$f" ] || continue
+        bad=$(grep -n 'file://' "$f" | grep -v 'file:///home/bits/project/' || true)
+        if [ -n "$bad" ]; then
+            echo "ERROR: $f contains non-canonical file:// URL(s) ($label):"
+            echo "$bad"
+            failed=1
+        fi
+    done
+    return $failed
+}
+
+staged_lockfiles=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E "$LOCKFILE_RE" || true)
+if [ -n "$staged_lockfiles" ]; then
+    staged_count=$(printf '%s\n' "$staged_lockfiles" | grep -c .)
+    echo "Checking riot lockfile paths in $staged_count staged lockfile(s)..."
+    check_lockfile_paths "staged" $staged_lockfiles || exit 1
+fi
+
+# Mirror hooks/scripts/run-fmt.sh (#17681): also validate tracked lockfiles with
+# unstaged edits so `git commit <path>` cannot bypass the staged-only pass.
+dirty_lockfiles=$(git diff --name-only --diff-filter=ACMR | grep -E "$LOCKFILE_RE" || true)
+if [ -n "$(printf '%s' "$dirty_lockfiles" | tr -d ' \t\n')" ]; then
+    if ! check_lockfile_paths "unstaged" $dirty_lockfiles; then
+        RED='\033[0;31m'
+        BOLD='\033[1m'
+        RESET='\033[0m'
+        printf "\n${BOLD}${RED}╔══ RIOT LOCKFILE PATH ERROR ═══════════════════════════════╗${RESET}\n"
+        printf "${BOLD}${RED}║  Unstaged lockfile(s) contain machine-local file:// URLs.${RESET}\n"
+        printf "${BOLD}${RED}║${RESET}\n"
+        printf "${BOLD}${RED}║  Use file:///home/bits/project/... (CI working directory).${RESET}\n"
+        printf "${BOLD}${RED}║  Fix the path, then stage the lockfile before committing.${RESET}\n"
+        printf "${BOLD}${RED}╚═══════════════════════════════════════════════════════════╝${RESET}\n\n"
+        exit 1
+    fi
+fi
+
+if [ -z "$staged_lockfiles" ] && [ -z "$(printf '%s' "$dirty_lockfiles" | tr -d ' \t\n')" ]; then
+    echo 'Riot lockfile path check skipped: no staged or unstaged lockfiles'
+fi
