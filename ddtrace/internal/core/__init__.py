@@ -128,6 +128,7 @@ from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
+from .event_hub import _events_with_listeners  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
@@ -144,6 +145,12 @@ import contextvars
 
 
 _MISSING = object()
+
+# PERF: event names are a pure function of the (immutable, small, repeating) context
+# identifier. Cache the formatted "context.started.<id>" / "context.ended.<id>" strings
+# so each context enter/exit does a dict lookup instead of a fresh %-format allocation.
+_STARTED_EVENTS: "dict[str, str]" = {}
+_ENDED_EVENTS: "dict[str, str]" = {}
 
 log = logging.getLogger(__name__)
 
@@ -173,10 +180,9 @@ class ExecutionContext(Generic[EventType]):
         **kwargs,
     ) -> None:
         self.identifier: str = identifier
-        self._data: dict[str, Any] = {}
+        self._data: dict[str, Any] = dict(kwargs)
         self._event: Optional["EventType"] = event
         self._suppress_exceptions: list[type] = []
-        self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
@@ -187,7 +193,14 @@ class ExecutionContext(Generic[EventType]):
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         try:
-            dispatch("context.started.%s" % self.identifier, (self,))
+            identifier = self.identifier
+            started = _STARTED_EVENTS.get(identifier)
+            if started is None:
+                started = _STARTED_EVENTS[identifier] = "context.started." + identifier
+            # PERF: skip building args + the native dispatch when nothing listens for this
+            # context's start event (the common case — see event_hub._events_with_listeners).
+            if started in _events_with_listeners:
+                dispatch(started, (self,))
         except BaseException:
             # If dispatch raises, __exit__ won't be called — reset the context ourselves
             # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
@@ -223,7 +236,13 @@ class ExecutionContext(Generic[EventType]):
     ) -> bool:
         if self._dispatch_end_event and not self._end_event_dispatched:
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
-            dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            identifier = self.identifier
+            ended = _ENDED_EVENTS.get(identifier)
+            if ended is None:
+                ended = _ENDED_EVENTS[identifier] = "context.ended." + identifier
+            # PERF: skip args build + native dispatch when nothing listens for the end event.
+            if ended in _events_with_listeners:
+                dispatch(ended, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
         try:
             if self._token is not None:
@@ -254,7 +273,11 @@ class ExecutionContext(Generic[EventType]):
         """
         if self._end_event_dispatched:
             return
-        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        identifier = self.identifier
+        ended = _ENDED_EVENTS.get(identifier)
+        if ended is None:
+            ended = _ENDED_EVENTS[identifier] = "context.ended." + identifier
+        dispatch(ended, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:

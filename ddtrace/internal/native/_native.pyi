@@ -6,9 +6,12 @@ from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
@@ -205,6 +208,28 @@ class TraceExporter:
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
         """
+        ...
+    def put_trace(
+        self,
+        spans: Sequence["SpanData"],
+        dd_origin: Optional[str] = None,
+    ) -> "PutOutcome":
+        """
+        Buffer one trace chunk for the next flush (incref-and-stash only; conversion to
+        libdatadog v0.4 spans is deferred to flush, on the background writer thread).
+        :param spans: The spans of one trace chunk (each a SpanData / Span).
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span at flush.
+        :return: whether the chunk was buffered (Accepted) or had no encodable spans.
+        """
+        ...
+    def flush(self) -> tuple[int, Optional[str]]:
+        """
+        Send all buffered trace chunks directly to the Agent via send_trace_chunks.
+        :return: (number of trace chunks sent, agent response body or None).
+        """
+        ...
+    def buffered_traces(self) -> int:
+        """Number of trace chunks currently buffered."""
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """
@@ -418,11 +443,13 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime, encode_links_events_as_json: bool) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
+        :param encode_links_events_as_json: Fixed for the output format (True for v0.5); applied
+            to every span at flush time.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -433,6 +460,10 @@ class TraceExporterBuilder:
         Should only be used for debugging.
         """
         ...
+
+class PutOutcome(Enum):
+    Accepted = ...
+    NoEncodableSpans = ...
 
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
@@ -644,6 +675,12 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    # Span-tree links (moved from Python Span.__slots__/properties into the native base).
+    _parent: Optional[Span]  # parent Span or None
+    _parent_context: Optional[Context]  # parent Context or None
+    _local_root_value: Optional[Span]  # local-root Span, or None when this span is the local root
+    _local_root: Span  # property: _local_root_value or self (always a Span)
+    _is_top_level: bool  # read-only property
 
     def __new__(
         cls: type[_SpanDataT],
@@ -698,6 +735,24 @@ class SpanData:
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
     def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+
+class DefaultContextProvider:
+    """Native base for ``ddtrace._trace.provider.DefaultContextProvider``.
+
+    Holds the shared ``_DD_CONTEXTVAR`` and the ``Span`` type, and implements the
+    active/activate/reconciliation read path in Rust. The Python subclass wires these in via
+    ``_configure`` and keeps ``_update_active``-adjacent behavior overridable.
+    """
+
+    _contextvar: Any  # read-only: the underlying contextvars.ContextVar
+
+    def __new__(cls, contextvar: Optional[Any] = None, span_type: Optional[Any] = None) -> "DefaultContextProvider": ...
+    def _configure(self, contextvar: Any, span_type: Any) -> None: ...
+    def _has_active_context(self) -> bool: ...
+    def active(self) -> Optional[Any]: ...  # Span | Context | None
+    def activate(self, ctx: Optional[Any]) -> None: ...
+    def _update_active(self, span: Any) -> Optional[Any]: ...
+    def __call__(self) -> Optional[Any]: ...
 
 class SpanEvent:
     name: str

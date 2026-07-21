@@ -34,6 +34,84 @@ _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
 log = get_logger(__name__)
 
 
+class _VersionedMeta(dict[str, str]):
+    """A dict that bumps a version counter on every mutation.
+
+    ``Context._meta`` is shared by reference across every span in a local trace (see
+    ``Context.copy``), and its ``_dd.p.*`` propagation subset is re-derived once per child
+    span in ``Tracer.start_span`` (via ``_get_metas_to_propagate``) even though it is stable
+    within a trace. Storing the derived value here, keyed on ``_v``, lets that filter run
+    once per trace instead of once per span. Because *every* mutation bumps ``_v`` — including
+    an in-place value change to ``_dd.p.dm`` from a sampling override, which does not change
+    the dict's length — the cache invalidates correctly by construction. Cache reads fall back
+    to recomputation for a plain ``dict`` (remote/propagation contexts), so behavior is
+    unchanged there.
+    """
+
+    __slots__ = ("_v", "_prop_cache")
+
+    _v: int
+    _prop_cache: Optional[tuple[int, list[tuple[str, str]]]]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # dict(...) bulk-init does not route through __setitem__, so _v starts at 0.
+        super().__init__(*args, **kwargs)
+        self._v = 0
+        self._prop_cache = None
+
+    def __reduce__(self) -> Any:
+        # Reconstruct through __init__ (bulk dict init) on unpickle. The default dict-subclass
+        # reduce restores items via __setitem__ *before* the slot state, which would touch `_v`
+        # before it exists; rebuilding from a plain dict initializes `_v`/`_prop_cache` correctly
+        # (and drops the derived `_prop_cache`, which is recomputed on next access).
+        return (self.__class__, (dict(self),))
+
+    def _bump(self) -> None:
+        self._v += 1
+        self._prop_cache = None
+
+    def __setitem__(self, key: str, value: str) -> None:
+        super().__setitem__(key, value)
+        self._v += 1
+        self._prop_cache = None
+
+    def __delitem__(self, key: str) -> None:
+        super().__delitem__(key)
+        self._bump()
+
+    def clear(self) -> None:
+        super().clear()
+        self._bump()
+
+    def pop(self, *args: Any) -> Any:
+        r = super().pop(*args)
+        self._bump()
+        return r
+
+    def popitem(self) -> tuple[str, str]:
+        r = super().popitem()
+        self._bump()
+        return r
+
+    def setdefault(self, key: str, default: str = "") -> str:
+        n = len(self)
+        r = super().setdefault(key, default)
+        if len(self) != n:
+            self._bump()
+        return r
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        super().update(*args, **kwargs)
+        self._bump()
+
+    # `dict.__or__` returns `dict`, so mypy flags the covariant `_VersionedMeta` return as
+    # inconsistent; the override is behavior-correct (bump on `|=`), just rarely exercised.
+    def __ior__(self, other: Any) -> "_VersionedMeta":  # type: ignore[override,misc]
+        super().__ior__(other)
+        self._bump()
+        return self
+
+
 class Context(object):
     """Represents the state required to propagate a trace across execution
     boundaries.
@@ -65,7 +143,10 @@ class Context(object):
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
     ):
-        self._meta: dict[str, str] = meta if meta is not None else {}
+        # PERF: local traces (meta is None here) get a version-tracking dict so the per-span
+        # _dd.p.* propagation filter can be cached trace-wide (see _VersionedMeta). A caller-
+        # supplied meta (remote/propagation) is used as-is to avoid changing its identity.
+        self._meta: dict[str, str] = meta if meta is not None else _VersionedMeta()
         self._metrics: dict[str, NumericType] = metrics if metrics is not None else {}
         self._baggage: dict[str, Any] = baggage if baggage is not None else {}
 
@@ -227,15 +308,22 @@ class Context(object):
 
     def copy(self, trace_id: int, span_id: int) -> "Context":
         """Return a shallow copy of the context with the given correlation IDs."""
-        return self.__class__(
-            trace_id=trace_id,
-            span_id=span_id,
-            meta=self._meta,
-            metrics=self._metrics,
-            lock=self._lock,
-            baggage=self._baggage,
-            is_remote=False,
-        )
+        # PERF: this runs once per child span. Build via __new__ + direct slot assignment to
+        # skip __init__'s kwargs packing, the dd_origin regex, the sampling-priority branch,
+        # and the default-{} allocations (meta/metrics/baggage are shared here). Behavior is
+        # identical to __init__(trace_id, span_id, meta=..., metrics=..., lock=..., baggage=...,
+        # is_remote=False): _reactivate defaults False and _span_links starts empty.
+        ctx = Context.__new__(Context)
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        ctx._baggage = self._baggage
+        ctx._lock = self._lock
+        ctx.trace_id = trace_id
+        ctx.span_id = span_id
+        ctx._is_remote = False
+        ctx._reactivate = False
+        ctx._span_links = []
+        return ctx
 
     def _with_baggage_item(self, key: str, value: Any) -> "Context":
         """Returns a copy of this span with a new baggage item.

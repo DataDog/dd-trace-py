@@ -3,13 +3,20 @@ use pyo3::{
     types::{PyDict, PyList, PyTuple},
     PyTraverseError, PyVisit,
 };
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
 use std::sync::{LazyLock, OnceLock, RwLock};
 
-type Listeners = HashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
+// Most events have only a handful of listeners; this keeps the per-dispatch
+// snapshot off the heap for the common case instead of allocating a Vec.
+const INLINE_LISTENERS: usize = 4;
+
+// FxHashMap over std::collections::HashMap — event_id keys are short, trusted
+// strings internal to the tracer, so SipHash's DoS resistance buys nothing here.
+type Listeners = FxHashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
 
 // (name_key, callback) pairs per event_id
-static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
 // Cached Python objects — initialized on first use, never invalidated.
 // The losing thread in a race drops its Py<PyAny>; pyo3 0.28 defers the decref.
@@ -20,6 +27,8 @@ static RT_OK_PY: OnceLock<Py<PyAny>> = OnceLock::new();
 static RT_EXCEPTION_PY: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // OnceLock::get_or_try_init is unstable; use get+set pattern instead.
+// Exported so other modules caching a Python object in a static OnceLock can reuse this.
+#[macro_export]
 macro_rules! get_or_init {
     ($cell:expr, $py:expr, $init:expr) => {{
         if let Some(val) = $cell.get() {
@@ -360,7 +369,9 @@ pub fn dispatch(
             Some(v) if v.is_empty() => return Ok(()),
             Some(v) => v,
         };
-        v.iter().map(|(_, cb)| cb.clone_ref(py)).collect::<Vec<_>>()
+        v.iter()
+            .map(|(_, cb)| cb.clone_ref(py))
+            .collect::<SmallVec<[Py<PyAny>; INLINE_LISTENERS]>>()
     };
 
     let call_args = coerce_to_tuple(py, args);
@@ -392,7 +403,7 @@ pub fn dispatch_with_results(
         };
         v.iter()
             .map(|(k, cb)| (k.clone_ref(py), cb.clone_ref(py)))
-            .collect::<Vec<_>>()
+            .collect::<SmallVec<[(Py<PyAny>, Py<PyAny>); INLINE_LISTENERS]>>()
     };
 
     let call_args = coerce_to_tuple(py, args);

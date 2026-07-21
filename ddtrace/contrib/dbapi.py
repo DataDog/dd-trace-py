@@ -189,13 +189,6 @@ class TracedCursor(wrapt.ObjectProxy):
         if row_count is None:
             return
         span._set_attribute(db.ROWCOUNT, row_count)
-        # Necessary for django integration backward compatibility. Django integration used to provide its own
-        # implementation of the TracedCursor, which used to store the row count into a tag instead of
-        # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
-        # this tag has been added since.
-        # Check row count is an integer type to avoid comparison type error
-        if isinstance(row_count, int) and row_count >= 0:
-            span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's

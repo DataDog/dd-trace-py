@@ -24,6 +24,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import _SPECIAL_SET_TAG_KEYS
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
@@ -66,6 +67,12 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+
+# Meta keys that must NOT be propagated from a parent context to child spans.
+# Hoisted to a module-level frozenset so the per-child-span loop below does a set
+# membership test instead of rebuilding a tuple (and re-resolving APPSEC.*) each iteration.
+_METAS_NOT_TO_PROPAGATE = frozenset((SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER))
 
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
@@ -158,6 +165,7 @@ class Tracer(object):
 
         # globally set tags
         self._tags = config.tags.copy()
+        self._fast_tags, self._special_tags = self._split_tags(self._tags)
 
         # Stores custom wrappers executed by tracer.wrap()
         self._wrap_executor = None
@@ -191,6 +199,9 @@ class Tracer(object):
         self._shutdown_lock = Lock()
 
         self._new_process = False
+
+        # PERF: cache the bound method to avoid a fresh allocation on every start_span() call.
+        self._on_span_finish_cb = self._on_span_finish
 
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
@@ -495,6 +506,8 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
+        # PERF: local binding avoids repeated global lookups on the `config` module.
+        cfg = config
         parent: Optional[Span] = None
         context: Optional[Context] = None
         trace_id: Optional[int] = None
@@ -522,18 +535,19 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = config.service
+                service = cfg.service
         else:
-            if service in config._integration_default_services:
+            if service in cfg._integration_default_services:
                 service_source = service
             else:
                 service_source = "m"
 
         # Update the service name based on any mapping
-        if service is not None:
-            service = config.service_mapping.get(service, service)
+        # PERF: skip the dict lookup entirely when no mapping is configured (the common case).
+        if service is not None and cfg.service_mapping:
+            service = cfg.service_mapping.get(service, service)
 
-        links = context._span_links if not parent and context else []
+        links = context._span_links if not parent and context else None
         if trace_id or links or (context and context._baggage):
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -546,21 +560,24 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 links=links,
-                on_finish=[self._on_span_finish],
+                on_finish=[self._on_span_finish_cb],
             )
+            # PERF: bind the method once; span._set_attribute allocates a new bound method per access.
+            _set = span._set_attribute
 
             # Extra attributes when from a local parent
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
-                if span._parent.service == service:
+                # PERF: use the `parent` local instead of the native span._parent getter.
+                if parent.service == service:
                     span._service_entry_span = parent._service_entry_span
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._set_attribute(k, v)
+                if k not in _METAS_NOT_TO_PROPAGATE:
+                    _set(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -570,46 +587,64 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
-                on_finish=[self._on_span_finish],
+                on_finish=[self._on_span_finish_cb],
             )
-            if config._report_hostname:
-                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
+            # PERF: see comment above; avoids a bound-method alloc per _set_attribute call below.
+            _set = span._set_attribute
+            if cfg._report_hostname:
+                _set(_HOSTNAME_KEY, hostname.get_hostname())
 
-        if not span._parent:
-            span._set_attribute("runtime-id", get_runtime_id())
-            span._set_attribute(PID, self._pid)
+        # PERF: `parent` local is equivalent to span._parent here, avoids the native getter.
+        if not parent:
+            _set("runtime-id", get_runtime_id())
+            _set(PID, self._pid)
 
         # Apply default global tags.
-        if self._tags:
-            span.set_tags(self._tags)
+        if self._fast_tags:
+            for k, v in self._fast_tags.items():
+                _set(k, v)
+        if self._special_tags:
+            span.set_tags(self._special_tags)
 
         if service and service_source:
-            span._set_attribute(_SERVICE_SOURCE, service_source)
+            _set(_SERVICE_SOURCE, service_source)
 
-        if config.env:
-            span._set_attribute(ENV_KEY, config.env)
+        env = cfg.env
+        if env:
+            _set(ENV_KEY, env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        version = cfg.version
+        if version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (
+            if (root_span is None and service == cfg.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_attribute(VERSION_KEY, config.version)
+                _set(VERSION_KEY, version)
 
         if activate:
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+            # PERF: iterate the (static in the hot path) processor lists directly and call the
+            # aggregator last, avoiding a per-span chain() + single-element list allocation.
+            for p in self._span_processors:
                 if p:
                     p.on_span_start(span)
-        core.dispatch("trace.span_start", (span,))
+            for p in SpanProcessor.__processors__:
+                if p:
+                    p.on_span_start(span)
+            if self._span_aggregator:
+                self._span_aggregator.on_span_start(span)
+        # PERF: only build args + cross into native when something listens (AppSec/LLMObs/
+        # mlflow). In a tracer-only config nothing does, so skip the FFI entirely.
+        if "trace.span_start" in core._events_with_listeners:
+            core.dispatch("trace.span_start", (span,))
         return span
 
     _start_span = start_span
@@ -638,15 +673,25 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # run handlers before flushing that don't need the span in its final state
-        core.dispatch("trace.span_finish", (span,))
+        # PERF: skip the FFI when nothing listens (tracer-only config; see start_span).
+        if "trace.span_finish" in core._events_with_listeners:
+            core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+            # PERF: see start_span -- avoid the per-span chain() + list allocation.
+            for p in self._span_processors:
                 if p:
                     p.on_span_finish(span)
+            for p in SpanProcessor.__processors__:
+                if p:
+                    p.on_span_finish(span)
+            if self._span_aggregator:
+                self._span_aggregator.on_span_finish(span)
 
-        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
+        # PERF: guard the per-span debug log to skip the logging-machinery call when debug is off.
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -948,6 +993,21 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
+        self._fast_tags, self._special_tags = self._split_tags(self._tags)
+
+    @staticmethod
+    def _split_tags(tags: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+        # PERF: pre-split global tags once (on assignment) instead of re-checking each
+        # key's special-case status on every span. Plain str/str non-special tags are set
+        # directly via `_set_attribute`; the rare special-cased keys still go through `set_tag`.
+        fast_tags = {}
+        special_tags = {}
+        for k, v in tags.items():
+            if type(k) is str and type(v) is str and k not in _SPECIAL_SET_TAG_KEYS:
+                fast_tags[k] = v
+            else:
+                special_tags[k] = v
+        return fast_tags, special_tags
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.

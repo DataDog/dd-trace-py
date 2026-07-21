@@ -2,6 +2,7 @@ from inspect import unwrap
 import weakref
 
 import flask
+import flask.templating
 import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
@@ -44,7 +45,11 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
+from ddtrace.internal.wrapping import unwrap as _dd_unwrap
+from ddtrace.internal.wrapping import wrap as _dd_wrap
 
+from .wrappers import _wrap_call
 from .wrappers import _wrap_call_with_tracing_check
 from .wrappers import simple_call_wrapper
 from .wrappers import with_tracing_enabled
@@ -178,24 +183,26 @@ def patch():
 
     core.dispatch("flask.patch", (flask_version,))
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Flask.wsgi_app", patched_wsgi_app)
-    _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
-    _w("flask", "Flask.preprocess_request", request_patcher("preprocess_request"))
-    _w("flask", "Flask.add_url_rule", patched_add_url_rule)
-    _w("flask", "Flask.endpoint", patched_endpoint)
+    _dd_wrap(flask.Flask.wsgi_app, patched_wsgi_app)
+    _dd_wrap(flask.Flask.dispatch_request, _patched_dispatch_request)
+    _dd_wrap(flask.Flask.preprocess_request, _patched_preprocess_request)
+    _dd_wrap(flask.Flask.add_url_rule, patched_add_url_rule)
+    _dd_wrap(flask.Flask.endpoint, patched_endpoint)
 
     # Walk DispatcherMiddleware at construction so mounted sub-apps are discovered before any traffic.
     try:
-        _w("werkzeug.middleware.dispatcher", "DispatcherMiddleware.__init__", patched_dispatcher_middleware_init)
+        import werkzeug.middleware.dispatcher as _wmd
+
+        _dd_wrap(_wmd.DispatcherMiddleware.__init__, patched_dispatcher_middleware_init)
     except (ImportError, AttributeError):
         log.debug("Failed to patch werkzeug DispatcherMiddleware.__init__ for endpoint discovery")
 
-    _w("flask", "Flask.finalize_request", patched_finalize_request)
+    _dd_wrap(flask.Flask.finalize_request, patched_finalize_request)
 
     if flask_version >= (2, 0, 0):
-        _w("flask", "Flask.register_error_handler", patched_register_error_handler)
+        _dd_wrap(flask.Flask.register_error_handler, patched_register_error_handler)
     else:
-        _w("flask", "Flask._register_error_handler", patched__register_error_handler)
+        _dd_wrap(flask.Flask._register_error_handler, patched__register_error_handler)
 
     flask_hooks = [
         "before_request",
@@ -207,8 +214,13 @@ def patch():
         flask_hooks.append("before_first_request")
 
     for hook in flask_hooks:
-        _w("flask", "Flask.{}".format(hook), patched_flask_hook)
-    _w("flask", "after_this_request", patched_flask_hook)
+        # before_request/after_request/teardown_request are defined once on Flask's shared
+        # Scaffold base and inherited by Blueprint too — guard so it isn't double-wrapped
+        # below when the same underlying function is reached again via bp_hooks.
+        fn = getattr(flask.Flask, hook)
+        if not _dd_is_wrapped(fn):
+            _dd_wrap(fn, patched_flask_hook)
+    _dd_wrap(flask.after_this_request, patched_after_this_request)
 
     flask_app_traces = [
         "process_response",
@@ -223,25 +235,29 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
+        _dd_wrap(getattr(flask.Flask, name), _flask_app_trace_wrappers[name])
     # flask static file helpers
-    _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
+    _dd_wrap(flask.send_file, patched_send_file)
 
     # flask.json.jsonify
-    _w("flask", "jsonify", patched_jsonify)
+    _dd_wrap(flask.jsonify, patched_jsonify)
 
-    _w("flask.templating", "_render", patched_render)
-    _w("flask", "render_template", _build_render_template_wrapper("render_template"))
-    _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
+    _dd_wrap(flask.templating._render, patched_render)
+    _dd_wrap(flask.render_template, _patched_render_template)
+    _dd_wrap(flask.render_template_string, _patched_render_template_string)
     if werkzeug_version >= (2, 1, 0):
         try:
-            _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
-        except AttributeError:
+            import werkzeug.debug.tbtools as _wdt
+
+            _dd_wrap(_wdt.DebugTraceback.render_debugger_html, patched_render_debugger_html)
+        except (ImportError, AttributeError):
             log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
     else:
         try:
-            _w("werkzeug.debug.tbtools", "Traceback.render_summary", patched_render_debugger_html)
-        except AttributeError:
+            import werkzeug.debug.tbtools as _wdt
+
+            _dd_wrap(_wdt.Traceback.render_summary, patched_render_debugger_html)
+        except (ImportError, AttributeError):
             log.debug("Failed to patch Traceback.render_summary, not supported by this werkzeug version")
 
     bp_hooks = [
@@ -256,7 +272,9 @@ def patch():
         bp_hooks.append("before_app_first_request")
 
     for hook in bp_hooks:
-        _w("flask", "Blueprint.{}".format(hook), patched_flask_hook)
+        fn = getattr(flask.Blueprint, hook)
+        if not _dd_is_wrapped(fn):
+            _dd_wrap(fn, patched_flask_hook)
 
     if config.flask["trace_signals"]:
         signals = [
@@ -296,54 +314,17 @@ def unpatch():
         return
     flask._datadog_patch = False
 
+    # Signals stay on wrapt: `receivers_for` is patched per-Signal-*instance*, and bytecode
+    # wrap() mutates the underlying bound method's shared __code__, which would instrument
+    # every blinker Signal in the process, not just Flask's.
     props = [
-        # Flask
-        "Flask.wsgi_app",
-        "Flask.dispatch_request",
-        "Flask.add_url_rule",
-        "Flask.endpoint",
-        "Flask.preprocess_request",
-        "Flask.process_response",
-        "Flask.handle_exception",
-        "Flask.handle_http_exception",
-        "Flask.handle_user_exception",
-        "Flask.do_teardown_request",
-        "Flask.do_teardown_appcontext",
-        "Flask.send_static_file",
-        # Flask Hooks
-        "Flask.before_request",
-        "Flask.after_request",
-        "Flask.teardown_request",
-        "Flask.teardown_appcontext",
-        # Blueprint Hooks
-        "Blueprint.after_app_request",
-        "Blueprint.after_request",
-        "Blueprint.before_app_request",
-        "Blueprint.before_request",
-        "Blueprint.teardown_request",
-        "Blueprint.teardown_app_request",
-        # Signals
         "template_rendered.receivers_for",
         "request_started.receivers_for",
         "request_finished.receivers_for",
         "request_tearing_down.receivers_for",
         "got_request_exception.receivers_for",
         "appcontext_tearing_down.receivers_for",
-        # Top level props
-        "after_this_request",
-        "send_file",
-        "jsonify",
-        "render_template",
-        "render_template_string",
-        "templating._render",
     ]
-
-    props.append("Flask.finalize_request")
-
-    if flask_version >= (2, 0, 0):
-        props.append("Flask.register_error_handler")
-    else:
-        props.append("Flask._register_error_handler")
 
     # These were added in 0.11.0
     if flask_version >= (0, 11):
@@ -355,21 +336,71 @@ def unpatch():
         props.append("appcontext_popped.receivers_for")
         props.append("message_flashed.receivers_for")
 
-    # These were removed in 2.2.0
-    if flask_version < (2, 2, 0):
-        props.append("Flask.try_trigger_before_first_request_functions")
-
-    # These were removed in 2.3.0
-    if flask_version < (2, 3, 0):
-        props.append("Flask.before_first_request")
-        props.append("Blueprint.before_app_first_request")
-
     try:
         import werkzeug.middleware.dispatcher as _wmd
 
-        _u(_wmd.DispatcherMiddleware, "__init__")
+        _dd_unwrap(_wmd.DispatcherMiddleware.__init__, patched_dispatcher_middleware_init)
     except (ImportError, AttributeError):
         pass
+
+    _dd_unwrap(flask.Flask.wsgi_app, patched_wsgi_app)
+    _dd_unwrap(flask.Flask.dispatch_request, _patched_dispatch_request)
+    _dd_unwrap(flask.Flask.preprocess_request, _patched_preprocess_request)
+    _dd_unwrap(flask.Flask.add_url_rule, patched_add_url_rule)
+    _dd_unwrap(flask.Flask.endpoint, patched_endpoint)
+    _dd_unwrap(flask.Flask.finalize_request, patched_finalize_request)
+
+    if flask_version >= (2, 0, 0):
+        _dd_unwrap(flask.Flask.register_error_handler, patched_register_error_handler)
+    else:
+        _dd_unwrap(flask.Flask._register_error_handler, patched__register_error_handler)
+
+    flask_hooks = [
+        "before_request",
+        "after_request",
+        "teardown_request",
+        "teardown_appcontext",
+    ]
+    if flask_version < (2, 3, 0):
+        flask_hooks.append("before_first_request")
+    for hook in flask_hooks:
+        _dd_unwrap(getattr(flask.Flask, hook), patched_flask_hook)
+    _dd_unwrap(flask.after_this_request, patched_after_this_request)
+
+    flask_app_traces = list(_ALL_FLASK_APP_TRACE_NAMES)
+    if flask_version >= (2, 2, 0):
+        flask_app_traces.remove("try_trigger_before_first_request_functions")
+    for name in flask_app_traces:
+        _dd_unwrap(getattr(flask.Flask, name), _flask_app_trace_wrappers[name])
+
+    _dd_unwrap(flask.send_file, patched_send_file)
+    _dd_unwrap(flask.jsonify, patched_jsonify)
+    _dd_unwrap(flask.templating._render, patched_render)
+    _dd_unwrap(flask.render_template, _patched_render_template)
+    _dd_unwrap(flask.render_template_string, _patched_render_template_string)
+
+    try:
+        import werkzeug.debug.tbtools as _wdt
+
+        if werkzeug_version >= (2, 1, 0):
+            _dd_unwrap(_wdt.DebugTraceback.render_debugger_html, patched_render_debugger_html)
+        else:
+            _dd_unwrap(_wdt.Traceback.render_summary, patched_render_debugger_html)
+    except (ImportError, AttributeError):
+        pass
+
+    bp_hooks = [
+        "after_app_request",
+        "after_request",
+        "before_app_request",
+        "before_request",
+        "teardown_request",
+        "teardown_app_request",
+    ]
+    if flask_version < (2, 3, 0):
+        bp_hooks.append("before_app_first_request")
+    for hook in bp_hooks:
+        _dd_unwrap(getattr(flask.Blueprint, hook), patched_flask_hook)
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
@@ -388,13 +419,15 @@ def unpatch():
         _u(obj, prop)
 
 
-def patched_wsgi_app(wrapped, instance, args, kwargs):
-    environ, start_response = args
+def patched_wsgi_app(wrapped, args, kwargs):
+    instance, environ, start_response = args
     # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
-    middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask)
+    # `wrapped` is the unbound original function; bind it to `instance` since
+    # _FlaskWSGIMiddleware calls its app as `app(environ, start_response)`.
+    middleware = _FlaskWSGIMiddleware(wrapped.__get__(instance), None, config.flask)
     return middleware(environ, start_response)
 
 
@@ -464,8 +497,9 @@ def _collect_routes_once(app, script_name=""):
         log.debug("Failed to collect Flask routes for endpoint collection", exc_info=True)
 
 
-def patched_dispatcher_middleware_init(wrapped, instance, args, kwargs):
+def patched_dispatcher_middleware_init(wrapped, args, kwargs):
     """Walk DM mounts eagerly at construction so sub-apps that never receive traffic still reach discovery."""
+    instance = args[0]
     wrapped(*args, **kwargs)
     if not asm_config._api_security_endpoint_collection:
         return
@@ -479,7 +513,7 @@ def patched_dispatcher_middleware_init(wrapped, instance, args, kwargs):
         log.debug("Failed to walk DispatcherMiddleware mounts for endpoint collection", exc_info=True)
 
 
-def patched_finalize_request(wrapped, instance, args, kwargs):
+def patched_finalize_request(wrapped, args, kwargs):
     """
     Wrapper for flask.app.Flask.finalize_request
     """
@@ -489,14 +523,15 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     return rv
 
 
-def patched_render_debugger_html(wrapped, instance, args, kwargs):
+def patched_render_debugger_html(wrapped, args, kwargs):
     res = wrapped(*args, **kwargs)
     core.dispatch("werkzeug.render_debugger_html", (res,))
     return res
 
 
-def patched_add_url_rule(wrapped, instance, args, kwargs):
+def patched_add_url_rule(wrapped, args, kwargs):
     """Wrap views and re-walk under each known SCRIPT_NAME so late-registered routes reach endpoint discovery."""
+    instance, rest = args[0], args[1:]
 
     def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
         wrapped_view = None
@@ -506,6 +541,7 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
         result = wrapped(
+            instance,
             rule,
             endpoint=endpoint,
             view_func=wrapped_view,
@@ -522,23 +558,32 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
                     _collect_flask_routes(instance, script_name)
         return result
 
-    return _wrap(*args, **kwargs)
+    return _wrap(*rest, **kwargs)
 
 
-def patched_endpoint(wrapped, instance, args, kwargs):
+def patched_endpoint(wrapped, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
-    endpoint = kwargs.get("endpoint", args[0])
+    instance, rest = args[0], args[1:]
+    endpoint = kwargs.get("endpoint", rest[0])
 
     def _wrapper(func):
         core.dispatch("service_entrypoint.patch", (unwrap(func),))
-        return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
+        return wrapped(instance, endpoint)(wrap_function(instance, func, resource=endpoint))
 
     return _wrapper
 
 
-def patched_flask_hook(wrapped, instance, args, kwargs):
+def patched_flask_hook(wrapped, args, kwargs):
+    """Wrapper for Flask.<hook>/Blueprint.<hook> class methods (bound call: args[0] is self)."""
+    instance, rest = args[0], args[1:]
+    func = get_argument_value(rest, kwargs, 0, "f")
+    return wrapped(instance, wrap_function(instance, func))
+
+
+def patched_after_this_request(wrapped, args, kwargs):
+    """Wrapper for the standalone `flask.after_this_request` function (no bound instance)."""
     func = get_argument_value(args, kwargs, 0, "f")
-    return wrapped(wrap_function(instance, func))
+    return wrapped(wrap_function(None, func))
 
 
 def traced_render_template(wrapped, instance, args, kwargs):
@@ -552,7 +597,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
 def _build_render_template_wrapper(name):
     name = "flask.%s" % name
 
-    def traced_render(wrapped, instance, args, kwargs):
+    def traced_render(wrapped, args, kwargs):
         if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
         with (
@@ -571,7 +616,13 @@ def _build_render_template_wrapper(name):
     return traced_render
 
 
-def patched_render(wrapped, instance, args, kwargs):
+# Built once so patch()/unpatch() always refer to the same wrapper object (bytecode
+# unwrap() matches by identity, unlike wrapt's name-based attribute restore).
+_patched_render_template = _build_render_template_wrapper("render_template")
+_patched_render_template_string = _build_render_template_wrapper("render_template_string")
+
+
+def patched_render(wrapped, args, kwargs):
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
@@ -585,33 +636,42 @@ def patched_render(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def patched__register_error_handler(wrapped, instance, args, kwargs):
+def patched__register_error_handler(wrapped, args, kwargs):
+    instance, rest = args[0], args[1:]
+
     def _wrap(key, code_or_exception, f):
-        return wrapped(key, code_or_exception, wrap_function(instance, f))
+        return wrapped(instance, key, code_or_exception, wrap_function(instance, f))
 
-    return _wrap(*args, **kwargs)
+    return _wrap(*rest, **kwargs)
 
 
-def patched_register_error_handler(wrapped, instance, args, kwargs):
+def patched_register_error_handler(wrapped, args, kwargs):
+    instance, rest = args[0], args[1:]
+
     def _wrap(code_or_exception, f):
-        return wrapped(code_or_exception, wrap_function(instance, f))
+        return wrapped(instance, code_or_exception, wrap_function(instance, f))
 
-    return _wrap(*args, **kwargs)
+    return _wrap(*rest, **kwargs)
 
 
 def request_patcher(name):
+    # PERF: span name is constant per wrapper; build it once at patch time.
+    span_name = ".".join(("flask", name))
+
     @with_tracing_enabled
-    def _patched_request(wrapped, instance, args, kwargs):
+    def _patched_request(wrapped, args, kwargs):
+        # PERF: config.flask is resolved via Config.__getattr__; bind the singleton once.
+        flask_config = config.flask
         with (
             core.context_with_data(
                 "flask._patched_request",
-                span_name=".".join(("flask", name)),
-                service=trace_utils.int_service(None, config.flask),
-                flask_config=config.flask,
+                span_name=span_name,
+                service=trace_utils.int_service(None, flask_config),
+                flask_config=flask_config,
                 flask_request=flask.request,
                 ignored_exception_type=NotFound,
-                tags={COMPONENT: config.flask.integration_name},
-                integration_config=config.flask,
+                tags={COMPONENT: flask_config.integration_name},
+                integration_config=flask_config,
             ) as ctx,
             ctx.span,
         ):
@@ -619,6 +679,25 @@ def request_patcher(name):
             return wrapped(*args, **kwargs)
 
     return _patched_request
+
+
+# Built once so patch()/unpatch() always refer to the same wrapper object (bytecode
+# unwrap() matches by identity, unlike wrapt's name-based attribute restore).
+_patched_dispatch_request = request_patcher("dispatch_request")
+_patched_preprocess_request = request_patcher("preprocess_request")
+
+# Same identity requirement for the per-method span-only wrappers.
+_ALL_FLASK_APP_TRACE_NAMES = (
+    "process_response",
+    "handle_exception",
+    "handle_http_exception",
+    "handle_user_exception",
+    "do_teardown_request",
+    "do_teardown_appcontext",
+    "send_static_file",
+    "try_trigger_before_first_request_functions",
+)
+_flask_app_trace_wrappers = {name: simple_call_wrapper("flask.{}".format(name)) for name in _ALL_FLASK_APP_TRACE_NAMES}
 
 
 def patched_signal_receivers_for(signal):
@@ -634,7 +713,13 @@ def patched_signal_receivers_for(signal):
     return outer
 
 
-def patched_jsonify(wrapped, instance, args, kwargs):
+def patched_send_file(wrapped, args, kwargs):
+    if not is_tracing_enabled():
+        return wrapped(*args, **kwargs)
+    return _wrap_call(wrapped, "flask.send_file", args=args, kwargs=kwargs)
+
+
+def patched_jsonify(wrapped, args, kwargs):
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 

@@ -22,9 +22,13 @@ class AttrDict(dict):
 
     def __getattr__(self, key):
         # type: (str) -> Any
-        if key in self:
+        # PERF: single dict lookup on the hit path (EAFP) instead of `in` + subscript.
+        # __getattr__ only runs after normal attribute lookup already missed, so the
+        # KeyError branch re-raises AttributeError exactly as before for absent keys.
+        try:
             return self[key]
-        return object.__getattribute__(self, key)
+        except KeyError:
+            return object.__getattribute__(self, key)
 
     def __setattr__(self, key, value):
         # type: (str, Any) -> None

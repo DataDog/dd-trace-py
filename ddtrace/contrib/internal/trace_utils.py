@@ -345,21 +345,28 @@ def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
+    # PERF: dict.get is a single C-level lookup; the previous `"k" in cfg and cfg.k`
+    # form did a __contains__ plus a Python-level AttrDict.__getattr__ frame (which
+    # re-checks membership). Present-but-None keys behave identically under both.
+    service = int_config.get("service")
+    if service is not None:
+        return cast(str, service)
+    service_name = int_config.get("service_name")
+    if service_name is not None:
+        return cast(str, service_name)
 
-    global_service = int_config.global_config._get_service()
+    global_config = int_config.global_config
+    global_service = global_config._get_service()
     # We check if global_service != _inferred_base_service since global service (config.service)
     # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
     # use the inferred base service value, and instead use the integration default service. If we
     # didn't do this, we would have a massive breaking change from adding inferred_base_service.
-    if global_service and global_service != int_config.global_config._inferred_base_service:
+    if global_service and global_service != global_config._inferred_base_service:
         return cast(str, global_service)
 
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
+    default_service = int_config.get("_default_service")
+    if default_service is not None:
+        return cast(str, default_service)
 
     if default is None and global_service:
         return cast(str, global_service)
@@ -375,16 +382,22 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     if pin is not None and pin.service:
         return pin.service
 
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
+    service = int_config.get("service")
+    if service is not None:
+        return cast(str, service)
+    service_name = int_config.get("service_name")
+    if service_name is not None:
+        return cast(str, service_name)
 
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
+    default_service = int_config.get("_default_service")
+    if default_service is not None:
+        return cast(str, default_service)
 
     # A default is required since it's an external service.
     return default
+
+
+_MISSING_SERVICE_SOURCE = object()
 
 
 def set_service_and_source(
@@ -402,15 +415,15 @@ def set_service_and_source(
         service_source = "opt.split_by_domain"
     # NB "not service" here makes svc_src make sense in cases of service inheritance
     elif not service or service == int_config.get(default_service_key):
-        service_source = getattr(
-            int_config,
-            "integration_name",
-            int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
-        )
+        # PERF: compute the fallback lazily; on the common path integration_name is a
+        # real attribute so the getattr default is never needed.
+        service_source = getattr(int_config, "integration_name", _MISSING_SERVICE_SOURCE)
+        if service_source is _MISSING_SERVICE_SOURCE:
+            service_source = int_config.get("integration_name", "") if hasattr(int_config, "get") else ""
     else:
         service_source = "m"
     if service_source:
-        span.set_tag(_SERVICE_SOURCE, service_source)
+        span._set_attribute(_SERVICE_SOURCE, service_source)
     if service:
         span.service = service
 

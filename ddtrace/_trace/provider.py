@@ -1,6 +1,7 @@
 import abc
 import contextvars
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -64,50 +65,44 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         return self.active()
 
 
-class DefaultContextProvider(BaseContextProvider):
+if TYPE_CHECKING:
+    # At runtime `DefaultContextProvider` derives from the native base and is made a
+    # `BaseContextProvider` via `BaseContextProvider.register(...)` below — a virtual-subclass
+    # registration that type-checkers cannot see. Present the native base as a concrete
+    # `BaseContextProvider` for type-checkers so `DefaultContextProvider` (and subclasses such as
+    # the ci_visibility `CIContextProvider`) satisfy `context_provider: BaseContextProvider`.
+    class _NativeDefaultContextProvider(BaseContextProvider):
+        def _configure(self, contextvar: Any, span_type: Any) -> None: ...
+        def _has_active_context(self) -> bool: ...
+        def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+        def active(self) -> Optional[ActiveTrace]: ...
+        def _update_active(self, span: Span) -> Optional[ActiveTrace]: ...
+
+else:
+    from ddtrace.internal.native._native import DefaultContextProvider as _NativeDefaultContextProvider  # noqa: E402
+
+
+class DefaultContextProvider(_NativeDefaultContextProvider):
     """Context provider that retrieves contexts from a context variable.
 
     It is suitable for synchronous programming and for asynchronous executors
     that support contextvars.
+
+    PERF: the entire provider hot path — ``active()``/``_has_active_context()``/
+    ``activate()``/``_update_active()``/``__call__`` — is implemented natively (see
+    ``src/native/context_provider.rs``), so per-span activation/read carries no Python
+    frame. This Python subclass only wires the shared contextvar + Span type into the
+    native base and keeps ``DefaultContextProvider`` a registered ``BaseContextProvider``.
     """
 
     def __init__(self) -> None:
-        super(DefaultContextProvider, self).__init__()
+        # The native base constructs via __new__ (no args here); hand it the shared
+        # contextvar + the Span type it needs for its exact-type check. Mirrors the
+        # previous pure-Python behaviour exactly.
+        self._configure(_DD_CONTEXTVAR, Span)
 
-    def _has_active_context(self) -> bool:
-        """Returns whether there is an active context in the current execution."""
-        ctx = _DD_CONTEXTVAR.get()
-        return ctx is not None
 
-    def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        """Makes the given context active in the current execution."""
-        _activate_contextvar(ctx)
-        super(DefaultContextProvider, self).activate(ctx)
-
-    def active(self) -> Optional[ActiveTrace]:
-        """Returns the active span or context for the current execution."""
-        item = _DD_CONTEXTVAR.get()
-
-        # PERF: type(item) is Span is about the same perf as isinstance(item, Span)
-        #       when item is a Span, but slower when item is a Context
-        if type(item) is Span:
-            return self._update_active(item)
-        return item
-
-    def _update_active(self, span: Span) -> Optional[ActiveTrace]:
-        """Updates the active trace in an executor.
-
-        When a span finishes, the active span becomes its parent.
-        If no parent exists and the context is reactivatable, that context is restored.
-        """
-        new_active: Optional[Span] = span
-        # PERF: Avoid checking if the span is finished more than once per span.
-        # PERF: By-pass Span.finished which is a computed property to avoid the function call overhead
-        while new_active and new_active.duration_ns is not None:
-            if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
-                self.activate(new_active._parent_context)
-                return new_active._parent_context
-            new_active = new_active._parent
-        if new_active is not span:
-            self.activate(new_active)
-        return new_active
+# DefaultContextProvider now derives from the native base rather than BaseContextProvider
+# (avoids a metaclass conflict between PyO3's type and ABCMeta). Register it as a virtual
+# subclass so `isinstance(provider, BaseContextProvider)` / `issubclass` still hold.
+BaseContextProvider.register(DefaultContextProvider)

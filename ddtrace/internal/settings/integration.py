@@ -100,11 +100,10 @@ class IntegrationConfig(AttrDict):
             return self.global_config._header_tag_name(header_name)
         return tag_name
 
-    def __getattr__(self, key):
-        return super().__getattr__(key)
-
-    def __setattr__(self, key, value):
-        return super().__setattr__(key, value)
+    # NB: __getattr__/__setattr__ are intentionally not overridden here. They were
+    # pure pass-throughs to AttrDict, adding a Python frame to every attribute access
+    # on the hot request path. Inheriting AttrDict's implementations directly is
+    # behavior-identical and avoids that per-access overhead.
 
     def get_analytics_sample_rate(self, use_global_config=False):
         return 1
