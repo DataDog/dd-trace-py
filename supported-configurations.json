@@ -623,6 +623,13 @@
         "default": "true"
       }
     ],
+    "DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_BOTOCORE_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",

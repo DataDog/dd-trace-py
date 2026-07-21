@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 import json
 import sys
 from typing import Any
@@ -11,7 +12,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import begin_resolve
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_resolve_failure
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
@@ -24,6 +28,12 @@ from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
 log = get_logger(__name__)
+
+# Set while resolving an application-inference-profile ARN via bedrock:GetInferenceProfile
+# so the botocore patch skips tracing that internal control-plane call (no APM/LLM span).
+_resolve_inference_profile_in_progress: ContextVar[bool] = ContextVar(
+    "_dd_bedrock_resolve_inference_profile_in_progress", default=False
+)
 
 
 def traced_stream_read(traced_stream, original_read, amt=None):
@@ -445,31 +455,146 @@ def handle_bedrock_response(
     return result
 
 
-def _resolve_application_inference_profile(model_id, model_provider, model_name):
-    """If model_id is an application-inference-profile ARN whose base model is known
-    (cached by the langchain integration), return the resolved
-    (model_id, model_provider, model_name) where model_id is now the base model
-    id string instead of the opaque ARN. Otherwise return the inputs unchanged.
+def _region_from_arn(arn):
+    # arn:aws:bedrock:<region>:<account>:application-inference-profile/<id>
+    parts = arn.split(":")
+    return parts[3] if len(parts) > 4 and parts[3] else None
+
+
+def _foundation_model_id_from_profile(response):
+    """Return the model id backing this application inference profile, or None."""
+    models = response.get("models") or []
+    if not models:
+        return None
+    model_arn = models[0].get("modelArn") or ""
+    return model_arn.rsplit("/", 1)[-1] or None
+
+
+def _frozen_credentials(instance):
+    """Snapshot the runtime client's credentials to reuse on the control-plane client.
+    No public API exposes them, so fall through the private paths; None if absent.
+    """
+    get_credentials = getattr(instance, "_get_credentials", None)
+    credentials = get_credentials() if callable(get_credentials) else None
+    if credentials is None:
+        credentials = getattr(getattr(instance, "_request_signer", None), "_credentials", None)
+    return credentials.get_frozen_credentials() if credentials is not None else None
+
+
+def _fetch_inference_profile_base_model(instance, profile_arn):
+    """Resolve `profile_arn` to its base foundation-model id via ``bedrock:GetInferenceProfile``,
+    reusing the runtime client's credentials and region, and cache it. Returns the id or None.
+
+    Never raises into the caller: any failure backs the ARN off (retried later, never
+    permanently) and is logged. Even credential lookup, which can trigger a signer/SSO
+    refresh, runs in the guard.
+    """
+    try:
+        import botocore.config
+        import botocore.session
+
+        frozen = _frozen_credentials(instance)
+        if frozen is None:
+            _note_resolve_failure(profile_arn, "no credentials on the client")
+            return None
+        # Bound this hidden call so a slow/hung GetInferenceProfile can't stall the caller's
+        # request. No in-call retries: a failure backs off and a future request retries.
+        resolve_config = botocore.config.Config(connect_timeout=2, read_timeout=3, retries={"total_max_attempts": 1})
+        base_config = getattr(instance, "_client_config", None)
+        client_config = base_config.merge(resolve_config) if base_config is not None else resolve_config
+        client = botocore.session.get_session().create_client(
+            "bedrock",
+            region_name=_region_from_arn(profile_arn) or instance.meta.region_name,
+            aws_access_key_id=frozen.access_key,
+            aws_secret_access_key=frozen.secret_key,
+            aws_session_token=frozen.token,
+            config=client_config,
+        )
+        token = _resolve_inference_profile_in_progress.set(True)
+        try:
+            response = client.get_inference_profile(inferenceProfileIdentifier=profile_arn)
+        finally:
+            _resolve_inference_profile_in_progress.reset(token)
+        base_model_id = _foundation_model_id_from_profile(response)
+    except Exception:
+        _note_resolve_failure(profile_arn, "GetInferenceProfile call failed", exc_info=True)
+        return None
+
+    if not base_model_id:
+        _note_resolve_failure(profile_arn, "no underlying foundation model in the profile")
+        return None
+    record_inference_profile(profile_arn, base_model_id)
+    return base_model_id
+
+
+def _note_resolve_failure(profile_arn, reason, exc_info=False) -> None:
+    """Back off the profile after a failed resolution (retried later, never permanently) and
+    log it: warn on the first failure, debug on repeats so a persistently unresolvable profile
+    doesn't spam warnings.
+    """
+    delay, count = record_resolve_failure(profile_arn)
+    if count <= 1:
+        log.warning(
+            "Bedrock inference profile %s could not be resolved (%s); skipping future resolution attempts for ~%ds",
+            profile_arn,
+            reason,
+            int(delay),
+            exc_info=exc_info,
+        )
+    else:
+        log.debug(
+            "Bedrock inference profile %s still unresolved (%s, attempt %d); "
+            "skipping future resolution attempts for ~%ds",
+            profile_arn,
+            reason,
+            count,
+            int(delay),
+        )
+
+
+def _resolve_application_inference_profile(model_id, model_provider, model_name, instance=None, llmobs_enabled=False):
+    """If model_id is an application-inference-profile ARN whose base model can be
+    resolved, return (model_id, model_provider, model_name) with model_id replaced by
+    the base model id instead of the opaque ARN. Otherwise return the inputs unchanged.
+
+    The base model is taken from the cache (populated by the langchain integration) or,
+    when ``DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE`` is enabled and LLM Obs is
+    enabled for this call, resolved with an extra ``bedrock:GetInferenceProfile`` call
+    and cached. The extra call is skipped for APM-only usage since it only benefits
+    LLM Obs cost data - a cache hit still applies either way.
 
     Overriding model_id matters because the LLM Obs annotator reads
     ``ctx.get_item("model_id")`` first and only falls back to ``model_name``.
     """
     if not isinstance(model_id, str) or "application-inference-profile/" not in model_id:
         return model_id, model_provider, model_name
-    cached_base_model_id = lookup_inference_profile(model_id)
-    if not cached_base_model_id:
+    base_model_id = lookup_inference_profile(model_id)
+    if (
+        not base_model_id
+        and instance is not None
+        and llmobs_enabled
+        and config.botocore["bedrock_resolve_inference_profile"]
+    ):
+        # Single-flight + backoff gate: only one thread attempts a given ARN at a time, and
+        # only once its backoff window has elapsed. Others keep the opaque id for this call.
+        with begin_resolve(model_id) as claimed:
+            if claimed:
+                base_model_id = _fetch_inference_profile_base_model(instance, model_id)
+    if not base_model_id:
         return model_id, model_provider, model_name
-    new_provider, new_name = parse_model_id(cached_base_model_id)
-    return cached_base_model_id, new_provider, new_name
+    new_provider, new_name = parse_model_id(base_model_id)
+    return base_model_id, new_provider, new_name
 
 
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
+    integration = function_vars.get("integration")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
-    model_id, model_provider, model_name = _resolve_application_inference_profile(model_id, model_provider, model_name)
-    integration = function_vars.get("integration")
+    model_id, model_provider, model_name = _resolve_application_inference_profile(
+        model_id, model_provider, model_name, instance, llmobs_enabled=integration.llmobs_enabled
+    )
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
