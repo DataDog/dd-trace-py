@@ -429,10 +429,10 @@ class SpanAggregator(SpanProcessor):
             except Exception:
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
-        dropped = len(finished) - len(spans)
-        if dropped > 0:
+        num_dropped = len(finished) - len(spans)
+        if num_dropped > 0:
             with self._lock:
-                self._span_metrics["spans_dropped"]["tp_drop"] += dropped
+                self._span_metrics["spans_dropped"]["tp_drop"] += num_dropped
                 self._queue_span_count_metrics("spans_dropped", "reason")
 
         if spans:
@@ -445,7 +445,7 @@ class SpanAggregator(SpanProcessor):
                 self.SPAN_FINISH_DEBUG_MESSAGE,
                 len(spans),
                 num_buffered,
-                num_finished - len(spans),
+                num_dropped,
                 num_buffered - num_finished,
                 spans[0].trace_id,
                 spans[0].name,
