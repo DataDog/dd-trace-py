@@ -1,3 +1,4 @@
+import abc
 import contextvars
 from enum import Enum
 from typing import Any
@@ -644,6 +645,8 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    _parent: Optional[Any]  # parent Span, or None for a root span
+    _parent_context: Optional[Any]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
@@ -978,3 +981,40 @@ class HttpIoError(HttpClientError):
     """
 
 def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
+
+DD_CONTEXTVAR: contextvars.ContextVar[Any]
+
+class BaseContextProvider(abc.ABC):
+    """A ``ContextProvider`` is an interface that provides the blueprint
+    for a callable class, capable to retrieve the current active
+    ``Context`` instance. Context providers must inherit this class
+    and implement:
+    * the ``active`` method, that returns the current active ``Context``
+    * the ``activate`` method, that sets the current active ``Context``
+
+    NOTE: at runtime this is a plain pyclass, not an ``abc.ABCMeta`` type --
+    direct instantiation still raises (via a ``__new__`` that always errors),
+    but incomplete subclasses aren't rejected at class-definition time, only
+    when the unimplemented ``_has_active_context``/``active`` are called.
+    Declared as ``abc.ABC`` here so type checkers keep flagging both cases the
+    same as they did before this class moved to Rust.
+    """
+
+    @abc.abstractmethod
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[Any] = None) -> None: ...
+    @abc.abstractmethod
+    def active(self) -> Optional[Any]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[Any]: ...
+
+class DefaultContextProvider(BaseContextProvider):
+    """Context provider that retrieves contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
+    """
+
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[Any] = None) -> None: ...
+    def active(self) -> Optional[Any]: ...
+    def _update_active(self, span: Any) -> Optional[Any]: ...
