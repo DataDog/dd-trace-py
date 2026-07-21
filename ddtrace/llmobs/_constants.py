@@ -164,6 +164,7 @@ DEFAULT_PROJECT_NAME = "default-project"
 
 # Fallback markers for prompt tracking when OpenAI strips values
 IMAGE_FALLBACK_MARKER = "[image]"
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
 

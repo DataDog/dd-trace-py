@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
@@ -379,6 +380,23 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
+# AIDEV-NOTE: An inline image's base64 counts toward the per-event size limit
+# (``config._llmobs_event_size_limit``, 5 MB). If one oversized image is inlined, the writer drops the
+# WHOLE span input+output (see the ``ImagePart`` note in types.py and ``_writer._truncate_span_event``)
+# -- losing the text and the model's response too. There is no client-side attachment offload yet, so
+# as a stopgap we skip capturing an image whose base64 alone would eat most of the budget and keep the
+# text marker instead. ~4.5 MB leaves headroom for text/output under the 5 MB cap. The real fix is
+# client-side offload / image-aware truncation (tracked as follow-ups).
+_MAX_INLINE_IMAGE_B64_BYTES = 4_500_000
+
+
+def _image_within_inline_budget(data: Union[bytes, str]) -> bool:
+    """Whether a base64 image is small enough to inline without risking the per-event size drop."""
+    # ``len(base64_str)`` approximates its serialized byte cost; raw bytes expand ~4/3 when encoded.
+    size = len(data) if isinstance(data, str) else (len(data) * 4) // 3
+    return size <= _MAX_INLINE_IMAGE_B64_BYTES
+
+
 # OpenAI audio ``format`` values that don't map to ``audio/<format>``.
 _OPENAI_AUDIO_MIME_TYPES = {
     "mp3": "audio/mpeg",
@@ -422,12 +440,20 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[Imag
             image_url = _get_attr(part, "image_url", {}) or {}
             parsed = _parse_base64_image_data_url(_get_attr(image_url, "url", "") or "")
             if parsed is not None:
-                # An inline image is captured as a structured image_part, so no text marker is needed.
-                # Only fall back to "[image]" when there's no inline image to capture (e.g. an http(s)
-                # URL or file_id reference we do not fetch).
                 mime_type, encoded = parsed
-                image_parts.append(format_image_part(encoded, mime_type))
+                if _image_within_inline_budget(encoded):
+                    # An inline image is captured as a structured image_part, so no text marker is
+                    # needed.
+                    image_parts.append(format_image_part(encoded, mime_type))
+                else:
+                    # Too large to inline safely: keep a distinct, searchable marker so the text and
+                    # the rest of the span survive the per-event size limit (see
+                    # _MAX_INLINE_IMAGE_B64_BYTES), and the omission is diagnosable rather than looking
+                    # like a normal captured image.
+                    extracted.append(IMAGE_TOO_LARGE_MARKER)
             else:
+                # No inline image to capture (e.g. an http(s) URL or file_id reference we do not
+                # fetch -- capture is bytes-only): fall back to the "[image]" marker.
                 extracted.append(IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
             input_audio = _get_attr(part, "input_audio", {}) or {}

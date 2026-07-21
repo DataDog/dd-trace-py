@@ -2,8 +2,10 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.utils import _MAX_INLINE_IMAGE_B64_BYTES
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
+from ddtrace.llmobs._integrations.utils import _image_within_inline_budget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _parse_base64_image_data_url
@@ -116,6 +118,27 @@ def test_extract_content_parts_image_marker_fallback_for_url():
         ]
     )
     assert text == "hello\n[image]"
+    assert image_parts == []
+    assert audio_parts == []
+
+
+def test_image_within_inline_budget():
+    """The size guard passes small base64 images and rejects ones that would risk the per-event drop."""
+    assert _image_within_inline_budget("A" * 1000) is True
+    assert _image_within_inline_budget("A" * (_MAX_INLINE_IMAGE_B64_BYTES + 1)) is False
+    assert _image_within_inline_budget(b"\x00" * (5 * 1024 * 1024)) is False  # 5MB raw -> ~6.7MB base64
+
+
+def test_extract_content_parts_image_marker_fallback_when_oversized():
+    """An inline image too large to inline safely keeps a distinct oversized marker, not an ImagePart."""
+    oversized = "data:image/png;base64," + ("A" * (_MAX_INLINE_IMAGE_B64_BYTES + 10))
+    text, audio_parts, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "image_url": {"url": oversized}},
+        ]
+    )
+    assert text == "hello\n[image omitted: too large]"
     assert image_parts == []
     assert audio_parts == []
 

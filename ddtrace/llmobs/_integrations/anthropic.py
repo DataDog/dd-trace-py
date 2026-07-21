@@ -8,6 +8,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -15,6 +16,7 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import _image_within_inline_budget
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -52,6 +54,10 @@ def _extract_anthropic_image_part(block: Any) -> Optional[ImagePart]:
     # Require media_type: unlike audio (which defaults to audio/wav) an image has no sensible default
     # mime, and an image_part without a mime type cannot be rendered.
     if not data or not media_type or not isinstance(data, (str, bytes)):
+        return None
+    if not _image_within_inline_budget(data):
+        # Too large to inline safely: return None so the caller keeps the ([IMAGE DETECTED]) marker
+        # and the message's text survives the per-event size limit (see _MAX_INLINE_IMAGE_B64_BYTES).
         return None
     return format_image_part(data, str(media_type))
 
@@ -173,8 +179,18 @@ class AnthropicIntegration(BaseLLMIntegration):
                             image_message["image_parts"] = [image_part]
                             input_messages.append(image_message)
                         else:
-                            # A non-base64 image source (e.g. a URL) we do not fetch (capture is bytes-only).
-                            input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                            # image_part is None for a non-base64 source (e.g. a URL we do not fetch --
+                            # capture is bytes-only), a non-inline source (e.g. a file Path), OR an inline
+                            # base64 image too large to keep. Only the last is "oversized": give it a
+                            # distinct, searchable marker so the omission is diagnosable; everything else
+                            # keeps ([IMAGE DETECTED]). Mirror _extract_anthropic_image_part's isinstance
+                            # guard so a non-str/bytes source (Path) never reaches the size helper.
+                            source = _get_attr(block, "source", {}) or {}
+                            data = _get_attr(source, "data", "")
+                            if isinstance(data, (str, bytes)) and data and not _image_within_inline_budget(data):
+                                input_messages.append(Message(content=IMAGE_TOO_LARGE_MARKER, role=str(role)))
+                            else:
+                                input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
 
                     elif content_type == "thinking":
                         thinking_text = _get_attr(block, "thinking", "")

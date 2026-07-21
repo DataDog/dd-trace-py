@@ -774,6 +774,40 @@ class TestLLMObsAnthropic:
         # Missing media_type -> None (images have no sensible default mime, unlike audio).
         no_mime = {"type": "image", "source": {"type": "base64", "data": "iVBORw0KGgo="}}
         assert _extract_anthropic_image_part(no_mime) is None
+        # Oversized inline image -> None (kept as the marker so the message text survives the 5MB cap).
+        oversized = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "A" * 4_600_000}}
+        assert _extract_anthropic_image_part(oversized) is None
+
+    def test_extract_input_message_image_markers_unit(self):
+        """Input-message builder dispatches image blocks: captured base64 -> image_parts; oversized base64
+        -> a distinct '[image omitted: too large]' marker; Path/URL sources -> '([IMAGE DETECTED])'.
+        """
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(mock.MagicMock())
+
+        def _img_msg(source):
+            return {"role": "user", "content": [{"type": "image", "source": source}]}
+
+        # Captured inline base64 -> ImagePart on the message, empty text, no marker.
+        b64 = {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}
+        captured = integration._extract_input_message([_img_msg(b64)])
+        assert captured[0]["content"] == ""
+        assert captured[0]["image_parts"] == [{"mime_type": "image/png", "content": "iVBORw0KGgo="}]
+
+        # Oversized inline base64 -> distinct, searchable marker; not captured, text/output survive the cap.
+        oversized = {"type": "base64", "media_type": "image/png", "data": "A" * 4_600_000}
+        oversized_msgs = integration._extract_input_message([_img_msg(oversized)])
+        assert oversized_msgs[0]["content"] == "[image omitted: too large]"
+        assert "image_parts" not in oversized_msgs[0]
+
+        # Non-inline Path source -> generic detected marker (never reaches the size helper).
+        path_src = {"type": "base64", "media_type": "image/png", "data": Path("x.png")}
+        assert integration._extract_input_message([_img_msg(path_src)])[0]["content"] == "([IMAGE DETECTED])"
+
+        # URL source -> generic detected marker (capture is bytes-only).
+        url_src = {"type": "url", "url": "https://example.com/x.png"}
+        assert integration._extract_input_message([_img_msg(url_src)])[0]["content"] == "([IMAGE DETECTED])"
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     def test_tools_sync(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
