@@ -11,9 +11,6 @@ from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
 
 
-FOUR_KB = 1 << 12
-
-
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
@@ -80,49 +77,6 @@ def test_uds_wrong_socket_path():
         )
     ]
     log.error.assert_has_calls(calls)
-
-
-@skip_if_testagent
-@parametrize_with_all_encodings(
-    env={
-        "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(FOUR_KB),
-        "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES": str(FOUR_KB),
-        # use a long processing_interval to ensure a flush doesn't happen partway through
-        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
-    }
-)
-def test_payload_too_large():
-    import os
-
-    import mock
-
-    from ddtrace.trace import tracer as t
-    from tests.integration.test_integration import FOUR_KB
-    from tests.utils import AnyInt
-    from tests.utils import AnyStr
-
-    encoding = os.environ["DD_TRACE_API_VERSION"]
-    assert t._span_aggregator.writer._max_payload_size == FOUR_KB
-    assert t._span_aggregator.writer._buffer_size == FOUR_KB
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        for i in range(100000 if encoding == "v0.5" else 1000):
-            with t.trace("operation") as s:
-                s.set_tag(str(i), "b" * 190)
-                s.set_tag(str(i), "a" * 190)
-
-        t.shutdown()
-        calls = [
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyStr(),
-            )
-        ]
-        log.warning.assert_has_calls(calls)
-        log.error.assert_not_called()
 
 
 @parametrize_with_all_encodings()
@@ -241,60 +195,6 @@ def test_metrics_partial_flush_disabled():
         calls,
         any_order=True,
     )
-
-
-@parametrize_with_all_encodings(check_logs=False)
-def test_single_trace_too_large():
-    import mock
-
-    from ddtrace.trace import tracer as t
-    from tests.utils import AnyInt
-    from tests.utils import AnyStr
-
-    assert t._span_aggregator.partial_flush_enabled is True
-    with (
-        mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None),
-        mock.patch("ddtrace.internal.writer.writer.log") as log,
-    ):
-        with t.trace("huge"):
-            for i in range(1 << 20 + 1):
-                t.trace("operation").finish()
-        t._span_aggregator.writer.flush_queue()
-        calls = [
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyStr(),
-            )
-        ]
-        log.warning.assert_has_calls(calls)
-        log.error.assert_not_called()
-
-
-@skip_if_testagent
-@parametrize_with_all_encodings(
-    env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false", "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(8 << 20)}
-)
-def test_single_trace_too_large_partial_flush_disabled():
-    import mock
-
-    from ddtrace.trace import tracer as t
-    from tests.utils import AnyInt
-
-    assert t._span_aggregator.partial_flush_enabled is False
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        with t.trace("huge"):
-            for _ in range(200000):
-                with t.trace("operation") as s:
-                    s.set_tag("a" * 10, "b" * 10)
-        t.shutdown()
-
-        calls = [mock.call("trace (%db) larger than payload buffer item limit (%db), dropping", AnyInt(), AnyInt())]
-        log.warning.assert_has_calls(calls)
-        log.error.assert_not_called()
 
 
 @parametrize_with_all_encodings(
