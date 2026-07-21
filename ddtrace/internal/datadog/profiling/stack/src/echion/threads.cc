@@ -8,20 +8,47 @@
 #include <optional>
 #include <string_view>
 
+namespace {
+size_t
+select_frame_prefix(const FrameStack& frames, size_t start, size_t count, size_t budget, size_t& locations)
+{
+    size_t selected = 0;
+    while (selected < count) {
+        const size_t frame_locations = rendered_location_count(frames[start + selected]);
+        if (frame_locations > budget - locations) {
+            break;
+        }
+        locations += frame_locations;
+        selected++;
+    }
+    return selected;
+}
+} // namespace
+
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
-    // Asyncio stitching needs the root-side event-loop boundary and overlap
-    // metadata, so preserve Echion's existing discovery depth for task-aware
-    // stacks. Non-task thread stacks can stop at the configured reporting limit.
-    const size_t max_frames = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
-    unwind_python_stack(echion, tstate, python_stack, max_frames);
+    const size_t max_frames = echion.stack_max_frames();
+    asyncio_boundary_index.reset();
 
     if (asyncio_loop) {
+        // Materialize at most max_frames physical frames. Boundary discovery is
+        // performed within those candidates. If an on-CPU boundary lies beyond
+        // the budget, unwind_tasks conservatively reports task context alone
+        // rather than walking or stitching an unbounded physical stack.
+        unwind_python_stack(echion, tstate, python_stack, max_frames);
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            if (is_asyncio_boundary_frame(echion, python_stack[i])) {
+                asyncio_boundary_index = i;
+                break;
+            }
+        }
+
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
         (void)unwind_tasks(echion, tstate);
     } else {
+        unwind_python_stack(echion, tstate, python_stack, max_frames);
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
@@ -29,14 +56,9 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
     }
 }
 
-// ----------------------------------------------------------------------------
-Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
+bool
+ThreadInfo::is_asyncio_boundary_frame(EchionSampler& echion, const Frame& frame)
 {
-    // The size of the "pure Python" stack (before asyncio Frames).
-    // Defaults to the full Python stack size (and updated if we find the boundary frame)
-    size_t upper_python_stack_size = python_stack.size();
-
     // Check if the Python stack contains the asyncio boundary frame.
     // For regular asyncio, this is "Handle._run" from asyncio/events.py.
     // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
@@ -50,79 +72,62 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 
     auto& frame_cache_key = using_uvloop ? uvloop_frame_cache_key : asyncio_frame_cache_key;
 
-    if (!frame_cache_key) {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
-            auto maybe_frame_name = echion.string_table().lookup(frame.name);
-            if (!maybe_frame_name) {
-                continue;
-            }
-            const auto& frame_name = maybe_frame_name->get();
-
-            bool is_boundary_frame = false;
-
-            if (using_uvloop) {
-                // For uvloop, the boundary frame depends on the Python version:
-                // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
-                // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
-#if PY_VERSION_HEX >= 0x030b0000
-                constexpr std::string_view runner_run = "Runner.run";
-                is_boundary_frame = frame_name == runner_run;
-#else
-                constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
-                constexpr std::string_view run = "run";
-                auto maybe_filename = echion.string_table().lookup(frame.filename);
-                if (!maybe_filename) {
-                    continue;
-                }
-                const auto& filename = maybe_filename->get();
-                auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
-                is_boundary_frame = is_uvloop && (frame_name == run);
-#endif
-            } else {
-                // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py
-#if PY_VERSION_HEX >= 0x030b0000
-                // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
-                // can use the qualified name to identify the "_run" Frame.
-                constexpr std::string_view _run = "Handle._run";
-                is_boundary_frame = frame_name == _run;
-#else
-                // Before Python 3.11, function names in Frames are not qualified, so we
-                // can use the filename to identify the "_run" Frame.
-                constexpr std::string_view asyncio_events_py = "asyncio/events.py";
-                constexpr std::string_view _run = "_run";
-                auto maybe_filename = echion.string_table().lookup(frame.filename);
-                if (!maybe_filename) {
-                    continue;
-                }
-                const auto& filename = maybe_filename->get();
-                auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
-                                  filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
-                is_boundary_frame = is_asyncio && (frame_name.size() >= _run.size() &&
-                                                   frame_name.rfind(_run) == frame_name.size() - _run.size());
-#endif
-            }
-
-            if (is_boundary_frame) {
-                // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
-                // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and reuse it to determine
-                // whether we see the boundary Frame in the Python stack.
-                frame_cache_key = frame.cache_key;
-                upper_python_stack_size = python_stack.size() - i;
-                break;
-            }
-        }
-    } else {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
-            if (frame.cache_key == *frame_cache_key) {
-                upper_python_stack_size = python_stack.size() - i;
-                break;
-            }
-        }
+    if (frame_cache_key) {
+        return frame.cache_key == *frame_cache_key;
     }
 
+    auto maybe_frame_name = echion.string_table().lookup(frame.name);
+    if (!maybe_frame_name) {
+        return false;
+    }
+    const auto& frame_name = maybe_frame_name->get();
+
+    bool is_boundary_frame = false;
+    if (using_uvloop) {
+#if PY_VERSION_HEX >= 0x030b0000
+        constexpr std::string_view runner_run = "Runner.run";
+        is_boundary_frame = frame_name == runner_run;
+#else
+        constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
+        constexpr std::string_view run = "run";
+        auto maybe_filename = echion.string_table().lookup(frame.filename);
+        if (!maybe_filename) {
+            return false;
+        }
+        const auto& filename = maybe_filename->get();
+        auto is_uvloop = filename.size() >= uvloop_init_py.size() &&
+                         filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+        is_boundary_frame = is_uvloop && frame_name == run;
+#endif
+    } else {
+#if PY_VERSION_HEX >= 0x030b0000
+        constexpr std::string_view handle_run = "Handle._run";
+        is_boundary_frame = frame_name == handle_run;
+#else
+        constexpr std::string_view asyncio_events_py = "asyncio/events.py";
+        constexpr std::string_view run = "_run";
+        auto maybe_filename = echion.string_table().lookup(frame.filename);
+        if (!maybe_filename) {
+            return false;
+        }
+        const auto& filename = maybe_filename->get();
+        auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
+                          filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+        is_boundary_frame =
+          is_asyncio && frame_name.size() >= run.size() && frame_name.rfind(run) == frame_name.size() - run.size();
+#endif
+    }
+
+    if (is_boundary_frame) {
+        frame_cache_key = frame.cache_key;
+    }
+    return is_boundary_frame;
+}
+
+// ----------------------------------------------------------------------------
+Result<void>
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
+{
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
@@ -217,15 +222,21 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     }
 
-    // Pre-compute per-task coroutine stacks so that each task's coroutine chain is walked exactly once.
-    // Without this, a parent task's coroutine chain would be walked once for each child task that
-    // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
-    // of the parent's coroutine chain).
-    std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
+    // Pre-compute at most max_frames coroutine frames per task. Task linkage and
+    // coroutine depth remain available as metadata, but frames that cannot be
+    // reported are not materialized.
+    struct CachedTaskStack
+    {
+        FrameStack frames;
+        size_t depth = 0;
+    };
+    const size_t max_frames = echion.stack_max_frames();
+    std::unordered_map<PyObject*, CachedTaskStack> task_coro_stacks;
     for (auto& task : all_tasks) {
-        FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
-        task_coro_stacks.emplace(task->origin, std::move(task_stack));
+        CachedTaskStack cached;
+        auto result = task->unwind(echion, cached.frames, using_uvloop, max_frames);
+        cached.depth = result.depth;
+        task_coro_stacks.emplace(task->origin, std::move(cached));
     }
 
     // Make sure the on CPU task is first
@@ -242,74 +253,42 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
-        auto& stack = stack_info->stack;
+        FrameStack task_frames;
+        size_t on_cpu_task_depth = 0;
+        bool has_on_cpu_task = false;
 
-        // Safety: prevent infinite loops from cycles in task chain maps
+        // Safety: prevent infinite loops from cycles in task chain maps.
         size_t task_chain_depth = 0;
-        for (auto current_task = leaf_task;;) {
+        for (auto current_task = leaf_task; task_frames.size() < max_frames;) {
             if (++task_chain_depth > MAX_RECURSION_DEPTH) {
                 break;
             }
             auto& task = current_task.get();
 
-            // Look up the pre-computed coroutine stack for this task.
-            // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
-            // python_stack must be appended before coroutine frames.
-            // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
-            // This preserves the previous task-stack truncation behavior while avoiding front insertion.
-            const FrameStack* task_stack = nullptr;
-            size_t task_stack_size = 0;
-            size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
-                task_stack = &it->second;
-                task_stack_size = task_stack->size();
-                if (stack.size() < MAX_TASK_FRAMES) {
-                    task_frames_to_push = std::min(task_stack_size, MAX_TASK_FRAMES - stack.size());
-                }
-            }
-            if (task.is_on_cpu) {
-                // Get the "bottom" part of the Python synchronous Stack, that is to say the
-                // synchronous functions and coroutines called by the Task's outermost coroutine
-                // The number of Frames to push is the total number of Frames in the Python stack, from which we
-                // subtract the number of Frames in the "upper Python stack" (asyncio machinery + sync entrypoint)
-                // This gives us [outermost coroutine, ... , innermost coroutine, outermost sync function, ... ,
-                // innermost sync function]
-                // TODO: This may be incorrect if the Task that we know is on CPU does not match the Task that
-                //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
-                //       may be to look at every Task Stack and match it against the Thread Stack. This would be
-                //       somewhat costly though, and so far I have not seen a single instance of this race condition.
-                size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
-                                          ? python_stack.size() - upper_python_stack_size - task_stack_size
-                                          : 0;
-                // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
-                for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[i];
-
-                    // Skip the uvloop wrapper frame if present in the Python stack
-                    if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
-                        continue;
-                    }
-                    stack.push_back(python_frame);
-                }
-            }
-            if (task_stack != nullptr) {
-                for (size_t i = 0; i < task_frames_to_push; i++) {
-                    stack.push_back((*task_stack)[i]);
+                const auto& cached = it->second;
+                const size_t frames_to_push = std::min(cached.frames.size(), max_frames - task_frames.size());
+                task_frames.insert(task_frames.end(),
+                                   cached.frames.begin(),
+                                   cached.frames.begin() + static_cast<FrameStack::difference_type>(frames_to_push));
+                if (task.is_on_cpu) {
+                    has_on_cpu_task = true;
+                    on_cpu_task_depth = cached.depth;
                 }
             }
 
-            // Task labels are rendered separately from frames; do not add a synthetic
-            // frame for the task name here.
+            if (task_frames.size() >= max_frames) {
+                break;
+            }
 
-            // Get the next task in the chain
             PyObject* task_origin = task.origin;
             if (auto maybe_waitee = waitee_map.find(task_origin); maybe_waitee != waitee_map.end()) {
                 current_task = maybe_waitee->second;
                 continue;
             }
 
+            bool found_parent = false;
             {
-                // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
                 auto& task_link_map = echion.task_link_map();
                 auto& weak_task_link_map = echion.weak_task_link_map();
@@ -317,36 +296,113 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
                         current_task = maybe_origin->second;
-                        continue;
+                        found_parent = true;
                     }
                 }
 
-                // Check for weak links
-                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                    continue;
+                if (!found_parent) {
+                    auto weak_parent = weak_task_link_map.find(task_origin);
+                    if (weak_parent != weak_task_link_map.end()) {
+                        if (auto maybe_origin = origin_map.find(weak_parent->second);
+                            maybe_origin != origin_map.end()) {
+                            current_task = maybe_origin->second;
+                            found_parent = true;
+                        }
+                    }
                 }
             }
 
-            break;
+            if (!found_parent) {
+                break;
+            }
         }
 
-        // Finish off with the remaining thread stack
-        // If we have seen an on-CPU Task, then upper_python_stack_size will be set and will include the sync entry
-        // point and the asyncio machinery Frames. Otherwise, we are in `select` (idle) and we should push all the
-        // Frames.
+        // AIDEV-NOTE: Task candidates are selected before physical candidates,
+        // but rendered in logical leaf-to-root order below. Keep budgeting and
+        // output ordering separate when changing this stitching policy.
+        // Apply the configured limit to rendered locations. A Python frame can
+        // inject one native location, so counting Frame objects alone can let a
+        // lower-priority physical segment displace task context in the exporter.
+        const bool task_collection_full = task_frames.size() >= max_frames;
+        size_t task_locations = 0;
+        const size_t task_to_keep = select_frame_prefix(task_frames, 0, task_frames.size(), max_frames, task_locations);
+        const bool task_truncated = task_collection_full || task_to_keep < task_frames.size();
+        task_frames.erase(task_frames.begin() + static_cast<FrameStack::difference_type>(task_to_keep),
+                          task_frames.end());
 
-        // There could be a race condition where relevant partial Python Thread Stack ends up being different from the
-        // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
-        // cause an underflow, so let's be conservative.
-        size_t start_index = 0;
-        if (python_stack.size() >= upper_python_stack_size) {
-            start_index = python_stack.size() - upper_python_stack_size;
-        }
-        for (size_t i = start_index; i < python_stack.size(); i++) {
-            const auto& python_frame = python_stack[i];
-            stack.push_back(python_frame);
+        // Task frames receive the reporting budget first. If capacity remains,
+        // fill it with physical context. For an on-CPU task, split that context
+        // around the coroutine frames replaced by task_frames:
+        //
+        //   synchronous leaf frames, logical task frames, event-loop roots
+        //
+        // Synchronous leaf frames have priority over event-loop roots.
+        if (task_truncated || (has_on_cpu_task && !asyncio_boundary_index)) {
+            stack_info->stack = std::move(task_frames);
+        } else {
+            auto& stack = stack_info->stack;
+            size_t locations = task_locations;
+
+            if (has_on_cpu_task && asyncio_boundary_index) {
+                const size_t leaf_depth =
+                  *asyncio_boundary_index > on_cpu_task_depth ? *asyncio_boundary_index - on_cpu_task_depth : 0;
+                const size_t leaf_available = std::min(leaf_depth, python_stack.size());
+                const size_t runtime_start = std::min(*asyncio_boundary_index, python_stack.size());
+                const size_t runtime_available = python_stack.size() - runtime_start;
+
+                size_t leaf_to_keep = select_frame_prefix(python_stack, 0, leaf_available, max_frames, locations);
+                size_t runtime_to_keep =
+                  select_frame_prefix(python_stack, runtime_start, runtime_available, max_frames, locations);
+                bool leaf_truncated = leaf_depth > leaf_to_keep;
+                bool runtime_truncated = runtime_available > runtime_to_keep;
+
+                // An omission marker consumes one location. Remove the
+                // lowest-priority selected physical frame if the real locations
+                // have already filled the budget.
+                if ((leaf_truncated || runtime_truncated) && locations >= max_frames) {
+                    if (runtime_to_keep > 0) {
+                        runtime_to_keep--;
+                    } else if (leaf_to_keep > 0) {
+                        leaf_to_keep--;
+                    }
+                    leaf_truncated = leaf_depth > leaf_to_keep;
+                    runtime_truncated = runtime_available > runtime_to_keep;
+                }
+
+                stack.insert(stack.end(),
+                             python_stack.begin(),
+                             python_stack.begin() + static_cast<FrameStack::difference_type>(leaf_to_keep));
+                if (leaf_truncated) {
+                    stack_info->omission_index = stack.size();
+                    stack_info->omitted_frames = leaf_depth - leaf_to_keep;
+                }
+                stack.insert(stack.end(), task_frames.begin(), task_frames.end());
+                const auto runtime_begin =
+                  python_stack.begin() + static_cast<FrameStack::difference_type>(runtime_start);
+                stack.insert(stack.end(),
+                             runtime_begin,
+                             runtime_begin + static_cast<FrameStack::difference_type>(runtime_to_keep));
+                if (!leaf_truncated && runtime_truncated) {
+                    stack_info->omission_index = stack.size();
+                    stack_info->omitted_frames = runtime_available - runtime_to_keep;
+                }
+            } else {
+                // An off-CPU task is followed by the event-loop thread stack.
+                size_t sync_to_keep = select_frame_prefix(python_stack, 0, python_stack.size(), max_frames, locations);
+                bool sync_truncated = python_stack.size() > sync_to_keep;
+                if (sync_truncated && locations >= max_frames && sync_to_keep > 0) {
+                    sync_to_keep--;
+                }
+
+                stack = std::move(task_frames);
+                stack.insert(stack.end(),
+                             python_stack.begin(),
+                             python_stack.begin() + static_cast<FrameStack::difference_type>(sync_to_keep));
+                if (sync_truncated) {
+                    stack_info->omission_index = stack.size();
+                    stack_info->omitted_frames = python_stack.size() - sync_to_keep;
+                }
+            }
         }
 
         current_tasks.push_back(std::move(stack_info));
@@ -729,7 +785,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
                 renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id);
             });
 
-            task_stack_info->stack.render(echion);
+            task_stack_info->stack.render(echion, task_stack_info->omission_index, task_stack_info->omitted_frames);
 
             renderer.render_stack_end();
         }

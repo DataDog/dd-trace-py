@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -57,6 +58,7 @@ class ThreadInfo
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
     bool using_uvloop = false; // Whether this thread is using uvloop instead of asyncio
+    std::optional<size_t> asyncio_boundary_index;
 
     [[nodiscard]] Result<void> update_cpu_time();
 
@@ -112,6 +114,7 @@ class ThreadInfo
 
   private:
     void render_unwound_stacks(EchionSampler&);
+    bool is_asyncio_boundary_frame(EchionSampler&, const Frame&);
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);

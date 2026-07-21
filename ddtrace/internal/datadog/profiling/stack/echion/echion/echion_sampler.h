@@ -57,7 +57,7 @@ class EchionSampler
     size_t asyncio_task_count_ = 0;
 
     // Stack depth and caches
-    size_t stack_max_frames_ = MAX_TASK_FRAMES;
+    size_t stack_max_frames_ = MAX_STACK_DISCOVERY_DEPTH;
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
 
@@ -106,6 +106,12 @@ class EchionSampler
 
     void configure_max_frames(size_t max_frames) { stack_max_frames_ = std::max<size_t>(max_frames, 1); }
 
+    void configure_frame_limits(size_t max_frames, size_t frame_cache_capacity)
+    {
+        configure_max_frames(max_frames);
+        frame_cache_.set_capacity(frame_cache_capacity);
+    }
+
     [[nodiscard]] size_t stack_max_frames() const { return stack_max_frames_; }
 
     // Accessor for StringTable operations
@@ -114,6 +120,7 @@ class EchionSampler
 
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
+    [[nodiscard]] size_t frame_cache_capacity() const { return frame_cache_.capacity(); }
 
     void postfork_child()
     {
