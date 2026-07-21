@@ -1677,30 +1677,30 @@ _UNKNOWN_AST_VALUE = object()
 def _ast_resolve_constant(node: t.Optional[ast.AST], constants: dict[str, t.Any]) -> t.Any:
     if isinstance(node, ast.Constant):
         return node.value
+    if isinstance(node, ast.JoinedStr):
+        values = []
+        for value in node.values:
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                return _UNKNOWN_AST_VALUE
+            values.append(value.value)
+        return "".join(values)
     if isinstance(node, ast.Name):
         return constants.get(node.id, _UNKNOWN_AST_VALUE)
     return _UNKNOWN_AST_VALUE
 
 
-def _ast_collect_module_constants(tree: ast.Module) -> dict[str, t.Any]:
-    constants: dict[str, t.Any] = {}
-
-    for statement in tree.body:
-        if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Constant):
-            for target in statement.targets:
-                if isinstance(target, ast.Name):
-                    constants[target.id] = statement.value.value
-        elif isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
-            if isinstance(statement.value, ast.Constant):
-                constants[statement.target.id] = statement.value.value
-
-    return constants
+def _ast_is_skipif_factory(node: ast.AST, skipif_aliases: set[str]) -> bool:
+    if isinstance(node, ast.Attribute) and node.attr == "skipif":
+        return True
+    if isinstance(node, ast.Name) and node.id in skipif_aliases:
+        return True
+    return False
 
 
-def _ast_call_is_itr_unskippable_skipif(node: ast.AST, constants: dict[str, t.Any]) -> bool:
+def _ast_call_is_itr_unskippable_skipif(node: ast.AST, constants: dict[str, t.Any], skipif_aliases: set[str]) -> bool:
     if not isinstance(node, ast.Call):
         return False
-    if not isinstance(node.func, ast.Attribute) or node.func.attr != "skipif":
+    if not _ast_is_skipif_factory(node.func, skipif_aliases):
         return False
 
     condition = node.args[0] if node.args else None
@@ -1719,6 +1719,39 @@ def _ast_call_is_itr_unskippable_skipif(node: ast.AST, constants: dict[str, t.An
     )
 
 
+def _ast_expr_contains_itr_unskippable_marker(
+    node: ast.AST, constants: dict[str, t.Any], skipif_aliases: set[str]
+) -> bool:
+    return any(_ast_call_is_itr_unskippable_skipif(child, constants, skipif_aliases) for child in ast.walk(node))
+
+
+def _ast_assign_name_targets(statement: t.Union[ast.Assign, ast.AnnAssign]) -> list[str]:
+    if isinstance(statement, ast.Assign):
+        return [target.id for target in statement.targets if isinstance(target, ast.Name)]
+    if isinstance(statement.target, ast.Name):
+        return [statement.target.id]
+    return []
+
+
+def _ast_update_static_bindings(
+    statement: t.Union[ast.Assign, ast.AnnAssign], constants: dict[str, t.Any], skipif_aliases: set[str]
+) -> None:
+    targets = _ast_assign_name_targets(statement)
+    value = statement.value
+
+    for target in targets:
+        if value is not None and _ast_is_skipif_factory(value, skipif_aliases):
+            skipif_aliases.add(target)
+        else:
+            skipif_aliases.discard(target)
+
+        resolved_value = _ast_resolve_constant(value, constants)
+        if resolved_value is _UNKNOWN_AST_VALUE:
+            constants.pop(target, None)
+        else:
+            constants[target] = resolved_value
+
+
 def _source_has_itr_unskippable_marker(source: str) -> bool:
     """Return whether source contains a real pytest unskippable marker.
 
@@ -1733,10 +1766,20 @@ def _source_has_itr_unskippable_marker(source: str) -> bool:
     except SyntaxError:
         return True
 
-    constants = _ast_collect_module_constants(tree)
-    for node in ast.walk(tree):
-        if _ast_call_is_itr_unskippable_skipif(node, constants):
-            return True
+    constants: dict[str, t.Any] = {}
+    skipif_aliases: set[str] = set()
+    for statement in tree.body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if any(
+                _ast_expr_contains_itr_unskippable_marker(decorator, constants, skipif_aliases)
+                for decorator in statement.decorator_list
+            ):
+                return True
+        elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+            value = statement.value
+            if value is not None and _ast_expr_contains_itr_unskippable_marker(value, constants, skipif_aliases):
+                return True
+            _ast_update_static_bindings(statement, constants, skipif_aliases)
 
     return False
 

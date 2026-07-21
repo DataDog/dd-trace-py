@@ -324,6 +324,103 @@ class TestSkippingAndITRFeatures:
         assert result is None
         assert not plugin._itr_ignored_suite_paths
 
+    def test_pytest_ignore_collect_uses_decorator_time_constant_values(self, tmp_path: Path) -> None:
+        """A later constant reassignment does not hide an earlier unskippable marker."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "REASON = 'datadog_itr_unskippable'\n"
+            "@pytest.mark.skipif(False, reason=REASON)\n"
+            "def test_x(): pass\n"
+            "REASON = 'other'\n"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_aliased_skipif_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker uses a skipif alias."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "skipif = pytest.mark.skipif\n"
+            "@skipif(False, reason='datadog_itr_unskippable')\n"
+            "def test_x(): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_fstring_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker reason uses a literal f-string."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            'import pytest\n@pytest.mark.skipif(False, reason=f"datadog_itr_unskippable")\ndef test_x(): pass'
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
     def test_pytest_ignore_collect_ignores_comment_only_unskippable_marker(self, tmp_path: Path) -> None:
         """A comment mentioning datadog_itr_unskippable does not force suite collection."""
         workspace = tmp_path
