@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI Realtime API integration now emits a dedicated ``tool``-kind child
+    span for each function or MCP call the model makes, nested under the turn span that emitted it.
+    Each tool span opens when the call is first observed (so its duration reflects the real
+    tool-execution latency), records the call arguments as input and the result as output, and is
+    grouped into the conversation via the same session id. Client function calls finish when the app
+    returns their ``function_call_output``; server-side MCP calls finish inline with their result.

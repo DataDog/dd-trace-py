@@ -7,6 +7,7 @@ patched ``RealtimeConnection`` backed by a fake websocket (integration test).
 
 import base64
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -47,9 +48,16 @@ class _FakeSpan:
         self.resource = resource
         self.error = 0
         self.finished = False
+        # Set by the state machine for tool spans (back-dated to when the call was observed); a real
+        # ddtrace Span exposes the same attribute. finish() stamps a wall-clock finish for ordering.
+        self.start_ns = None
+        self.finish_ns = None
+        self.span_id = id(self)
+        self.trace_id = 1
 
     def finish(self):
         self.finished = True
+        self.finish_ns = time.time_ns()
 
 
 class _RecordingIntegration:
@@ -57,6 +65,7 @@ class _RecordingIntegration:
 
     def __init__(self):
         self.responses = []
+        self.tools = []
 
     def trace(self, operation_id, **kwargs):
         return _FakeSpan(operation_id)
@@ -74,6 +83,22 @@ class _RecordingIntegration:
                 "metrics": metrics,
                 "session_id": session_id,
                 "audio_timing": audio_timing,
+            }
+        )
+
+    def _llmobs_set_tags_from_realtime_tool(
+        self, span, parent_span, name, call_id, arguments, result, session_id=None, error=False
+    ):
+        self.tools.append(
+            {
+                "span": span,
+                "parent_span": parent_span,
+                "name": name,
+                "call_id": call_id,
+                "arguments": arguments,
+                "result": result,
+                "session_id": session_id,
+                "error": error,
             }
         )
 
@@ -368,6 +393,175 @@ def test_realtime_state_mcp_call_captured():
     assert out["tool_results"] == [
         {"name": "search", "result": "result text", "tool_id": "mcp_1", "type": "mcp_tool_result"}
     ]
+
+
+def test_realtime_state_function_call_emits_tool_span():
+    """A client function_call emits a real tool-kind child span, opened when the call is observed
+    (output_item.added) and finished when the app returns the result (function_call_output), parented
+    under the emitting turn's span with a duration spanning the real tool execution."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    # Turn 1: the model emits a function call. The span opens on output_item.added and its arguments
+    # are captured from function_call_arguments.done; the turn finishes at response.done.
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.output_item.added",
+            response_id="r1",
+            item=_ns(type="function_call", name="get_weather", call_id="call_1"),
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.function_call_arguments.done",
+            response_id="r1",
+            call_id="call_1",
+            arguments='{"city": "Denver"}',
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[_ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")],
+            ),
+        )
+    )
+    # No tool span is finished yet — the app hasn't returned the result.
+    assert integration.tools == []
+    turn_span = integration.responses[0]["span"]
+
+    # The app returns the tool result -> the tool span is finished now.
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call_1", "output": "72F and sunny"},
+        }
+    )
+    assert len(integration.tools) == 1
+    tool = integration.tools[0]
+    assert tool["name"] == "get_weather"
+    assert tool["call_id"] == "call_1"
+    assert tool["arguments"] == {"city": "Denver"}
+    assert tool["result"] == "72F and sunny"
+    assert tool["session_id"] == state._session_id
+    assert tool["error"] is False
+    # Parented under the turn that emitted the call, finished after it, with a sane duration.
+    assert tool["parent_span"] is turn_span
+    assert tool["span"].finished is True
+    assert tool["span"].start_ns is not None and tool["span"].start_ns <= tool["span"].finish_ns
+    assert not state._pending_tool_spans  # nothing left open
+
+
+def test_realtime_state_mcp_call_emits_tool_span():
+    """A server MCP call emits a tool span opened on output_item.added and finished inline at
+    response.done with the server-side result (no app round-trip)."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.output_item.added",
+            response_id="r1",
+            item=_ns(type="mcp_call", id="mcp_1", name="search"),
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[
+                    _ns(type="mcp_call", id="mcp_1", name="search", arguments='{"q": "x"}', output="result text", error=None)
+                ],
+            ),
+        )
+    )
+    assert len(integration.tools) == 1
+    tool = integration.tools[0]
+    assert tool["name"] == "search"
+    assert tool["call_id"] == "mcp_1"
+    assert tool["arguments"] == {"q": "x"}
+    assert tool["result"] == "result text"
+    assert tool["parent_span"] is integration.responses[0]["span"]
+    assert tool["span"].finished is True
+    assert tool["span"].start_ns is not None and tool["span"].start_ns <= tool["span"].finish_ns
+    assert not state._pending_tool_spans
+
+
+def test_realtime_state_open_tool_span_finalized_on_close():
+    """A function_call whose result never arrives is still finished on session close (no leak)."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.output_item.added",
+            response_id="r1",
+            item=_ns(type="function_call", name="get_weather", call_id="call_1"),
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[_ns(type="function_call", name="get_weather", arguments="{}", call_id="call_1")],
+            ),
+        )
+    )
+    # Result never returned; the span is still open.
+    assert integration.tools == []
+    assert "call_1" in state._pending_tool_spans
+
+    state.finish_session()
+    assert len(integration.tools) == 1
+    assert integration.tools[0]["span"].finished is True
+    assert not state._pending_tool_spans
+
+
+def test_realtime_state_tool_span_started_on_arguments_delta():
+    """When output_item.added isn't observed, the first function_call_arguments.delta opens the span."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(type="response.function_call_arguments.delta", response_id="r1", call_id="call_1", delta='{"ci')
+    )
+    assert "call_1" in state._pending_tool_spans
+    state.on_server_event(
+        _ns(
+            type="response.function_call_arguments.done",
+            response_id="r1",
+            call_id="call_1",
+            arguments='{"city": "Denver"}',
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[_ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")],
+            ),
+        )
+    )
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call_1", "output": "cold"},
+        }
+    )
+    assert len(integration.tools) == 1
+    # Name backfilled from response.done (the delta events carried no name), args from the done event.
+    assert integration.tools[0]["name"] == "get_weather"
+    assert integration.tools[0]["arguments"] == {"city": "Denver"}
+    assert integration.tools[0]["result"] == "cold"
 
 
 def test_realtime_state_unwrappable_audio_fallback_marker():
@@ -903,6 +1097,74 @@ def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
     assert out["tool_calls"] == [
         {"name": "get_weather", "arguments": {"city": "Paris"}, "tool_id": "call_1", "type": "function"}
     ]
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_integration_mcp_tool_span(openai, openai_llmobs, test_spans):
+    """A server MCP call emits a real tool-kind child span, nested under the turn span (real
+    integration): opened on output_item.added, finished inline at response.done with its result."""
+    messages = [
+        json.dumps(
+            {"type": "session.created", "event_id": "e0", "session": {"type": "realtime", "model": "gpt-realtime"}}
+        ),
+        json.dumps({"type": "response.created", "event_id": "rc", "response": {"id": "r1"}}),
+        json.dumps(
+            {
+                "type": "response.output_item.added",
+                "event_id": "oi",
+                "response_id": "r1",
+                "item": {"type": "mcp_call", "id": "mcp_1", "name": "search"},
+            }
+        ),
+        json.dumps(
+            {
+                "type": "response.done",
+                "event_id": "rd",
+                "response": {
+                    "id": "r1",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "mcp_call",
+                            "id": "mcp_1",
+                            "name": "search",
+                            "arguments": '{"q": "x"}',
+                            "output": "result text",
+                        }
+                    ],
+                },
+            }
+        ),
+    ]
+    conn = RealtimeConnection(_FakeWebSocket(messages))
+    client = openai.OpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+    for _ in range(len(messages)):
+        conn.recv()
+    conn.close()
+
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    by_resource = {s.resource: s for s in spans}
+    assert set(by_resource) == {"createRealtimeResponse", "createRealtimeToolCall"}
+
+    turn_span = by_resource["createRealtimeResponse"]
+    tool_span = by_resource["createRealtimeToolCall"]
+    turn_data = _get_llmobs_data_metastruct(turn_span)
+    tool_data = _get_llmobs_data_metastruct(tool_span)
+
+    # The tool span is a real tool-kind span nested under the turn (same LLMObs trace) and grouped by
+    # the same session_id.
+    assert tool_data["meta"]["span"]["kind"] == "tool"
+    assert tool_data["name"] == "search"
+    assert tool_data["parent_id"] == str(turn_span.span_id)
+    assert tool_data["trace_id"] == turn_data["trace_id"]
+    assert tool_data["session_id"] == turn_data["session_id"]
+    assert json.loads(tool_data["meta"]["input"]["value"]) == {"q": "x"}
+    assert json.loads(tool_data["meta"]["output"]["value"]) == "result text"
+    # Back-dated to when the call was observed, and finishes no earlier than it started.
+    assert tool_span.start_ns <= tool_span.start_ns + (tool_span.duration_ns or 0)
 
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
