@@ -141,7 +141,7 @@
       BLOB_SERVER: azurite
       METADATA_SERVER: azurite
   azureservicebusemulator:
-    name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:2.0.0
+    name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:1.1.2
     alias: azureservicebusemulator
     variables:
       ACCEPT_EULA: "Y"

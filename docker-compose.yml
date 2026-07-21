@@ -167,7 +167,7 @@ services:
             BLOB_SERVER: azurite
             METADATA_SERVER: azurite
     azureservicebusemulator:
-        image: mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.0
+        image: mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2
         volumes:
             - ./tests/contrib/azure_servicebus/emulator/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
         ports:
