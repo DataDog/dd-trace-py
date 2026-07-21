@@ -331,7 +331,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                     imported_module_lines = self._import_time_covered[path]
                     covered_lines[path].update(imported_module_lines)
 
-    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> set[str]:
+    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
         """Return file-level covered paths with import-time dependencies added.
 
         This is the file-level equivalent of _add_import_time_lines(), but avoids
@@ -345,7 +345,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cache_key = frozenset(covered_file_paths)
         cached_paths = self._file_level_covered_paths_cache.get(cache_key)
         if cached_paths is not None:
-            return set(cached_paths)
+            return cached_paths
 
         paths = set(covered_file_paths)
         for root_path in cache_key:
@@ -427,7 +427,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
 
-        def get_covered_file_paths(self) -> set[str]:
+        def get_covered_file_paths(self) -> t.AbstractSet[str]:
             covered_file_paths = _get_ctx_covered_files()
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
