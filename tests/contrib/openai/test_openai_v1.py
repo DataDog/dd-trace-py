@@ -218,7 +218,9 @@ def test_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
-        client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -230,7 +232,9 @@ async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
-        await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        async for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
