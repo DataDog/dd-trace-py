@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: added ``DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE`` (default
+    ``false``). When enabled, Bedrock calls using an application-inference-profile ARN as
+    ``modelId`` resolve the underlying foundation model, so the span reports the real model
+    and cost populates. Requires ``DD_LLMOBS_ENABLED=true`` and ``bedrock:GetInferenceProfile``
+    IAM permission.

@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    AI Guard: This introduces per-integration kill-switch environment variables,
+    extending the existing ``DD_AI_GUARD_OPENAI_ENABLED`` switch to the Anthropic
+    and LangChain auto-instrumentations: ``DD_AI_GUARD_ANTHROPIC_ENABLED`` and
+    ``DD_AI_GUARD_LANGCHAIN_ENABLED`` (both ``true`` by default). Set either to
+    ``false`` to disable AI Guard for that specific provider/framework without
+    affecting other integrations or requiring a tracer version rollback.

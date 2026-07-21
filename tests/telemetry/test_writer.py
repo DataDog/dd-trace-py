@@ -52,6 +52,48 @@ def test_app_started_event_configuration_override_asm(
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
 
+@pytest.mark.parametrize("onboarding_value", ["true", "false", "1", "0", ""])
+def test_app_started_event_agentic_onboarding_reported_verbatim(
+    test_agent_session, run_python_code_in_subprocess, onboarding_value
+):
+    """RFC-1113: DD_APPSEC_AGENTIC_ONBOARDING is reported verbatim as an ordinary config key."""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_APPSEC_AGENTIC_ONBOARDING"] = onboarding_value
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = test_agent_session.get_configurations(
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
+    )
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "env_var",
+        "value": onboarding_value,
+    }
+
+
+def test_app_started_event_agentic_onboarding_absent(test_agent_session, run_python_code_in_subprocess):
+    """RFC-1113: when unset, the key is still reported with an empty value and origin=default."""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
+    env.pop("DD_APPSEC_AGENTIC_ONBOARDING", None)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = test_agent_session.get_configurations(
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
+    )
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "default",
+        "value": "",
+    }
+
+
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
@@ -170,6 +212,7 @@ import opentelemetry
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_AGENTIC_ONBOARDING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
@@ -535,7 +578,7 @@ import opentelemetry
         {
             "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
             "origin": "default",
-            "value": False,
+            "value": True,
         },
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},

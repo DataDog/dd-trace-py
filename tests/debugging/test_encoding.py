@@ -5,6 +5,9 @@ import inspect
 import json
 import sys
 import threading
+from typing import Any
+from typing import Optional
+from typing import cast
 
 import pytest
 
@@ -212,9 +215,11 @@ def test_capture_context_exc():
 
 
 def test_batch_json_encoder():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
 
@@ -223,7 +228,7 @@ def test_batch_json_encoder():
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
     buffer_size = 30 * (1 << 20)
-    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(cast(str, None)), buffer_size=buffer_size)
 
     s.line({})
 
@@ -251,13 +256,15 @@ def test_batch_json_encoder():
 
 
 def test_process_tags_are_included():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
     buffer_size = 30 * (1 << 20)
-    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(cast(str, None)), buffer_size=buffer_size)
 
     s.line({})
 
@@ -272,15 +279,17 @@ def test_process_tags_are_included():
 
 
 def test_batch_flush_reencode():
+    frame = inspect.currentframe()
+    assert frame is not None
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
+        frame=frame,
         thread=threading.current_thread(),
     )
 
     s.line({})
 
-    queue = SignalQueue(LogSignalJsonEncoder(None))
+    queue = SignalQueue(LogSignalJsonEncoder(cast(str, None)))
 
     snapshot_total_size = sum(queue.put(s) for _ in range(2))
     data = queue.flush()
@@ -512,7 +521,9 @@ def test_json_tree():
             [node_to_tuple(_) for _ in node.children],
         )
 
-    assert node_to_tuple(tree.root) == (
+    root = tree.root
+    assert root is not None
+    assert node_to_tuple(root) == (
         0,
         88,
         0,
@@ -614,7 +625,7 @@ def test_json_pruning_not_capture_depth(size, expected):
         MIN_LEVEL = 0
 
     assert (
-        TestEncoder(None).pruned(
+        TestEncoder(cast(str, None)).pruned(
             r"""{
                 "keep": {"type": "list", "size":2, "elements": [
                     {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -725,6 +736,8 @@ def test_capture_value_deque_concurrent_mutation():
 
     t = threading.Thread(target=mutate)
     t.start()
+
+    result: Optional[dict[str, Any]] = None
     try:
         result = utils.capture_value(d)
     except RuntimeError as e:
@@ -733,6 +746,7 @@ def test_capture_value_deque_concurrent_mutation():
         t.join()
 
     assert not errors, "capture_value raised RuntimeError on concurrent deque mutation"
+    assert result is not None
     assert result["type"] == "deque"
     assert "elements" in result
 
@@ -740,7 +754,7 @@ def test_capture_value_deque_concurrent_mutation():
 def test_capture_value_dict_concurrent_mutation():
     """capture_value must not raise when a dict is mutated by another thread."""
     d = {i: i for i in range(1000)}
-    errors = []
+    errors: list[RuntimeError] = []
 
     def mutate():
         for i in range(500):
@@ -752,6 +766,8 @@ def test_capture_value_dict_concurrent_mutation():
 
     t = threading.Thread(target=mutate)
     t.start()
+
+    result: Optional[dict[str, Any]] = None
     try:
         result = utils.capture_value(d)
     except RuntimeError as e:
@@ -760,6 +776,7 @@ def test_capture_value_dict_concurrent_mutation():
         t.join()
 
     assert not errors, "capture_value raised RuntimeError on concurrent dict mutation"
+    assert result is not None
     assert result["type"] == "dict"
     assert "entries" in result
 
@@ -803,3 +820,107 @@ def test_capture_value_arbitrary_object_redacted_type():
     with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="*.SensitiveModel"):
         result = utils.capture_value(SensitiveModel())
     assert result == utils.redacted_type(SensitiveModel)
+
+
+def test_capture_value_builtin_redacted_type():
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="int"):
+        assert utils.capture_value(42) == utils.redacted_type(int)
+        assert utils.capture_value([1, 2, 3]) == {
+            "type": "list",
+            "elements": [utils.redacted_type(int)] * 3,
+            "size": 3,
+        }
+
+
+@pytest.mark.subprocess(err=None)
+def test_numpy_scalar_types_resolved():
+    import numpy as np
+
+    from ddtrace.debugging._signal import utils
+
+    # The always-present scalar types (signed, unsigned, extended precision) must
+    # be treated as simple types.
+    for name in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
+        assert getattr(np, name) in utils.SIMPLE_TYPES, name
+    for name in ("float16", "float32", "float64", "complex64", "complex128", "longdouble", "clongdouble"):
+        assert getattr(np, name) in utils.SIMPLE_TYPES, name
+
+    # ...and only platform-dependent aliases that actually exist are included.
+    resolved_names = {t.__name__ for t in utils.NUMPY_SIMPLE_TYPES}
+    for name in ("float96", "float128", "complex192", "complex256"):
+        if not hasattr(np, name):
+            assert name not in resolved_names
+
+    # Scalars serialize and capture by value.
+    assert utils.serialize(np.int32(42)) == repr(np.int32(42))
+    assert utils.capture_value(np.uint8(255)) == {"type": "uint8", "value": repr(np.uint8(255))}
+
+
+@pytest.mark.subprocess(err=None)
+def test_numpy_ndarray_capture():
+    import numpy as np
+
+    from ddtrace.debugging._signal import utils
+
+    # An ndarray serializes like a list.
+    result = utils.serialize(np.array([1, 2, 3]))
+    assert result.startswith("[") and result.endswith("]")
+
+    # A 0-dimensional array is captured and serialized as its scalar item.
+    assert utils.capture_value(np.array(42)) == {"type": "int64", "value": repr(np.int64(42))}
+    assert utils.serialize(np.array(42)) == repr(np.int64(42))
+
+    # A (1, N) array is snapshotted through a cheap view, never deep-copied.
+    value = np.arange(20).reshape((1, 20))
+    assert np.shares_memory(value[:1], value)
+    result = utils.capture_value(value, maxsize=1)
+    assert result["type"] == "ndarray"
+    assert result["size"] == 1
+
+
+@pytest.mark.subprocess(err=None)
+def test_numpy_scalar_redacted_type():
+    import numpy as np
+
+    from ddtrace.debugging._signal import utils
+    from tests.debugging.test_config import debugger_config
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES=np.int64.__qualname__):
+        assert utils.capture_value(np.int64(7)) == utils.redacted_type(np.int64)
+
+
+@pytest.mark.subprocess(err=None)
+def test_numpy_ndarray_redacted_type():
+    import numpy as np
+
+    from ddtrace.debugging._signal import utils
+    from tests.debugging.test_config import debugger_config
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="ndarray"):
+        assert utils.capture_value(np.array([1, 2, 3])) == utils.redacted_type(np.ndarray)
+        # A 0-d array must also be redacted rather than escaping as a scalar.
+        assert utils.capture_value(np.array(5)) == utils.redacted_type(np.ndarray)
+
+
+@pytest.mark.subprocess(err=None)
+def test_numpy_import_hook_expands_types_end_to_end():
+    # End-to-end check that the numpy import hook fires through the real module
+    # watchdog: the type sets must expand only once numpy is actually imported.
+    from collections import deque
+    import sys
+
+    from ddtrace.debugging._signal import utils
+
+    # Importing the serializer must register the hook without pulling numpy in.
+    assert "numpy" not in sys.modules
+    assert utils.NDARRAY_TYPE is None
+    assert utils.SIMPLE_TYPES == utils.BUILTIN_SIMPLE_TYPES
+    assert utils.CONTAINER_TYPES == utils.BUILTIN_CONTAINER_TYPES
+    assert utils.ARRAY_TYPES == frozenset((list, deque))
+
+    import numpy
+
+    assert utils.NDARRAY_TYPE is numpy.ndarray
+    assert numpy.float64 in utils.SIMPLE_TYPES
+    assert numpy.ndarray in utils.CONTAINER_TYPES
+    assert numpy.ndarray in utils.ARRAY_TYPES

@@ -746,6 +746,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pytest-benchmark": latest,
                 "pytest-memray": latest,
+                "numpy": latest,
             },
             pys=select_pys(),
         ),
@@ -3202,7 +3203,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
-                "ray[default]": ["~=2.46.0", latest],
+                "ray[default]": ["~=2.46.0", "~=2.54.1"],
             },
         ),
         Venv(
