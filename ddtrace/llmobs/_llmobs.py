@@ -99,7 +99,6 @@ from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
-from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
 from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
 from ddtrace.llmobs._experiment import AsyncTaskType
@@ -130,6 +129,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
+from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
