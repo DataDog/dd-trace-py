@@ -31,13 +31,13 @@ def test_writer_start(mock_writer_logs):
     llmobs_span_writer.stop()
 
 
-def test_override_auth_header(mock_writer_logs):
-    with mock.patch.dict(os.environ, {"_DD_LLMOBS_OVERRIDE_AUTH_HEADER": "Bearer custom-token"}):
+def test_additional_headers(mock_writer_logs):
+    with mock.patch.dict(os.environ, {"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "Authorization:Bearer-custom-token"}):
         llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
-    assert llmobs_span_writer._headers["Authorization"] == "Bearer custom-token"
+    assert llmobs_span_writer._headers["Authorization"] == "Bearer-custom-token"
 
 
-def test_no_override_auth_header_by_default(mock_writer_logs):
+def test_no_additional_headers_by_default(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     assert "Authorization" not in llmobs_span_writer._headers
 
