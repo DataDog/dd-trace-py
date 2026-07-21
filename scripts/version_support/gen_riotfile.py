@@ -404,6 +404,7 @@ prepare_version_support_riot:
   needs: []
   script:
     - scripts/uv-run-script scripts/version_support/gen_pipeline.py
+    - PYENV_VERSION=3.9.25 pyenv exec python -m pip install --user typing-extensions
     - PYENV_VERSION=3.10.20 pyenv exec python -m pip install --user typing-extensions
     - scripts/compile-and-prune-test-requirements "riot -f version_support_riotfile.py"
   artifacts:
