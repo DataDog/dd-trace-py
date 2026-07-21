@@ -62,7 +62,6 @@ class APPSEC(metaclass=Constant_Class):
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
     AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
-    AGENTIC_ONBOARDING_TELEMETRY: Literal["appsec.agentic_onboarding"] = "appsec.agentic_onboarding"
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
