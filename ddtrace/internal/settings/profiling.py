@@ -120,6 +120,18 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     return tags
 
 
+# The profiling backend accepts at most this many locations per sample.
+BACKEND_MAX_LOCATIONS = 600
+# Reserve one location for the synthetic "<N frames omitted>" frame emitted when
+# a stack is truncated. Keep these constants in sync with g_backend_max_nlocations
+# and g_backend_max_nframes in constants.hpp.
+MAX_FRAMES = BACKEND_MAX_LOCATIONS - 1
+
+
+def _clamp_max_frames(value: str) -> int:
+    return min(int(value), MAX_FRAMES)
+
+
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
@@ -200,9 +212,12 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
-        validator=validators.range(0, t.cast(int, float("inf"))),
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
         help_type="Integer",
-        help="The maximum number of frames to capture in stack execution tracing",
+        help="The maximum number of frames to capture in stack execution tracing. Values above "
+        f"{MAX_FRAMES} are clamped so that truncated stacks, including the omitted-frame indicator, stay within "
+        f"the profiling backend's {BACKEND_MAX_LOCATIONS}-location limit.",
     )
 
     ignore_profiler = DDConfig.v(

@@ -10,7 +10,6 @@ from typing import Callable
 from typing import Optional
 from typing import TextIO
 
-from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -19,11 +18,13 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
@@ -108,17 +109,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-
-def _human_size(nbytes: float) -> str:
-    """Return a human-readable size."""
-    i = 0
-    suffixes = ["B", "KB", "MB", "GB", "TB"]
-    while nbytes >= 1000 and i < len(suffixes) - 1:
-        nbytes /= 1000.0
-        i += 1
-    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
-    return "%s%s" % (f, suffixes[i])
 
 
 class TraceWriter(metaclass=abc.ABCMeta):

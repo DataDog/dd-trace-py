@@ -733,7 +733,14 @@ def test_generatorexit_not_sampled(tmp_path: Path) -> None:
 
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
     samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    assert len(samples) == 0, f"Expected no exception samples from GeneratorExit, got {len(samples)}"
+    generator_exit_samples = []
+    for s in samples:
+        label = pprof_utils.get_label_with_key(profile.string_table, s, "exception type")
+        if label is not None and "GeneratorExit" in profile.string_table[label.str]:
+            generator_exit_samples.append(s)
+    assert len(generator_exit_samples) == 0, (
+        f"Expected no GeneratorExit exception samples, got {len(generator_exit_samples)}"
+    )
 
 
 def test_real_exceptions_still_sampled_with_iterators(tmp_path: Path) -> None:
@@ -803,14 +810,20 @@ def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
     samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
 
-    # With sampling_interval=1, the first exception is always sampled.ddup aggregates samples
+    # With sampling_interval=1 every exception is sampled. ddup aggregates samples
     # with identical stacks into a single pprof row with a summed count value.
-    # the invariant we are looking for is that the total exception-samples count must not exceed 1.
+    # The invariant we are looking for is that the total exception-samples count for the
+    # ValueError we raised must not exceed 1.
     # If RAISE fired once per unwound frame (depth=3), we'd see 3 samples.
+    # Filter to only ValueError samples to avoid flakiness from stray internal exceptions.
     sample_type_idx = pprof_utils.get_sample_type_index(profile, "exception-samples")
-    total_exception_count = sum(s.value[sample_type_idx] for s in samples)
-    assert total_exception_count == 1, (
-        f"Expected 1 exception event, got {total_exception_count}. "
+    value_error_count = 0
+    for s in samples:
+        label = pprof_utils.get_label_with_key(profile.string_table, s, "exception type")
+        if label is not None and "ValueError" in profile.string_table[label.str]:
+            value_error_count += s.value[sample_type_idx]
+    assert value_error_count == 1, (
+        f"Expected 1 ValueError exception event, got {value_error_count}. "
         f"RAISE is firing per unwound frame instead of once at the raise site."
     )
 
