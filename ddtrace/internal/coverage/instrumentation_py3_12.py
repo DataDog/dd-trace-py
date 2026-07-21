@@ -311,6 +311,11 @@ def _extract_lines_and_imports(
     lines = CoverageLines()
     import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
 
+    # File-level coverage only needs import dependency metadata. Most code objects do not import anything, so avoid
+    # walking their full bytecode when both import opcodes are absent. Nested code objects are instrumented separately.
+    if not track_lines and IMPORT_NAME not in code.co_code and IMPORT_FROM not in code.co_code:
+        return lines, import_names
+
     current_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
