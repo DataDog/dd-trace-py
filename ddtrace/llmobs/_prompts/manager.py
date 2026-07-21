@@ -64,12 +64,13 @@ def _normalize_response_ids(data: Any) -> Any:
 class _PromptRequest:
     """Describes an HTTP prompt fetch: environment resolution or the static registry.
 
-    The environment-resolved path (``DD_ENV`` set, no explicit ``label``) resolves env-scoped
-    variants and targeting via ``POST .../{id}/resolve``. An explicit ``label`` (deprecated) or no
-    ``DD_ENV`` at all falls back to the static ``GET .../{id}`` registry, which has no targeting.
+    The environment-resolved path (``DD_ENV`` set, no explicit ``version`` or ``label``) resolves
+    env-scoped variants and targeting via ``POST .../{id}/resolve``. An explicit ``version`` or
+    ``label`` (deprecated), or no ``DD_ENV`` at all, uses the static registry with no targeting.
     """
 
     prompt_id: str
+    version: Optional[int] = None
     label: Optional[str] = None
     env: Optional[str] = None
     targeting_key: Optional[str] = None
@@ -77,15 +78,21 @@ class _PromptRequest:
 
     @property
     def use_resolve(self) -> bool:
-        return self.label is None and bool(self.env)
+        return self.version is None and self.label is None and bool(self.env)
 
     @property
     def key(self) -> str:
-        attrs = ""
-        if self.attributes:
-            blob = json.dumps(self.attributes, sort_keys=True, default=str)
-            attrs = hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
-        return f"{self.prompt_id}:{self.label or ''}:{self.env or ''}:{self.targeting_key or ''}:{attrs}"
+        if self.version is not None:
+            selector: tuple[Any, ...] = ("version", self.version)
+        elif self.label is not None:
+            selector = ("label", self.label)
+        elif self.env:
+            selector = ("resolve", self.env, self.targeting_key, self.attributes)
+        else:
+            selector = ("latest",)
+        blob = json.dumps(selector, sort_keys=True, default=str)
+        suffix = hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+        return f"{self.prompt_id}:{suffix}"
 
     @property
     def source(self) -> PromptSource:
@@ -137,6 +144,7 @@ class PromptManager:
         self,
         prompt_id: str,
         *,
+        version: Optional[int] = None,
         label: Optional[str] = None,
         fallback: PromptFallback = None,
         targeting_key: Optional[str] = None,
@@ -145,7 +153,14 @@ class PromptManager:
         """Retrieve a prompt template from the registry or by environment resolution."""
         if not self._headers.get("DD-API-KEY"):
             raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
-        if label is not None and (targeting_key is not None or attributes):
+        if version is not None and (label is not None or targeting_key is not None or attributes):
+            warnings.warn(
+                "get_prompt() received 'version' alongside 'label', 'targeting_key', or other attributes. "
+                "'version' selects that exact registry version; the extra arguments will be ignored.",
+                UserWarning,
+                stacklevel=2,
+            )
+        elif label is not None and (targeting_key is not None or attributes):
             warnings.warn(
                 "get_prompt() received 'label' alongside 'targeting_key' or other attributes. "
                 "'label' routes to the HTTP path which does not support targeting; the extra "
@@ -155,7 +170,7 @@ class PromptManager:
             )
 
         dd_env = config.env
-        if label is None and dd_env and not self._agentless:
+        if version is None and label is None and dd_env and not self._agentless:
             prompt = self._fetch_from_ff(prompt_id, targeting_key, attributes)
             if prompt is not None:
                 telemetry.record_prompt_source(PromptSource.FF)
@@ -163,7 +178,9 @@ class PromptManager:
             # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
             # the HTTP /resolve floor, which resolves the same env-scoped variant server-side.
 
-        if label is not None:
+        if version is not None:
+            req = _PromptRequest(prompt_id=prompt_id, version=version)
+        elif label is not None:
             req = _PromptRequest(prompt_id=prompt_id, label=label)
         elif dd_env:
             req = _PromptRequest(prompt_id=prompt_id, env=dd_env, targeting_key=targeting_key, attributes=attributes)
@@ -410,7 +427,7 @@ class PromptManager:
         if req.use_resolve and not self._app_key:
             return None, False, "an app key or Service Access Token is required to resolve prompts for an environment"
 
-        scope = req.label or req.env
+        scope: Union[int, str, None] = req.version if req.version is not None else req.label or req.env
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout)
@@ -426,7 +443,7 @@ class PromptManager:
                 headers = {**self._headers, "Content-Type": "application/json", "DD-APPLICATION-KEY": self._app_key}
                 conn.request("POST", path, body=body, headers=headers)
             else:
-                conn.request("GET", self._build_path(req.prompt_id, req.label), headers=self._headers)
+                conn.request("GET", self._build_path(req.prompt_id, req.label, req.version), headers=self._headers)
             response = conn.getresponse()
             status = response.status
 
@@ -454,9 +471,11 @@ class PromptManager:
             log.warning("Prompt fetch exception: prompt_id=%s scope=%s: %s", req.prompt_id, scope, e)
             return None, False, str(e)
 
-    def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
+    def _build_path(self, prompt_id: str, label: Optional[str], version: Optional[int] = None) -> str:
         """Build the absolute request path for fetching a prompt from the static registry."""
         escaped_id = quote(prompt_id, safe="")
+        if version is not None:
+            return f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}"
         if label:
             return f"{PROMPTS_ENDPOINT}/{escaped_id}?{urlencode({'label': label})}"
         return f"{PROMPTS_ENDPOINT}/{escaped_id}"
@@ -478,17 +497,17 @@ class PromptManager:
             if not prompt_id:
                 log.warning("Failed to parse prompt response: missing prompt_id")
                 return None
-            version = data.get("version")
+            version = data.get("user_version") or data.get("version")
             if not version:
                 log.warning("Failed to parse prompt response: missing version")
                 return None
             return ManagedPrompt(
                 id=prompt_id,
-                version=version,
+                version=str(version),
                 source=source,
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
-                _version_uuid=data.get("prompt_version_uuid"),
+                _version_uuid=data.get("prompt_version_uuid") or data.get("id") or data.get("ID"),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
@@ -570,6 +589,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -580,6 +600,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -592,6 +614,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -601,6 +624,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -631,15 +656,18 @@ class PromptManager:
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
-        if labels is None and description is None:
-            raise PromptValidationError(0, "At least one of labels or description must be provided")
+        if labels is None and description is None and env_ids is None:
+            raise PromptValidationError(0, "At least one of labels, description, or env_ids must be provided")
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {}
         if labels is not None:
             body["labels"] = labels
         if description is not None:
             body["description"] = description
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request(
             "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
         )

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AAP: Add support for the ``DD_APPSEC_AGENTIC_ONBOARDING`` environment variable. Its value is
+    reported verbatim in configuration telemetry, letting Datadog record that a service was onboarded
+    through the agentic onboarding solution.

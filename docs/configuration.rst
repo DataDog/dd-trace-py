@@ -77,6 +77,20 @@ Traces
      version_added:
        v2.7.0:
 
+   DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables resolving the underlying foundation model of an AWS Bedrock application inference profile. When a
+         Bedrock request uses an application-inference-profile ARN as its ``modelId``, the model name is otherwise an
+         opaque identifier and LLM Observability cannot compute cost. When enabled, the integration makes an extra
+         ``bedrock:GetInferenceProfile`` call (once per profile, cached) to report the underlying model. The caller's
+         credentials must be allowed to call ``bedrock:GetInferenceProfile``.
+
+      version_added:
+         v4.13.0:
+
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean
       default: True
@@ -527,6 +541,17 @@ Application & API Security
 
 .. ddtrace-configuration-options::
 
+   DD_APPSEC_AGENTIC_ONBOARDING:
+     type: String
+     description: |
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding
+       solution when it configures App & API Protection. Its value is reported verbatim via
+       `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
+       so that Datadog can record that the service was onboarded through the agentic flow.
+
+     version_added:
+       v4.13.0:
+
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
       default: "safe"
@@ -758,6 +783,15 @@ Test Visibility
 ---------------
 
 .. ddtrace-configuration-options::
+
+   DD_CODE_COVERAGE_FLAGS:
+     type: String (comma-separated list)
+
+     description: |
+        Adds flags to uploaded code coverage reports for grouping and filtering. Separate flags with commas, for example
+        ``DD_CODE_COVERAGE_FLAGS="type:unit-tests,jvm-21"``. Surrounding whitespace and empty entries are ignored;
+        order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
+        omitted without canceling the report upload.
 
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean

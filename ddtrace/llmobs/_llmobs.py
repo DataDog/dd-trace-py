@@ -82,6 +82,8 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
@@ -146,7 +148,9 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -746,6 +750,15 @@ class LLMObs(Service):
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
+        # Surface the agent attribution resolved at activation, but only on spans that
+        # actually have a resolved agent parent. Spans without one are left untouched.
+        agent_name = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME)
+        agent_span_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID)
+        if agent_name is not None or agent_span_id is not None:
+            meta["agent_attribution"] = {
+                "pagent_name": agent_name,
+                "pagent_span_id": agent_span_id,
+            }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         tags = self._llmobs_tags(span)
         _dd_attrs = {
@@ -1922,6 +1935,7 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         *,
+        version: Optional[int] = None,
         label: Optional[str] = None,
         fallback: PromptFallback = None,
         targeting_key: Optional[str] = None,
@@ -1931,6 +1945,7 @@ class LLMObs(Service):
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
+        :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
         :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
@@ -1947,6 +1962,9 @@ class LLMObs(Service):
             # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
+
+            # Retrieve an exact version, independently of DD_ENV
+            prompt = LLMObs.get_prompt("greeting", version=2)
 
             # With explicit label and fallback
             prompt = LLMObs.get_prompt(
@@ -1976,6 +1994,7 @@ class LLMObs(Service):
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(
             prompt_id,
+            version=version,
             label=label,
             fallback=fallback,
             targeting_key=targeting_key,
@@ -2032,6 +2051,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
@@ -2042,6 +2062,7 @@ class LLMObs(Service):
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy the first version to.
 
         Returns:
             The created prompt.
@@ -2054,7 +2075,13 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
-            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            title=title,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2066,6 +2093,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
@@ -2075,6 +2103,7 @@ class LLMObs(Service):
             description: Optional description of this version.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy this version to.
 
         Returns:
             The created prompt version.
@@ -2087,7 +2116,12 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
-            prompt_id, template, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2125,6 +2159,7 @@ class LLMObs(Service):
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Update a specific prompt version's metadata.
 
@@ -2133,6 +2168,7 @@ class LLMObs(Service):
             version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
             labels: New labels for the version. Values must be ``production`` and/or ``development``.
             description: New description for the version.
+            env_ids: Feature-flag environment IDs to deploy this version to.
 
         Returns:
             The updated prompt version.
@@ -2144,7 +2180,9 @@ class LLMObs(Service):
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+        return prompt_manager.update_prompt_version(
+            prompt_id, version, labels=labels, description=description, env_ids=env_ids
+        )
 
     @classmethod
     def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
@@ -2329,6 +2367,11 @@ class LLMObs(Service):
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
                 context._meta[PROPAGATED_SAMPLING_DECISION] = sd
+            # Carry the nearest agent onto the context so spans created in in-process task
+            # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
+            # Stamped last so the budget check sees the full tagset.
+            parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
+            _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             return context
         return None
 
@@ -2343,6 +2386,9 @@ class LLMObs(Service):
         session_id is optional and propagated from the parent span._store or the distributed context.
         """
         llmobs_parent = self._llmobs_context_provider.active()
+        # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
+        # (the parent already resolved its own attribution when it activated).
+        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(llmobs_parent)
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2413,6 +2459,8 @@ class LLMObs(Service):
             span,
             name=resolved_name,
             parent_id=parent_id,
+            parent_agent_name=parent_agent_name,
+            parent_agent_span_id=parent_agent_span_id,
             trace_id=llmobs_trace_id,
             ml_app=ml_app,
             session_id=session_id,
@@ -3384,6 +3432,12 @@ class LLMObs(Service):
                 sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
             )
 
+        # Propagate the nearest agent so spans in the downstream process attribute correctly.
+        # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
+        # rather than overflowing x-datadog-tags.
+        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
+        _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
+
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
@@ -3447,6 +3501,10 @@ class LLMObs(Service):
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
             propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
+            # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
+            propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
+            propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3464,6 +3522,10 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
                 if propagated_session_id is not None:
                     llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
+                if propagated_agent_id is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+                if propagated_agent_name is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3475,6 +3537,10 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
             if propagated_session_id is not None:
                 llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
+            if propagated_agent_id is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+            if propagated_agent_name is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)
