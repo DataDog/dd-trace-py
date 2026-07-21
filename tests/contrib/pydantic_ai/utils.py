@@ -63,7 +63,7 @@ def expected_agent_metadata(
     guardrails=None,
     output_type=None,
     settings=None,
-    history_processors=None,
+    memory_policies=None,
     tool_transforms=None,
     metadata=None,
 ) -> dict:
@@ -101,8 +101,8 @@ def expected_agent_metadata(
     manifest["output_type"] = output_type if output_type is not None else dict(DEFAULT_OUTPUT_TYPE)
 
     # Nice-to-haves are flat (no ``behaviors`` grouping); ``settings`` is present for a normal agent.
-    if history_processors:
-        manifest["history_processors"] = history_processors
+    if memory_policies:
+        manifest["memory_policies"] = memory_policies
     if tool_transforms:
         manifest["tool_transforms"] = tool_transforms
     manifest["settings"] = settings if settings is not None else dict(DEFAULT_SETTINGS)

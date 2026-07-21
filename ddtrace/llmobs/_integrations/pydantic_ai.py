@@ -91,11 +91,22 @@ def _iter_agent_tools(agent: Any):
     else:
         function_toolset = getattr(agent, "_function_toolset", None)
         user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", None) or []
-        toolsets = list(user_toolsets)
+        # Only FunctionToolsets expose a ``{name: tool}`` dict. A custom user toolset's ``.tools`` may be
+        # absent or a non-dict (e.g. a list): reading it over-captures the toolset's tools as function caps
+        # (they are captured separately as ``custom`` capabilities) and crashes the whole manifest build on
+        # ``.items()``. Gate user toolsets on FunctionToolset; the agent's own ``_function_toolset`` is always
+        # one. The ``isinstance(dict)`` guard is belt-and-suspenders so a non-dict can never raise.
+        try:
+            from pydantic_ai.toolsets import FunctionToolset
+        except Exception:  # noqa: BLE001 - toolset module layout varies by version
+            FunctionToolset = None  # type: ignore[assignment,misc]
+        toolsets = [t for t in user_toolsets if FunctionToolset is None or isinstance(t, FunctionToolset)]
         if function_toolset is not None:
             toolsets.append(function_toolset)
         for toolset in toolsets:
-            tool_dicts.append(getattr(toolset, "tools", None) or {})
+            tools = getattr(toolset, "tools", None)
+            if isinstance(tools, dict):
+                tool_dicts.append(tools)
     for tools in tool_dicts:
         for name, tool in tools.items():
             if name in seen:
@@ -245,7 +256,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
-        self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
         # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
         # without setting user_prompt, we fall back to extracting the last user message from
@@ -269,6 +279,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
             input_value=user_prompt,
             output_value=result,
         )
+        # Build the manifest LAST: it does closure walks / ``inspect.getsource`` / ``model_json_schema``, so
+        # if it raises, the name/input/output above are already annotated -- a manifest failure degrades to
+        # no-manifest instead of blanking the whole agent span (``llmobs_set_tags`` logs and bails on raise).
+        self._tag_agent_manifest(span, kwargs, agent_instance)
 
     @staticmethod
     def _extract_user_prompt_from_message_history(kwargs: dict[str, Any]) -> Optional[str]:
@@ -351,7 +365,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         prompts); ``capabilities`` (unified typed superset of tools / sub-agents / builtins / MCP servers /
         custom toolsets, each ``{name, type, description?, content}`` -- function tools appear here AND in the
         flat ``tools``, an accepted duplication); ``handoffs``; ``guardrails``; ``output_type``;
-        ``history_processors``; ``tool_transforms``; ``settings``; ``metadata``.
+        ``memory_policies``; ``tool_transforms``; ``settings``; ``metadata``.
 
         pydantic-only: fields the framework does not expose (``max_turns``, ``parallel_tool_calls``,
         ``tool_use_behavior``, input/tool guardrails, ...) are OMITTED, never faked. Empty additive keys are
@@ -399,9 +413,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         output_type = self._get_agent_output_type(agent)
         if output_type:
             manifest["output_type"] = output_type
-        history_processors = self._get_history_processors(agent)
-        if history_processors:
-            manifest["history_processors"] = history_processors
+        memory_policies = self._get_history_processors(agent)
+        if memory_policies:
+            manifest["memory_policies"] = memory_policies
         tool_transforms = self._get_tool_transforms(agent)
         if tool_transforms:
             manifest["tool_transforms"] = tool_transforms
@@ -448,7 +462,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         for name, tool_instance, fn in _iter_agent_tools(agent):
             content: dict[str, Any] = {"schema": self._tool_parameters(tool_instance)}
             agent_name = self._referenced_agent_name(fn) if callable(fn) else None
-            if agent_name is not None:
+            # Classify as ``sub_agent`` only when the tool BOTH references an Agent AND calls a delegation
+            # method on it; a tool that merely reads ``agent.name`` or references an Agent for logging is a
+            # plain tool, not a delegation (see ``_fn_delegates``).
+            if agent_name is not None and self._fn_delegates(fn):
                 if agent_name:
                     content["agent"] = agent_name
                 entry: dict[str, Any] = {"name": name, "type": "sub_agent", "content": content}
@@ -728,7 +745,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
             handoff: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "output_function"}
             description = getattr(marker, "description", None) or getattr(fn, "__doc__", None)
             if description:
-                handoff["description"] = description
+                # ``description`` rides every agent span; cap it like prompt ``doc`` so a large docstring or
+                # marker description can't push the event over the size limit and evict the user's real I/O.
+                if len(description) > _PROMPT_SOURCE_MAX_BYTES:
+                    handoff["description_truncated"] = True
+                else:
+                    handoff["description"] = description
             agent_name = self._referenced_agent_name(fn)
             if agent_name:
                 handoff["agent"] = agent_name
@@ -783,11 +805,29 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """True if ``candidate`` is an output *function* (callable but not a class)."""
         return callable(candidate) and not isinstance(candidate, type)
 
+    _AGENT_DELEGATION_METHODS = frozenset({"run", "run_sync", "run_stream", "iter"})
+
+    @classmethod
+    def _fn_delegates(cls, fn: Any) -> bool:
+        """True if ``fn``'s code calls an Agent delegation method (``run`` / ``run_sync`` / ``run_stream`` / ``iter``).
+
+        Name-based heuristic over ``co_names`` -- narrows the ``sub_agent`` classification so a tool that
+        merely references an ``Agent`` (reads ``.name``, logging) is not mislabeled. Not operand-precise: a
+        tool that references an Agent AND calls a same-named method on another object can still match, which
+        is acceptable for a best-effort capability label.
+        """
+        code = getattr(fn, "__code__", None)
+        if code is None:
+            return False
+        return bool(cls._AGENT_DELEGATION_METHODS.intersection(code.co_names))
+
     @staticmethod
     def _referenced_agent_name(fn: Any) -> Optional[str]:
         """Return the ``name`` of an ``Agent`` in ``fn``'s globals/closure, else ``None``.
 
-        Sound but incomplete: agents reached via ``ctx.deps``, a registry lookup, or a helper return are not seen.
+        Best-effort, NOT sound: any referenced Agent matches (incidental references are false positives) and
+        agents reached via ``ctx.deps`` / a registry lookup / a helper return are missed. Callers that need
+        delegation (``_build_capabilities``) gate this behind ``_fn_delegates``.
         """
         try:
             from pydantic_ai import Agent

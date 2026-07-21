@@ -516,6 +516,80 @@ class TestLLMObsPydanticAI:
         assert capabilities["calculate_square_tool"]["type"] == "tool"
 
     @pytest.mark.skipif(
+        PYDANTIC_AI_VERSION < (1, 63, 0), reason="sub-agent introspection verified on pydantic-ai >=1.63.0"
+    )
+    def test_manifest_agent_reference_without_delegation_stays_tool(self, pydantic_ai, pydantic_ai_llmobs):
+        """Regression: a tool that REFERENCES an ``Agent`` but does not delegate stays ``type: tool``.
+
+        ``_referenced_agent_name`` matches any Agent in the tool's globals/closure, so a tool that merely
+        reads ``agent.name`` (or references an Agent for logging) would be mislabeled ``sub_agent`` and
+        corrupt the versioning manifest. ``_build_capabilities`` gates the reclassification on
+        ``_fn_delegates`` -- a delegation method (``run`` / ``run_sync`` / ``run_stream`` / ``iter``) must
+        appear in the tool's code. A real delegating tool stays ``sub_agent`` (see
+        ``test_manifest_sub_agent_capability``). Fails-on-revert: drop the gate and this tool flips to
+        ``sub_agent``.
+        """
+        integration = pydantic_ai._datadog_integration
+        sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
+
+        def reads_agent_name(query: str) -> str:
+            """References an Agent but only reads its name -- does not delegate."""
+            return f"{sub_worker.name}: {query}"
+
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", tools=[reads_agent_name])
+        capabilities = {c["name"]: c for c in integration._build_capabilities(agent)}
+        assert capabilities["reads_agent_name"]["type"] == "tool", capabilities
+        assert "agent" not in capabilities["reads_agent_name"]["content"], capabilities
+        # The discriminator itself: reading ``.name`` is not delegation; a ``run_sync`` call is.
+        assert integration._fn_delegates(reads_agent_name) is False
+
+        def delegates(query: str) -> str:
+            """Delegates to the sub agent."""
+            return sub_worker.run_sync(query).output
+
+        assert integration._fn_delegates(delegates) is True
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="custom toolsets verified on pydantic-ai >=1.63.0")
+    def test_manifest_custom_toolset_tools_not_over_captured_as_function_caps(self, pydantic_ai, pydantic_ai_llmobs):
+        """Regression: a custom (non-Function) toolset surfaces ONLY as a ``custom`` capability.
+
+        ``_iter_agent_tools`` reads ``.tools`` only from ``FunctionToolset``s now; a custom toolset (whose
+        ``.tools`` may be absent or a non-dict) is excluded, so its entries are neither double-counted as
+        function ``tool`` caps nor able to crash the manifest build on ``.items()`` -- which, since the
+        manifest is built inside ``_llmobs_set_tags_agent``, would otherwise blank the whole agent span.
+        """
+        from pydantic_ai.toolsets import AbstractToolset
+        from pydantic_ai.toolsets import FunctionToolset
+
+        class CustomToolset(AbstractToolset):
+            @property
+            def id(self):
+                return "custom-ts"
+
+            async def get_tools(self, ctx):
+                return {}
+
+            async def call_tool(self, name, tool_args, ctx, tool):
+                raise NotImplementedError
+
+        def real_tool(x: int) -> int:
+            """A real function tool."""
+            return x
+
+        integration = pydantic_ai._datadog_integration
+        agent = pydantic_ai.Agent(
+            model="gpt-4o", name="test_agent", toolsets=[FunctionToolset(tools=[real_tool]), CustomToolset()]
+        )
+        caps = integration._build_capabilities(agent)  # must not raise
+        by_type: dict = {}
+        for cap in caps:
+            by_type.setdefault(cap["type"], []).append(cap["name"])
+        assert "real_tool" in by_type.get("tool", []), by_type
+        assert by_type.get("custom") == ["custom-ts"], by_type
+        # The custom toolset contributes NO function-tool capability.
+        assert "custom-ts" not in by_type.get("tool", []), by_type
+
+    @pytest.mark.skipif(
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="output-function handoffs verified on pydantic-ai >=1.63.0"
     )
     def test_manifest_handoff_from_output_function(self, pydantic_ai, pydantic_ai_llmobs):
@@ -1051,7 +1125,7 @@ class TestLLMObsPydanticAI:
 
     def test_manifest_history_processors_captured(self, pydantic_ai, pydantic_ai_llmobs):
         """An agent's ``history_processors`` (its memory / history policy) are captured under the flat
-        ``history_processors`` key and described like any prompt function.
+        ``memory_policies`` key (the canonical cross-framework name) and described like any prompt function.
 
         Builder-driven: ``agent.history_processors`` is a public list of bare callables on every supported
         version (0.8.1 / 1.0.0 / 1.63.0), so no cassette and no ``.function`` unwrap are needed.
@@ -1063,17 +1137,17 @@ class TestLLMObsPydanticAI:
             return messages[-1:]
 
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", history_processors=[keep_last_message])
-        processors = integration._build_agent_manifest(agent)["history_processors"]
+        processors = integration._build_agent_manifest(agent)["memory_policies"]
         assert len(processors) == 1
         assert processors[0]["name"] == "keep_last_message"
         assert processors[0]["doc"] == "Trim history to the most recent message."
         assert "def keep_last_message(messages):" in processors[0]["source"]
 
     def test_manifest_history_processors_omitted_when_absent(self, pydantic_ai, pydantic_ai_llmobs):
-        """An agent with no history processors emits no ``history_processors`` key."""
+        """An agent with no history processors emits no ``memory_policies`` key."""
         integration = pydantic_ai._datadog_integration
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-        assert "history_processors" not in integration._build_agent_manifest(agent)
+        assert "memory_policies" not in integration._build_agent_manifest(agent)
 
     def test_manifest_history_processors_order_is_preserved(self, pydantic_ai, pydantic_ai_llmobs):
         """History processors run as a pipeline, so their order is SEMANTIC and must NOT be sorted:
@@ -1093,8 +1167,8 @@ class TestLLMObsPydanticAI:
         m_ba = integration._build_agent_manifest(
             pydantic_ai.Agent(model="gpt-4o", name="test_agent", history_processors=[beta, alpha])
         )
-        assert [p["name"] for p in m_ab["history_processors"]] == ["alpha", "beta"]
-        assert [p["name"] for p in m_ba["history_processors"]] == ["beta", "alpha"]
+        assert [p["name"] for p in m_ab["memory_policies"]] == ["alpha", "beta"]
+        assert [p["name"] for p in m_ba["memory_policies"]] == ["beta", "alpha"]
 
     def test_manifest_tools_preserve_registration_order(self, pydantic_ai, pydantic_ai_llmobs):
         """The frozen ``tools`` list preserves registration order (matching origin/main, which iterates the
