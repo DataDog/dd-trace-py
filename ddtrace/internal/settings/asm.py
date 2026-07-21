@@ -4,7 +4,6 @@ from platform import system
 import sys
 from typing import Optional
 
-from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -64,6 +63,7 @@ def build_libddwaf_filename() -> str:
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
+    _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -320,15 +320,15 @@ class ASMConfig(DDConfig):
 
     @property
     def _apm_opt_out(self) -> bool:
-        # AI Guard standalone: when AI Guard is enabled and APM tracing is disabled, opt out of APM
-        # billing while still letting AI Guard traces (USER_KEEP'd via _aiguard_manual_keep) reach the
-        # backend. ``ai_guard_config`` is a module global defined below; this property is only evaluated
-        # at runtime (after module import), so the reference resolves fine.
+        # AI Guard standalone opt-out. Import lazily: ai_guard settings pull in the aiguard package,
+        # so a top-level import would give asm an import-time dependency on it.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
         return (
             self._asm_enabled
             or self._iast_enabled
             or tracer_config._sca_enabled is True
-            or ai_guard_config._ai_guard_enabled
+            or aiguard_config._ai_guard_enabled
         ) and not self._apm_tracing_enabled
 
     @property
@@ -341,36 +341,3 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
-
-
-class AIGuardConfig(DDConfig):
-    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD.ENV_ENABLED, default=False)
-    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD.ENV_ENDPOINT, default="")
-    _ai_guard_block = DDConfig.var(bool, AI_GUARD.BLOCK_ENV, default=True)
-    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
-    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
-    _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
-    _ai_guard_analyze_stream_responses_enabled = DDConfig.var(
-        bool, AI_GUARD.ENV_ANALYZE_STREAM_RESPONSES_ENABLED, default=False
-    )
-    # Per-LLM kill switch: disables OpenAI AI Guard auto-instrumentation when false.
-    _ai_guard_openai_enabled = DDConfig.var(bool, AI_GUARD.ENV_OPENAI_ENABLED, default=True)
-
-    # for tests purposes
-    _ai_guard_config_keys = [
-        "_ai_guard_enabled",
-        "_ai_guard_endpoint",
-        "_ai_guard_block",
-        "_ai_guard_max_content_size",
-        "_ai_guard_max_messages_length",
-        "_ai_guard_timeout",
-        "_ai_guard_analyze_stream_responses_enabled",
-        "_ai_guard_openai_enabled",
-    ]
-
-    def reset(self):
-        """For testing purposes, reset the configuration to its default values given current environment variables."""
-        self.__init__()
-
-
-ai_guard_config = AIGuardConfig()

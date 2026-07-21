@@ -53,8 +53,10 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
-# Per-thread cache. Thread locals are naturally fork-safe: after os.fork() only the
-# calling thread survives, so every other thread's cached values vanish automatically.
+# Per-thread cache.
+# TODO(dubloom): Register _reset_thread_local_state with forksafe and validate cached runtime
+# invariants by job identity. The forking thread's local values survive in the child, and
+# a new Ray job can run on the same node while the cached job and worker IDs are stale.
 _local = threading.local()
 
 

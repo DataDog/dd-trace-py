@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
@@ -50,6 +51,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             "createResponse",
             "parseChatCompletion",
             "parseResponse",
+            "createRealtimeResponse",
         )
         if operation_id in traced_operations:
             submit_to_llmobs = True
@@ -65,6 +67,15 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
         span._set_attribute("openai.request.provider", client)
+
+    def _get_model_provider(self, span) -> str:
+        if self._is_provider(span, "azure"):
+            return "azure_openai"
+        elif self._is_provider(span, "openai"):
+            return "openai"
+        elif self._is_provider(span, "deepseek"):
+            return "deepseek"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -96,13 +107,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = UNKNOWN_MODEL_PROVIDER
-        if self._is_provider(span, "azure"):
-            model_provider = "azure_openai"
-        elif self._is_provider(span, "openai"):
-            model_provider = "openai"
-        elif self._is_provider(span, "deepseek"):
-            model_provider = "deepseek"
+        model_provider = self._get_model_provider(span)
 
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
@@ -170,6 +175,42 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata={"tool_id": tool_id},
         )
 
+    def _llmobs_set_tags_from_realtime_response(
+        self,
+        span: Span,
+        model_name: Optional[str],
+        input_messages: list[Any],
+        output_messages: list[Any],
+        metadata: Optional[dict[str, Any]],
+        metrics: Optional[dict[str, Any]],
+        session_id: Optional[str] = None,
+    ) -> None:
+        """Tag a per-turn Realtime span (llm kind) built by the realtime state machine.
+
+        Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
+        conversation in the UI (there is no parent session span).
+        """
+        provider = span.get_tag("openai.request.provider") or "OpenAI"
+        model_provider = self._get_model_provider(span)
+        _annotate_llmobs_span_data(
+            span,
+            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            kind="llm",
+            model_name=model_name or "unknown_model",
+            model_provider=model_provider,
+            input_messages=input_messages or None,
+            output_messages=output_messages or None,
+            metadata=metadata or {},
+            metrics=metrics or None,
+            session_id=session_id,
+        )
+        # Mirror the base llmobs_set_tags path: also stamp the LLMObs->APM shadow token metrics so
+        # realtime spans are consistent with every other OpenAI span for APM-only users.
+        try:
+            self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
+        except Exception:
+            log.debug("Error applying shadow metrics for realtime span %s", span, exc_info=True)
+
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
             "workflow"
@@ -180,13 +221,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = UNKNOWN_MODEL_PROVIDER
-        if self._is_provider(span, "azure"):
-            model_provider = "azure_openai"
-        elif self._is_provider(span, "openai"):
-            model_provider = "openai"
-        elif self._is_provider(span, "deepseek"):
-            model_provider = "deepseek"
+        model_provider = self._get_model_provider(span)
         self._apply_shadow_metrics(
             span,
             metrics,
@@ -241,6 +276,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
+            metrics.update(get_openrouter_cost_metrics(token_usage))
             return metrics
         elif kwargs.get("stream") and resp is not None:
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))

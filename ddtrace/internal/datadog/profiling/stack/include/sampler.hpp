@@ -48,6 +48,15 @@ class Sampler
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
 
+    // Whether the sampler is currently active. Unlike thread_running (which tracks
+    // the thread's actual lifecycle) this is set synchronously in start/stop, so
+    // it is not subject to the sampling-thread startup race.
+    // It becomes false in stop and also when the sampling thread aborts on an
+    // unexpected exception, since the sampler is then no longer active.
+    // prefork reads this to decide whether to restart the sampler after fork,
+    // ensuring a sampler that stopped due to an error is not silently restarted.
+    std::atomic<bool> sampler_active_{ false };
+
     // Pause synchronization — allows the faulthandler wrapper to temporarily
     // suspend sampling so signal handlers can be safely swapped without racing
     // with in-flight safe_memcpy calls.
@@ -73,6 +82,10 @@ class Sampler
     std::minstd_rand rng{ std::random_device{}() };
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
+
+    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
+    // when max_threads_per_sample is set).
+    void capture_samples(microsecond_t wall_time_us, bool include_wall_sampler_cpu_time);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
@@ -160,8 +173,9 @@ class Sampler
     // Restart the sampling thread in the parent after fork
     void postfork_parent();
 
-    // Restart the sampler after fork if it was running
-    void restart_after_fork();
+    // Restart the sampler after fork if it was running.
+    // Returns true if start() was invoked and succeeded.
+    bool restart_after_fork();
 };
 
 } // namespace Datadog

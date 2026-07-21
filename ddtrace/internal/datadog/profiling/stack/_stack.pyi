@@ -11,6 +11,7 @@ from typing import Union
 
 def start(min_interval: float = ...) -> bool: ...
 def stop() -> None: ...
+def is_origin_task_linking_enabled() -> bool: ...
 
 # Sampling configuration
 
@@ -36,6 +37,13 @@ def link_span(
     local_root_span_id: int,
     span_type: Optional[str] = None,
 ) -> None: ...
+
+# executor worker thread <-> originating asyncio task association
+def link_origin_task(
+    task_id: int,
+    task_name: Optional[str] = None,
+) -> None: ...
+def unlink_origin_task() -> None: ...
 
 # Thread management
 

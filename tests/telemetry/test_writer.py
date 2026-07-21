@@ -12,6 +12,7 @@ import pytest
 from ddtrace import config
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.settings.profiling import exception_is_available
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -50,6 +51,48 @@ def test_app_started_event_configuration_override_asm(
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
+
+
+@pytest.mark.parametrize("onboarding_value", ["true", "false", "1", "0", ""])
+def test_app_started_event_agentic_onboarding_reported_verbatim(
+    test_agent_session, run_python_code_in_subprocess, onboarding_value
+):
+    """RFC-1113: DD_APPSEC_AGENTIC_ONBOARDING is reported verbatim as an ordinary config key."""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_APPSEC_AGENTIC_ONBOARDING"] = onboarding_value
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = test_agent_session.get_configurations(
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
+    )
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "env_var",
+        "value": onboarding_value,
+    }
+
+
+def test_app_started_event_agentic_onboarding_absent(test_agent_session, run_python_code_in_subprocess):
+    """RFC-1113: when unset, the key is still reported with an empty value and origin=default."""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
+    env.pop("DD_APPSEC_AGENTIC_ONBOARDING", None)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = test_agent_session.get_configurations(
+        name="DD_APPSEC_AGENTIC_ONBOARDING", remove_seq_id=True, effective=True
+    )
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {
+        "name": "DD_APPSEC_AGENTIC_ONBOARDING",
+        "origin": "default",
+        "value": "",
+    }
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
@@ -170,6 +213,7 @@ import opentelemetry
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_AGENTIC_ONBOARDING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
@@ -307,7 +351,7 @@ import opentelemetry
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": exception_is_available},
         {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
@@ -378,6 +422,7 @@ import opentelemetry
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+        {"name": "DD_TRACE_AGENT_PROTOCOL_VERSION", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
@@ -535,7 +580,7 @@ import opentelemetry
         {
             "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
             "origin": "default",
-            "value": False,
+            "value": True,
         },
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},

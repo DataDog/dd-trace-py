@@ -9,19 +9,17 @@ from typing import TypedDict
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.trace import tracer
 from ddtrace.version import __version__
 
 
@@ -139,8 +137,12 @@ class AIGuardClient:
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
+
         self._meta = {"service": config.service, "env": config.env}
-        self._timeout = ai_guard_config._ai_guard_timeout // 1000
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
+        self._timeout = aiguard_config._ai_guard_timeout // 1000
 
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
@@ -148,14 +150,17 @@ class AIGuardClient:
 
     @staticmethod
     def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
-        max_messages_length = ai_guard_config._ai_guard_max_messages_length
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
+        max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
             )
         messages = messages[-max_messages_length:]
 
-        max_content_size = ai_guard_config._ai_guard_max_content_size
+        max_content_size = aiguard_config._ai_guard_max_content_size
         content_truncated = False
 
         def truncate_message(message: Message) -> Message:
@@ -250,6 +255,8 @@ class AIGuardClient:
         """
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
+
+        from ddtrace.trace import tracer
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
@@ -378,7 +385,10 @@ def new_ai_guard_client(
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
     if not endpoint:
-        endpoint = ai_guard_config._ai_guard_endpoint
+        # Import lazily to avoid a circular import: aiguard settings pull in this package.
+        from ddtrace.internal.settings.aiguard import aiguard_config
+
+        endpoint = aiguard_config._ai_guard_endpoint
     if not endpoint:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
