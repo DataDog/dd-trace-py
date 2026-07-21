@@ -697,9 +697,7 @@ _ALL_FLASK_APP_TRACE_NAMES = (
     "send_static_file",
     "try_trigger_before_first_request_functions",
 )
-_flask_app_trace_wrappers = {
-    name: simple_call_wrapper("flask.{}".format(name)) for name in _ALL_FLASK_APP_TRACE_NAMES
-}
+_flask_app_trace_wrappers = {name: simple_call_wrapper("flask.{}".format(name)) for name in _ALL_FLASK_APP_TRACE_NAMES}
 
 
 def patched_signal_receivers_for(signal):
