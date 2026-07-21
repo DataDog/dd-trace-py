@@ -9,6 +9,7 @@ import uuid
 
 import pytest
 
+from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
@@ -23,6 +24,13 @@ from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import mock_backend_connector
+
+
+@pytest.fixture
+def reset_code_coverage_flags_cache():
+    _get_code_coverage_flags.cache_clear()
+    yield
+    _get_code_coverage_flags.cache_clear()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -1634,8 +1642,16 @@ def mock_post_files_with_error(*args, **kwargs):
 class TestAPIClientUploadCoverageReport:
     """Tests for coverage report upload functionality."""
 
-    def test_upload_coverage_report_success(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
+    def test_upload_coverage_report_success(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        reset_code_coverage_flags_cache,
+    ) -> None:
         """Test successful coverage report upload."""
+        monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "type:unit-tests,jvm-21")
+
         mock_connector = Mock()
 
         mock_connector.post_files.side_effect = mock_post_files_with_telemetry
@@ -1699,6 +1715,7 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["git.repository_url"] == "http://github.com/DataDog/some-repo.git"
         assert event_data["git.commit.sha"] == "abcd1234"
         assert event_data["git.branch"] == "some-branch"
+        assert event_data["report.flags"] == ["type:unit-tests", "jvm-21"]
 
         # Verify success message was logged
         assert "Successfully uploaded coverage report" in caplog.text

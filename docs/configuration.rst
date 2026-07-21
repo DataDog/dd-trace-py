@@ -530,10 +530,10 @@ Application & API Security
    DD_APPSEC_AGENTIC_ONBOARDING:
      type: String
      description: |
-       A legitimate Datadog variable set automatically by Datadog's agentic onboarding solution when it
-       configures App & API Protection. It lets Datadog record, via
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding
+       solution when it configures App & API Protection. Its value is reported verbatim via
        `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
-       that the service was onboarded through the agentic flow. Its value is never read.
+       so that Datadog can record that the service was onboarded through the agentic flow.
 
      version_added:
        v4.13.0:
@@ -769,6 +769,15 @@ Test Visibility
 ---------------
 
 .. ddtrace-configuration-options::
+
+   DD_CODE_COVERAGE_FLAGS:
+     type: String (comma-separated list)
+
+     description: |
+        Adds flags to uploaded code coverage reports for grouping and filtering. Separate flags with commas, for example
+        ``DD_CODE_COVERAGE_FLAGS="type:unit-tests,jvm-21"``. Surrounding whitespace and empty entries are ignored;
+        order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
+        omitted without canceling the report upload.
 
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean

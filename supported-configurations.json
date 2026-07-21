@@ -317,8 +317,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
-        "sensitive": true
+        "default": ""
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
@@ -923,6 +922,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_CODE_COVERAGE_FLAGS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_CODE_ORIGIN_ENABLED": [
