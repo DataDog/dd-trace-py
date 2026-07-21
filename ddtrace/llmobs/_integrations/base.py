@@ -27,7 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
@@ -46,7 +46,7 @@ class BaseLLMIntegration:
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
-        return LLMObs.enabled
+        return is_enabled()
 
     def is_pc_sampled_llmobs(self, span: Span) -> bool:
         # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
