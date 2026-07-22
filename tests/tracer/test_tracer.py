@@ -1386,6 +1386,59 @@ class TestPartialFlush(TracerTestCase):
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2")
+    )
+    def test_partial_flush_shares_trace_level_state(self):
+        """A partial-flushed chunk's root must share trace-level state with the
+        trace's local root. Sampling is applied to the local root during processing
+        and read back off the chunk root, so both must reference the same _metrics
+        (which holds the sampling priority) and _meta dicts.
+        """
+        root = self.tracer.trace("root")
+        self.tracer.trace("child0").finish()
+        self.tracer.trace("child1").finish()  # >= 2 finished -> partial flush
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        chunk = traces[0]
+        chunk_root = chunk[0]
+        local_root = chunk_root._local_root
+        assert local_root is root
+        # single source of truth for trace-level state
+        assert chunk_root.context._metrics is local_root.context._metrics
+        assert chunk_root.context._meta is local_root.context._meta
+        # the sampling decision applied to the local root is visible on the chunk root
+        assert chunk_root.context.sampling_priority is not None
+        assert chunk_root.context.sampling_priority == local_root.context.sampling_priority
+        root.finish()
+
+
+def test_child_span_shares_trace_level_state(tracer):
+    """A child span's context shares the root's _meta/_metrics/_baggage/lock, so
+    sampling/baggage/origin set anywhere in the trace is consistent, while each span
+    keeps its own trace_id/span_id.
+    """
+    with tracer.trace("root") as root:
+        with tracer.trace("child") as child:
+            with tracer.trace("grandchild") as grandchild:
+                # each span's context carries its own ids
+                assert grandchild.context.trace_id == root.context.trace_id
+                assert grandchild.context.span_id == grandchild.span_id
+
+                # the shared lock serializes trace-level writes across the trace
+                assert child.context._lock is root.context._lock
+                assert grandchild.context._lock is root.context._lock
+
+                # a mutation via a descendant is visible on the root, proving the
+                # shared _metrics (sampling), _baggage (baggage) and _meta (origin)
+                grandchild.context.sampling_priority = 2
+                grandchild.context.set_baggage_item("bkey", "bval")
+                grandchild.context.dd_origin = "synthetics"
+                assert root.context.sampling_priority == 2
+                assert root.context.get_baggage_item("bkey") == "bval"
+                assert root.context.dd_origin == "synthetics"
+
 
 def test_unicode_config_vals():
     with override_global_config(dict(version="😇", env="😇")):

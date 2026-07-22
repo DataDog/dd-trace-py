@@ -112,12 +112,14 @@ class Span(SpanData):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
-        # PERF: build the span's Context lazily on first access (see the `context`
-        # property). Most spans never have their context read: short-lived leaf
-        # spans, and any span created but never activated or propagated. Creating
-        # a Context eagerly here costs an allocation plus a native RLock per span,
-        # which dominates root-span creation in the microbenchmarks.
         self._context: Optional[Context] = None
+        if context is None:
+            # PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
+            # Materialize its Context now (via the property), in the creating thread
+            # before the span can be published, so concurrent first-readers can't
+            # race and build divergent state — no lock required. Child spans stay
+            # lazy; see the `context` property.
+            _ = self.context
 
         if links:
             for link in links:
@@ -131,12 +133,14 @@ class Span(SpanData):
 
     @property
     def context(self) -> Context:
-        """The trace context for this span, created lazily on first access.
+        """The trace context for this span.
 
-        The context shares the trace-level state (``_meta``, ``_metrics``,
-        ``_baggage`` and lock) with its parent while carrying this span's own
-        ``trace_id``/``span_id``. It is only materialized when something actually
-        reads it (child-span creation, propagation, sampling, etc.).
+        For a child span this is a copy of the parent context that shares the
+        trace-level ``_meta``/``_metrics``/``_baggage``/lock while carrying this
+        span's own ``trace_id``/``span_id``; for a root span it is fresh
+        trace-level state. Child contexts are built lazily on first read; root
+        contexts are forced eagerly in ``__init__`` (before the span is published)
+        so the build cannot race across threads.
         """
         ctx = self._context
         if ctx is None:

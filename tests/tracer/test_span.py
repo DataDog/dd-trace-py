@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
@@ -806,3 +807,51 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
     assert len(result) < 410  # Value is 377 for Python 3.10
+
+
+def test_root_span_context_built_eagerly():
+    """Root spans materialize their Context in ``__init__``; child spans stay lazy.
+
+    Correctness guard, not just perf: a root owns fresh, unshared trace-level
+    state, so building it lazily on first access would let two threads that first
+    read ``root.context`` concurrently create divergent Contexts with independent
+    ``_meta``/``_metrics``/``_baggage``, silently dropping sampling priority/
+    baggage/origin. Building eagerly in the creating thread — before the span is
+    published — makes that race impossible without a lock. A child's context is a
+    shared copy of its parent's, so a concurrent child build cannot lose state and
+    stays lazy.
+    """
+    root = Span("root")
+    assert root._context is not None, "root span must build its context eagerly (thread-safe, no race)"
+
+    child = Span("child", context=root.context)
+    assert child._context is None, "child span context must stay lazy"
+
+
+def test_context_for_child_reuses_own_built_context():
+    """A span whose context is already built hands that same context to a child."""
+    root = Span("root")
+    assert root._context_for_child() is root.context
+
+
+def test_context_for_child_reuses_local_parent_context_without_building():
+    """A child reuses its (local) parent-context directly, without materializing
+    its own context (the shared trace state is identical either way).
+    """
+    parent_ctx = Context(trace_id=1, span_id=2, is_remote=False)
+    child = Span("child", context=parent_ctx)
+    assert child._context is None
+    assert child._context_for_child() is parent_ctx
+    assert child._context is None, "reusing the parent-context must not build the child's own context"
+
+
+def test_context_for_child_never_hands_down_remote_context():
+    """A remote parent-context must not be handed to a local child; a fresh local
+    context is materialized instead so _is_remote/reactivation keep their meaning.
+    """
+    remote_ctx = Context(trace_id=1, span_id=2, is_remote=True)
+    entry = Span("entry", context=remote_ctx)
+    donor = entry._context_for_child()
+    assert donor is not remote_ctx
+    assert donor._is_remote is False
+    assert donor is entry.context
