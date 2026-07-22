@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -13,6 +14,9 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
+
+
+log = get_logger(__name__)
 
 
 class GoogleAdkIntegration(BaseLLMIntegration):
@@ -138,7 +142,16 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         manifest["name"] = getattr(agent, "name", "")
         manifest["model"] = getattr(getattr(agent, "model", ""), "model", "")
         manifest["description"] = getattr(agent, "description", "")
-        manifest["instructions"] = getattr(agent, "instruction", "")
+        instruction = getattr(agent, "instruction", "")
+        if isinstance(instruction, str):
+            manifest["instructions"] = instruction
+        elif callable(instruction):
+            # ADK supports dynamic instruction providers.
+            # See https://adk.dev/sessions/state/#using-instructionprovider-for-full-control
+            manifest["instructions"] = str(instruction)
+        else:
+            log.warning("Unexpected Google ADK instruction type: %s", type(instruction).__name__)
+            manifest["instructions"] = str(instruction)
         manifest["model_configuration"] = safe_json(getattr(agent, "model_config", ""))
         manifest["session_management"] = {
             "session_id": kwargs.get("session_id", ""),
