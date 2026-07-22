@@ -130,6 +130,27 @@ def test_dataclasses_not_unloaded():
 
 
 @pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_numpy_not_unloaded():
+    import sys
+
+    import ddtrace  # noqa: F401
+
+    # numpy >= 2.4 refuses to re-initialize its C extension, so if cleanup drops
+    # it and user code re-imports, the second import raises ImportError. Keep it
+    # loaded across the cleanup. Regression test for issue #18276.
+    have_numpy = True
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        have_numpy = False
+
+    import ddtrace.auto  # noqa: F401
+
+    if have_numpy:
+        assert "numpy" in sys.modules
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
 def test_yaml_not_unloaded():
     # Regression test for APMS-20000. The module cleanup used to drop and force a
     # reimport of ``yaml``/``_yaml``. Consumers (e.g. Airflow's airflow/utils/yaml.py)
