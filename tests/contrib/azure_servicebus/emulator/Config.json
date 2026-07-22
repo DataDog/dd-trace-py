@@ -3,12 +3,7 @@
     "Namespaces": [
       {
         "Name": "sbemulatorns",
-        "Queues": [
-          { "Name": "queue.1" },
-          { "Name": "queue.2" },
-          { "Name": "queue.3" },
-          { "Name": "queue.4" }
-        ]
+        "Queues": [{ "Name": "queue.1" }]
       }
     ]
   }

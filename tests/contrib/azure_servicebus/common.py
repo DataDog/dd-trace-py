@@ -14,7 +14,6 @@ from azure.servicebus.aio import ServiceBusClient as ServiceBusClientAsync
 from azure.servicebus.aio import ServiceBusReceiver as ServiceBusReceiverAsync
 from azure.servicebus.aio import ServiceBusSender as ServiceBusSenderAsync
 from azure.servicebus.amqp import AmqpAnnotatedMessage
-from azure.servicebus.management import ServiceBusAdministrationClient
 import pytest
 
 
@@ -22,10 +21,7 @@ CONNECTION_STRING = (
     "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;"
     "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 )
-EMULATOR_HOST = os.environ.get("AZURE_SERVICEBUS_EMULATOR_HOST", "localhost")
-EMULATOR_HTTP_PORT = int(os.environ.get("AZURE_SERVICEBUS_EMULATOR_HTTP_PORT", "5300"))
-
-PARALLEL_QUEUE_COUNT = 4
+DEFAULT_QUEUE_NAME = "queue.1"
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
     "x-datadog-trace-id",
@@ -37,26 +33,13 @@ TRACE_CONTEXT_KEYS = [
 ]
 RECEIVE_TIMEOUT_SECONDS = 15
 MAX_DRAIN_MESSAGES = 100
+TEST_RUN_ID_PROPERTY = "dd.azure_servicebus.test_run_id"
 
 
 def get_queue_name() -> str:
-    if queue_name := os.environ.get("DD_AZURE_SERVICEBUS_TEST_QUEUE"):
-        return queue_name
-
-    node_index = int(os.environ.get("CI_NODE_INDEX", "1"))
-    queue_index = ((node_index - 1) % PARALLEL_QUEUE_COUNT) + 1
-    return f"queue.{queue_index}"
-
-
-def servicebus_administration_client() -> ServiceBusAdministrationClient:
-    management_connection_string = (
-        f"Endpoint=sb://{EMULATOR_HOST}:{EMULATOR_HTTP_PORT};SharedAccessKeyName=RootManageSharedAccessKey;"
-        "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
-    )
-    admin_client = ServiceBusAdministrationClient.from_connection_string(management_connection_string)
-    # AIDEV-NOTE: Python SDK management defaults to HTTPS; emulator serves HTTP on EMULATOR_HTTP_PORT.
-    admin_client._impl._client._base_url = f"http://{EMULATOR_HOST}:{EMULATOR_HTTP_PORT}"
-    return admin_client
+    # AIDEV-NOTE: Each CI job gets its own emulator container, so parallel jobs do not share a queue.
+    # The default emulator config ships queue.1; avoid runtime queue provisioning via the Python admin client.
+    return os.environ.get("DD_AZURE_SERVICEBUS_TEST_QUEUE", DEFAULT_QUEUE_NAME)
 
 
 def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]):
@@ -66,6 +49,17 @@ def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]
         props = {}
 
     return {k.decode() if isinstance(k, bytes) else k: v for k, v in props.items()}
+
+
+def tag_test_run_id(message: Union[ServiceBusMessage, AmqpAnnotatedMessage], test_run_id: str):
+    props = dict(message.application_properties or {})
+    props[TEST_RUN_ID_PROPERTY] = test_run_id
+    message.application_properties = props
+    return message
+
+
+def message_matches_test_run_id(message: Union[ServiceBusMessage, AmqpAnnotatedMessage], test_run_id: str) -> bool:
+    return normalize_properties(message).get(TEST_RUN_ID_PROPERTY) == test_run_id
 
 
 def drain_queue(receiver: ServiceBusReceiver):
@@ -88,31 +82,32 @@ async def drain_queue_async(receiver: ServiceBusReceiverAsync):
         drained += len(messages)
 
 
-def receive_all_messages(receiver: ServiceBusReceiver, message_length: int):
+def receive_test_run_messages(receiver: ServiceBusReceiver, message_length: int, test_run_id: str):
+    # AIDEV-NOTE: RECEIVE_AND_DELETE discards non-matching stragglers while polling for this run's messages.
     received_queue_messages = []
     deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
     while len(received_queue_messages) < message_length and time.monotonic() < deadline:
-        remaining = message_length - len(received_queue_messages)
-        received_queue_messages.extend(
-            receiver.receive_messages(
-                max_message_count=remaining,
-                max_wait_time=min(5, max(1, deadline - time.monotonic())),
-            )
+        messages = receiver.receive_messages(
+            max_message_count=10,
+            max_wait_time=min(5, max(1, deadline - time.monotonic())),
         )
+        for message in messages:
+            if message_matches_test_run_id(message, test_run_id):
+                received_queue_messages.append(message)
     return received_queue_messages
 
 
-async def receive_all_messages_async(receiver: ServiceBusReceiverAsync, message_length: int):
+async def receive_test_run_messages_async(receiver: ServiceBusReceiverAsync, message_length: int, test_run_id: str):
     received_queue_messages = []
     deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
     while len(received_queue_messages) < message_length and time.monotonic() < deadline:
-        remaining = message_length - len(received_queue_messages)
-        received_queue_messages.extend(
-            await receiver.receive_messages(
-                max_message_count=remaining,
-                max_wait_time=min(5, max(1, deadline - time.monotonic())),
-            )
+        messages = await receiver.receive_messages(
+            max_message_count=10,
+            max_wait_time=min(5, max(1, deadline - time.monotonic())),
         )
+        for message in messages:
+            if message_matches_test_run_id(message, test_run_id):
+                received_queue_messages.append(message)
     return received_queue_messages
 
 
@@ -146,8 +141,9 @@ def run_test(
     distributed_tracing_enabled: bool,
     batch_links_enabled: bool,
 ):
-    servicebus_messages = make_servicebus_messages()
-    amqp_annotated_messages = make_amqp_annotated_messages()
+    test_run_id = str(uuid4())
+    servicebus_messages = [tag_test_run_id(message, test_run_id) for message in make_servicebus_messages()]
+    amqp_annotated_messages = [tag_test_run_id(message, test_run_id) for message in make_amqp_annotated_messages()]
 
     message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     now = datetime.now(timezone.utc)
@@ -179,7 +175,7 @@ def run_test(
         sender.schedule_messages(servicebus_messages, now)
         sender.schedule_messages(amqp_annotated_messages, now)
 
-    received_queue_messages = receive_all_messages(receiver, message_length)
+    received_queue_messages = receive_test_run_messages(receiver, message_length, test_run_id)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
@@ -196,8 +192,9 @@ async def run_test_async(
     distributed_tracing_enabled: bool,
     batch_links_enabled: bool,
 ):
-    servicebus_messages = make_servicebus_messages()
-    amqp_annotated_messages = make_amqp_annotated_messages()
+    test_run_id = str(uuid4())
+    servicebus_messages = [tag_test_run_id(message, test_run_id) for message in make_servicebus_messages()]
+    amqp_annotated_messages = [tag_test_run_id(message, test_run_id) for message in make_amqp_annotated_messages()]
 
     message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     now = datetime.now(timezone.utc)
@@ -229,7 +226,7 @@ async def run_test_async(
         await sender.schedule_messages(servicebus_messages, now)
         await sender.schedule_messages(amqp_annotated_messages, now)
 
-    received_queue_messages = await receive_all_messages_async(receiver, message_length)
+    received_queue_messages = await receive_test_run_messages_async(receiver, message_length, test_run_id)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:

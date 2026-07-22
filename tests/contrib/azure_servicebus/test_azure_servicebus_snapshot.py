@@ -31,11 +31,6 @@ SNAPSHOT_IGNORES = [
     "meta._dd.span_links",
 ]
 
-# Committed snapshots use queue.1; parallel CI jobs use queue.2-4. Those fields are asserted
-# explicitly in test_producer instead of being ignored on the default queue.
-if get_queue_name() != "queue.1":
-    SNAPSHOT_IGNORES.extend(["meta.messaging.destination.name", "resource"])
-
 METHODS = ["send_messages", "schedule_messages"]
 ASYNC_OPTIONS = [False, True]
 PAYLOAD_TYPES = ["single", "list", "batch"]
