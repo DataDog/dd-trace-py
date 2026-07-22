@@ -12,6 +12,7 @@ import pytest
 from ddtrace import config
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.settings.profiling import exception_is_available
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -350,7 +351,7 @@ import opentelemetry
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": exception_is_available},
         {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
@@ -421,6 +422,7 @@ import opentelemetry
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+        {"name": "DD_TRACE_AGENT_PROTOCOL_VERSION", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
