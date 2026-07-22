@@ -46,7 +46,8 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "6a01ffb600000000",
+         "_dd.p.tid": "6a6107f300000000",
+         "_dd.svc_src": "ray",
          "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
          "component": "ray",
          "http.method": "GET",
@@ -76,12 +77,13 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "6a01ffb600000000",
+            "_dd.p.tid": "6a6107f300000000",
+            "_dd.svc_src": "ray",
             "component": "ray",
             "ray.serve.app_name": "default"
           },
-          "duration": 374375,
-          "start": 1778515894203738470
+          "duration": 466459,
+          "start": 1784743923688586878
         },
            {
              "name": "Router.assign_request",
@@ -93,18 +95,20 @@
              "type": "http",
              "error": 0,
              "meta": {
-               "_dd.p.tid": "6a01ffb600000000",
+               "_dd.p.tid": "6a6107f300000000",
+               "_dd.svc_src": "ray",
                "component": "ray",
-               "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-               "runtime-id": "11bc32f8992f441dbda511a4224ead18"
+               "ray.serve.handle_source": "PROXY",
+               "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+               "runtime-id": "08b2633becfb43d4b36be7d3d6ad2f63"
              },
              "metrics": {
                "_dd.top_level": 1.0,
-               "process_id": 1114.0,
+               "process_id": 805.0,
                "ray.serve.is_streaming": 1.0
              },
-             "duration": 9116666,
-             "start": 1778515894204461387
+             "duration": 6701625,
+             "start": 1784743923689670712
            },
               {
                 "name": "handle_request_with_rejection",
@@ -117,23 +121,24 @@
                 "error": 0,
                 "meta": {
                   "_dd.p.dm": "-0",
-                  "_dd.p.tid": "6a01ffb600000000",
+                  "_dd.p.tid": "6a6107f300000000",
+                  "_dd.svc_src": "ray",
                   "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
                   "component": "ray",
                   "language": "python",
-                  "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#s7dyhgp4",
-                  "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                  "runtime-id": "c8bc9d3e0fe147de90ab7f63a5f88be2",
-                  "tracestate": "dd=p:41d9920dd2b5d8c8;s:1;t.dm:-0;t.tid:6a01ffb600000000"
+                  "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#1p7m2d0a",
+                  "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                  "runtime-id": "09c16b68f67448fa8d57118b1f381a59",
+                  "tracestate": "dd=p:0c3a69503503b982;s:1;t.dm:-0;t.tid:6a6107f300000000"
                 },
                 "metrics": {
                   "_dd.top_level": 1.0,
                   "_dd.tracer_kr": 1.0,
                   "_sampling_priority_v1": 1.0,
-                  "process_id": 1115.0
+                  "process_id": 1016.0
                 },
-                "duration": 105449292,
-                "start": 1778515894209616428
+                "duration": 47159750,
+                "start": 1784743923694446712
               },
                  {
                    "name": "deployment.method_execution",
@@ -145,17 +150,18 @@
                    "type": "ray",
                    "error": 0,
                    "meta": {
-                     "_dd.p.tid": "6a01ffb600000000",
+                     "_dd.p.tid": "6a6107f300000000",
+                     "_dd.svc_src": "ray",
                      "component": "ray",
                      "ray.serve.app_name": "default",
                      "ray.serve.call_method": "invoke",
                      "ray.serve.deployment": "Ingress",
-                     "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#s7dyhgp4",
-                     "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
+                     "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#1p7m2d0a",
+                     "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
                      "ray.serve.route": "/"
                    },
-                   "duration": 101659375,
-                   "start": 1778515894212434928
+                   "duration": 44936375,
+                   "start": 1784743923696077128
                  },
                     {
                       "name": "deployment.remote",
@@ -167,12 +173,13 @@
                       "type": "ray",
                       "error": 0,
                       "meta": {
-                        "_dd.p.tid": "6a01ffb600000000",
+                        "_dd.p.tid": "6a6107f300000000",
+                        "_dd.svc_src": "ray",
                         "component": "ray",
                         "ray.serve.app_name": "default"
                       },
-                      "duration": 16699958,
-                      "start": 1778515894212581845
+                      "duration": 9945667,
+                      "start": 1784743923696215128
                     },
                        {
                          "name": "Router.assign_request",
@@ -184,18 +191,20 @@
                          "type": "ray",
                          "error": 0,
                          "meta": {
-                           "_dd.p.tid": "6a01ffb600000000",
+                           "_dd.p.tid": "6a6107f300000000",
+                           "_dd.svc_src": "ray",
                            "component": "ray",
-                           "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                           "runtime-id": "c8bc9d3e0fe147de90ab7f63a5f88be2"
+                           "ray.serve.handle_source": "REPLICA",
+                           "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                           "runtime-id": "09c16b68f67448fa8d57118b1f381a59"
                          },
                          "metrics": {
                            "_dd.top_level": 1.0,
-                           "process_id": 1115.0,
+                           "process_id": 1016.0,
                            "ray.serve.is_streaming": 0.0
                          },
-                         "duration": 37834209,
-                         "start": 1778515894230030053
+                         "duration": 16973500,
+                         "start": 1784743923706531670
                        },
                           {
                             "name": "handle_request_with_rejection",
@@ -208,23 +217,24 @@
                             "error": 0,
                             "meta": {
                               "_dd.p.dm": "-0",
-                              "_dd.p.tid": "6a01ffb600000000",
+                              "_dd.p.tid": "6a6107f300000000",
+                              "_dd.svc_src": "ray",
                               "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
                               "component": "ray",
                               "language": "python",
-                              "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#4wf1c6i0",
-                              "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                              "runtime-id": "aeff6093b78640729457804d9f4a0593",
-                              "tracestate": "dd=p:030c03b10c99613c;s:1;t.dm:-0;t.tid:6a01ffb600000000"
+                              "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#v4r0s3ia",
+                              "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                              "runtime-id": "1895ca995aa84ce4ac343b782d86fd85",
+                              "tracestate": "dd=p:584c0a9f1a15fa90;s:1;t.dm:-0;t.tid:6a6107f300000000"
                             },
                             "metrics": {
                               "_dd.top_level": 1.0,
                               "_dd.tracer_kr": 1.0,
                               "_sampling_priority_v1": 1.0,
-                              "process_id": 1113.0
+                              "process_id": 808.0
                             },
-                            "duration": 18724000,
-                            "start": 1778515894263480678
+                            "duration": 2777916,
+                            "start": 1784743923721329462
                           },
                              {
                                "name": "deployment.method_execution",
@@ -236,17 +246,18 @@
                                "type": "ray",
                                "error": 0,
                                "meta": {
-                                 "_dd.p.tid": "6a01ffb600000000",
+                                 "_dd.p.tid": "6a6107f300000000",
+                                 "_dd.svc_src": "ray",
                                  "component": "ray",
                                  "ray.serve.app_name": "default",
                                  "ray.serve.call_method": "invoke",
                                  "ray.serve.deployment": "ClassDeployment",
-                                 "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#4wf1c6i0",
-                                 "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
+                                 "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#v4r0s3ia",
+                                 "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
                                  "ray.serve.route": "/"
                                },
-                               "duration": 114333,
-                               "start": 1778515894278263720
+                               "duration": 65375,
+                               "start": 1784743923723521337
                              },
                     {
                       "name": "deployment.remote",
@@ -258,12 +269,13 @@
                       "type": "ray",
                       "error": 0,
                       "meta": {
-                        "_dd.p.tid": "6a01ffb600000000",
+                        "_dd.p.tid": "6a6107f300000000",
+                        "_dd.svc_src": "ray",
                         "component": "ray",
                         "ray.serve.app_name": "default"
                       },
-                      "duration": 13831708,
-                      "start": 1778515894229396137
+                      "duration": 7350375,
+                      "start": 1784743923706235837
                     },
                        {
                          "name": "Router.assign_request",
@@ -275,18 +287,20 @@
                          "type": "ray",
                          "error": 0,
                          "meta": {
-                           "_dd.p.tid": "6a01ffb600000000",
+                           "_dd.p.tid": "6a6107f300000000",
+                           "_dd.svc_src": "ray",
                            "component": "ray",
-                           "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                           "runtime-id": "c8bc9d3e0fe147de90ab7f63a5f88be2"
+                           "ray.serve.handle_source": "REPLICA",
+                           "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                           "runtime-id": "09c16b68f67448fa8d57118b1f381a59"
                          },
                          "metrics": {
                            "_dd.top_level": 1.0,
-                           "process_id": 1115.0,
+                           "process_id": 1016.0,
                            "ray.serve.is_streaming": 0.0
                          },
-                         "duration": 25405542,
-                         "start": 1778515894243916803
+                         "duration": 11232542,
+                         "start": 1784743923714462795
                        },
                           {
                             "name": "handle_request_with_rejection",
@@ -299,23 +313,24 @@
                             "error": 0,
                             "meta": {
                               "_dd.p.dm": "-0",
-                              "_dd.p.tid": "6a01ffb600000000",
+                              "_dd.p.tid": "6a6107f300000000",
+                              "_dd.svc_src": "ray",
                               "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
                               "component": "ray",
                               "language": "python",
-                              "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#ajiep88p",
-                              "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                              "runtime-id": "e800de89b51049708817fae1b16a8ebd",
-                              "tracestate": "dd=p:2851440d429b3a18;s:1;t.dm:-0;t.tid:6a01ffb600000000"
+                              "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#pl7d0s5f",
+                              "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                              "runtime-id": "bc859125b97a4b1997194d9c7356e516",
+                              "tracestate": "dd=p:0ed226687023fd46;s:1;t.dm:-0;t.tid:6a6107f300000000"
                             },
                             "metrics": {
                               "_dd.top_level": 1.0,
                               "_dd.tracer_kr": 1.0,
                               "_sampling_priority_v1": 1.0,
-                              "process_id": 1118.0
+                              "process_id": 807.0
                             },
-                            "duration": 11003917,
-                            "start": 1778515894266423428
+                            "duration": 2684958,
+                            "start": 1784743923724245712
                           },
                              {
                                "name": "deployment.method_execution",
@@ -327,17 +342,18 @@
                                "type": "ray",
                                "error": 0,
                                "meta": {
-                                 "_dd.p.tid": "6a01ffb600000000",
+                                 "_dd.p.tid": "6a6107f300000000",
+                                 "_dd.svc_src": "ray",
                                  "component": "ray",
                                  "ray.serve.app_name": "default",
                                  "ray.serve.call_method": "invoke",
                                  "ray.serve.deployment": "FunctionDeployment",
-                                 "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#ajiep88p",
-                                 "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
+                                 "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#pl7d0s5f",
+                                 "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
                                  "ray.serve.route": "/"
                                },
-                               "duration": 111125,
-                               "start": 1778515894274238303
+                               "duration": 68417,
+                               "start": 1784743923726327295
                              },
                     {
                       "name": "deployment.remote",
@@ -349,12 +365,13 @@
                       "type": "ray",
                       "error": 0,
                       "meta": {
-                        "_dd.p.tid": "6a01ffb600000000",
+                        "_dd.p.tid": "6a6107f300000000",
+                        "_dd.svc_src": "ray",
                         "component": "ray",
                         "ray.serve.app_name": "default"
                       },
-                      "duration": 7315542,
-                      "start": 1778515894285286345
+                      "duration": 2247416,
+                      "start": 1784743923727125212
                     },
                        {
                          "name": "Router.assign_request",
@@ -366,18 +383,20 @@
                          "type": "ray",
                          "error": 0,
                          "meta": {
-                           "_dd.p.tid": "6a01ffb600000000",
+                           "_dd.p.tid": "6a6107f300000000",
+                           "_dd.svc_src": "ray",
                            "component": "ray",
-                           "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                           "runtime-id": "c8bc9d3e0fe147de90ab7f63a5f88be2"
+                           "ray.serve.handle_source": "REPLICA",
+                           "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                           "runtime-id": "09c16b68f67448fa8d57118b1f381a59"
                          },
                          "metrics": {
                            "_dd.top_level": 1.0,
-                           "process_id": 1115.0,
+                           "process_id": 1016.0,
                            "ray.serve.is_streaming": 0.0
                          },
-                         "duration": 15879042,
-                         "start": 1778515894292912303
+                         "duration": 9752708,
+                         "start": 1784743923729592837
                        },
                           {
                             "name": "handle_request_with_rejection",
@@ -390,23 +409,24 @@
                             "error": 0,
                             "meta": {
                               "_dd.p.dm": "-0",
-                              "_dd.p.tid": "6a01ffb600000000",
+                              "_dd.p.tid": "6a6107f300000000",
+                              "_dd.svc_src": "ray",
                               "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
                               "component": "ray",
                               "language": "python",
-                              "ray.serve.replica_id": "SERVE_REPLICA::default#DecoratorFactoryFunctionDeployment#8rupzs1z",
-                              "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
-                              "runtime-id": "210e00b11e1b484a87d1c9a281d93b0e",
-                              "tracestate": "dd=p:6c5460834a04197f;s:1;t.dm:-0;t.tid:6a01ffb600000000"
+                              "ray.serve.replica_id": "SERVE_REPLICA::default#DecoratorFactoryFunctionDeployment#saw3or4i",
+                              "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
+                              "runtime-id": "917d8fd6e3c5482fa3c38708f8e11f15",
+                              "tracestate": "dd=p:ed3dc5f7e7c66672;s:1;t.dm:-0;t.tid:6a6107f300000000"
                             },
                             "metrics": {
                               "_dd.top_level": 1.0,
                               "_dd.tracer_kr": 1.0,
                               "_sampling_priority_v1": 1.0,
-                              "process_id": 1116.0
+                              "process_id": 1015.0
                             },
-                            "duration": 7244375,
-                            "start": 1778515894305793428
+                            "duration": 2354834,
+                            "start": 1784743923738049503
                           },
                              {
                                "name": "deployment.method_execution",
@@ -418,15 +438,16 @@
                                "type": "ray",
                                "error": 0,
                                "meta": {
-                                 "_dd.p.tid": "6a01ffb600000000",
+                                 "_dd.p.tid": "6a6107f300000000",
+                                 "_dd.svc_src": "ray",
                                  "component": "ray",
                                  "ray.serve.app_name": "default",
                                  "ray.serve.call_method": "invoke",
                                  "ray.serve.deployment": "DecoratorFactoryFunctionDeployment",
-                                 "ray.serve.replica_id": "SERVE_REPLICA::default#DecoratorFactoryFunctionDeployment#8rupzs1z",
-                                 "ray.serve.request_id": "3afeb5e3-3b22-4763-b5a0-4e6efefccece",
+                                 "ray.serve.replica_id": "SERVE_REPLICA::default#DecoratorFactoryFunctionDeployment#saw3or4i",
+                                 "ray.serve.request_id": "4bd279fb-40dd-47c4-a931-13815d4da5ca",
                                  "ray.serve.route": "/"
                                },
-                               "duration": 1177041,
-                               "start": 1778515894310763262
+                               "duration": 59959,
+                               "start": 1784743923739842753
                              }]]
