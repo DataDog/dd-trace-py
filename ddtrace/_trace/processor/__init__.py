@@ -383,10 +383,6 @@ class SpanAggregator(SpanProcessor):
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
-            existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
-            if span.service in config._integration_default_services or span.service == config._inferred_base_service:
-                if not existing_service_source or (existing_service_source and integration_name != span._span_api):
-                    span.set_tag(_SERVICE_SOURCE, integration_name)
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if trace_id not in self._traces:
