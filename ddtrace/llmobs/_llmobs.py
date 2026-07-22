@@ -32,6 +32,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -129,6 +130,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
+from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -185,6 +187,7 @@ from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
+from ddtrace.llmobs.types import SpanWithTagValue
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -2337,6 +2340,7 @@ class LLMObs(Service):
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
+                is_otel=span._span_api == SPAN_API_OTEL,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -3137,8 +3141,8 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
-        span_with_tag_value: Optional[dict[str, str]] = None,
+        span: Optional[ExportedLLMObsSpan] = None,
+        span_with_tag_value: Optional[SpanWithTagValue] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -3155,10 +3159,10 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
-                            the span associated with this evaluation.
-        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
-                            uniquely identifying the span associated with this evaluation.
+        :param ExportedLLMObsSpan span: Span identifier. Use ``LLMObs.export_span()`` to generate.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
+        :param SpanWithTagValue span_with_tag_value: Tag-based span identifier.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service for this evaluation metric.
@@ -3201,7 +3205,7 @@ class LLMObs(Service):
                         "`span` must be a dictionary containing both span_id and trace_id keys. "
                         "LLMObs.export_span() can be used to generate this dictionary from a given span."
                     )
-                join_on["span"] = span
+                join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
             elif span_with_tag_value is not None:
                 if (
                     not isinstance(span_with_tag_value, dict)
@@ -3274,9 +3278,9 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
-            # Auto-add source:otel tag when OTel tracing is enabled
-            # This allows the backend to wait for OTel span conversion
-            if config._otel_trace_enabled:
+            if (span is not None and span.get("is_otel")) or (
+                span_with_tag_value is not None and span_with_tag_value.get("is_otel")
+            ):
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
@@ -3565,5 +3569,10 @@ class LLMObs(Service):
         cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
 
 
-# initialize the default llmobs instance
+# Initialize the default LLMObs instance before exposing the service to integrations.
 LLMObs._instance = LLMObs()
+
+# BaseLLMIntegration depends on this lightweight API instead of importing this
+# module during integration auto-patching. Register only after LLMObs is fully
+# initialized so integrations can be imported during an experiment import.
+register_llmobs_service(LLMObs)

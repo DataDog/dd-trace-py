@@ -78,7 +78,7 @@ from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = get_logger(__name__)
@@ -295,7 +295,7 @@ class AIGuardStrandsIntegration:
             ai_guard_messages = _convert_strands_messages(messages, system_prompt, exclude_tool_results=True)
             logger.debug("AIGuard messages: %s", ai_guard_messages)
             if ai_guard_messages:
-                result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+                result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
                 logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError:
             raise
@@ -327,7 +327,7 @@ class AIGuardStrandsIntegration:
                 return
             ai_guard_messages = _convert_strands_messages([text_only_message])
             if ai_guard_messages:
-                result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+                result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
                 logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError:
             raise
@@ -380,7 +380,7 @@ class AIGuardStrandsIntegration:
         tool_name = ""
         try:
             ai_guard_messages, tool_name = self._build_tool_call_messages(event)
-            result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+            result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
             logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
@@ -410,7 +410,7 @@ class AIGuardStrandsIntegration:
                 )
             )
 
-            result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+            result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
             logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:

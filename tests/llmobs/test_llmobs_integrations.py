@@ -21,12 +21,12 @@ def ddtrace_global_config():
         yield mock_global_config
 
 
-@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
-    mock_llmobs.enabled = True
+@mock.patch("ddtrace.llmobs._integrations.base.is_enabled")
+def test_integration_llmobs_enabled(mock_is_enabled, mock_integration_config):
+    mock_is_enabled.return_value = True
     integration = BaseLLMIntegration(mock_integration_config)
     assert integration.llmobs_enabled is True
-    mock_llmobs.enabled = False
+    mock_is_enabled.return_value = False
     integration = BaseLLMIntegration(mock_integration_config)
     assert integration.llmobs_enabled is False
 
@@ -46,8 +46,8 @@ def test_integration_trace(mock_integration_config, test_spans):
 
 
 @mock.patch("ddtrace.llmobs._integrations.base.log")
-@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_llmobs_set_tags(mock_llmobs, mock_log, tracer, mock_integration_config):
+@mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=True)
+def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_config):
     span = tracer.trace("Dummy span", service="dummy_service")
     integration = BaseLLMIntegration(mock_integration_config)
     integration._llmobs_set_tags = mock.Mock()
