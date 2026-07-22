@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from ddtrace.internal.serverless import in_azure_function
@@ -132,7 +134,16 @@ import {package}
         ("ddtrace.internal.utils", "http"),
         ("ddtrace.llmobs", "LLMObs"),
         ("ddtrace.opentelemetry", "TracerProvider"),
-        ("ddtrace.profiling", "profiler"),
+        pytest.param(
+            "ddtrace.profiling",
+            "profiler",
+            marks=pytest.mark.skipif(
+                sys.version_info >= (3, 15),
+                reason="TODO(py3.15): profiling native extensions (e.g. collector._lock) are not "
+                "built on 3.15 yet (see the sys.version_info < (3, 15) gate in setup.py); re-enable "
+                "once the profiling 3.15 stack lands (#17624 and dependencies).",
+            ),
+        ),
         ("ddtrace.propagation.http", "HTTPPropagator"),
         ("ddtrace.trace", "Context, Span, tracer"),
         ("ddtrace.trace", "Span"),

@@ -1,6 +1,7 @@
 from collections import Counter
 import functools
 import pickle
+import sys
 import threading
 from types import ModuleType
 
@@ -8,6 +9,16 @@ import cloudpickle
 import pytest
 
 from ddtrace.internal import forksafe
+
+
+# TODO(py3.15): wrapt's C extension does not build on 3.15 yet, so forksafe.ResetObject
+# (a wrapt.ObjectProxy subclass) uses the pure-Python proxy, whose pickling path raises
+# "TypeError: __class__ must be set to a class, not 'property' object". Re-enable once wrapt
+# ships a 3.15-compatible C extension.
+_wrapt_cext_missing_on_315 = pytest.mark.skipif(
+    sys.version_info >= (3, 15),
+    reason="wrapt C extension unavailable on 3.15; pure-Python ObjectProxy breaks ResetObject pickling",
+)
 
 
 @pytest.mark.subprocess
@@ -266,6 +277,10 @@ def test_double_fork():
     assert exit_code == 42
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 15),
+    reason="greenlet (via gevent) has no 3.15-compatible wheel yet (C-ext ABI break); re-enable when upstream ships",
+)
 @pytest.mark.subprocess(
     out=lambda _: Counter(_) == {"C": 3, "T": 4},
     err=None,
@@ -358,6 +373,7 @@ def test_unregister_unregistered_partial_does_not_crash():
     forksafe.unregister_before_fork(instance_hook)
 
 
+@_wrapt_cext_missing_on_315
 @pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
 def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
     """A forksafe.Lock must survive (cloud)pickle as a fresh, unlocked lock.
@@ -378,6 +394,7 @@ def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
     assert restored in forksafe._resetable_objects
 
 
+@_wrapt_cext_missing_on_315
 @pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
 def test_event_pickle_roundtrip(serializer: ModuleType) -> None:
     """A forksafe.Event must survive (cloud)pickle as a fresh, unset event."""
@@ -392,6 +409,7 @@ def test_event_pickle_roundtrip(serializer: ModuleType) -> None:
     assert restored in forksafe._resetable_objects
 
 
+@_wrapt_cext_missing_on_315
 @pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
 def test_global_config_pickle_roundtrip(serializer: ModuleType) -> None:
     """The global ddtrace config (held by every IntegrationConfig) must be
@@ -408,6 +426,7 @@ def test_global_config_pickle_roundtrip(serializer: ModuleType) -> None:
     assert restored is config
 
 
+@_wrapt_cext_missing_on_315
 @pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
 def test_integration_config_pickle_roundtrip(serializer: ModuleType) -> None:
     """An IntegrationConfig (e.g. config.fastapi) references the global config
