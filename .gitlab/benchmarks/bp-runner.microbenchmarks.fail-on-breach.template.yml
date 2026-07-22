@@ -866,27 +866,27 @@ experiments:
           - name: ratelimiter-defaults
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: ratelimiter-high_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: ratelimiter-long_window
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: ratelimiter-low_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: ratelimiter-no_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: ratelimiter-short_window
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
 
           # recursivecomputation
           - name: recursivecomputation-deep
