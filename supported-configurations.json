@@ -317,8 +317,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
-        "sensitive": true
+        "default": ""
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
@@ -622,6 +621,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_BOTOCORE_DISTRIBUTED_TRACING": [
