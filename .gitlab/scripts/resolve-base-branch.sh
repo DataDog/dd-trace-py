@@ -1,29 +1,17 @@
 #!/usr/bin/env bash
-# Resolve the branch that a CI ref should be compared against (its "base" or
-# "baseline" branch), so jobs that diff a PR/branch against upstream (e.g.
-# circular import analysis, benchmark baselines) don't hardcode `main` and
-# get the wrong answer for PRs targeting a release branch.
+# Resolve the base branch a CI ref should be compared against, so jobs
+# (circular-import analysis, benchmark baselines) don't hardcode `main` and get
+# the wrong answer for PRs targeting a release branch.
 #
-# Usage:
-#   resolve-base-branch.sh [ref]
+# Usage: resolve-base-branch.sh [ref]   (ref defaults to $CI_COMMIT_REF_NAME)
+# Prints only the resolved branch to stdout; trace goes to stderr. Falls back to
+# `main` when undeterminable.
 #
-#   ref   Git ref/branch/tag to resolve from. Defaults to $CI_COMMIT_REF_NAME.
-#
-# Prints ONLY the resolved base branch name to stdout, so callers can do:
-#   BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-#
-# All debug/trace output goes to stderr and is visible in the job log, so if
-# the wrong branch gets resolved it's clear which rule fired and why.
-#
-# Falls back to "main" whenever the branch can't be determined (e.g. no open
-# PR for the ref, or the GitHub lookup fails), rather than erroring out.
-#
-# Requires `git`, `curl` and `jq`. For the feature/PR-branch fallback it
-# queries the GitHub REST API directly (rather than shelling out to the `gh`
-# CLI, which isn't installed in every image this script runs in) against
-# GH_REPO (defaults to DataDog/dd-trace-py) — independent of whatever the
-# local `origin` remote happens to point at (e.g. a GitLab mirror). Set
-# GH_TOKEN to avoid unauthenticated GitHub API rate limits.
+# For a feature/PR branch: use the CI-provided target
+# (CI_MERGE_REQUEST_TARGET_BRANCH_NAME / GITHUB_BASE_REF) if set, else query the
+# GitHub API (GH_REPO, default DataDog/dd-trace-py; needs git/curl/jq). The API
+# call auths lazily: GH_TOKEN if set, else a token minted via dd-octo-sts if
+# present, else unauthenticated.
 
 set -euo pipefail
 
@@ -61,10 +49,21 @@ elif [[ "${REF}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
   BASE_BRANCH="${BASH_REMATCH[1]}"
   log "Ref is a GitHub merge-queue branch; extracted target branch '${BASE_BRANCH}'"
 
+elif [ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${GITHUB_BASE_REF:-}}" ]; then
+  # Fast path: CI already told us the target; skip the API round-trip.
+  BASE_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${GITHUB_BASE_REF}}"
+  log "CI provided the PR target branch: '${BASE_BRANCH}'; using it directly"
+
 else
   GITHUB_REPO="${GH_REPO:-DataDog/dd-trace-py}"
   GITHUB_OWNER="${GITHUB_REPO%%/*}"
   log "Ref looks like a feature/PR branch; querying the GitHub API for its PR base branch (repo: ${GITHUB_REPO})"
+
+  # Auth lazily, only on the API path, so token issues can't break the fast paths.
+  if [ -z "${GH_TOKEN:-}" ] && command -v dd-octo-sts > /dev/null 2>&1; then
+    log "Minting a GitHub token via dd-octo-sts for the API lookup"
+    GH_TOKEN="$(dd-octo-sts token --scope "${GITHUB_REPO}" --policy gitlab.github-access.read 2> /dev/null || true)"
+  fi
 
   AUTH_HEADER=()
   if [ -n "${GH_TOKEN:-}" ]; then
