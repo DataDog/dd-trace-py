@@ -18,6 +18,7 @@ from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -224,5 +225,6 @@ def _hiding_otel_config(otel_env, dd_env):
 
 
 # TODO: Remove this once the telemetry feature is refactored to a better design
+report_configuration(appsec_telemetry_config)
 report_configuration(agent_config)
 report_configuration(process_tags_config)

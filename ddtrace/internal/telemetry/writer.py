@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.utils.http import get_connection
 
 from ...internal import atexit
@@ -375,18 +376,14 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
-        if asm_config is None:
-            return None
-
-        if not asm_config._api_security_endpoint_collection or not self._enabled:
+        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
             return None
 
         if not endpoint_collection.endpoints:
             return None
 
         with self._service_lock:
-            return endpoint_collection.flush(asm_config._api_security_endpoint_collection_limit)
+            return endpoint_collection.flush(appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT)
 
     def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
