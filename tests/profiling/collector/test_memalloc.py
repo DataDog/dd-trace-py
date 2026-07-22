@@ -1714,3 +1714,43 @@ def test_mem_domain_cap_saturation_does_not_inflate_live_heap(tmp_path: Path) ->
         f"leaking into sample weights -> phantom heap-live-size inflation."
     )
     del held
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_mem_overhead() -> None:
+    """Sanity-check MEM-domain hook overhead on PyMem_Malloc churn.
+
+    Not a stored perf gate; documents that enabling ``mem_domain_enabled`` on MEM
+    allocations stays within a modest multiple of OBJ-only tracking. See
+    ``mem_domain_ga_checklist.md`` for service-level perf gates.
+    """
+    import time
+
+    size = 4096
+    rounds = 5
+
+    def churn_mem_domain() -> None:
+        objs = [_make_mem_domain_object(size) for _ in range(200)]
+        del objs
+
+    def time_obj_only() -> float:
+        t0 = time.perf_counter()
+        for _ in range(rounds):
+            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=False):
+                _allocate_1k()
+        return time.perf_counter() - t0
+
+    def time_mem_on() -> float:
+        t0 = time.perf_counter()
+        for _ in range(rounds):
+            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True):
+                churn_mem_domain()
+        return time.perf_counter() - t0
+
+    obj_elapsed = time_obj_only()
+    mem_elapsed = time_mem_on()
+
+    # Generous ceiling: MEM hooks should not exceed 10× OBJ-only on this micro-bench.
+    assert mem_elapsed < 10 * max(obj_elapsed, 1e-9), (
+        f"MEM-domain churn took {mem_elapsed:.4f}s vs OBJ-only {obj_elapsed:.4f}s (>{10 * obj_elapsed:.4f}s ceiling)"
+    )
