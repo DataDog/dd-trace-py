@@ -11,6 +11,7 @@ from typing import Any
 
 from packaging.specifiers import InvalidSpecifier
 from packaging.specifiers import SpecifierSet
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion
 from packaging.version import Version
 from riot import Venv
@@ -160,6 +161,12 @@ def _version_match_score(package_spec: Any) -> int:
     return score
 
 
+def _matching_package_specs(pkgs: dict[str, Any], package: str) -> list[Any]:
+    """Return package specs whose distribution name matches ``package``."""
+    normalized_package = canonicalize_name(package)
+    return [spec for name, spec in pkgs.items() if canonicalize_name(name) == normalized_package]
+
+
 def _find_matching_child(base_venv: Venv, target: dict[str, Any], py: str) -> Venv | None:
     """Find the child Venv whose Python and package constraints best match the target."""
     package = target["package"]
@@ -169,9 +176,10 @@ def _find_matching_child(base_venv: Venv, target: dict[str, Any], py: str) -> Ve
         if py not in _get_venv_python_versions(child):
             continue
         child_pkgs = getattr(child, "pkgs", None) or {}
-        package_spec = child_pkgs.get(package)
-        if package_spec is not None and _target_versions_match_package_spec(target_versions, package_spec):
-            matches.append((_version_match_score(package_spec), child))
+        package_specs = _matching_package_specs(child_pkgs, package)
+        for package_spec in package_specs:
+            if _target_versions_match_package_spec(target_versions, package_spec):
+                matches.append((_version_match_score(package_spec), child))
     if not matches:
         return next((child for child in base_venv.venvs if py in _get_venv_python_versions(child)), None)
     return max(matches, key=lambda item: item[0])[1]
@@ -206,6 +214,10 @@ def _merge_base_child_defaults(
         pkgs.update(getattr(child, "pkgs", None) or {})
         env.update(getattr(child, "env", None) or {})
 
+    # AIDEV-NOTE: Requirement names may use hyphens, underscores, or dots interchangeably.
+    # Remove a child's equivalent constraint before applying the requested exact version.
+    normalized_package = canonicalize_name(target["package"])
+    pkgs = {name: spec for name, spec in pkgs.items() if canonicalize_name(name) != normalized_package}
     pkgs[target["package"]] = target["version_to_test"]
     pkgs.update(target["pkgs"])
 
