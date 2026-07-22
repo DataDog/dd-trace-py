@@ -54,9 +54,7 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 21920208,
           "start": 1777046316034824588
         },
@@ -69,9 +67,7 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 66125042,
           "start": 1777046316056936879
         },
@@ -104,9 +100,7 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 20866208,
           "start": 1777046316035458713
         },
@@ -119,9 +113,7 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 65390333,
           "start": 1777046316056554088
         },
@@ -154,9 +146,7 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 21328750,
           "start": 1777046316036020713
         },
@@ -169,9 +159,7 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 61118458,
           "start": 1777046316057456463
         },
@@ -204,9 +192,7 @@
           "parent_id": 5,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 20514167,
           "start": 1777046316036571921
         },
@@ -219,9 +205,7 @@
           "parent_id": 5,
           "type": "",
           "error": 0,
-          "meta": {
             "_dd.svc_src": "otel"
-          },
           "duration": 65583917,
           "start": 1777046316057209504
         }]]

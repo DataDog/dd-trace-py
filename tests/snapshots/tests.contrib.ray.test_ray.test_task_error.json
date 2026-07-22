@@ -11,22 +11,17 @@
     "meta": {
       "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5ea85e00000000",
+      "_dd.p.tid": "69dd0cb800000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
-      "ray.gcs_address": "192.168.65.3:62235",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.namespace": "7ce61559-718b-4d41-8835-32163416216c",
-      "ray.node_id": "5dac3acf6f1dbd540cb4557eab1e64f13ef1240c4fc5daba44c49afb",
-      "ray.task.function_module": "tests.contrib.ray.test_ray",
-      "ray.task.function_qualname": "TestRayIntegration.test_task_error.<locals>.add_one",
+      "ray.node_id": "afe062d75c8c70d40fe8ce7cb5fa3e06edb007423da68ba95078a224",
       "ray.task.submit_status": "success",
-      "ray.version": "2.46.0",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "0b028c4fbe064895a64247d44b6fa63f",
+      "runtime-id": "3e1fd35aeba14ecfba9f2c4a293715cd",
       "span.kind": "producer"
     },
     "metrics": {
@@ -37,10 +32,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 477.0
+      "process_id": 4253.0
     },
-    "duration": 5746792,
-    "start": 1784588382978015382
+    "duration": 5004625,
+    "start": 1776094392039609628
   },
      {
        "name": "task.execute",
@@ -56,14 +51,11 @@
          "_dd.svc_src": "m",
          "component": "ray",
          "error.message": "foo",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 92, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 110, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 60, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 76, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
          "error.type": "builtins.ValueError",
-         "ray.gcs_address": "192.168.65.3:62235",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.namespace": "7ce61559-718b-4d41-8835-32163416216c",
-         "ray.node_id": "5dac3acf6f1dbd540cb4557eab1e64f13ef1240c4fc5daba44c49afb",
-         "ray.version": "2.46.0",
+         "ray.node_id": "afe062d75c8c70d40fe8ce7cb5fa3e06edb007423da68ba95078a224",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -74,8 +66,8 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 1959417,
-       "start": 1784588382980688007
+       "duration": 1735625,
+       "start": 1776094392041728044
      }],
 [
   {
@@ -90,22 +82,17 @@
     "meta": {
       "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a5ea85e00000000",
+      "_dd.p.tid": "69dd0cb800000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
-      "ray.gcs_address": "192.168.65.3:62235",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.namespace": "7ce61559-718b-4d41-8835-32163416216c",
-      "ray.node_id": "5dac3acf6f1dbd540cb4557eab1e64f13ef1240c4fc5daba44c49afb",
-      "ray.task.function_module": "tests.contrib.ray.test_ray",
-      "ray.task.function_qualname": "TestRayIntegration.test_task_error.<locals>.add_one",
+      "ray.node_id": "afe062d75c8c70d40fe8ce7cb5fa3e06edb007423da68ba95078a224",
       "ray.task.submit_status": "success",
-      "ray.version": "2.46.0",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "0b028c4fbe064895a64247d44b6fa63f",
+      "runtime-id": "3e1fd35aeba14ecfba9f2c4a293715cd",
       "span.kind": "producer"
     },
     "metrics": {
@@ -116,10 +103,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 477.0
+      "process_id": 4253.0
     },
-    "duration": 2518792,
-    "start": 1784588382984220924
+    "duration": 2411083,
+    "start": 1776094392044932503
   },
      {
        "name": "task.execute",
@@ -135,14 +122,11 @@
          "_dd.svc_src": "m",
          "component": "ray",
          "error.message": "foo",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 92, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 110, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 60, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 76, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
          "error.type": "builtins.ValueError",
-         "ray.gcs_address": "192.168.65.3:62235",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.namespace": "7ce61559-718b-4d41-8835-32163416216c",
-         "ray.node_id": "5dac3acf6f1dbd540cb4557eab1e64f13ef1240c4fc5daba44c49afb",
-         "ray.version": "2.46.0",
+         "ray.node_id": "afe062d75c8c70d40fe8ce7cb5fa3e06edb007423da68ba95078a224",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -153,6 +137,6 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 453292,
-       "start": 1784588382984865257
+       "duration": 503792,
+       "start": 1776094392045396294
      }]]
