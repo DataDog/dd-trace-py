@@ -54,6 +54,13 @@
                 "tested_versions": [
                     "3.8.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "3.7.0",
+                "maximum_package_version": "3.7.0",
+                "tested_versions": [
+                    "3.7.0"
+                ]
             }
         }
     },
@@ -112,6 +119,13 @@
                 "tested_versions": [
                     "1.43.46"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.43.0",
+                "maximum_package_version": "1.43.0",
+                "tested_versions": [
+                    "1.43.0"
+                ]
             }
         }
     },
@@ -157,6 +171,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "3.14.1",
+                "maximum_package_version": "3.14.1",
+                "tested_versions": [
+                    "3.14.1"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "3.14.1",
                 "maximum_package_version": "3.14.1",
                 "tested_versions": [
@@ -220,6 +241,14 @@
                     "1.5.1",
                     "1.6"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
             }
         }
     },
@@ -269,6 +298,14 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "0.9.0",
                 "maximum_package_version": "0.14.0",
                 "tested_versions": [
@@ -330,6 +367,14 @@
                     "0.1.1",
                     "0.3.2"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
             }
         }
     },
@@ -380,6 +425,13 @@
                 "tested_versions": [
                     "1.4.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
             }
         },
         "pinned": true
@@ -425,6 +477,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "2.6.3",
                 "maximum_package_version": "2.6.3",
                 "tested_versions": [
@@ -483,6 +542,13 @@
                 "maximum_package_version": "0.117.0",
                 "tested_versions": [
                     "0.117.0"
+                ]
+            },
+            "3.15": {
+                "minimum_package_version": "0.115.0",
+                "maximum_package_version": "0.115.0",
+                "tested_versions": [
+                    "0.115.0"
                 ]
             }
         }
@@ -547,6 +613,13 @@
                 "tested_versions": [
                     "1.2.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
             }
         },
         "pinned": true
@@ -599,6 +672,13 @@
                 "tested_versions": [
                     "0.31.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "0.31.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.31.0"
+                ]
             }
         }
     },
@@ -643,6 +723,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "1.12.1",
                 "maximum_package_version": "1.12.1",
                 "tested_versions": [
@@ -1076,6 +1163,14 @@
                     "1.34.49",
                     "1.38.26"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
             }
         },
         "pinned": true
@@ -1126,6 +1221,14 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "1.34.49",
                 "maximum_package_version": "1.38.26",
                 "tested_versions": [
@@ -1250,6 +1353,13 @@
                 "tested_versions": [
                     "18.10.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "18.10.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "18.10.0"
+                ]
             }
         }
     },
@@ -1351,6 +1461,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "1.1.0",
                 "maximum_package_version": "1.1.0",
                 "tested_versions": [
@@ -2056,6 +2173,13 @@
                 "tested_versions": [
                     "4.2.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "4.3.1",
+                "maximum_package_version": "4.3.1",
+                "tested_versions": [
+                    "4.3.1"
+                ]
             }
         }
     },
@@ -2167,6 +2291,15 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "2.3.3",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "2.3.3",
                 "maximum_package_version": "3.1.3",
                 "tested_versions": [
@@ -2613,6 +2746,14 @@
                     "20.0.4",
                     "23.0.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "26.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "26.0.0"
+                ]
             }
         }
     },
@@ -2674,6 +2815,15 @@
                     "0.27.2",
                     "0.28.1"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.27.2",
+                    "0.28.1"
+                ]
             }
         }
     },
@@ -2724,6 +2874,14 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "3.0.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.6"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "3.0.3",
                 "maximum_package_version": "3.1.6",
                 "tested_versions": [
@@ -2822,6 +2980,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "5.6.2",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.6.2"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "5.6.2",
                 "maximum_package_version": "5.6.2",
                 "tested_versions": [
@@ -3246,6 +3411,13 @@
                 "tested_versions": [
                     ""
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
             }
         },
         "pinned": true
@@ -3296,6 +3468,14 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.3"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "0.4.1",
                 "maximum_package_version": "0.7.3",
                 "tested_versions": [
@@ -3408,6 +3588,13 @@
                 "tested_versions": [
                     "1.1.14"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.1.14",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.1.14"
+                ]
             }
         }
     },
@@ -3449,6 +3636,14 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.28.1"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "1.10.1",
                 "maximum_package_version": "1.28.1",
                 "tested_versions": [
@@ -3628,6 +3823,13 @@
                 "tested_versions": [
                     "1.0.2"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
             }
         }
     },
@@ -3680,6 +3882,13 @@
                 "tested_versions": [
                     "9.4.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "9.7.0",
+                "maximum_package_version": "9.7.0",
+                "tested_versions": [
+                    "9.7.0"
+                ]
             }
         }
     },
@@ -3724,6 +3933,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "2.2.6",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.6"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "2.2.6",
                 "maximum_package_version": "2.2.6",
                 "tested_versions": [
@@ -4104,6 +4320,13 @@
                 "tested_versions": [
                     "1.6.3"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
             }
         }
     },
@@ -4158,6 +4381,15 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "3.4.4",
                 "maximum_package_version": "4.0.0",
                 "tested_versions": [
@@ -4222,6 +4454,14 @@
                     "3.12.3",
                     "4.17.0"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "3.12.3",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
             }
         }
     },
@@ -4267,6 +4507,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "1.2.0",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "1.2.0",
                 "maximum_package_version": "1.2.0",
                 "tested_versions": [
@@ -4347,6 +4594,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "5.3.0",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "5.3.0"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "5.3.0",
                 "maximum_package_version": "5.3.0",
                 "tested_versions": [
@@ -4473,6 +4727,13 @@
                 "tested_versions": [
                     "8.4.2"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "9.1.1",
+                "maximum_package_version": "9.1.1",
+                "tested_versions": [
+                    "9.1.1"
+                ]
             }
         }
     },
@@ -4518,6 +4779,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "6.0.1",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "6.0.1",
                 "maximum_package_version": "6.0.1",
                 "tested_versions": [
@@ -4783,6 +5051,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "2.34.2",
+                "maximum_package_version": "2.34.2",
+                "tested_versions": [
+                    "2.34.2"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "2.34.2",
                 "maximum_package_version": "2.34.2",
                 "tested_versions": [
@@ -5175,6 +5450,13 @@
                 "tested_versions": [
                     ""
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
             }
         },
         "pinned": true
@@ -5229,6 +5511,13 @@
                 "tested_versions": [
                     "6.4.1"
                 ]
+            },
+            "3.15": {
+                "minimum_package_version": "6.4.1",
+                "maximum_package_version": "6.4.1",
+                "tested_versions": [
+                    "6.4.1"
+                ]
             }
         },
         "pinned": true
@@ -5274,6 +5563,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "",
                 "maximum_package_version": "",
                 "tested_versions": [
@@ -5379,6 +5675,13 @@
                 ]
             },
             "3.14": {
+                "minimum_package_version": "6.1.1",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.1.1"
+                ]
+            },
+            "3.15": {
                 "minimum_package_version": "6.1.1",
                 "maximum_package_version": "6.1.1",
                 "tested_versions": [
