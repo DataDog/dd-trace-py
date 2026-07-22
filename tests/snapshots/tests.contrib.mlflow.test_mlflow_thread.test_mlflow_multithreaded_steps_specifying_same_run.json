@@ -109,6 +109,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "ba5e9893214c46a98ed24f1f65259013",
          "mlflow.step": "3",
