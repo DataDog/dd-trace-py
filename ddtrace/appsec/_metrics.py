@@ -10,6 +10,7 @@ from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -24,7 +25,7 @@ BLOCKED_STR: tuple[str, str] = ("irrelevant", "success")
 logger = ddlogger.get_logger(__name__)
 
 
-class WARNING_TAGS(metaclass=_constants.Constant_Class):
+class WARNING_TAGS(metaclass=Constant_Class):
     TELEMETRY_LOGS = "telemetry_logs"
     TELEMETRY_METRICS = "telemetry_metrics"
 
