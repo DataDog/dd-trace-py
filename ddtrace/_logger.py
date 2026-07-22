@@ -1,5 +1,6 @@
 import logging
 from os import path
+import sys
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
@@ -53,7 +54,7 @@ def configure_ddtrace_logger() -> None:
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
     # Calling _configure_ddtrace_native_logger should come after Python logging has been configured.
-    _configure_ddtrace_native_logger()
+    _configure_ddtrace_native_logger(ddtrace_logger)
 
 
 def _configure_ddtrace_debug_logger(logger):
@@ -130,12 +131,37 @@ def _add_file_handler(
     return ddtrace_file_handler
 
 
-def _configure_ddtrace_native_logger():
+def _emits_to_stderr(logger: logging.Logger) -> bool:
+    """
+    Returns true if any logger in the hierarchy logs to stderr, in which case it's fine for
+    the native logger to also log to stderr
+    """
+    # Collect handlers up the hierarchy, honoring propagate.
+    handlers = []
+    cur = logger
+    while cur:
+        handlers.extend(cur.handlers)
+        if not cur.propagate:
+            break
+        cur = cur.parent
+
+    # Fall back to the last-resort handler if nothing was found.
+    if not handlers and logging.lastResort is not None:
+        handlers = [logging.lastResort]
+
+    for h in handlers:
+        stream = getattr(h, "stream", None)
+        if stream is sys.stderr:
+            return True
+    return False
+
+
+def _configure_ddtrace_native_logger(py_logger: logging.Logger):
     try:
         from ddtrace.internal.native._native import logger
 
         trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
-        default_backend = "stderr" if trace_debug else None
+        default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
         backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
         if not backend:
             return
