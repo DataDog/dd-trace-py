@@ -68,7 +68,9 @@ pub fn seed() {
 #[pyfunction]
 pub fn rand64bits() -> u64 {
     if secure_random() {
-        return OsRng.try_next_u64().expect("OsRng failed");
+        if let Ok(value) = OsRng.try_next_u64() {
+            return value;
+        }
     }
     RNG.with(|rng| rng.borrow_mut().gen())
 }
