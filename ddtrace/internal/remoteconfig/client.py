@@ -674,6 +674,24 @@ class RemoteConfigClient:
                 # and publish its content.
                 self._apply_config(payload_list, applied_configs, target, incoming, payload)
 
+    def _remove_expired_configurations(self) -> None:
+        """Disable every currently applied configuration.
+
+        Called when the agent reports ``ConfigStatus.EXPIRED``: it hasn't reached the backend
+        in a while and is serving configuration from a stale cache whose TUF signatures have
+        expired, so it must be treated as removed rather than left applied.
+        """
+        payload_list: list[Payload] = []
+        for target, applied in self._applied_configs.items():
+            self._remove_config(payload_list, target, applied)
+
+        with self._dispatch_lock:
+            self._publish_configuration(payload_list)
+            self._applied_configs = {}
+
+        self._add_apply_config_to_cache()
+        self._pump_subscriber()
+
     def _remove_config(self, payload_list: list[Payload], target: str, config: ConfigMetadata) -> None:
         if config.product_name not in self._product_callbacks:
             return
@@ -793,7 +811,16 @@ class RemoteConfigClient:
             raise RemoteConfigError(msg)
 
         if payload.config_status == ConfigStatus.EXPIRED:
-            log.debug("[%s][P: %s] Agent served remote config from an expired cache", os.getpid(), os.getppid())
+            # The agent hasn't been able to reach the backend for a while and its TUF
+            # signatures have expired: per RC backend semantics, expired configuration must
+            # be treated as removed rather than kept applied.
+            log.debug(
+                "[%s][P: %s] Agent served remote config from an expired cache, removing all applied configurations",
+                os.getpid(),
+                os.getppid(),
+            )
+            self._remove_expired_configurations()
+            return
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
