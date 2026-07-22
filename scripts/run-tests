@@ -55,6 +55,8 @@ from tests.suitespec import get_suites  # noqa: E402
 
 # Constants
 TESTAGENT_PORT_DEFAULT = 9126
+PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
+PODMAN_COMPOSE_FILE = ROOT / "docker-compose.podman.yml"
 
 
 class RiotVenv(NamedTuple):
@@ -144,6 +146,15 @@ class TestRunner:
         self.changed_files: set[str] = set()
         self.matching_suites: dict[str, dict] = {}
         self.required_services: set[str] = set()
+        self.podman_compat = os.environ.get(PODMAN_COMPAT_ENV_VAR, "0") == "1"
+
+    def _compose_command(self, *args: str) -> list[str]:
+        """Return the Compose command for the selected container backend."""
+        cmd = ["docker", "compose"]
+        if self.podman_compat:
+            cmd.extend(["-f", str(PODMAN_COMPOSE_FILE)])
+        cmd.extend(args)
+        return cmd
 
     def _run_git_command(self, cmd: list[str]) -> set[str]:
         """Helper to run a git command and return set of file paths."""
@@ -290,18 +301,19 @@ class TestRunner:
 
         For testagent, first tries the default port (9126). If that fails
         (e.g., another worktree already claimed it), retries with a random
-        port by setting TESTAGENT_HOST_PORT=0.
+        port by setting TESTAGENT_HOST_PORT=0. When DD_TEST_PODMAN_COMPAT=1,
+        all requested services use the Podman host-network Compose override.
         """
         if not services:
             return True
 
         print(f"\n🐳 Starting required services: {', '.join(sorted(services))}")
         try:
-            cmd = ["docker", "compose", "up", "-d"] + list(services)
+            cmd = self._compose_command("up", "-d", *services)
             subprocess.run(cmd, cwd=self.root, check=True)
             return True
         except subprocess.CalledProcessError:
-            if "testagent" in services:
+            if "testagent" in services and not self.podman_compat:
                 # NOTE: When falling back to a random port, snapshot tests that
                 # hardcode localhost:9126 in their URLs (e.g., in test code or
                 # snapshot files) may fail. This only happens for the second+
@@ -309,7 +321,7 @@ class TestRunner:
                 print("⚠️  Port conflict detected, retrying testagent with a random port...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
                 try:
-                    cmd = ["docker", "compose", "up", "-d"] + list(services)
+                    cmd = self._compose_command("up", "-d", *services)
                     subprocess.run(cmd, cwd=self.root, check=True)
                     return True
                 except subprocess.CalledProcessError as e:
@@ -321,9 +333,14 @@ class TestRunner:
 
     def get_testagent_url(self) -> str:
         """Discover the testagent URL by querying its dynamically assigned host port."""
+        if self.podman_compat:
+            url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
+            print(f"🔍 Using host-networked Podman testagent at {url}")
+            return url
+
         try:
             result = subprocess.run(
-                ["docker", "compose", "port", "testagent", "8126"],
+                self._compose_command("port", "testagent", "8126"),
                 capture_output=True,
                 text=True,
                 cwd=self.root,
@@ -349,7 +366,7 @@ class TestRunner:
 
         print(f"\n🛑 Stopping services: {', '.join(sorted(services))}")
         try:
-            cmd = ["docker", "compose", "down"] + list(services)
+            cmd = self._compose_command("down", *services)
             subprocess.run(cmd, cwd=self.root, check=True)
             return True
         except subprocess.CalledProcessError as e:
