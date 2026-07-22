@@ -10,6 +10,11 @@ import sys
 import pytest
 
 
+# AIDEV-NOTE: Tests for the "Datadog is the only monitoring tool" branch run in-process
+# and skip when a session-level tool such as pytest-cov already owns another slot. The
+# neighboring tests explicitly register another tool to cover the opposite branch.
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_event_handler_returns_disable():
     """
@@ -18,6 +23,7 @@ def test_event_handler_returns_disable():
     This is critical for performance - returning DISABLE prevents the monitoring
     system from calling the handler repeatedly for the same line (e.g., in loops).
     """
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
     from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
 
@@ -33,6 +39,14 @@ def test_event_handler_returns_disable():
     # Register the code object with our hook
     _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {})
 
+    # Pin the DISABLE optimisation on: this test is specifically about the DISABLE-returning
+    # behavior, not about how the flag gets computed. Outside this test, the real coverage
+    # collection path (CollectInContext.__enter__) may have already flipped it to False -
+    # e.g. when another sys.monitoring tool such as pytest-cov's coverage.py (which defaults
+    # to the sys.monitoring "sysmon" core on Python 3.14+) is registered for this session.
+    prev_use_disable_optimization = m._use_disable_optimization
+    m._use_disable_optimization = True
+
     try:
         # Call the handler
         result = _event_handler(code_obj, 1)
@@ -44,6 +58,7 @@ def test_event_handler_returns_disable():
         assert len(calls) == 1
         assert calls[0] == (1, "/test/path.py", None)
     finally:
+        m._use_disable_optimization = prev_use_disable_optimization
         # Cleanup
         if code_obj in _CODE_HOOKS:
             del _CODE_HOOKS[code_obj]
@@ -106,6 +121,8 @@ def test_has_other_monitoring_tools_false_when_alone():
         m._ensure_registered()
 
     try:
+        if m.has_other_monitoring_tools():
+            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
         assert m.has_other_monitoring_tools() is False
     finally:
         if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
@@ -179,6 +196,8 @@ def test_update_disable_optimization_enables_when_alone():
         m._ensure_registered()
 
     try:
+        if m.has_other_monitoring_tools():
+            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
         # Force to False first, then verify it gets set back to True
         m._use_disable_optimization = False
         result = m.update_disable_optimization()
