@@ -74,10 +74,16 @@ class Credentials(NamedTuple):
 
 _T = TypeVar("_T")
 
+# Generic typing.NamedTuple via multiple inheritance is only supported on 3.11+.
+if sys.version_info >= (3, 11):
 
-class GenericPoint(NamedTuple, Generic[_T]):
-    x: _T
-    y: _T
+    class GenericPoint(NamedTuple, Generic[_T]):
+        x: _T
+        y: _T
+
+    _NAMEDTUPLE_FLAVORS = [PointFunctional, PointTyped, GenericPoint]
+else:
+    _NAMEDTUPLE_FLAVORS = [PointFunctional, PointTyped]
 
 
 @pytest.mark.parametrize(
@@ -951,7 +957,7 @@ def test_numpy_import_hook_expands_types_end_to_end():
     assert numpy.ndarray in utils.ARRAY_TYPES
 
 
-@pytest.mark.parametrize("_type", [PointFunctional, PointTyped, GenericPoint])
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
 def test_is_namedtuple_type_detects_both_flavors(_type):
     # collections.namedtuple() and typing.NamedTuple produce classes that
     # behave identically at runtime (both are plain tuple subclasses with a
