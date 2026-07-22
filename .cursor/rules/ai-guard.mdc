@@ -162,8 +162,8 @@ short-circuit when `is_aiguard_context_active()` returns `True`.
 ## Configuration
 
 All configuration is via environment variables, parsed in
-`ddtrace/internal/settings/asm.py` (`AIGuardConfig`, exported as
-`ai_guard_config`). Constants live in `ddtrace/appsec/_constants.py` (`AI_GUARD`).
+`ddtrace/internal/settings/aiguard.py` (`AIGuardConfig`, exported as
+`aiguard_config`). Constants live in `ddtrace/aiguard/_constants.py` (`AI_GUARD`).
 
 | Environment Variable | Default | Description |
 |----------------------|---------|-------------|
