@@ -63,7 +63,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.p.tid": "69e7a81b00000000",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "aiohttp",
             "component": "aiohttp",
             "span.kind": "client"
           },
