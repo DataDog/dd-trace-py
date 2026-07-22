@@ -37,8 +37,8 @@
        "meta": {
          "_dd.p.dm": "-4",
          "_dd.p.tid": "69eb932b00000000",
-         "_dd.svc_src": "otel",
          "_dd.parent_id": "1158057a79196591",
+         "_dd.svc_src": "otel",
          "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpvh983js2,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
          "language": "python",
          "runtime-id": "378f3fe9d9d94a49a65ad53dee411047",

@@ -66,8 +66,8 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "otel",
-         "_dd.base_service": "tests.opentelemetry"
+         "_dd.base_service": "tests.opentelemetry",
+         "_dd.svc_src": "otel"
        },
        "metrics": {
          "_dd.top_level": 1.0
