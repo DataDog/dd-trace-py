@@ -179,12 +179,18 @@ class TargetFile:
     raw: str
 
 
+class ConfigStatus(enum.IntEnum):
+    OK = 0
+    EXPIRED = 1
+
+
 @dataclasses.dataclass
 class AgentPayload:
     roots: Optional[list[SignedRoot]] = None
     targets: Optional[SignedTargets] = None
     target_files: list[TargetFile] = dataclasses.field(default_factory=list)
     client_configs: set[str] = dataclasses.field(default_factory=set)
+    config_status: int = ConfigStatus.OK
 
     def __post_init__(self):
         if self.roots is not None:
@@ -196,6 +202,19 @@ class AgentPayload:
         for i in range(len(self.target_files)):
             if isinstance(self.target_files[i], dict):
                 self.target_files[i] = TargetFile(**self.target_files[i])
+
+    @classmethod
+    def from_agent_response(cls, data: Mapping[str, Any]) -> "AgentPayload":
+        """Build from the agent's raw response, ignoring fields we don't (yet) model.
+
+        The agent's response proto evolves over time; unknown fields must not
+        fail the whole poll.
+        """
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        unknown_fields = data.keys() - known_fields
+        if unknown_fields:
+            log.warning("Unhandled field(s) in agent remote config response, ignoring: %s", sorted(unknown_fields))
+        return cls(**{k: v for k, v in data.items() if k in known_fields})
 
 
 AppliedConfigType = dict[str, ConfigMetadata]
@@ -767,11 +786,14 @@ class RemoteConfigClient:
 
     def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
-            payload = AgentPayload(**data)
+            payload = AgentPayload.from_agent_response(data)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
             raise RemoteConfigError(msg)
+
+        if payload.config_status == ConfigStatus.EXPIRED:
+            log.debug("[%s][P: %s] Agent served remote config from an expired cache", os.getpid(), os.getppid())
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
