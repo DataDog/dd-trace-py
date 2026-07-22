@@ -3,6 +3,7 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
+import ddtrace
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
@@ -762,6 +763,15 @@ def test_trace_tag_processor_adds_chunk_root_tags(tracer):
     # test that parent span gets required chunk root span tags and child does not get language tag
     assert parent.get_tag("language") == "python"
     assert child.get_tag("language") is None
+
+
+def test_trace_tag_processor_no_language_tag_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, TraceTagsProcessor must NOT set the "language" tag
+    with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+        with tracer.trace("parent") as parent:
+            pass
+
+    assert parent.get_tag("language") is None
 
 
 def test_register_unregister_span_processor(tracer):

@@ -892,6 +892,24 @@ def test_tracer_with_version(tracer):
             assert span.get_tag(VERSION_KEY) == "config.version"
 
 
+def test_tracer_with_version_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, the tracer must NOT set the "version" tag
+    # even if config.version is set
+    with override_global_config(dict(version="1.2.3")):
+        with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+            with tracer.trace("test.span") as span:
+                assert span.get_tag(VERSION_KEY) is None
+
+
+def test_tracer_with_env_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, the tracer must NOT set the "env" tag
+    # even if config.env is set
+    with override_global_config(dict(env="prod")):
+        with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+            with tracer.trace("test.span") as span:
+                assert span.get_tag(ENV_KEY) is None
+
+
 def test_tracer_with_env(tracer):
     # With global `config.env` defined
     with override_global_config(dict(env="prod")):
