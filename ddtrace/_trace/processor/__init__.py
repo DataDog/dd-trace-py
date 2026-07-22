@@ -480,11 +480,10 @@ class SpanAggregator(SpanProcessor):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         # Flush all pending span count metrics before shutdown
-        with self._lock:
-            self._queue_span_count_metrics("spans_created", "integration_name", force_flush=True)
-            self._queue_span_count_metrics("spans_finished", "integration_name", force_flush=True)
-            self._queue_span_count_metrics("spans_dropped", "reason", force_flush=True)
- 
+        self._queue_span_count_metrics("spans_created", "integration_name", force_flush=True)
+        self._queue_span_count_metrics("spans_finished", "integration_name", force_flush=True)
+        self._queue_span_count_metrics("spans_dropped", "reason", force_flush=True)
+
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unsent_spans = [
