@@ -61,7 +61,6 @@
        "meta": {
          "_dd.svc_src": "datadog"
        },
-       "metrics": {},
        "duration": 12666,
        "start": 1776265772603498597
      }]]
