@@ -429,9 +429,8 @@ class TraceExporterBuilder:
         ...
     def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
         """
-        Enable OpenTelemetry trace semantics for the exported OTLP trace-metrics.
-        When enabled, the traces.span.sdk.metrics.duration histogram carries only OpenTelemetry
-        attributes; Datadog-specific dd.*/_dd.* data-point attributes are omitted. Driven by the
+        Enable OTel trace semantics, which does not add DD-specific per-span attributes
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload. Driven by the
         DD_TRACE_OTEL_SEMANTICS_ENABLED environment variable.
         """
         ...
