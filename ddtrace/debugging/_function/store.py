@@ -7,8 +7,10 @@ from typing import cast
 from ddtrace.debugging._function.discovery import FullyNamed
 from ddtrace.internal.bytecode_injection import HookInfoType
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection import eject_all_hooks
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hooks
+from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping.context import ContextWrappedFunction
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -89,5 +91,14 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
+        for function, wrapping_context in list(self._wrapper_map.items()):
+            wrapping_context.unwrap()
+        self._wrapper_map.clear()
+
+        if PY >= (3, 15):
+            for function in list(self._code_map):
+                eject_all_hooks(function)
+
         for function, code in self._code_map.items():
             function.__code__ = code
+        self._code_map.clear()
