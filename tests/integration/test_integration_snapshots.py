@@ -337,10 +337,12 @@ def test_native_writer_span_links():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4", "DD_TRACE_NATIVE_SPAN_EVENTS": "true"})
 def test_native_writer_links_events_v04_output():
     # v0.4 output has native span_links/span_events fields (vs the v0.5 JSON-into-meta
-    # fallback above). See ENCODER_DIFFERENCES.md.
+    # fallback above). span_events additionally requires opting into
+    # DD_TRACE_NATIVE_SPAN_EVENTS, since v0.4 span_links have always been native but
+    # span_events are still JSON-encoded into meta by default. See ENCODER_DIFFERENCES.md.
     from ddtrace.trace import tracer
 
     with tracer.trace("operation", service="my-svc") as span:
@@ -354,10 +356,11 @@ def test_native_writer_links_events_v04_output():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4"})
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4", "DD_TRACE_NATIVE_SPAN_EVENTS": "true"})
 def test_native_writer_span_link_event_attribute_truncation():
     # An oversized span-link/event attribute value must be truncated the same way meta/name/
-    # service/resource/type already are.
+    # service/resource/type already are. Requires DD_TRACE_NATIVE_SPAN_EVENTS to exercise the
+    # native (non-JSON-fallback) span_events truncation path.
     from ddtrace.trace import tracer
 
     long_value = "a" * 30000

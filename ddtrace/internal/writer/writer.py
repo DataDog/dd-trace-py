@@ -655,7 +655,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     ):
         default = "v0.4"
     resolved = api_version or config._trace_api or default
-    if agent_config.trace_native_span_events:
+    if agent_config.trace_native_span_events and resolved != "v0.4":
         log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"
     if config._llmobs_enabled and resolved != "v0.4":
@@ -854,8 +854,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
+        is_v05 = self._api_version == "v0.5"
         return builder.build(
-            get_native_runtime(), self._api_version == "v0.5" or not agent_config.trace_native_span_events
+            get_native_runtime(),
+            is_v05,
+            is_v05 or not agent_config.trace_native_span_events,
         )
 
     def set_test_session_token(self, token: Optional[str]) -> None:

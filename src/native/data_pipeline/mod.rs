@@ -238,12 +238,15 @@ impl TraceExporterBuilderPy {
     ///
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
-    /// `encode_links_events_as_json` is fixed for the exporter's output format (true for v0.5,
-    /// which has no wire fields for span links/events); it is applied to every span at flush.
+    /// `encode_links_as_json`/`encode_events_as_json` are fixed for the exporter's output
+    /// format (true for v0.5, which has no wire fields for span links/events); it is applied to
+    /// every span at flush. `encode_events_as_json` is additionally true on v0.4 when the agent
+    /// hasn't opted into native span events; span links have no such gate.
     fn build(
         &mut self,
         shared_runtime: PyRef<'_, SharedRuntimePy>,
-        encode_links_events_as_json: bool,
+        encode_links_as_json: bool,
+        encode_events_as_json: bool,
     ) -> PyResult<TraceExporterPy> {
         let shared_runtime = shared_runtime.as_arc().clone();
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
@@ -256,7 +259,8 @@ impl TraceExporterBuilderPy {
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
             buffer: Mutex::new(TraceBuffer { chunks: Vec::new() }),
-            encode_links_events_as_json,
+            encode_links_as_json,
+            encode_events_as_json,
         };
         Ok(exporter)
     }
@@ -292,7 +296,10 @@ pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
     buffer: Mutex<TraceBuffer>,
     /// Fixed for the exporter's output format; applied to every span at flush.
-    encode_links_events_as_json: bool,
+    encode_links_as_json: bool,
+    /// Fixed for the exporter's output format / native-span-events opt-in; applied to every
+    /// span at flush.
+    encode_events_as_json: bool,
 }
 
 impl TraceExporterPy {
@@ -356,7 +363,8 @@ impl TraceExporterPy {
         }
 
         let packb = get_packb(py);
-        let as_json = self.encode_links_events_as_json;
+        let encode_links_as_json = self.encode_links_as_json;
+        let encode_events_as_json = self.encode_events_as_json;
         let origin: Option<PyBackedString> = match &dd_origin {
             Some(o) => PyBackedString::try_from(o.bind(py).clone()).ok(),
             None => None,
@@ -368,7 +376,13 @@ impl TraceExporterPy {
             // SpanData::snapshot's doc comment.
             let (mut snapshot, meta_struct_raw) = {
                 let span_ref = span.bind(py).borrow();
-                span_ref.snapshot(py, origin.as_ref(), as_json, packb.is_some())?
+                span_ref.snapshot(
+                    py,
+                    origin.as_ref(),
+                    encode_links_as_json,
+                    encode_events_as_json,
+                    packb.is_some(),
+                )?
             };
             if let Some(packb) = packb {
                 for (key, value) in meta_struct_raw {
@@ -409,14 +423,21 @@ impl TraceExporterPy {
         }
 
         let n = buffered.len();
-        let as_json = self.encode_links_events_as_json;
+        let encode_links_as_json = self.encode_links_as_json;
+        let encode_events_as_json = self.encode_events_as_json;
         let res: PyResult<AgentResponse> = py.detach(move || {
             let chunks: Vec<Vec<Span<PyTraceData>>> = buffered
                 .into_iter()
                 .map(|chunk| {
                     chunk
                         .into_iter()
-                        .map(|snapshot| build_span_from_snapshot(snapshot, as_json))
+                        .map(|snapshot| {
+                            build_span_from_snapshot(
+                                snapshot,
+                                encode_links_as_json,
+                                encode_events_as_json,
+                            )
+                        })
                         .collect()
                 })
                 .collect();

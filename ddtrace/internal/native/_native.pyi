@@ -441,13 +441,17 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime, encode_links_events_as_json: bool) -> TraceExporter:
+    def build(
+        self, shared_runtime: SharedRuntime, encode_links_as_json: bool, encode_events_as_json: bool
+    ) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
-        :param encode_links_events_as_json: Fixed for the output format (True for v0.5); applied
-            to every span at flush time.
+        :param encode_links_as_json: Fixed for the output format (True for v0.5); applied to every
+            span at flush time.
+        :param encode_events_as_json: True for v0.5, or on v0.4 when the agent hasn't opted into
+            native span events; applied to every span at flush time.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """

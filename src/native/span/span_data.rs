@@ -55,9 +55,9 @@ pub(crate) struct SpanSnapshot {
     span_type: PyBackedString,
     /// Untruncated; truncated in `build_span_from_snapshot`.
     attributes: Vec<(PyBackedString, AttributeValue)>,
-    /// Empty when `encode_links_events_as_json` (JSON-encoded into `extra_meta` instead).
+    /// Empty when `encode_links_as_json` (JSON-encoded into `extra_meta` instead).
     span_links: Vec<NativeSpanLink<PyTraceData>>,
-    /// Empty when `encode_links_events_as_json` (JSON-encoded into `extra_meta` instead).
+    /// Empty when `encode_events_as_json` (JSON-encoded into `extra_meta` instead).
     span_events: Vec<NativeSpanEvent<PyTraceData>>,
     /// Untruncated key/value pairs destined for `meta` (currently just the v0.5
     /// JSON-encoded links/events blobs, when present); values are truncated on insert.
@@ -177,10 +177,13 @@ impl SpanData {
     /// `dd_origin` (`trace[0].context.dd_origin`) is injected as `_dd.origin` into every span's
     /// meta — the native attribute store only carries it on the chunk-root span.
     ///
-    /// `encode_links_events_as_json`: true for v0.5 output, which has no wire fields for span
-    /// links/events, so they're JSON-encoded into `meta[SPAN_LINKS_KEY]`/`meta[SPAN_EVENTS_KEY]`
-    /// instead. JSON encoding calls into the `json` module, which (like `packb`) is a Python
-    /// call and must happen here, under the GIL — it can't be deferred to
+    /// `encode_links_as_json`/`encode_events_as_json`: true for v0.5 output, which has no wire
+    /// fields for span links/events, so they're JSON-encoded into
+    /// `meta[SPAN_LINKS_KEY]`/`meta[SPAN_EVENTS_KEY]` instead. `encode_events_as_json` is also
+    /// true on v0.4 when the agent hasn't opted into native span events
+    /// (`agent_config.trace_native_span_events`); span links have no such gate; v0.4 has always
+    /// supported them natively. JSON encoding calls into the `json` module, which (like `packb`)
+    /// is a Python call and must happen here, under the GIL — it can't be deferred to
     /// `build_span_from_snapshot`.
     ///
     /// Returns the snapshot alongside its raw `meta_struct` entries for the caller to `packb`
@@ -195,17 +198,18 @@ impl SpanData {
         &self,
         py: Python<'_>,
         dd_origin: Option<&PyBackedString>,
-        encode_links_events_as_json: bool,
+        encode_links_as_json: bool,
+        encode_events_as_json: bool,
         has_packb: bool,
     ) -> PyResult<SnapshotWithRawMetaStruct> {
         let mut span_links = Vec::new();
         let mut span_events = Vec::new();
         let mut extra_meta = Vec::new();
 
-        if encode_links_events_as_json {
-            // v0.5 has no span_links/span_events wire fields; JSON-encode them into meta
-            // instead, using the same dict shape as the public SpanLink.to_dict()/dict(SpanEvent).
-            // The serialized blob is truncated later, in build_span_from_snapshot.
+        if encode_links_as_json {
+            // v0.5 has no span_links wire field; JSON-encode it into meta instead, using the
+            // same dict shape as the public SpanLink.to_dict(). The serialized blob is
+            // truncated later, in build_span_from_snapshot.
             if !self.span_links.is_empty() {
                 let json = json_dumps_list(
                     py,
@@ -215,6 +219,13 @@ impl SpanData {
                 )?;
                 extra_meta.push((PyBackedString::from_static_str(SPAN_LINKS_KEY), json));
             }
+        } else {
+            // Plain clone (not drain) so self stays intact; truncation happens later, off the
+            // GIL, in build_span_from_snapshot.
+            span_links = self.span_links.clone();
+        }
+
+        if encode_events_as_json {
             if !self.span_events.is_empty() {
                 let json = json_dumps_list(
                     py,
@@ -225,9 +236,6 @@ impl SpanData {
                 extra_meta.push((PyBackedString::from_static_str(SPAN_EVENTS_KEY), json));
             }
         } else {
-            // Plain clone (not drain) so self stays intact; truncation happens later, off the
-            // GIL, in build_span_from_snapshot.
-            span_links = self.span_links.clone();
             span_events = self.span_events.clone();
         }
 
@@ -285,7 +293,8 @@ impl SpanData {
 /// without blocking other Python threads.
 pub(crate) fn build_span_from_snapshot(
     snapshot: SpanSnapshot,
-    encode_links_events_as_json: bool,
+    encode_links_as_json: bool,
+    encode_events_as_json: bool,
 ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
     // `duration` is only None for unfinished spans, which the writer never receives; -1 is
     // a defensive fallback sentinel (a real duration is always >= 0) since v0.4's wire
@@ -311,16 +320,19 @@ pub(crate) fn build_span_from_snapshot(
     out.meta = VecMap::with_capacity(snapshot.attributes.len() + 3);
     out.metrics = VecMap::with_capacity(snapshot.attributes.len());
 
-    if encode_links_events_as_json {
-        for (key, value) in snapshot.extra_meta {
-            out.meta.insert(key, truncate_span_text(value));
-        }
-    } else {
+    // `extra_meta` holds whichever of the links/events JSON blobs `snapshot` produced (per
+    // `encode_links_as_json`/`encode_events_as_json`), independent of one another.
+    for (key, value) in snapshot.extra_meta {
+        out.meta.insert(key, truncate_span_text(value));
+    }
+    if !encode_links_as_json {
         out.span_links = snapshot
             .span_links
             .into_iter()
             .map(truncate_span_link)
             .collect();
+    }
+    if !encode_events_as_json {
         out.span_events = snapshot
             .span_events
             .into_iter()
