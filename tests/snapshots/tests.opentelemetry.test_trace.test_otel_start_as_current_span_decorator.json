@@ -34,7 +34,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-         "_dd.svc_src": "otel"
        "duration": 59667,
        "start": 1777046314856642379
      },
@@ -82,7 +81,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-         "_dd.svc_src": "otel"
        "duration": 68750,
        "start": 1777046314856963296
      }]]
