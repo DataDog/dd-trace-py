@@ -14,7 +14,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
-from ddtrace.internal.settings._config import config
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -259,11 +258,7 @@ if __name__ == "__main__":
 @pytest.mark.snapshot()
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-    expected_service_name = {
-        None: global_service_name or config.asgi._default_service,
-        "v0": global_service_name or config.asgi._default_service,
-        "v1": global_service_name or inferred_base_service,
-    }[schema_version]
+    expected_service_name = global_service_name or inferred_base_service
     code = """
 import pytest
 from tests.conftest import *
@@ -815,7 +810,7 @@ async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, i
                     web_span,
                     web_span_name="asgi.request",
                     web_span_component="tests.contrib.asgi",
-                    web_span_service_name="asgi",
+                    web_span_service_name="tests.contrib.asgi",
                     web_span_resource="GET /",
                     api_gateway_service_name="local",
                     api_gateway_resource="GET /",

@@ -45,7 +45,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.aiohttp_jinja2",
-         "_dd.svc_src": "aiohttp",
+         "_dd.svc_src": "aiohttp_jinja2",
          "aiohttp.template": "/template.jinja2",
          "component": "aiohttp_jinja2"
        },
