@@ -43,6 +43,7 @@
        "error": 1,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "error.message": "this is an error",
          "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/tests/contrib/mlflow/test_mlflow.py\", line 63, in test_mlflow_error_in_run\n    raise ValueError(\"this is an error\")\nValueError: this is an error\n",

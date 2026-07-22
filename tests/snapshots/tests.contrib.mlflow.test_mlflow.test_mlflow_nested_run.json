@@ -41,6 +41,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.params.p": "1",
          "mlflow.run_id": "494ef8c492204ff3881f59e5d8a528fd",
@@ -80,6 +81,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.params.c1": "10",
                "mlflow.run_id": "ce4f16e0ef644b069a6cdb60e156831c",
@@ -119,6 +121,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.params.c2": "20",
                "mlflow.run_id": "3d35330fede5427fbb33e0aefab6ab65",

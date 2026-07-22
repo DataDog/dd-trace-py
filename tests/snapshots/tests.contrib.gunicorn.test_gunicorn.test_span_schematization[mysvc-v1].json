@@ -41,7 +41,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
        "duration": 213625,

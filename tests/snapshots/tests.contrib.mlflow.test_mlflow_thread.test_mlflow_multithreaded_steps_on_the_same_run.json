@@ -40,6 +40,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "07bfe8d1d38d4bfe9343a0d5c9b750ec",
          "mlflow.step": "0",
@@ -62,6 +63,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "07bfe8d1d38d4bfe9343a0d5c9b750ec",
          "mlflow.step": "1",
@@ -84,6 +86,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "07bfe8d1d38d4bfe9343a0d5c9b750ec",
          "mlflow.step": "2",
@@ -106,6 +109,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "07bfe8d1d38d4bfe9343a0d5c9b750ec",
          "mlflow.step": "3",
@@ -128,6 +132,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "07bfe8d1d38d4bfe9343a0d5c9b750ec",
          "span.kind": "internal"

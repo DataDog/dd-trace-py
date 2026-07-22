@@ -74,7 +74,7 @@
           "meta": {
             "_dd.base_service": "tests.contrib.google_cloud_pubsub",
             "_dd.p.tid": "69f39b5f00000000",
-            "_dd.svc_src": "falcon",
+            "_dd.svc_src": "m",
             "component": "falcon",
             "http.method": "POST",
             "http.route": "/push",

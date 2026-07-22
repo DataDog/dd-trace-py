@@ -12,7 +12,7 @@
       "_dd.base_service": "tests.contrib.aiohttp_jinja2",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ea3ffa00000000",
-      "_dd.svc_src": "aiohttp",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiohttp_jinja2",
       "component": "aiohttp",
       "http.method": "GET",

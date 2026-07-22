@@ -69,6 +69,7 @@
           "meta": {
             "_dd.p.dm": "-0",
             "_dd.p.tid": "6a01ffd600000000",
+            "_dd.svc_src": "ray",
             "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
             "component": "ray",
             "grpc.status.code": "StatusCode.OK",

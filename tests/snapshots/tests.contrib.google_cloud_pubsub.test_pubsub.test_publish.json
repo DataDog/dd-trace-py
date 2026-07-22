@@ -67,6 +67,7 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "google_cloud_pubsub",
          "component": "google_cloud_pubsub",
          "gcloud.project_id": "test-project",
          "messaging.destination.name": "test-topic",

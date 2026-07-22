@@ -40,6 +40,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "b16325ac9dfc4b028eae350d15776686",
          "mlflow.step": "0",
@@ -83,6 +84,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "mlflow.step": "0",
@@ -105,6 +107,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "mlflow.step": "1",
@@ -127,6 +130,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "span.kind": "internal"
@@ -169,6 +173,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "mlflow.step": "2",
@@ -191,6 +196,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "mlflow.step": "3",
@@ -213,6 +219,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "span.kind": "internal"
