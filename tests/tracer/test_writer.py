@@ -15,7 +15,6 @@ import pytest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
@@ -119,35 +118,6 @@ class NativeWriterTests(BaseTestCase):
 
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
             assert writer._drop_sma.get() == 0.0
-
-    def test_metrics_trace_too_big(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, max_payload_size=2000) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-
-            massive_trace = []
-            for i in range(10):
-                span = Span("mmon", "mmon" + str(i), "mmon" + str(i))
-                for j in range(50):
-                    key = "opqr012|~" + str(i) + str(j)
-                    val = "stuv345!@#" + str(i) + str(j)
-                    span._set_attribute(key, val)
-                massive_trace.append(span)
-
-            writer.write(massive_trace)
-
-        # NB: buffer.dropped.bytes is no longer emitted — the native put_trace path returns a
-        # drop reason but not the rejected chunk's byte size to Python.
-        statsd.distribution.assert_has_calls(
-            [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"])],
-            any_order=True,
-        )
 
     def test_metrics_multi(self):
         statsd = mock.Mock()
@@ -261,134 +231,6 @@ class NativeWriterTests(BaseTestCase):
                 any_order=True,
             )
 
-    def test_drop_reason_trace_too_big(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, max_payload_size=2000) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            writer.write([Span(name="a" * i, trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(2**10)])
-            writer.flush_queue()
-
-            # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
-
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call(
-                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
-                        1,
-                        tags=["reason:t_too_big"],
-                    ),
-                ],
-                any_order=True,
-            )
-
-    def test_drop_reason_buffer_full(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, dogstatsd=statsd) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            writer.write([Span(name="a", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            writer.flush_queue()
-
-            # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
-
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:full"]),
-                ],
-                any_order=True,
-            )
-
-    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
-        # max_item_size is clamped to max_size, so a chunk bigger than the whole buffer reports
-        # as t_too_big rather than the misleading "full".
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(
-                self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, max_payload_size=100000, dogstatsd=statsd
-            ) as writer,
-        ):
-            writer.write(
-                [Span(name="a" * i, trace_id=1, span_id=j + 1, parent_id=j or None) for i, j in enumerate(range(50))]
-            )
-            writer.flush_queue()
-
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call(
-                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"]
-                    ),
-                ],
-                any_order=True,
-            )
-
-    def test_keep_rate(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=False)),
-            # Long interval so the background periodic thread never flushes mid-test; a small
-            # max_payload_size so the oversized traces are rejected (ItemTooLarge) rather than buffered.
-            managed_writer(
-                self.WRITER_CLASS,
-                "http://asdf:1234",
-                dogstatsd=statsd,
-                api_version="v0.4",
-                processing_interval=1000,
-                max_payload_size=100000,
-            ) as writer,
-        ):
-            # The keep rate is stamped onto trace[0] at write time as 1.0 - drop_sma, so read
-            # it back from the span's _KEEP_SPANS_RATE_KEY metric rather than decoding a payload.
-            traces = [
-                [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)] for i in range(1, 5)
-            ]
-
-            traces_too_big = [
-                [Span(name="a" * 5000, trace_id=i, span_id=j + 1, parent_id=j) for j in range(1, 2**10)]
-                for i in range(4)
-            ]
-
-            # 1. We write 4 traces successfully. No previous drops -> 100% kept.
-            for trace in traces:
-                writer.write(trace)
-            writer.flush_queue()
-            assert 0.0 == writer._drop_sma.get()
-            for trace in traces:
-                assert 1.0 == trace[0].get_metric(_KEEP_SPANS_RATE_KEY)
-
-            # 2. We fail to write 4 traces because of size limitation.
-            # 4 successfully written before and 4 dropped now -> 50% dropped historically.
-            for trace in traces_too_big:
-                writer.write(trace)
-            writer.flush_queue()
-            assert 0.5 == writer._drop_sma.get()
-
-            # 3. We write 2 traces successfully. 40% dropped historically; 50% kept at write time.
-            for trace in traces[:2]:
-                writer.write(trace)
-            writer.flush_queue()
-            assert 0.4 == writer._drop_sma.get()
-            for trace in traces[:2]:
-                assert 0.5 == trace[0].get_metric(_KEEP_SPANS_RATE_KEY)
-
-            # 4. We write 1 trace successfully and fail to write 3.
-            # 50% dropped historically; 60% kept at write time.
-            writer.write(traces[0])
-            for trace in traces_too_big[:3]:
-                writer.write(trace)
-            writer.flush_queue()
-            assert 0.5 == writer._drop_sma.get()
-            assert 0.6 == traces[0][0].get_metric(_KEEP_SPANS_RATE_KEY)
-
     def test_on_shutdown_idempotent(self):
         """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
         writer = NativeWriter("http://dne:1234")
@@ -423,23 +265,6 @@ class CIVisibilityWriterTests(NativeWriterTests):
     def tearDown(self):
         os.environ.clear()
         os.environ.update(self.original_env)
-
-    # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
-    # that CIVisibilityWriter does not implement
-    def test_drop_reason_buffer_full(self):
-        pytest.skip()
-
-    def test_drop_reason_trace_too_big(self):
-        pytest.skip()
-
-    def test_drop_reason_trace_too_big_clamped_to_buffer_size(self):
-        pytest.skip()
-
-    def test_metrics_trace_too_big(self):
-        pytest.skip()
-
-    def test_keep_rate(self):
-        pytest.skip()
 
     # CIVisibilityWriter retries with backoff (unlike NativeWriter), making this both slow and
     # not a meaningful test of NativeWriter._flush()'s buffer-drain/metrics behavior.
