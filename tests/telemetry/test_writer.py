@@ -13,6 +13,7 @@ from ddtrace import config
 import ddtrace.internal.settings._core as settings_core
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.settings.profiling import exception_is_available
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
