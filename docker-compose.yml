@@ -191,7 +191,7 @@ services:
 
 
     selenium-chrome:
-        image: selenium/standalone-chrome:4.34.0
+        image: selenium/standalone-chrome:latest
         platform: linux/amd64
         network_mode: host
         environment:
