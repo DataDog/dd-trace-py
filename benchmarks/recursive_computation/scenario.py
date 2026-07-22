@@ -1,3 +1,5 @@
+import gc
+import os
 import time
 from typing import Callable
 from typing import Generator
@@ -14,6 +16,8 @@ class RecursiveComputation(bm.Scenario):
     enable_sleep: bool
     sleep_duration: float
     profiler_enabled: bool
+    gc_frames_enabled: bool
+    force_cyclic_gc: bool
 
     def cpu_intensive_computation(self, depth: int) -> int:
         limit = 100 + (depth * 10)
@@ -54,6 +58,11 @@ class RecursiveComputation(bm.Scenario):
                 child_result = self.recursive_traced_computation(depth + 1)
                 span.set_tag("child.result", child_result)
                 result += child_result
+            elif self.force_cyclic_gc:
+                cycle = []
+                cycle.append(cycle)
+                del cycle
+                gc.collect()
             elif self.enable_sleep:
                 span.set_tag("action", "sleep_at_max_depth")
                 time.sleep(self.sleep_duration)
@@ -63,6 +72,7 @@ class RecursiveComputation(bm.Scenario):
 
     def run(self) -> Generator[Callable[[int], None], None, None]:
         if self.profiler_enabled:
+            os.environ["DD_PROFILING_STACK_GC_ENABLED"] = str(self.gc_frames_enabled).lower()
             import ddtrace.profiling.auto  # noqa: F401
 
         utils.drop_traces(tracer)

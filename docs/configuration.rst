@@ -1279,6 +1279,13 @@ Profiling
 .. ddtrace-envier-configuration:: ddtrace.internal.settings.profiling:ProfilingConfig
    :recursive: true
 
+To include garbage collection in CPU and wall-time stack profiles, set
+``DD_PROFILING_STACK_GC_ENABLED=true``. This option is disabled by default and
+adds a synthetic ``Garbage collection`` frame immediately before the Python frame that
+initiated collection. On Python 3.9 through 3.14, it covers interpreters where
+the profiler installed its collection callback; Python 3.15 and later use the
+interpreter's native collection-frame state.
+
 
 Dynamic Instrumentation
 -----------------------

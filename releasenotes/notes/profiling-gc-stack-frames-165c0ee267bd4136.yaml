@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: Adds optional garbage-collection frames to CPU and wall-time profiles. Set
+    ``DD_PROFILING_STACK_GC_ENABLED=true`` (default ``false``) to show ``Garbage collection``
+    immediately before the Python frame that initiated collection.

@@ -9,9 +9,9 @@
 #include <string_view>
 
 void
-ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, PyObject* gc_frame)
 {
-    unwind_python_stack(echion, tstate, python_stack);
+    unwind_python_stack(echion, tstate, python_stack, gc_frame);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -21,7 +21,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id, gc_frame);
     }
 }
 
@@ -341,7 +341,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
-            const auto& python_frame = python_stack[i];
+            auto python_frame = python_stack[i];
+            if (!stack_info->on_cpu) {
+                python_frame.is_gc = false;
+            }
             stack.push_back(python_frame);
         }
 
@@ -586,7 +589,10 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion,
+                             PyThreadState* tstate,
+                             unsigned long cur_native_id,
+                             PyObject* gc_frame)
 {
     std::vector<GreenletSnapshot> snapshots;
 
@@ -673,7 +679,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         auto& stack = stack_info->stack;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
-        temp.unwind(echion, snap.frame, tstate, stack);
+        temp.unwind(echion, snap.frame, tstate, stack, on_cpu ? gc_frame : nullptr);
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
@@ -752,7 +758,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, PyObject* gc_frame)
 {
     auto& renderer = echion.renderer();
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
@@ -765,7 +771,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(echion, tstate);
+    this->unwind(echion, tstate, gc_frame);
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
