@@ -13,7 +13,23 @@ from unittest.mock import patch
 from bm import Scenario
 
 from ddtrace.internal.settings._telemetry import config as telemetry_config
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+
+
+try:
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+except ModuleNotFoundError as error:
+    if error.name != "ddtrace.internal.settings.appsec_telemetry":
+        raise
+
+    from ddtrace.internal.settings._config import config as tracer_config
+
+    def _enable_sca():
+        tracer_config._sca_enabled = True
+
+else:
+
+    def _enable_sca():
+        appsec_telemetry_config.SCA_ENABLED = True
 
 
 # --- Backward-compatible imports ---
@@ -49,7 +65,7 @@ if not HAS_OLD_API:
 def _populate_tracker(tracker, n, sca_enabled):
     """Pre-populate a DependencyTracker with n dependencies as already-reported."""
     if sca_enabled:
-        appsec_telemetry_config.SCA_ENABLED = True
+        _enable_sca()
     for i in range(n):
         name = "package-%d" % i
         meta = [] if sca_enabled else None
@@ -155,7 +171,7 @@ class TelemetryDependencies(Scenario):
         for _ in range(loops):
             tracker = DependencyTracker()
             if sca:
-                appsec_telemetry_config.SCA_ENABLED = True
+                _enable_sca()
             t0 = time.perf_counter()
             _collect_report_new_modules(tracker, module_names, dists)
             total += time.perf_counter() - t0
