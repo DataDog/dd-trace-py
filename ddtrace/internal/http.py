@@ -98,7 +98,8 @@ class NativeHTTPConnection:
         client = self._get_client()
         req_fn = getattr(client, self._method)
         kwargs: dict[str, Any] = {"headers": self._pending_headers}
-        if self._pending_body is not None:
+        # get()/delete() don't accept a body kwarg at all, unlike post()/put()/patch().
+        if self._pending_body is not None and self._method not in ("get", "delete"):
             kwargs["body"] = self._pending_body
         return HTTPResponse(req_fn(self._path, **kwargs))
 
