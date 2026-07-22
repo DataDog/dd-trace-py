@@ -5,7 +5,7 @@ import pytest
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
-from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
