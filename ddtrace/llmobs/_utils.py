@@ -18,6 +18,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
+from ddtrace.internal._tagset import TagsetEncodeError
+from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -27,6 +29,8 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -414,6 +418,108 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
+def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
+    """Resolve (parent_agent_name, parent_agent_span_id) from the active LLMObs parent.
+
+    active is the result of _llmobs_context_provider.active():
+      - a Span whose kind is "agent": the parent IS the agent, so attribute to it.
+      - any other Span: it already resolved its own attribution when it activated, so
+        inherit its stored PARENT_AGENT_* values (one level of lookup, no walk).
+      - a Context (distributed parent): read the propagated _dd.p.* keys off
+        context._meta. The name may be absent if an upstream hop ran an older SDK.
+      - None: no parent, so there is no agent to attribute to.
+
+    An agent span never attributes itself: resolution always looks at the parent.
+    """
+    if active is None:
+        return None, None
+
+    if isinstance(active, Span):
+        # Read the meta_struct once: this runs on every span activation (hot path).
+        data = _get_llmobs_data_metastruct(active)
+        kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+        if kind == "agent":
+            return (data.get(LLMOBS_STRUCT.NAME) or active.name, str(active.span_id))
+        return (
+            data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
+            data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
+        )
+
+    # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
+    ctx = active
+    return (
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
+    )
+
+
+# Budget for the entire _dd.p.* tagset when stamping agent attribution.
+# `_dd.p.tid=<16-hex>` (27 chars including the comma separator) is added by HTTPPropagator
+# at inject time, after this check runs, so we leave that headroom here.
+_AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
+
+
+def _is_propagation_tags_within_budget(meta: dict) -> bool:
+    """Return True if the ``_dd.p.*`` propagation tags in ``meta`` encode within budget.
+
+    Mirrors the propagator's own key filter (``key.startswith("_dd.p.")``) and encoder, so the
+    check matches what ``HTTPPropagator.inject()`` will later attempt. ``encode_tagset_values``
+    raises ``TagsetMaxSizeEncodeError`` past the budget and ``TagsetEncodeError`` on commas or
+    bytes outside 0x20-0x7E; both mean "does not fit" here.
+    """
+    tags = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
+    try:
+        encode_tagset_values(tags, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
+        return True
+    except TagsetEncodeError:
+        return False
+
+
+def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
+    """Write the agent id/name ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
+
+    A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
+    llmobs_trace_id, parent_id with it), so attribution degrades gracefully instead:
+      1. both id and name when they fit within the budget;
+      2. id + truncated name when the full name exceeds the budget;
+      3. id only when even a truncated name cannot fit (e.g. the name is entirely invalid chars);
+      4. neither when even the id would exceed the budget.
+
+    ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+    """
+    if agent_span_id is None:
+        return
+    meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
+    if agent_name is not None:
+        meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name
+        if _is_propagation_tags_within_budget(meta):
+            return
+        # Full name doesn't fit (too long or invalid chars); try truncation.
+        del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
+        tags_id_only = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
+        try:
+            encoded_id_only = encode_tagset_values(tags_id_only, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
+        except TagsetEncodeError:
+            pass  # Id-only also overflows; fall through to the drop-id path below.
+        else:
+            # Overhead for `,name_key=` (comma is safe: other tags are already encoded before us).
+            name_entry_overhead = 1 + len(PROPAGATED_PARENT_AGENT_NAME_KEY) + 1
+            available_for_value = _AGENT_ATTRIBUTION_TAGSET_BUDGET - len(encoded_id_only) - name_entry_overhead
+            if available_for_value > 0:
+                meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name[:available_for_value]
+                if not _is_propagation_tags_within_budget(meta):
+                    # Truncated name is still invalid (e.g. contains commas): drop name.
+                    del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
+    if not _is_propagation_tags_within_budget(meta):
+        # Even id-only overflows: drop attribution entirely rather than risk the whole header.
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
+        log.debug(
+            "LLMObs: agent attribution dropped — x-datadog-tags budget exhausted. agent_name=%r agent_span_id=%r",
+            agent_name,
+            agent_span_id,
+        )
+
+
 def get_llmobs_parent_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
@@ -615,6 +721,8 @@ def _annotate_llmobs_span_data(
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
     parent_id: Optional[str] = None,
+    parent_agent_name: Optional[str] = None,
+    parent_agent_span_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     dd_scope: Optional[str] = None,
     dd_sample_rate: Optional[str] = None,
@@ -649,6 +757,10 @@ def _annotate_llmobs_span_data(
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
+        if parent_agent_name is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_AGENT_NAME] = parent_agent_name
+        if parent_agent_span_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID] = parent_agent_span_id
         if trace_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = trace_id
         if kind is not None:

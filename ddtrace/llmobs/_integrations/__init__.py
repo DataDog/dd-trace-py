@@ -1,30 +1,40 @@
-from .anthropic import AnthropicIntegration
-from .base import BaseLLMIntegration
-from .bedrock import BedrockIntegration
-from .claude_agent_sdk import ClaudeAgentSdkIntegration
-from .google_adk import GoogleAdkIntegration
-from .google_genai import GoogleGenAIIntegration
-from .langchain import LangChainIntegration
-from .litellm import LiteLLMIntegration
-from .llama_index import LlamaIndexIntegration
-from .mistralai import MistralAIIntegration
-from .openai import OpenAIIntegration
-from .pydantic_ai import PydanticAIIntegration
-from .vertexai import VertexAIIntegration
+"""LLMObs integration classes.
+
+Integration patch modules import one concrete integration at a time. Resolve those
+classes lazily so patching one integration does not import the full LLMObs service
+through every other integration.
+"""
+
+from importlib import import_module
+from typing import Any
 
 
-__all__ = [
-    "AnthropicIntegration",
-    "BaseLLMIntegration",
-    "BedrockIntegration",
-    "ClaudeAgentSdkIntegration",
-    "GoogleAdkIntegration",
-    "GoogleGenAIIntegration",
-    "LangChainIntegration",
-    "LiteLLMIntegration",
-    "LlamaIndexIntegration",
-    "MistralAIIntegration",
-    "OpenAIIntegration",
-    "PydanticAIIntegration",
-    "VertexAIIntegration",
-]
+_INTEGRATION_MODULES = {
+    "AnthropicIntegration": ".anthropic",
+    "BaseLLMIntegration": ".base",
+    "BedrockIntegration": ".bedrock",
+    "ClaudeAgentSdkIntegration": ".claude_agent_sdk",
+    "GoogleAdkIntegration": ".google_adk",
+    "GoogleGenAIIntegration": ".google_genai",
+    "LangChainIntegration": ".langchain",
+    "LiteLLMIntegration": ".litellm",
+    "LlamaIndexIntegration": ".llama_index",
+    "MistralAIIntegration": ".mistralai",
+    "OpenAIIntegration": ".openai",
+    "PydanticAIIntegration": ".pydantic_ai",
+    "VertexAIIntegration": ".vertexai",
+}
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name = _INTEGRATION_MODULES[name]
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+    integration = getattr(import_module(module_name, __name__), name)
+    globals()[name] = integration
+    return integration
+
+
+__all__ = list(_INTEGRATION_MODULES)
