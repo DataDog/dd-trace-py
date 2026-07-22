@@ -10,6 +10,7 @@ import httpretty
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.profiling import exception_is_available
@@ -19,7 +20,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
-from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
@@ -353,6 +353,7 @@ import opentelemetry
         {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
         {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": exception_is_available},
         {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
+        {"name": "DD_PROFILING_HEAP_CODE_CACHE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
@@ -910,7 +911,9 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     }
 
 
-def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
+def validate_request_body(
+    received_body: dict[str, Any], payload: dict[str, Any], payload_type: str, seq_id: Optional[int] = None
+) -> dict[str, Any]:
     """used to test the body of requests received by the testagent"""
     assert len(received_body) == 9
     assert received_body["tracer_time"] == time.time()

@@ -107,7 +107,7 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
 }
 
-void
+std::optional<Datadog::function_id>
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
     auto maybe_name_id = intern_string(name);
@@ -115,15 +115,16 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
 
     // Skip frame if interning failed (e.g., dictionary not available)
     if (!maybe_name_id || !maybe_filename_id) {
-        return;
+        return std::nullopt;
     }
 
     auto maybe_func_id = intern_function(*maybe_name_id, *maybe_filename_id);
     if (!maybe_func_id) {
-        return;
+        return std::nullopt;
     }
 
     push_frame_impl(*maybe_func_id, address, line);
+    return maybe_func_id;
 }
 
 void
@@ -137,15 +138,14 @@ Datadog::Sample::push_frame_impl(function_id func_id, uint64_t address, int64_t 
     });
 }
 
-void
+std::optional<Datadog::function_id>
 Datadog::Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-
-    if (locations.size() < max_nframes) {
-        push_frame_impl(name, filename, address, line);
-    } else {
+    if (locations.size() >= max_nframes) {
         incr_dropped_frames();
+        return std::nullopt;
     }
+    return push_frame_impl(name, filename, address, line);
 }
 
 /* Helper function to convert PyUnicode object to string_view

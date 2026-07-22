@@ -107,7 +107,10 @@ class Sample
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);
-    void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    std::optional<function_id> push_frame_impl(std::string_view name,
+                                               std::string_view filename,
+                                               uint64_t address,
+                                               int64_t line);
     void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
     void clear();
 
@@ -148,7 +151,10 @@ class Sample
     bool push_gpu_device_name(std::string_view device_name);
 
     // Assumes frames are pushed in leaf-order
-    void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    std::optional<function_id> push_frame(std::string_view name,
+                                          std::string_view filename,
+                                          uint64_t address,
+                                          int64_t line);
     void push_frame(function_id function_id, // for ddog_prof_Location
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
