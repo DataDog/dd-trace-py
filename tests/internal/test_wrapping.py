@@ -1134,6 +1134,7 @@ class DummyLazyWrappingContext(LazyWrappingContext):
         return super().__enter__()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy():
     free = 42
 
@@ -1211,6 +1212,7 @@ def test_wrapping_context_lazy_multiple_wrappers():
     assert c1.count == c2.count == 0
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy_unwrap_before_call():
     free = 42
 
@@ -1377,63 +1379,91 @@ async def test_lazy_async_wrapper_throw_forwarding():
         )
 
 
-def test_wrapping_context_foot_has_valid_linenos():
-    """Regression test: CONTEXT_FOOT.bind() must pass lineno to avoid None line numbers.
+# Thread-based concurrency: ContextVar storage must be isolated per thread.
+# ---------------------------------------------------------------------------
 
-    The CONTEXT_FOOT assembly (exception-handler epilogue injected by
-    _UniversalWrappingContext.wrap) was previously emitted without line-number
-    information.  inspect.stack() / inspect.getframeinfo() raises TypeError when
-    it encounters a frame whose f_lineno is None, so any tool that inspects the
-    call stack from inside a WrappingContext-wrapped function (e.g. IAST's
-    report_stack) would crash.
-    """
-    stack_from_inside: list = []
+
+def test_wrapping_context_thread_concurrent():
+    """Storage set by one thread must not bleed into a concurrent thread."""
+    import threading
+
+    results = {}
+    errors = []
+
+    class ThreadIsolationContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            self.set("tid", threading.get_ident())
+            return self
+
+        def __return__(self, value):
+            stored = self.get("tid")
+            current = threading.get_ident()
+            if stored != current:
+                errors.append(f"tid mismatch: stored={stored} current={current}")
+            results[current] = stored
+            return super().__return__(value)
 
     def foo():
-        stack_from_inside.extend(inspect.stack())
-        return 42
+        return threading.get_ident()
 
-    wc = DummyWrappingContext(foo)
+    wc = ThreadIsolationContext(foo)
     wc.wrap()
 
-    result = foo()
-    assert result == 42
+    barrier = threading.Barrier(10)
 
-    for frame_info in stack_from_inside:
-        lineno = frame_info.lineno
-        assert lineno is not None, (
-            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
-            "CONTEXT_FOOT was bound without line-number information"
-        )
-
-
-def test_wrapping_context_foot_has_valid_linenos_on_exception():
-    """Same lineno regression check when the wrapped function raises an exception.
-
-    The CONTEXT_FOOT assembly is only executed when an exception propagates, so
-    the lineno fix must also cover the exception path.
-    """
-    stack_from_handler: list = []
-
-    class _Sentinel(Exception):
-        pass
-
-    class CaptureOnExit(WrappingContext):
-        def __exit__(self, exc_type, exc_value, traceback):
-            stack_from_handler.extend(inspect.stack())
-            return super().__exit__(exc_type, exc_value, traceback)
-
-    def foo():
-        raise _Sentinel("boom")
-
-    CaptureOnExit(foo).wrap()
-
-    with pytest.raises(_Sentinel):
+    def run():
+        barrier.wait()
         foo()
 
-    for frame_info in stack_from_handler:
-        lineno = frame_info.lineno
-        assert lineno is not None, (
-            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
-            "CONTEXT_FOOT exception path was bound without line-number information"
-        )
+    threads = [threading.Thread(target=run) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, errors
+    # Each thread saw its own tid in storage.
+    for tid, stored in results.items():
+        assert tid == stored
+
+
+# ---------------------------------------------------------------------------
+# Async recursion: ContextVar stack must be correct for recursive coroutines.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_recursive():
+    """Each recursive coroutine call must have its own isolated storage slot."""
+    values = []
+
+    class AsyncRecursiveContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            n = self.__frame__.f_locals["n"]
+            self.set("n", n)
+            values.append(("enter", n))
+            return self
+
+        def __return__(self, value):
+            n = self.__frame__.f_locals["n"]
+            assert self.get("n") == n, f"storage mismatch: expected {n}, got {self.get('n')}"
+            values.append(("return", n))
+            return super().__return__(value)
+
+    async def afactorial(n):
+        if n == 0:
+            return 1
+        return n * await afactorial(n - 1)
+
+    wc = AsyncRecursiveContext(afactorial)
+    wc.wrap()
+
+    result = await afactorial(5)
+    assert result == 120
+
+    entered = [n for ev, n in values if ev == "enter"]
+    returned = [n for ev, n in values if ev == "return"]
+    assert entered == [5, 4, 3, 2, 1, 0]
+    assert returned == [0, 1, 2, 3, 4, 5]

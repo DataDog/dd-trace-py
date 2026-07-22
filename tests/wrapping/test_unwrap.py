@@ -10,15 +10,17 @@ in-place restore to cover here.
 These tests assert a wrap->unwrap round-trip restores call behaviour and the
 signature, and pin a divergence in how completely the original is reinstated:
 ``internal_wrap`` puts back the exact original ``__code__`` object (a true
-inverse, even when layers are nested); ``WrappingContext.unwrap`` restores
-behaviour but rebuilds the code object rather than reinstating the original, so
-``__code__`` identity is not restored (codified with a strict xfail).
+inverse, even when layers are nested). On Python < 3.15, ``WrappingContext.unwrap``
+restores behaviour but rebuilds the code object rather than reinstating the
+original, so ``__code__`` identity is not restored (codified with a strict xfail).
+On 3.15+ the monitoring path never mutates ``__code__``, so identity is preserved.
 
 Mechanism-specific (the matrix's other two mechanisms have no in-place unwrap), so
 these opt out of the all-mechanisms ``mech`` guardrail.
 """
 
 import inspect
+import sys
 
 import pytest
 
@@ -114,6 +116,7 @@ def test_internal_wrap_nested_unwrap_restores():
 
 @pytest.mark.xfail(
     strict=True,
+    condition=sys.version_info < (3, 15),
     reason="WrappingContext.unwrap restores behaviour but rebuilds the code object instead of "
     "reinstating the original, so __code__ identity is not restored after a wrap->unwrap round-trip",
 )

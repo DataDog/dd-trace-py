@@ -3,11 +3,12 @@ from contextvars import ContextVar
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import sys
+from types import CodeType
 from types import FrameType
 from types import FunctionType
 from types import TracebackType
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 import weakref
 
 import bytecode
@@ -47,7 +48,7 @@ class _ContextRecord:
 
     @property
     def uwc(self) -> t.Optional["_UniversalWrappingContext"]:
-        ref = self._uwc_ref
+        ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = self._uwc_ref
         return ref() if ref is not None else None
 
     @uwc.setter
@@ -56,7 +57,7 @@ class _ContextRecord:
 
     @classmethod
     def get_or_create(cls, f: FunctionType) -> "_ContextRecord":
-        record = _registry.get(f)
+        record: t.Optional["_ContextRecord"] = _registry.get(f)
         if record is None:
             with _registry_lock:
                 record = _registry.get(f)
@@ -128,8 +129,12 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if sys.version_info >= (3, 16):
+    raise NotImplementedError("This version of Python is not supported yet")
+elif sys.version_info >= (3, 15):
+    # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
+    # needed.
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -338,6 +343,27 @@ elif sys.version_info >= (3, 9):
     )
 
 
+# On the bytecode path __enter__ is invoked directly from inside the wrapped
+# function, so the monitored frame is one level up. On the monitoring path
+# (3.15+) the stack is:
+#   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
+# so the monitored frame is three levels up.
+_ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
+
+if sys.version_info >= (3, 15):
+    from ddtrace.internal import monitoring as _monitoring
+
+    # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
+    _ctx_registry: "weakref.WeakKeyDictionary[CodeType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
+    # Keyed by function instance: distinguishes functions that share a code object
+    # (e.g. closures re-created in a loop) from one another. Kept off the function's
+    # __dict__ (unlike a plain attribute) so functools.wraps does not propagate
+    # wrapping metadata and deepcopy of decorated functions does not traverse a
+    # context holding unpicklable state (locks, ContextVars). See issue #16443.
+    _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
+    _ctx_registry_lock = Lock()
+
+
 # This is abstract and should not be used directly
 class BaseWrappingContext(ABC):
     __priority__: int = 0
@@ -372,7 +398,9 @@ class BaseWrappingContext(ABC):
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
-        storage = t.cast(dict[str, t.Any], self._storage.get())
+        storage = self._storage.get()
+        if storage is None:
+            return {}
         self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
         return storage
 
@@ -464,88 +492,112 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
-class LazyWrappingContext(WrappingContext):
-    def __init__(self, f: FunctionType):
-        super().__init__(f)
+if sys.version_info >= (3, 15):
+    # Monitoring-based instrumentation has negligible per-function overhead, so
+    # there is no benefit to deferring wrapping until first call. On Python 3.15+
+    # this is a transparent alias for WrappingContext kept only for API compatibility.
+    LazyWrappingContext = WrappingContext
 
-        self._trampoline: t.Optional[Wrapper] = None
-        self._trampoline_lock = Lock()
+else:
 
-    @classmethod
-    def is_wrapped(cls, f: FunctionType) -> bool:
-        with _registry_lock:
-            record = _registry.get(f)
-            if record is None:
-                return False
-            return any(isinstance(c, cls) for c in record.lazy_contexts)
+    class LazyWrappingContext(WrappingContext):
+        def __init__(self, f: FunctionType):
+            super().__init__(f)
 
-    def wrap(self) -> None:
-        """Perform the bytecode wrapping on first invocation."""
-        with (tl := self._trampoline_lock):
-            if self._trampoline is not None:
-                return
+            self._trampoline: t.Optional[Wrapper] = None
+            self._trampoline_lock = Lock()
 
-            # If the function is already universally wrapped it's less expensive
-            # to do the normal wrapping.
-            if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
-                super().wrap()
-                return
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            with _registry_lock:
+                record: t.Optional[_ContextRecord] = _registry.get(f)
+                if record is None:
+                    return False
+                return any(isinstance(c, cls) for c in record.lazy_contexts)
 
-            def trampoline(_: t.Any, args: tuple[t.Any, ...], kwargs: dict[str, t.Any]) -> t.Any:
-                with tl:
-                    f = t.cast(WrappedFunction, self.__wrapped__)
-                    if is_wrapped_with(t.cast(FunctionType, self.__wrapped__), trampoline):
-                        f = t.cast(WrappedFunction, unwrap(f, trampoline))
+        def wrap(self) -> None:
+            """Perform the bytecode wrapping on first invocation."""
+            with (tl := self._trampoline_lock):
+                if self._trampoline is not None:
+                    return
 
-                        self._trampoline = None
+                # If the function is already universally wrapped it's less expensive
+                # to do the normal wrapping.
+                if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
+                    super().wrap()
+                    return
 
-                        inconsistent = False
-                        with _registry_lock:
-                            record = _registry.get(t.cast(FunctionType, f))
-                            if record is not None:
-                                inconsistent = self not in record.lazy_contexts
-                                record.lazy_contexts.discard(self)
-                                if not record.lazy_contexts and record.uwc is None:
-                                    _registry.pop(t.cast(FunctionType, f), None)
-                        if inconsistent:
-                            log.warning("Inconsistent lazy wrapping context state")
+                def trampoline(_: t.Any, args: tuple[t.Any, ...], kwargs: dict[str, t.Any]) -> t.Any:
+                    with tl:
+                        f = t.cast(WrappedFunction, self.__wrapped__)
+                        if is_wrapped_with(t.cast(FunctionType, self.__wrapped__), trampoline):
+                            f = t.cast(WrappedFunction, unwrap(f, trampoline))
 
-                        super(LazyWrappingContext, self).wrap()
-                return f(*args, **kwargs)
+                            self._trampoline = None
 
-            wrap(t.cast(FunctionType, self.__wrapped__), trampoline)
+                            inconsistent: bool = False
+                            with _registry_lock:
+                                record: t.Optional[_ContextRecord] = _registry.get(t.cast(FunctionType, f))
+                                if record is not None:
+                                    inconsistent = self not in record.lazy_contexts
+                                    record.lazy_contexts.discard(self)
+                                    if not record.lazy_contexts and record.uwc is None:
+                                        _registry.pop(t.cast(FunctionType, f), None)
+                            if inconsistent:
+                                log.warning("Inconsistent lazy wrapping context state")
 
-            self._trampoline = trampoline
+                            super(LazyWrappingContext, self).wrap()
+                    return f(*args, **kwargs)
 
-            _ContextRecord.get_or_create(t.cast(FunctionType, self.__wrapped__)).lazy_contexts.add(self)
+                wrap(t.cast(FunctionType, self.__wrapped__), trampoline)
 
-    def unwrap(self) -> None:
-        with self._trampoline_lock:
-            if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
-                assert self._trampoline is None  # nosec
-                super().unwrap()
-            elif self._trampoline is not None:
-                with _registry_lock:
-                    record = _registry.get(t.cast(FunctionType, self.__wrapped__))
-                    if record is not None:
-                        record.lazy_contexts.discard(self)
-                        if not record.lazy_contexts and record.uwc is None:
-                            _registry.pop(t.cast(FunctionType, self.__wrapped__), None)
+                self._trampoline = trampoline
 
-                unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
-                self._trampoline = None
+                _ContextRecord.get_or_create(t.cast(FunctionType, self.__wrapped__)).lazy_contexts.add(self)
+
+        def unwrap(self) -> None:
+            with self._trampoline_lock:
+                if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
+                    assert self._trampoline is None  # nosec
+                    super().unwrap()
+                elif self._trampoline is not None:
+                    with _registry_lock:
+                        record: t.Optional[_ContextRecord] = _registry.get(t.cast(FunctionType, self.__wrapped__))
+                        if record is not None:
+                            record.lazy_contexts.discard(self)
+                            if not record.lazy_contexts and record.uwc is None:
+                                _registry.pop(t.cast(FunctionType, self.__wrapped__), None)
+
+                    unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
+                    self._trampoline = None
 
 
 class ContextWrappedFunction(Protocol):
-    """A wrapped function."""
+    """A function that is (or can be) wrapped with a WrappingContext.
+
+    Used purely as a structural type marker for call sites that operate on
+    wrapped functions. Per-function wrapping state is tracked off the function
+    object (see _fn_registry on 3.15+ / the registry on older versions), so this
+    protocol intentionally carries no wrapping-metadata attribute.
+    """
 
     def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 
+# On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
+# it can be registered directly with the multiplexer via register(code, self).
+if sys.version_info >= (3, 15):
+    from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
+
+    _UWC_BASES: tuple = (BaseWrappingContext, _MonitoringEventHandler)
+else:
+    _UWC_BASES = (BaseWrappingContext,)
+
+
 # This class provides an interface between single bytecode wrapping and multiple
 # logical context wrapping
-class _UniversalWrappingContext(BaseWrappingContext):
+class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
     def __init__(self, f: FunctionType) -> None:
         super().__init__(f)
 
@@ -581,7 +633,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
         super().__enter__()
 
         # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        self.set("__frame__", sys._getframe(_ENTER_FRAME_DEPTH))
 
         for context in self._contexts:
             context.__enter__()
@@ -609,268 +661,399 @@ class _UniversalWrappingContext(BaseWrappingContext):
         for context in self._contexts[::-1]:
             context.__return__(value)
 
-        return super().__return__(value)
+        return t.cast(T, super().__return__(value))
 
-    @classmethod
-    def is_wrapped(cls, f: FunctionType) -> bool:
-        try:
-            with _registry_lock:
-                record = _registry.get(f)
-                if record is None or record.uwc is None:
+    if sys.version_info >= (3, 15):
+
+        def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
+            self.__enter__()
+
+        def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
+            self.__return__(retval)
+
+        def on_py_unwind(self, code: t.Any, instruction_offset: int, exception: BaseException) -> None:
+            self.__exit__(type(exception), exception, exception.__traceback__)
+
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            try:
+                code: CodeType = get_function_code(f)
+                if code not in _ctx_registry:
                     return False
-                # Verify the registry entry matches actual bytecode wrapping.
-                if sys.version_info >= (3, 11):
-                    return record.uwc.__enter__ in get_function_code(f).co_consts
-                else:
-                    return record.uwc in get_function_code(f).co_consts
-        except AttributeError:
-            return False
+                # Also verify that THIS function instance is wrapped, not just some
+                # other function that shares the same code object (e.g. closures
+                # re-created in a loop).
+                return _fn_registry.get(f) is _ctx_registry[code]
+            except Exception:
+                return False
 
-    @classmethod
-    def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-        with _registry_lock:
-            if not cls.is_wrapped(f):
+        @classmethod
+        def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
+            ctx: t.Optional["_UniversalWrappingContext"] = _ctx_registry.get(get_function_code(f))
+            if ctx is None:
                 raise ValueError("Function is not wrapped")
-            return t.cast(_UniversalWrappingContext, _registry[f].uwc)
-
-    if sys.version_info >= (3, 11):
+            # Monitoring dispatches per code object, so a fresh function instance
+            # that merely shares a code object (e.g. a closure re-created in a
+            # loop) maps to the same registry entry without being wrapped itself.
+            # Mirror is_wrapped()'s per-instance check so callers such as wrapped()
+            # replace the stale registration via wrap() instead of double-
+            # registering on a context that belongs to another (often dead) function.
+            if _fn_registry.get(f) is not ctx:
+                raise ValueError("Function is not wrapped")
+            return ctx
 
         def wrap(self) -> None:
-            f = self.__wrapped__
+            f: FunctionType = self.__wrapped__
+            original_code: CodeType = get_function_code(f)
+            with _ctx_registry_lock:
+                if original_code in _ctx_registry:
+                    # Allow wrapping a new function instance that shares the same
+                    # code object as an already-wrapped (but orphaned) function.
+                    # This happens when closures are re-created in a loop: each
+                    # iteration produces a new function object but the same code
+                    # object. If the new function is not itself registered, the old
+                    # monitoring registration is stale and should be replaced.
+                    if _fn_registry.get(f) is _ctx_registry[original_code]:
+                        raise ValueError("Function already wrapped")
+                    # Stale entry: clean up old monitoring before re-registering.
+                    old: "_UniversalWrappingContext" = _ctx_registry.pop(original_code)
+                    _monitoring.unregister(original_code, old)
 
-            with _registry_lock:
-                if self.is_wrapped(f):
-                    raise ValueError("Function already wrapped")
+                # sys.monitoring dispatches per code object. Clone the code so
+                # unwrapped siblings that share the same CodeType are not affected.
+                from ddtrace.internal.bytecode_injection import migrate_line_hooks
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+                link_function_to_code(original_code, f)
+                monitor_code: CodeType = original_code.replace()
+                migrate_line_hooks(original_code, monitor_code)
+                set_function_code(f, monitor_code)
+                self._original_code = original_code
 
-                # Prefix every return
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    try:
-                        if instr.name == "RETURN_VALUE":
-                            return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                        elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                            return_code = CONTEXT_RETURN_CONST.bind(
-                                {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
-                            )
-                        else:
-                            return_code = []
-
-                        bc[i:i] = return_code
-                        i += len(return_code)
-                    except AttributeError:
-                        # Not an instruction
-                        pass
-                    i += 1
-
-                # Search for the RESUME instruction
-                for i, instr in enumerate(bc, 1):
-                    try:
-                        if instr.name == "RESUME":
-                            break
-                    except AttributeError:
-                        # Not an instruction
-                        pass
-                else:
-                    i = 0
-
-                bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
-
-                # Wrap every line outside a try block
-                except_label = bytecode.Label()
-                first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
-                        bc.insert(i, bytecode.TryEnd(last_try_begin))
-                        last_try_begin = None
-                        i += 1
-                    elif isinstance(instr, bytecode.TryEnd):
-                        j = i + 1
-                        while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
-                            if isinstance(bc[j], bytecode.Instr):
-                                last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-                                bc.insert(i + 1, last_try_begin)
-                                break
-                            j += 1
-                        i += 1
-                    i += 1
-
-                bc.insert(0, first_try_begin)
-
-                bc.append(bytecode.TryEnd(last_try_begin))
-                bc.append(except_label)
-                bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
-
-                # Register the wrapping context and write the new bytecode.
-                _ContextRecord.get_or_create(f).uwc = self
-                link_function_to_code(code, f)
-                set_function_code(f, bc.to_code())
+                _ctx_registry[monitor_code] = self
+                _fn_registry[f] = self
+                self._finalize = weakref.finalize(
+                    f,
+                    _finalize_monitoring_wrap,
+                    weakref.ref(self),
+                    weakref.ref(f),
+                )
+                self._finalize.atexit = False
+            _monitoring.register(monitor_code, self)
 
         def unwrap(self) -> None:
-            f = self.__wrapped__
-
-            with _registry_lock:
-                if not self.is_wrapped(f):
+            f: FunctionType = self.__wrapped__
+            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)
+            if finalize is not None:
+                finalize.detach()
+                del self._finalize
+            code: CodeType = get_function_code(f)
+            with _ctx_registry_lock:
+                if code not in _ctx_registry:
                     return
+                del _ctx_registry[code]
+                _fn_registry.pop(f, None)
+            _monitoring.unregister(code, self)
+            original_code: t.Optional[CodeType] = getattr(self, "_original_code", None)
+            if original_code is not None:
+                from ddtrace.internal.bytecode_injection import migrate_line_hooks
 
-                wc = _registry[f].uwc
-
-                bc = Bytecode.from_code(get_function_code(f))
-
-                # Remove the exception handling code
-                bc[-len(CONTEXT_FOOT) :] = []
-                bc.pop()
-                bc.pop()
-
-                except_label = bc.pop(0).target
-
-                # Remove the try blocks
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.TryBegin) and instr.target is except_label:
-                        bc.pop(i)
-                    elif isinstance(instr, bytecode.TryEnd) and instr.entry.target is except_label:
-                        bc.pop(i)
-                    else:
-                        i += 1
-
-                # Remove the head of the try block
-                for i, instr in enumerate(bc):
-                    if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
-
-                # Search for the RESUME instruction
-                for i, instr in enumerate(bc, 1):
-                    try:
-                        if instr.name == "RESUME":
-                            break
-                    except AttributeError:
-                        # Not an instruction
-                        pass
-                else:
-                    i = 0
-
-                bc[i : i + len(CONTEXT_HEAD)] = []
-
-                # Un-prefix every return
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    try:
-                        if instr.name == "RETURN_VALUE":
-                            return_code = CONTEXT_RETURN
-                        elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                            return_code = CONTEXT_RETURN_CONST
-                        else:
-                            return_code = None
-
-                        if return_code is not None:
-                            bc[i - len(return_code) : i] = []
-                            i -= len(return_code)
-                    except AttributeError:
-                        # Not an instruction
-                        pass
-                    i += 1
-
-                # Recreate the code object
-                set_function_code(f, bc.to_code())
-
-                # Clear the UWC from the registry; remove the record if fully empty.
-                record = _registry.get(f)
-                if record is not None:
-                    record.uwc = None
-                    if not record.lazy_contexts:
-                        _registry.pop(f, None)
+                migrate_line_hooks(code, original_code)
+                set_function_code(f, original_code)
+                del self._original_code
 
     else:
 
-        def wrap(self) -> None:
-            f = t.cast(FunctionType, self.__wrapped__)
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            try:
+                with _registry_lock:
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
+                    if record is None or record.uwc is None:
+                        return False
+                    # Verify the registry entry matches actual bytecode wrapping.
+                    if sys.version_info >= (3, 11):
+                        return record.uwc.__enter__ in get_function_code(f).co_consts
+                    else:
+                        return record.uwc in get_function_code(f).co_consts
+            except AttributeError:
+                return False
 
+        @classmethod
+        def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
             with _registry_lock:
-                if self.is_wrapped(f):
-                    raise ValueError("Function already wrapped")
+                if not cls.is_wrapped(f):
+                    raise ValueError("Function is not wrapped")
+                return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+        if sys.version_info >= (3, 11):
 
-                # Prefix every return
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.Instr):
-                        if instr.name == "RETURN_VALUE":
-                            return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
+            def wrap(self) -> None:
+                f = self.__wrapped__
+
+                with _registry_lock:
+                    if self.is_wrapped(f):
+                        raise ValueError("Function already wrapped")
+
+                    bc = Bytecode.from_code(code := get_function_code(f))
+
+                    # Prefix every return
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        try:
+                            if instr.name == "RETURN_VALUE":
+                                return_code = CONTEXT_RETURN.bind(
+                                    {"context_return": self.__return__}, lineno=instr.lineno
+                                )
+                            elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                                return_code = CONTEXT_RETURN_CONST.bind(
+                                    {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
+                                )
+                            else:
+                                return_code = []
+
                             bc[i:i] = return_code
                             i += len(return_code)
-                    i += 1
+                        except AttributeError:
+                            # Not an instruction
+                            pass
+                        i += 1
 
-                # Search for the GEN_START instruction, which needs to stay on top.
-                i = 0
-                if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
+                    # Search for the RESUME instruction
                     for i, instr in enumerate(bc, 1):
-                        if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                        try:
+                            if instr.name == "RESUME":
+                                break
+                        except AttributeError:
+                            # Not an instruction
+                            pass
+                    else:
+                        i = 0
+
+                    bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
+
+                    # Wrap every line outside a try block
+                    except_label = bytecode.Label()
+                    first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
+                            bc.insert(i, bytecode.TryEnd(last_try_begin))
+                            last_try_begin = None
+                            i += 1
+                        elif isinstance(instr, bytecode.TryEnd):
+                            j = i + 1
+                            while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
+                                if isinstance(bc[j], bytecode.Instr):
+                                    last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+                                    bc.insert(i + 1, last_try_begin)
+                                    break
+                                j += 1
+                            i += 1
+                        i += 1
+
+                    bc.insert(0, first_try_begin)
+
+                    bc.append(bytecode.TryEnd(last_try_begin))
+                    bc.append(except_label)
+                    bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
+
+                    # Register the wrapping context and write the new bytecode.
+                    _ContextRecord.get_or_create(f).uwc = self
+                    link_function_to_code(code, f)
+                    set_function_code(f, bc.to_code())
+
+            def unwrap(self) -> None:
+                f = self.__wrapped__
+
+                with _registry_lock:
+                    if not self.is_wrapped(f):
+                        return
+
+                    wc = _registry[f].uwc
+
+                    bc = Bytecode.from_code(get_function_code(f))
+
+                    # Remove the exception handling code
+                    bc[-len(CONTEXT_FOOT) :] = []
+                    bc.pop()
+                    bc.pop()
+
+                    except_label = bc.pop(0).target
+
+                    # Remove the try blocks
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        if isinstance(instr, bytecode.TryBegin) and instr.target is except_label:
+                            bc.pop(i)
+                        elif isinstance(instr, bytecode.TryEnd) and instr.entry.target is except_label:
+                            bc.pop(i)
+                        else:
+                            i += 1
+
+                    # Remove the head of the try block
+                    for i, instr in enumerate(bc):
+                        if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
                             break
 
-                *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+                    # Search for the RESUME instruction
+                    for i, instr in enumerate(bc, 1):
+                        try:
+                            if instr.name == "RESUME":
+                                break
+                        except AttributeError:
+                            # Not an instruction
+                            pass
+                    else:
+                        i = 0
 
-                bc.append(except_label)
-                bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
+                    bc[i : i + len(CONTEXT_HEAD)] = []
 
-                # Register the wrapping context and write the new bytecode.
-                _ContextRecord.get_or_create(f).uwc = self
-                link_function_to_code(code, f)
-                set_function_code(f, bc.to_code())
+                    # Un-prefix every return
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        try:
+                            if instr.name == "RETURN_VALUE":
+                                return_code = CONTEXT_RETURN
+                            elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                                return_code = CONTEXT_RETURN_CONST
+                            else:
+                                return_code = None
 
-        def unwrap(self) -> None:
-            f = t.cast(FunctionType, self.__wrapped__)
+                            if return_code is not None:
+                                bc[i - len(return_code) : i] = []
+                                i -= len(return_code)
+                        except AttributeError:
+                            # Not an instruction
+                            pass
+                        i += 1
 
-            with _registry_lock:
-                if not self.is_wrapped(f):
-                    return
+                    # Recreate the code object
+                    set_function_code(f, bc.to_code())
 
-                wc = _registry[f].uwc
+                    # Clear the UWC from the registry; remove the record if fully empty.
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
+                    if record is not None:
+                        record.uwc = None
+                        if not record.lazy_contexts:
+                            _registry.pop(f, None)
 
-                bc = Bytecode.from_code(get_function_code(f))
+        else:
 
-                # Remove the exception handling code
-                bc[-len(CONTEXT_FOOT) :] = []
-                bc.pop()
+            def wrap(self) -> None:
+                f = t.cast(FunctionType, self.__wrapped__)
 
-                # Remove the head of the try block
-                for i, instr in enumerate(bc):
-                    if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
+                with _registry_lock:
+                    if self.is_wrapped(f):
+                        raise ValueError("Function already wrapped")
 
-                bc[i : i + len(CONTEXT_HEAD) - 1] = []
+                    bc = Bytecode.from_code(code := get_function_code(f))
 
-                # Remove all the return handlers
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.Instr) and instr.name == "RETURN_VALUE":
-                        bc[i - len(CONTEXT_RETURN) : i] = []
-                        i -= len(CONTEXT_RETURN)
-                    i += 1
+                    # Prefix every return
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        if isinstance(instr, bytecode.Instr):
+                            if instr.name == "RETURN_VALUE":
+                                return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
+                                bc[i:i] = return_code
+                                i += len(return_code)
+                        i += 1
 
-                # Recreate the code object
-                set_function_code(f, bc.to_code())
+                    # Search for the GEN_START instruction, which needs to stay on top.
+                    i = 0
+                    if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
+                        for i, instr in enumerate(bc, 1):
+                            if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                                break
 
-                # Clear the UWC from the registry; remove the record if fully empty.
-                record = _registry.get(f)
-                if record is not None:
-                    record.uwc = None
-                    if not record.lazy_contexts:
-                        _registry.pop(f, None)
+                    *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+
+                    bc.append(except_label)
+                    bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
+
+                    # Register the wrapping context and write the new bytecode.
+                    _ContextRecord.get_or_create(f).uwc = self
+                    link_function_to_code(code, f)
+                    set_function_code(f, bc.to_code())
+
+            def unwrap(self) -> None:
+                f = t.cast(FunctionType, self.__wrapped__)
+
+                with _registry_lock:
+                    if not self.is_wrapped(f):
+                        return
+
+                    wc = _registry[f].uwc
+
+                    bc = Bytecode.from_code(get_function_code(f))
+
+                    # Remove the exception handling code
+                    bc[-len(CONTEXT_FOOT) :] = []
+                    bc.pop()
+
+                    # Remove the head of the try block
+                    for i, instr in enumerate(bc):
+                        if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
+                            break
+
+                    bc[i : i + len(CONTEXT_HEAD) - 1] = []
+
+                    # Remove all the return handlers
+                    i = 0
+                    while i < len(bc):
+                        instr = bc[i]
+                        if isinstance(instr, bytecode.Instr) and instr.name == "RETURN_VALUE":
+                            bc[i - len(CONTEXT_RETURN) : i] = []
+                            i -= len(CONTEXT_RETURN)
+                        i += 1
+
+                    # Recreate the code object
+                    set_function_code(f, bc.to_code())
+
+                    # Clear the UWC from the registry; remove the record if fully empty.
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
+                    if record is not None:
+                        record.uwc = None
+                        if not record.lazy_contexts:
+                            _registry.pop(f, None)
 
 
-def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
-    """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""
-    with _registry_lock:
-        record = _registry.get(f)
-        return record.uwc if record is not None else None
+if sys.version_info >= (3, 15):
+
+    def _finalize_monitoring_wrap(
+        self_ref: "weakref.ref[_UniversalWrappingContext]",
+        f_ref: weakref.ref[FunctionType],
+    ) -> None:
+        """Unregister sys.monitoring when a wrapped function is collected without unwrap()."""
+        self: t.Optional["_UniversalWrappingContext"] = self_ref()
+        f: t.Optional[FunctionType] = f_ref()
+        if self is None or f is None:
+            return
+        try:
+            if _fn_registry.get(f) is self:
+                self.unwrap()
+        except Exception:
+            log.exception(
+                "ddtrace: error during finalizer unwrap of %s",
+                getattr(f, "__qualname__", "?"),
+            )
+
+    def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
+        """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""
+        try:
+            return _UniversalWrappingContext.extract(f)
+        except ValueError:
+            return None
+
+else:
+
+    def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
+        """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""
+        with _registry_lock:
+            record: t.Optional[_ContextRecord] = _registry.get(f)
+            return record.uwc if record is not None else None
