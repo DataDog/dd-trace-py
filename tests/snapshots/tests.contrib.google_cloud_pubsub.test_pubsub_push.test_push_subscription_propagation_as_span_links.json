@@ -39,7 +39,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b5f00000000",
       "_dd.span_links": "[{\"trace_id\": \"69f39b5f000000001fab181a6a6bd1a6\", \"span_id\": \"8538fe555365d5ca\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69f39b5f00000000\", \"flags\": 1}]",
-      "_dd.svc_src": "datadog",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",

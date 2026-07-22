@@ -44,7 +44,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "pytest",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "cherrypy",
          "a": "b"
        },
        "duration": 357459,
