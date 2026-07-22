@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail CI if a pull request adds a file larger than the repo's p99 file size.
+"""Fail CI if a branch adds a file larger than the repo's p99 file size.
 
 The threshold below was computed once, offline, from every file tracked by
 git in this repository. Recompute it with::
@@ -13,18 +13,10 @@ git in this repository. Recompute it with::
 
 Usage:
 
-    python scripts/check_added_file_size.py [--base-ref REF]
-
---base-ref defaults to the pull request's base ref (read from
-GITHUB_EVENT_PATH/GITHUB_BASE_REF), falling back to origin/HEAD.
-
-To intentionally add a large file, add the 'large-file-ok' label to the
-pull request; this skips the check.
+    python scripts/check_added_file_size.py --base-ref REF
 """
 
 import argparse
-import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -34,38 +26,6 @@ from typing import Optional
 # p99 size (in bytes) of all files tracked by git was 55KiB.
 # See module docstring for how this was computed.
 MAX_FILE_SIZE_BYTES = 100_000
-
-# Label maintainers/contributors can add to a pull request to skip this check
-# for an intentional large file addition.
-SKIP_LABEL = "large-file-ok"
-
-
-def _pr_labels() -> list[str]:
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if not event_path or not pathlib.Path(event_path).is_file():
-        return []
-
-    event = json.loads(pathlib.Path(event_path).read_text())
-    labels = (event.get("pull_request") or {}).get("labels") or []
-    return [label["name"] for label in labels if "name" in label]
-
-
-def _resolve_base_ref(explicit_base_ref: Optional[str]) -> str:
-    if explicit_base_ref:
-        return explicit_base_ref
-
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path and pathlib.Path(event_path).is_file():
-        event = json.loads(pathlib.Path(event_path).read_text())
-        base_ref = (event.get("pull_request") or {}).get("base", {}).get("ref")
-        if base_ref:
-            return base_ref if base_ref.startswith("origin/") else f"origin/{base_ref}"
-
-    github_base_ref = os.environ.get("GITHUB_BASE_REF")
-    if github_base_ref:
-        return f"origin/{github_base_ref}"
-
-    return "origin/HEAD"
 
 
 def _added_files(base_ref: str) -> list[str]:
@@ -80,20 +40,15 @@ def _added_files(base_ref: str) -> list[str]:
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--base-ref", default=None, help="Git ref to diff against. Defaults to the PR base ref.")
+    parser.add_argument("--base-ref", default="origin/main", help="Git ref to diff against.")
     args = parser.parse_args(argv)
 
-    if SKIP_LABEL in _pr_labels():
-        print(f"OK: skipping check, pull request has the '{SKIP_LABEL}' label.")
-        return 0
-
-    base_ref = _resolve_base_ref(args.base_ref)
-    print(f"Comparing against base ref: {base_ref}")
+    print(f"Comparing against base ref: {args.base_ref}")
 
     try:
-        added_files = _added_files(base_ref)
+        added_files = _added_files(args.base_ref)
     except subprocess.CalledProcessError as exc:
-        print(f"error: failed to compute diff against {base_ref}: {exc.stderr}", file=sys.stderr)
+        print(f"error: failed to compute diff against {args.base_ref}: {exc.stderr}", file=sys.stderr)
         return 1
 
     violations: list[tuple[str, int]] = []
@@ -117,9 +72,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     for file_path, size in violations:
         print(f"  - {file_path}: {size} bytes", file=sys.stderr)
     print(
-        f"\nIf this file genuinely needs to be this large, add the '{SKIP_LABEL}' "
-        "label to the pull request to skip this check, or reduce its size "
-        "(compress it, trim unused data, or store it outside the repo).",
+        "\nIf this file genuinely needs to be this large, reduce its size "
+        "(compress it, trim unused data, or store it outside the repo). "
+        "If it's genuinely needed as-is, ask a maintainer to admin-merge.",
         file=sys.stderr,
     )
     return 1
