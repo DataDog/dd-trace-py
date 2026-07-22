@@ -30,6 +30,7 @@ from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
+from ddtrace.debugging._safety import safe_getattr
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
@@ -107,14 +108,13 @@ def _(numpy: ModuleType) -> None:
 
 
 def _is_namedtuple_type(cls: type) -> bool:
-    if not (isinstance(cls, type) and issubclass(cls, tuple)):
+    if not (_isinstance(cls, type) and issubclass(cls, tuple)):
         return False
 
-    bases = cls.__bases__
-    if len(bases) != 1 or bases[0] is not tuple:
+    if tuple not in (safe_getattr(cls, "__bases__", ()) or ()):
         return False
 
-    fields = getattr(cls, "_fields", None)
+    fields = safe_getattr(cls, "_fields", None)
     return isinstance(fields, tuple) and all(type(f) is str for f in fields)
 
 

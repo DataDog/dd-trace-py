@@ -7,8 +7,10 @@ import json
 import sys
 import threading
 from typing import Any
+from typing import Generic
 from typing import NamedTuple
 from typing import Optional
+from typing import TypeVar
 from typing import cast
 
 import pytest
@@ -68,6 +70,14 @@ class PointTyped(NamedTuple):
 class Credentials(NamedTuple):
     username: str
     password: str
+
+
+_T = TypeVar("_T")
+
+
+class GenericPoint(NamedTuple, Generic[_T]):
+    x: _T
+    y: _T
 
 
 @pytest.mark.parametrize(
@@ -941,7 +951,7 @@ def test_numpy_import_hook_expands_types_end_to_end():
     assert numpy.ndarray in utils.ARRAY_TYPES
 
 
-@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+@pytest.mark.parametrize("_type", [PointFunctional, PointTyped, GenericPoint])
 def test_is_namedtuple_type_detects_both_flavors(_type):
     # collections.namedtuple() and typing.NamedTuple produce classes that
     # behave identically at runtime (both are plain tuple subclasses with a
