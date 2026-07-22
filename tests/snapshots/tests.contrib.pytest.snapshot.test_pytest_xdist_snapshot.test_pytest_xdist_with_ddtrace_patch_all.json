@@ -100,7 +100,7 @@
   },
      {
        "name": "http.request",
-       "service": "httpx",
+       "service": "pytest",
        "resource": "http.request",
        "trace_id": 1,
        "span_id": 2,

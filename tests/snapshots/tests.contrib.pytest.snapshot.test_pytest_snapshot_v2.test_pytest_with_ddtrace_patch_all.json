@@ -55,7 +55,7 @@
   },
      {
        "name": "http.request",
-       "service": "httpx",
+       "service": "pytest",
        "resource": "http.request",
        "trace_id": 0,
        "span_id": 2,

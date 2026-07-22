@@ -538,7 +538,10 @@ class Config(object):
         else:
             default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
 
-        self._is_user_provided_service = self.service is not None and self.service != default_span_service_name
+        _has_explicit_service_env = "DD_SERVICE" in env or "OTEL_SERVICE_NAME" in env
+        self._is_user_provided_service = self.service is not None and (
+            _has_explicit_service_env or self.service != default_span_service_name
+        )
         _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         if self.service is None and in_aws_lambda():
