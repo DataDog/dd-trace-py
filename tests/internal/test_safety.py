@@ -1,6 +1,18 @@
+import sys
+
 import pytest
 
 from ddtrace.internal.safety import SafeObjectProxy
+
+
+# TODO(py3.15): wrapt's C extension does not build on 3.15 yet, so wrapt falls back to the
+# pure-Python ObjectProxy (wrapt.proxies), whose __wrapped__/__iter__ handling is incompatible
+# with SafeObjectProxy's attribute guarding. Re-enable once wrapt ships a 3.15-compatible
+# C extension.
+_wrapt_cext_missing_on_315 = pytest.mark.skipif(
+    sys.version_info >= (3, 15),
+    reason="wrapt C extension unavailable on 3.15; pure-Python ObjectProxy breaks SafeObjectProxy",
+)
 
 
 class BadError(Exception):
@@ -64,6 +76,7 @@ def test_safe_eval_property():
         SafeObjectProxy.safe(UnsafeObject()).unsafe_property
 
 
+@_wrapt_cext_missing_on_315
 @pytest.mark.parametrize("_type", [list, set, tuple, frozenset])
 def test_safe_collection(_type):
     # Ensure that all the items within a collection are wrapped by a safe object
@@ -72,6 +85,7 @@ def test_safe_collection(_type):
     assert all(isinstance(_, SafeObjectProxy) for _ in iterator)
 
 
+@_wrapt_cext_missing_on_315
 def test_safe_dict():
     safe_dict = SafeObjectProxy.safe({UnsafeHashableObject(): UnsafeObject()})
     assert isinstance(safe_dict, dict)
