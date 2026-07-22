@@ -57,7 +57,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "wsgi",
             "component": "wsgi",
             "span.kind": "server"
           },
