@@ -44,3 +44,5 @@ build_base_venvs:
       - core.*
       - ddtrace/**/*.so*
       - .riot/venv_*
+      - ddtrace/internal/datadog/profiling/test/test_*
+      - ddtrace/internal/datadog/profiling/test/py315/test_*
