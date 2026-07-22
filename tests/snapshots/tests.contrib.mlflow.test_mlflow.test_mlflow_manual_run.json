@@ -61,6 +61,7 @@
           "error": 0,
           "meta": {
             "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "datadog",
             "mlflow.run_id": "4a2d26c584634b599f5496e88a0800c8"
           },
           "duration": 34166,

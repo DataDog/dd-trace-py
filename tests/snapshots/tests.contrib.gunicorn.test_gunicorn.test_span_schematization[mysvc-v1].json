@@ -74,7 +74,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi",
          "result_class": "list_iterator"
        },

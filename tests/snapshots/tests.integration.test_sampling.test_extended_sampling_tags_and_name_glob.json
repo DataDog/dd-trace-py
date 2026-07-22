@@ -41,6 +41,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39df500000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpzpjit_gv,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
       "runtime-id": "84f4a3399231454d86cacd32a38e73ac",
