@@ -809,7 +809,7 @@ async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, i
                     aws_gateway_span,
                     web_span,
                     web_span_name="asgi.request",
-                    web_span_component="tests.contrib.asgi",
+                    web_span_component="asgi",
                     web_span_service_name="tests.contrib.asgi",
                     web_span_resource="GET /",
                     api_gateway_service_name="local",
