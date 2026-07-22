@@ -13,7 +13,6 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
-from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
