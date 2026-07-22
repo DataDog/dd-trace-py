@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.contrib.internal.azure_servicebus.patch import patch
 from ddtrace.contrib.internal.azure_servicebus.patch import unpatch
-from tests.contrib.azure_servicebus.common import get_queue_name
+from tests.contrib.azure_servicebus.common import DEFAULT_QUEUE_NAME
 
 
 def assert_azure_servicebus_spans_use_queue(snapshot, queue_name: str) -> None:
@@ -81,16 +81,18 @@ def patch_azure_servicebus():
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars, snapshot):
-    queue_name = get_queue_name()
     env = os.environ.copy()
     env.update(env_vars)
-    env["DD_AZURE_SERVICEBUS_TEST_QUEUE"] = queue_name
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        helper_path.read_text(),
+        env=env,
+        timeout=30,
+    )
 
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
     if snapshot is not None:
-        assert_azure_servicebus_spans_use_queue(snapshot, queue_name)
+        assert_azure_servicebus_spans_use_queue(snapshot, DEFAULT_QUEUE_NAME)
