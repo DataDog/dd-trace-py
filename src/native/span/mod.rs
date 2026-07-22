@@ -7,7 +7,7 @@ mod span_link;
 pub mod utils;
 
 pub use span_data::SpanData;
-pub(crate) use span_data::{build_span_from_snapshot, SpanSnapshot};
+pub(crate) use span_data::{get_packb, traverse_v04_span};
 pub use span_event::SpanEvent;
 pub use span_link::SpanLink;
 
