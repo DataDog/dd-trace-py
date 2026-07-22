@@ -1,3 +1,4 @@
+import enum
 import sys
 from types import CodeType
 
@@ -9,6 +10,25 @@ from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 
 
 PY = sys.version_info[:2]
+
+
+def _ensure_common_constant_none() -> None:
+    """Extend bytecode.CommonConstant with CONSTANT_NONE when missing.
+
+    bytecode 0.18.1 only defines ASSERTION_ERROR..BUILTIN_ANY. CPython 3.15's
+    LOAD_COMMON_CONSTANT uses index 7 for None (see CONSTANT_NONE in
+    Include/internal/pycore_opcode_utils.h).
+    """
+    import bytecode.instr as instr_mod
+
+    cc = instr_mod.CommonConstant
+    if hasattr(cc, "CONSTANT_NONE"):
+        return
+
+    members: list[tuple[str, int]] = [(m.name, m.value) for m in cc]
+    members.append(("CONSTANT_NONE", 7))
+    extended = enum.IntEnum("CommonConstant", members)  # type: ignore[misc]
+    instr_mod.CommonConstant = extended  # type: ignore[misc, assignment]
 
 
 # -----------------------------------------------------------------------------

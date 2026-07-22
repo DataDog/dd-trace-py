@@ -53,6 +53,21 @@ def pytest_collection_modifyitems(items):
     this directory -- otherwise a broader run (e.g. ``pytest tests/``) would abort
     on every test that legitimately has no ``mech``.
     """
+    # On 3.15+ WrappingContext uses sys.monitoring instead of bytecode rewriting,
+    # so the strict xfails for wrapping_context t-string cases are obsolete. The
+    # markers live in test_tstrings_py314.py, which cannot be edited with a
+    # version-gated xfail condition (ruff rejects t-string syntax when the file
+    # is passed directly to the pre-commit hook).
+    if sys.version_info >= (3, 15):
+        for item in items:
+            if not str(getattr(item, "path", "")).startswith(_HERE + os.sep):
+                continue
+            if not item.name.startswith("test_tstring"):
+                continue
+            if "wrapping_context" not in item.nodeid:
+                continue
+            item.own_markers = [m for m in item.own_markers if m.name != "xfail"]
+
     missing = [
         item.nodeid
         for item in items
