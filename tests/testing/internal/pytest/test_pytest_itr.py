@@ -7,6 +7,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -25,8 +26,10 @@ class TestITR:
         """Unset coverage upload env var so tests are not affected by external environment."""
         monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
 
-    def test_itr_one_skipped_test(self, pytester: Pytester) -> None:
+    def test_itr_one_skipped_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         # Create a test file with multiple tests
         pytester.makepyfile(
             test_foo="""
@@ -58,8 +61,9 @@ class TestITR:
         # Check that tests completed successfully
         assert result.ret == 0  # Exit code 0 indicates success
 
-        # Verify outcomes: one test skipped by ITR, one test passed
-        result.assertoutcome(passed=1, skipped=1)
+        # The ITR-skippable test is deselected at collection time, not skip-marked, so pytest's own
+        # outcome counters don't see it — only the passed test is counted here.
+        result.assertoutcome(passed=1)
 
         # There should be events for 2 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 5
@@ -216,8 +220,10 @@ class TestITR:
         assert test_event["content"]["meta"].get("test.itr.unskippable") is None
         assert test_event["content"]["meta"].get("test.itr.forced_run") is None
 
-    def test_itr_one_unskippable_test(self, pytester: Pytester) -> None:
+    def test_itr_one_unskippable_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
         # Create a test file with multiple tests
         pytester.makepyfile(
             test_foo="""
@@ -257,8 +263,9 @@ class TestITR:
         # Check that tests completed with failure (1 test failed).
         assert result.ret == 1
 
-        # Verify outcomes: one test skipped by ITR, one failed (not skipped), one test passed
-        result.assertoutcome(passed=1, failed=1, skipped=1)
+        # The ITR-skippable test is deselected at collection time, not skip-marked, so pytest's own
+        # outcome counters don't see it — only the failed and passed tests are counted here.
+        result.assertoutcome(passed=1, failed=1)
 
         # There should be events for 3 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 6
@@ -316,6 +323,182 @@ class TestITR:
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
+
+    def test_itr_deselect_test_level(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test-level ITR skip (the default): skippable test is deselected, not skip-marked."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
+        pytester.makepyfile(
+            test_foo="""
+            def test_should_be_deselected():
+                assert False  # would fail if it ran
+
+            def test_should_run():
+                assert True
+            """
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_deselected"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        # Deselected test is never skipped via skip-marker, so only 1 test ran.
+        result.assertoutcome(passed=1)
+
+        # 2 test events (deselected + run) + 1 suite + 1 module + 1 session = 5.
+        # The deselected test still gets a synthetic skip event, mirroring suite-level ITR.
+        assert len(list(event_capture.events())) == 5
+
+        deselected_test = event_capture.event_by_test_name("test_should_be_deselected")
+        assert deselected_test["content"]["meta"]["test.status"] == "skip"
+        assert deselected_test["content"]["meta"]["test.skipped_by_itr"] == "true"
+        assert deselected_test["content"]["meta"]["test.skip_reason"] == "Skipped by Datadog Intelligent Test Runner"
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+        assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
+    def test_itr_deselect_test_level_attempt_to_fix_not_deselected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test-level ITR skip: a skippable test that is also attempt_to_fix must NOT be deselected.
+
+        Mirrors test_itr_one_unskippable_test, but for the attempt_to_fix exemption in
+        pytest_collection_modifyitems's deselect branch rather than the unskippable-marker one.
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
+        pytester.makepyfile(
+            test_foo="""
+            def test_should_be_deselected():
+                assert False  # would fail if it ran
+
+            def test_attempt_to_fix():
+                assert True
+
+            def test_should_run():
+                assert True
+            """
+        )
+
+        deselected_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_deselected")
+        atf_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_attempt_to_fix")
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {deselected_ref, atf_ref}
+        known_tests: set[TestRef] = {deselected_ref, atf_ref}
+        test_management_properties = {atf_ref: TestProperties(attempt_to_fix=True)}
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items=skippable_items,
+                    test_management_enabled=True,
+                    known_tests_enabled=True,
+                    known_tests=known_tests,
+                    test_management_properties=test_management_properties,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        # The attempt_to_fix test is not deselected, so it actually executes — and since it always
+        # passes, ATF retries it the full default 20 times (see test_atf_passing_test_retried_fully:
+        # 1 initial + 20 retries = 21 events). pytest's own outcome counters report retries as "rerun",
+        # not "passed", so we assert via events instead of result.assertoutcome.
+        atf_events = list(event_capture.events_by_test_name("test_attempt_to_fix"))
+        assert len(atf_events) == 21
+        for atf_test in atf_events:
+            assert atf_test["content"]["meta"]["test.status"] == "pass"
+            assert atf_test["content"]["meta"].get("test.skipped_by_itr") is None
+            assert atf_test["content"]["meta"].get("test.skip_reason") is None
+
+        run_test = event_capture.event_by_test_name("test_should_run")
+        assert run_test["content"]["meta"]["test.status"] == "pass"
+
+        deselected_test = event_capture.event_by_test_name("test_should_be_deselected")
+        assert deselected_test["content"]["meta"]["test.status"] == "skip"
+        assert deselected_test["content"]["meta"]["test.skipped_by_itr"] == "true"
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+
+    def test_itr_deselect_test_level_whole_suite_deselected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When every test in a suite is deselected, the suite/module are finished synthetically.
+
+        No test in this suite ever reaches `pytest_runtest_protocol_wrapper`, so the suite/module
+        lifecycle can't be closed by the normal runtime path — `_emit_itr_deselected_test_events`
+        must do it explicitly, mirroring `_emit_itr_ignored_suite_events` for suite-level ITR.
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_SEND_DESELECTS", "1")
+
+        pytester.makepyfile(
+            test_all_deselected="""
+            def test_one():
+                assert False  # would fail if it ran
+
+            def test_two():
+                assert False  # would fail if it ran
+            """,
+            test_running="""
+            def test_passes():
+                assert True
+            """,
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_all_deselected.py"), "test_one"),
+            TestRef(SuiteRef(ModuleRef(""), "test_all_deselected.py"), "test_two"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        result.assertoutcome(passed=1)
+
+        suite_events = list(event_capture.events_by_type("test_suite_end"))
+        assert len(suite_events) == 2
+
+        deselected_suite = next(
+            e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_all_deselected.py"
+        )
+        assert deselected_suite["content"]["meta"]["test.status"] == "skip"
+
+        for test_name in ("test_one", "test_two"):
+            deselected_test = event_capture.event_by_test_name(test_name)
+            assert deselected_test["content"]["meta"]["test.status"] == "skip"
+            assert deselected_test["content"]["meta"]["test.skipped_by_itr"] == "true"
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 2
 
     def test_itr_suite_level_emits_skip_events(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Suite-level ITR: ignored file gets a test_suite_end with status=skip, no test events inside."""
