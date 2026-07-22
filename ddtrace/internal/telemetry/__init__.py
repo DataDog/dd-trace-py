@@ -145,7 +145,7 @@ def report_configuration(config: DDConfig) -> None:
         for p in name.split("."):
             env_val = getattr(env_val, p)
 
-        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id)
+        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id(env_name))
 
 
 def _invalid_otel_config(otel_env):
