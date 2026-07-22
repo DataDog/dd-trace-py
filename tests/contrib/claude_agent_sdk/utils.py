@@ -195,10 +195,6 @@ MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE = [
 ]
 
 
-# Two AssistantMessage chunks that belong to the *same* model turn: they share a
-# message_id and each repeats the same message-level usage. The SDK splits one turn
-# this way (e.g. text then more text); the integration must merge them into one llm
-# span and count the shared usage once rather than double-counting it.
 MOCK_SHARED_MESSAGE_ID = "msg_01SharedTurnAaaaaaaaaaaaaa"
 MOCK_DEDUPE_ASSISTANT_CHUNK_ONE = create_mock_assistant_message(
     "Let me think.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_SHARED_MESSAGE_ID
@@ -311,11 +307,6 @@ MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
 
-# Same-message_id split where the turn contains both a text block and a tool-use
-# block (the common real-world shape): text chunk + tool_use chunk share message_id
-# "A", the tool result comes back, then a final turn (message_id "B") answers. The
-# integration must emit ONE llm span for turn A (usage counted once) with the tool
-# span linked to it, not two llm spans.
 MOCK_DEDUPE_TURN_A_ID = "msg_01DedupeTurnAaaaaaaaaaaaaa"
 MOCK_DEDUPE_TEXT_CHUNK = create_mock_assistant_message(
     "Let me read that file.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_DEDUPE_TURN_A_ID

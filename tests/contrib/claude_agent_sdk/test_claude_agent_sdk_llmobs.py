@@ -1037,13 +1037,7 @@ class TestLLMObsClaudeAgentSdk:
         claude_agent_sdk_llmobs,
         test_spans,
     ):
-        """Two AssistantMessage chunks that share a message_id are one model turn.
-
-        The SDK can split a single turn into multiple AssistantMessage chunks that
-        share a message_id and each repeat the same message-level usage. The
-        integration must merge them into ONE llm span and count usage once, rather
-        than emitting one llm span per chunk (which double-counts tokens).
-        """
+        """Two AssistantMessage chunks that share a message_id are one model turn."""
         prompt = "What is 2+2?"
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass

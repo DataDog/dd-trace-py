@@ -29,15 +29,10 @@ class _SpanRef:
 
 @dataclass
 class _MergedAssistantMessage:
-    """A synthetic AssistantMessage that merges several chunks sharing a message_id.
-
-    The Claude Agent SDK can split one logical model turn into multiple
-    ``AssistantMessage`` chunks that share the same ``message_id`` (e.g. a text
-    block followed by a tool-use block). Each chunk carries the *same*
-    message-level ``usage``, so emitting one llm span per chunk double-counts
-    tokens. We merge same-id chunks into one of these and emit a single llm span,
-    counting ``usage`` once. Exposes the same attributes the integration reads off
-    a real ``AssistantMessage`` (``content``, ``model``, ``usage``, ``error``).
+    """A synthetic AssistantMessage that merges several chunks sharing a message_id. This prevents
+    the same usage block from being counted on more than one LLM span. Exposes the same
+    attributes the integration reads off a real ``AssistantMessage`` (``content``, ``model``, ``usage``,
+    ``error``).
     """
 
     content: list
@@ -327,7 +322,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         chunks that share a message_id and each repeat the same usage. Buffering and
         merging same-id chunks (flushed on message_id change / UserMessage /
         ResultMessage) keeps token counts from being double-counted. When message_id
-        is absent (older SDKs) every chunk is its own turn — the pre-dedup behavior.
+        is absent (older SDKs) every chunk is its own turn.
         """
         incoming_id = getattr(chunk, "message_id", None)
 
@@ -380,12 +375,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._finalize_step_span(response)
 
     def _merge_assistant_chunks(self, chunks: list) -> Any:
-        """Combine AssistantMessage chunks sharing a message_id into one response object.
-
-        Content blocks are concatenated in order; usage is taken once (chunks of the
-        same message repeat the same message-level usage). A single chunk is returned
-        as-is so the common, un-split case behaves exactly as before.
-        """
+        """Combine AssistantMessage chunks sharing a message_id into one response object."""
         if len(chunks) == 1:
             return chunks[0]
 
@@ -412,8 +402,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
     def _handle_user_message(self, chunk: Any, content: Any) -> None:
         """Finalize tool spans for any tool results and, once all are in, close the deferred step span."""
-        # A UserMessage (tool results) ends the current model turn: flush it so the
-        # turn's llm span and tool spans exist before we match the tool results.
+        # A UserMessage (tool results) ends the current model turn
         self._flush_pending_turn()
 
         if isinstance(content, list):
