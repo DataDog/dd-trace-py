@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes ``LLMObs.submit_evaluation()`` incorrectly tagging evaluations with
+    ``source:otel`` based on the global ``DD_TRACE_OTEL_ENABLED`` flag. The tag is now controlled
+    by the ``is_otel`` field on the ``ExportedLLMObsSpan`` dictionary: ``True`` for OTel gen.ai
+    instrumented spans, ``False`` for Datadog LLMObs spans. ``LLMObs.export_span()`` sets this
+    field automatically.
