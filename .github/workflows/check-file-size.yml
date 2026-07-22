@@ -1,0 +1,23 @@
+name: check-file-size
+on:
+  push:
+    branches:
+      - mq-working-branch-*
+  merge_group:
+  pull_request:
+    # Important that we run on `labeled` and `unlabeled` to pick up the
+    # `large-file-ok` skip label being added/removed.
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+jobs:
+  check-added-file-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check added files against repo p99 file size
+        # Only meaningful on pull requests; nothing to diff against on push/merge_group.
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check_added_file_size.py
