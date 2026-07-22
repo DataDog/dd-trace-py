@@ -891,8 +891,12 @@ def test_child_context_id_capture_is_lazy_root_is_eager():
     c.span_id = 555
     assert c.context.span_id == 555
 
-    # (b) eager root: span_id is frozen into the context at construction time
+    # (b) eager root: its context is built in __init__, so a span_id mutation AFTER
+    # construction is NOT reflected. Read the NATIVE id (not .context) for the baseline
+    # so we don't materialize the context early — on a (regressed) lazy root the context
+    # would be built at the .context read below and reflect 555, failing these asserts.
     r = Span("r")
-    orig = r.context.span_id
+    orig = r.span_id
     r.span_id = 555
     assert r.context.span_id == orig
+    assert r.context.span_id != 555

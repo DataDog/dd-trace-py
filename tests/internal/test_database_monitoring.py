@@ -139,6 +139,7 @@ def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
     # copy of the remote parent-context that shares _meta (which holds the extracted W3C
     # traceparent) by reference, so the remote 128-bit trace id is preserved even though the
     # child's own context is local (not remote).
+    from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
     from ddtrace.propagation import _database_monitoring
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer
@@ -162,15 +163,23 @@ def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
         assert dbspan.trace_id == int(remote_trace_id_hex, 16)
         assert dbspan.context._is_remote is False
 
-        # full-mode DBM comment carries the remote 128-bit trace id via the traceparent
+        # MECHANISM: the local child's context shares the remote context's _meta (which holds
+        # the extracted W3C traceparent) by reference — this is what carries the remote trace
+        # id through to DBM. A copy() that stopped sharing _meta would fail these directly.
+        assert dbspan.context._meta is remote_ctx._meta
+        assert W3C_TRACEPARENT_KEY in dbspan.context._meta
+
+        # full-mode DBM comment carries the remote 128-bit trace id via the traceparent.
+        # Build the expected traceparent from the LITERAL remote id (not read back from
+        # dbspan.context._traceparent, which would make the assertion self-referential).
         dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
         sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
+        expected_traceparent = "00-%s-%016x-%s" % (remote_trace_id_hex, dbspan.span_id, dbspan.context._traceflags)
         assert (
             sqlcomment
             == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
-            % (dbspan.context._traceparent,)
+            % (expected_traceparent,)
         )
-        assert dbspan.context._traceparent.startswith("00-%s-" % remote_trace_id_hex)
 
         # the injected SQL comment carries the remote 128-bit trace id too
         new_args, _ = dbm_propagator.inject(dbspan, ("SELECT 1;",), {})
