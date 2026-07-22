@@ -199,10 +199,13 @@ class BaseWriter(ABC):
             except Exception:
                 log.exception("Unexpected error flushing %s events", self.__class__.__name__)
 
-            # During shutdown, another thread can enqueue events while this thread is blocked in flush().
-            # Do not exit until the buffer is empty; otherwise those events are stranded until process exit.
-            if self.should_finish.is_set() and not self._has_events():
-                break
+            # During shutdown, another thread can enqueue events while this thread is blocked in flush(). Do not exit
+            # until the buffer is empty, and do not wait for the periodic interval: late shutdown events may be below
+            # the async threshold and therefore may not wake this thread again.
+            if self.should_finish.is_set():
+                if not self._has_events():
+                    break
+                self._flush_now.set()
 
         self._task_teardown()
         log.debug("Exiting %s background task", self.__class__.__name__)

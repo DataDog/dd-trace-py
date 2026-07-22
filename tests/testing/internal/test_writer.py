@@ -125,6 +125,37 @@ class TestBaseWriterAsyncFlushEvents:
         assert len(writer.events) == 0
         assert [[event["n"] for event in batch] for batch in writer.sent_batches] == [[1], [2]]
 
+    def test_shutdown_immediately_drains_late_events_below_async_threshold(self) -> None:
+        class _BlockingWriter(_ConcreteWriter):
+            def __init__(self) -> None:
+                super().__init__(async_flush_events=100)
+                self.first_send_started = threading.Event()
+                self.unblock_first_send = threading.Event()
+
+            def _send_events(self, events: list[Event]) -> bool:
+                self.sent_batches.append(events)
+                if len(self.sent_batches) == 1:
+                    self.first_send_started.set()
+                    self.unblock_first_send.wait(timeout=5)
+                self.sent_event.set()
+                return True
+
+        writer = _BlockingWriter()
+        writer.flush_interval_seconds = 60
+        writer.start()
+
+        writer.put_event(Event(n=1))
+        writer.signal_finish()
+        assert writer.first_send_started.wait(timeout=5), "first shutdown flush did not start"
+
+        writer.put_event(Event(n=2))
+        writer.unblock_first_send.set()
+        writer.wait_finish(timeout=5)
+
+        assert not writer.task.is_alive()
+        assert len(writer.events) == 0
+        assert [[event["n"] for event in batch] for batch in writer.sent_batches] == [[1], [2]]
+
     def test_set_async_flush_events(self) -> None:
         writer = _ConcreteWriter(async_flush_events=None)
         writer.set_async_flush_events(2)

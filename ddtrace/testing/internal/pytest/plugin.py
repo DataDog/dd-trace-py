@@ -86,6 +86,7 @@ except TypeError:
 _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
     "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
 )
+_STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
 
 
 if t.TYPE_CHECKING:
@@ -328,6 +329,7 @@ class TestOptPlugin:
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
         self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
+        self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
@@ -1063,13 +1065,33 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        if report.passed and call.when == TestPhase.CALL and item.nodeid in self.outcomes_by_nodeid:
-            # External retry plugins (for example pytest-flaky) can report a failed call phase followed by a
-            # successful call phase for the same pytest item. Since we no longer keep all passing reports, clear the
-            # previously recorded non-passing outcome when a later call attempt passes. A later teardown failure, if
-            # any, will still be recorded by the non-passing report path below.
+
+        if self._store_passing_reports:
+            # Opt-out for the outcome aggregation optimization. This keeps the previous behavior: retain every pytest
+            # phase report and derive the final Datadog outcome later in _get_test_outcome(). It is slower because the
+            # common pass path stores a report object and exception-info entry for every setup/call/teardown phase, but
+            # it is useful as a private safety valve if a third-party plugin relies on report storage in an unexpected
+            # way.
+            self.reports_by_nodeid[item.nodeid][call.when] = report
+            self.excinfo_by_report[report] = call.excinfo
+        elif (
+            report.passed
+            and not getattr(report, "wasxfail", None)
+            and call.when == TestPhase.CALL
+            and item.nodeid in self.outcomes_by_nodeid
+        ):
+            # Fast path: a normal passing report carries no status metadata we need to preserve, so we do not store it.
+            # The implicit outcome is PASS when _get_test_outcome() finds no aggregate outcome for the item.
+            #
+            # The one important exception is external retry plugins (for example pytest-flaky or pytest-rerunfailures):
+            # they may emit a failed call report followed by a passing call report for the same pytest item. Since the
+            # later pass is no longer stored and cannot overwrite the earlier failure in reports_by_nodeid, clear the
+            # aggregate failure here. A later teardown failure, if any, will still be recorded by the non-passing path.
             self.outcomes_by_nodeid.pop(item.nodeid, None)
         elif not report.passed or getattr(report, "wasxfail", None):
+            # Non-passing and xfail/xpass reports carry status, error, skip, or xfail metadata. Aggregate just that
+            # final outcome data instead of retaining all phase reports. This keeps the frequent PASS path allocation
+            # free while preserving the information needed to tag the Datadog test run.
             self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
@@ -1102,8 +1124,9 @@ class TestOptPlugin:
             tags[TestTag.XFAIL_REASON] = str(wasxfail)
             tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
 
-        # Preserve the first failing/skipping phase as the test outcome. Later teardown reports should not override it.
-        if status in (TestStatus.FAIL, TestStatus.SKIP):
+        # Preserve a failure once recorded. A later teardown failure may still override a skip, matching pytest's
+        # session outcome semantics for fixture finalizer errors.
+        if status == TestStatus.FAIL:
             self.outcomes_by_nodeid[nodeid] = (status, tags)
             return
 
@@ -1135,7 +1158,7 @@ class TestOptPlugin:
                 continue
             self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
             status, tags = self.outcomes_by_nodeid[nodeid]
-            if status in (TestStatus.FAIL, TestStatus.SKIP):
+            if status == TestStatus.FAIL:
                 break
 
         self.outcomes_by_nodeid.pop(nodeid, None)
