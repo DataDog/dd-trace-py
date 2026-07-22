@@ -1030,6 +1030,88 @@ class TestLLMObsClaudeAgentSdk:
         # Step-to-step link is still emitted alongside the bridge.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
 
+    async def test_llmobs_dedupes_assistant_messages_sharing_message_id(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_dedupe_same_message_id,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """Two AssistantMessage chunks that share a message_id are one model turn.
+
+        The SDK can split a single turn into multiple AssistantMessage chunks that
+        share a message_id and each repeat the same message-level usage. The
+        integration must merge them into ONE llm span and count usage once, rather
+        than emitting one llm span per chunk (which double-counts tokens).
+        """
+        prompt = "What is 2+2?"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
+
+        # One merged turn → one llm span and one step span (not two of each).
+        assert len(llm_spans) == 1
+        assert len(step_spans) == 1
+
+        # Usage is counted exactly once even though both chunks carried it.
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_spans[0]),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            metrics=EXPECTED_ASSISTANT_USAGE,
+            tags=COMMON_TAGS,
+        )
+
+        # Both chunks' text is preserved on the merged span's output.
+        output = safe_json(_get_llmobs_data_metastruct(llm_spans[0]))
+        assert "Let me think." in output
+        assert "The answer is 4." in output
+
+    async def test_llmobs_dedupes_assistant_messages_with_tool_use_split(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_dedupe_tool_split,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """A turn split into text + tool_use chunks (same message_id) is one llm span.
+
+        Turn A arrives as a text chunk and a tool_use chunk sharing one message_id,
+        then turn B answers. We expect two llm spans total (one per turn, not one per
+        chunk), the tool span linked from the single merged turn-A llm span, and
+        turn A's usage counted once.
+        """
+        prompt = "What is my hostname?"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
+        tool_spans = [s for s in spans if s.name.startswith("claude_agent_sdk.tool")]
+
+        assert len(llm_spans) == 2
+        assert len(step_spans) == 2
+        assert len(tool_spans) == 1
+
+        # Turn A's usage is counted once on its single merged llm span.
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_spans[0]),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            metrics=EXPECTED_ASSISTANT_USAGE,
+            tags=COMMON_TAGS,
+        )
+
+        # The tool span links from the merged turn-A llm span and into turn B's llm span.
+        _assert_span_link(llm_spans[0], tool_spans[0], "output", "input")
+        _assert_span_link(tool_spans[0], llm_spans[1], "output", "input")
+
     async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two
         separate root agent spans. Regression test for spans nesting under a prior

@@ -75,7 +75,9 @@ EXPECTED_ASSISTANT_USAGE = {
 }
 
 
-def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dict = None) -> AssistantMessage:
+def create_mock_assistant_message(
+    text: str, model: str = MOCK_MODEL, usage: dict = None, message_id: str = None
+) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
     msg = AssistantMessage(
         content=[TextBlock(text=text)],
@@ -83,6 +85,10 @@ def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dic
     )
     if usage is not None:
         msg.usage = usage
+    # message_id was added in newer claude-agent-sdk versions; set via setattr so the
+    # helper stays compatible with older SDKs whose AssistantMessage lacks the field.
+    if message_id is not None:
+        msg.message_id = message_id
     return msg
 
 
@@ -189,6 +195,25 @@ MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE = [
 ]
 
 
+# Two AssistantMessage chunks that belong to the *same* model turn: they share a
+# message_id and each repeats the same message-level usage. The SDK splits one turn
+# this way (e.g. text then more text); the integration must merge them into one llm
+# span and count the shared usage once rather than double-counting it.
+MOCK_SHARED_MESSAGE_ID = "msg_01SharedTurnAaaaaaaaaaaaaa"
+MOCK_DEDUPE_ASSISTANT_CHUNK_ONE = create_mock_assistant_message(
+    "Let me think.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_SHARED_MESSAGE_ID
+)
+MOCK_DEDUPE_ASSISTANT_CHUNK_TWO = create_mock_assistant_message(
+    "The answer is 4.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_SHARED_MESSAGE_ID
+)
+MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_DEDUPE_ASSISTANT_CHUNK_ONE,
+    MOCK_DEDUPE_ASSISTANT_CHUNK_TWO,
+    MOCK_RESULT_MESSAGE,
+]
+
+
 MOCK_QUERY_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE,
@@ -285,6 +310,30 @@ MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_FINAL_ASSISTANT,  # AssistantMessage with text → LLM span #2
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
+
+# Same-message_id split where the turn contains both a text block and a tool-use
+# block (the common real-world shape): text chunk + tool_use chunk share message_id
+# "A", the tool result comes back, then a final turn (message_id "B") answers. The
+# integration must emit ONE llm span for turn A (usage counted once) with the tool
+# span linked to it, not two llm spans.
+MOCK_DEDUPE_TURN_A_ID = "msg_01DedupeTurnAaaaaaaaaaaaaa"
+MOCK_DEDUPE_TEXT_CHUNK = create_mock_assistant_message(
+    "Let me read that file.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_DEDUPE_TURN_A_ID
+)
+MOCK_DEDUPE_TOOL_USE_CHUNK = create_mock_assistant_message_with_tool_use(
+    [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],
+)
+MOCK_DEDUPE_TOOL_USE_CHUNK.usage = MOCK_ASSISTANT_USAGE
+MOCK_DEDUPE_TOOL_USE_CHUNK.message_id = MOCK_DEDUPE_TURN_A_ID
+MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_DEDUPE_TEXT_CHUNK,  # turn A, chunk 1 (text)
+    MOCK_DEDUPE_TOOL_USE_CHUNK,  # turn A, chunk 2 (tool_use) — same message_id → merged
+    MOCK_TOOL_RESULT_USER_READ,  # tool result → finishes tool span
+    MOCK_FINAL_ASSISTANT,  # turn B (text) → second llm span
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
 
 MOCK_PARALLEL_BASH_TOOL_IDS = (
     "toolu_parallel_01_aaaaaaaaaaaaaaaaaa",
