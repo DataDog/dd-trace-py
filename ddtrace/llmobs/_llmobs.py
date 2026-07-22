@@ -32,6 +32,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -129,6 +130,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
+from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -185,6 +187,7 @@ from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
+from ddtrace.llmobs.types import SpanWithTagValue
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -574,8 +577,10 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
-        if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
-            # APMTracingEnabledFilter drops every trace.
+        if _env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "") or not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
+            # An override origin means events must always go directly to the LLMObs writer's
+            # intake, since the APM_AGENT(LESS) modes route the event alongside the APM trace,
+            # which never respects the override. APMTracingEnabledFilter also drops every trace.
             self._export_mode = (
                 LLMObsExportMode.LLMOBS_AGENTLESS if agentless_enabled else LLMObsExportMode.LLMOBS_AGENT_PROXY
             )
@@ -2051,6 +2056,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
@@ -2061,6 +2067,7 @@ class LLMObs(Service):
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy the first version to.
 
         Returns:
             The created prompt.
@@ -2073,7 +2080,13 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
-            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            title=title,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2085,6 +2098,7 @@ class LLMObs(Service):
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
@@ -2094,6 +2108,7 @@ class LLMObs(Service):
             description: Optional description of this version.
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
+            env_ids: Optional feature-flag environment IDs to deploy this version to.
 
         Returns:
             The created prompt version.
@@ -2106,7 +2121,12 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
-            prompt_id, template, description=description, user_version=user_version, labels=labels
+            prompt_id,
+            template,
+            description=description,
+            user_version=user_version,
+            labels=labels,
+            env_ids=env_ids,
         )
 
     @classmethod
@@ -2144,6 +2164,7 @@ class LLMObs(Service):
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Update a specific prompt version's metadata.
 
@@ -2152,6 +2173,7 @@ class LLMObs(Service):
             version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
             labels: New labels for the version. Values must be ``production`` and/or ``development``.
             description: New description for the version.
+            env_ids: Feature-flag environment IDs to deploy this version to.
 
         Returns:
             The updated prompt version.
@@ -2163,7 +2185,9 @@ class LLMObs(Service):
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+        return prompt_manager.update_prompt_version(
+            prompt_id, version, labels=labels, description=description, env_ids=env_ids
+        )
 
     @classmethod
     def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
@@ -2316,6 +2340,7 @@ class LLMObs(Service):
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
+                is_otel=span._span_api == SPAN_API_OTEL,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -3116,8 +3141,8 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
-        span_with_tag_value: Optional[dict[str, str]] = None,
+        span: Optional[ExportedLLMObsSpan] = None,
+        span_with_tag_value: Optional[SpanWithTagValue] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -3134,10 +3159,10 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
-                            the span associated with this evaluation.
-        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
-                            uniquely identifying the span associated with this evaluation.
+        :param ExportedLLMObsSpan span: Span identifier. Use ``LLMObs.export_span()`` to generate.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
+        :param SpanWithTagValue span_with_tag_value: Tag-based span identifier.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service for this evaluation metric.
@@ -3180,7 +3205,7 @@ class LLMObs(Service):
                         "`span` must be a dictionary containing both span_id and trace_id keys. "
                         "LLMObs.export_span() can be used to generate this dictionary from a given span."
                     )
-                join_on["span"] = span
+                join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
             elif span_with_tag_value is not None:
                 if (
                     not isinstance(span_with_tag_value, dict)
@@ -3253,9 +3278,9 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
-            # Auto-add source:otel tag when OTel tracing is enabled
-            # This allows the backend to wait for OTel span conversion
-            if config._otel_trace_enabled:
+            if (span is not None and span.get("is_otel")) or (
+                span_with_tag_value is not None and span_with_tag_value.get("is_otel")
+            ):
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
@@ -3544,5 +3569,10 @@ class LLMObs(Service):
         cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
 
 
-# initialize the default llmobs instance
+# Initialize the default LLMObs instance before exposing the service to integrations.
 LLMObs._instance = LLMObs()
+
+# BaseLLMIntegration depends on this lightweight API instead of importing this
+# module during integration auto-patching. Register only after LLMObs is fully
+# initialized so integrations can be imported during an experiment import.
+register_llmobs_service(LLMObs)
