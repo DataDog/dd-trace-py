@@ -47,10 +47,21 @@ _IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
 # Instead of hardcoding, just compile an empty module to get the expected bytes.
 EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-# Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
-EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+def _get_file_level_coverage(default: t.Optional[bool] = None) -> bool:
+    if default is not None:
+        return default
+    return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
+
+
+def _event_for_file_level_coverage(enabled: bool) -> int:
+    return sys.monitoring.events.PY_START if enabled else sys.monitoring.events.LINE
+
+
+# Check if file-level coverage is requested
+_USE_FILE_LEVEL_COVERAGE = _get_file_level_coverage()
+
+EVENT = _event_for_file_level_coverage(_USE_FILE_LEVEL_COVERAGE)
 
 # NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
 # Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since other coverage tools may use it.
@@ -98,6 +109,23 @@ _tls_context = _threading.local()
 # (see _rearm_all_events()'s docstring) to only affect our own tool's state, leaving any other
 # registered tool's disabled-event state untouched.
 _use_disable_optimization: bool = True
+
+
+def configure_file_level_coverage(enabled: t.Optional[bool] = None) -> None:
+    """Configure the monitoring event used for coverage before sys.monitoring registration.
+
+    Production callers pass the already-resolved Test Optimization setting so the collector and backend agree on
+    line-level vs file-level mode. Tests may pass True/False directly without mutating environment variables.
+    """
+    global _USE_FILE_LEVEL_COVERAGE, EVENT
+
+    file_level_coverage = _get_file_level_coverage(enabled)
+    if _DD_TOOL_ID is not None and file_level_coverage != _USE_FILE_LEVEL_COVERAGE:
+        log.warning("Cannot change coverage mode after sys.monitoring registration")
+        return
+
+    _USE_FILE_LEVEL_COVERAGE = file_level_coverage
+    EVENT = _event_for_file_level_coverage(file_level_coverage)
 
 
 def set_active_context_covered_files(covered_files: t.Optional[t.Set[str]]) -> None:  # noqa: UP006

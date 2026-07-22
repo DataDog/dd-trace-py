@@ -10,6 +10,7 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.coverage.instrumentation import configure_file_level_coverage
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -47,30 +48,31 @@ _tls_coverage = _threading.local()
 
 
 def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
-    # sys.monitoring callbacks are hot and Python 3.14+ callbacks cannot see ContextVar changes made in the current
-    # thread. Keep a thread-local pointer for every supported version: it is required on 3.14+ and is a cheaper fast
-    # path on 3.12/3.13.
-    tls_covered = getattr(_tls_coverage, "covered", None)
-    if tls_covered is not None:
-        return tls_covered
-
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered.get():
             return context_stack[-1]
         log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
 
+    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars.
+    if _PY_GE_314:
+        tls_covered = getattr(_tls_coverage, "covered", None)
+        if tls_covered is not None:
+            return tls_covered
+
     return defaultdict(CoverageLines)
 
 
 def _get_ctx_covered_files() -> set[str]:
-    tls_covered_files = getattr(_tls_coverage, "covered_files", None)
-    if tls_covered_files is not None:
-        return tls_covered_files
-
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered_files.get():
             return context_stack[-1]
         log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
+
+    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars.
+    if _PY_GE_314:
+        tls_covered_files = getattr(_tls_coverage, "covered_files", None)
+        if tls_covered_files is not None:
+            return tls_covered_files
 
     return set()
 
@@ -123,6 +125,8 @@ class ModuleCodeCollector(ModuleWatchdog):
         if ModuleCodeCollector.is_installed():
             return
 
+        configure_file_level_coverage(file_level_coverage)
+
         super().install()
 
         if cls._instance is None:
@@ -150,7 +154,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._covered_files.add(path)
             self.covered[path].add(0)
 
-        if ctx_coverage_enabled.get() or getattr(_tls_coverage, "covered", None) is not None:
+        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
             ctx_covered_file_paths = _get_ctx_covered_files()
             if path not in ctx_covered_file_paths:
                 ctx_covered_file_paths.add(path)
@@ -176,7 +180,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get() or getattr(_tls_coverage, "covered", None) is not None:
+        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
@@ -304,12 +308,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
 
-            # sys.monitoring callbacks are hot. Store the active context in thread-local storage for a cheaper fast
-            # path on 3.12/3.13 and as a correctness fallback on 3.14+, where callbacks can't see ContextVar changes.
-            _tls_coverage.covered = ctx_covered.get()[-1]
-            _tls_coverage.covered_files = ctx_covered_files.get()[-1]
+            # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes, so also store the active context in
+            # thread-local storage as a fallback for the hook.
+            if _PY_GE_314:
+                _tls_coverage.covered = ctx_covered.get()[-1]
+                _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
-            if _PY_GE_312:
+            if _PY_GE_314:
                 from ddtrace.internal.coverage.instrumentation_py3_12 import set_active_context_covered_files
 
                 set_active_context_covered_files(_tls_coverage.covered_files)
@@ -342,13 +347,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
-                _tls_coverage.covered = None
-                _tls_coverage.covered_files = None
-            else:
+                if _PY_GE_314:
+                    _tls_coverage.covered = None
+                    _tls_coverage.covered_files = None
+            elif _PY_GE_314:
                 _tls_coverage.covered = covered_lines_stack[-1]
                 _tls_coverage.covered_files = covered_files_stack[-1]
 
-            if _PY_GE_312:
+            if _PY_GE_314:
                 from ddtrace.internal.coverage.instrumentation_py3_12 import set_active_context_covered_files
 
                 set_active_context_covered_files(_tls_coverage.covered_files)

@@ -79,6 +79,62 @@ def test_event_handler_returns_disable_for_missing_code():
     assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 12) or sys.version_info >= (3, 14), reason="Python 3.12-3.13 ContextVar path"
+)
+def test_contextvars_take_precedence_over_thread_local_fallback():
+    from collections import defaultdict
+
+    import ddtrace.internal.coverage.code as c
+    from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+    context_covered = defaultdict(CoverageLines)
+    tls_covered = defaultdict(CoverageLines)
+    context_covered_files = set()
+    tls_covered_files = set()
+
+    coverage_enabled_token = c.ctx_coverage_enabled.set(True)
+    covered_token = c.ctx_covered.set([context_covered])
+    covered_files_token = c.ctx_covered_files.set([context_covered_files])
+    old_tls_covered = getattr(c._tls_coverage, "covered", None)
+    old_tls_covered_files = getattr(c._tls_coverage, "covered_files", None)
+    c._tls_coverage.covered = tls_covered
+    c._tls_coverage.covered_files = tls_covered_files
+
+    try:
+        assert c._get_ctx_covered_lines() is context_covered
+        assert c._get_ctx_covered_files() is context_covered_files
+    finally:
+        c.ctx_coverage_enabled.reset(coverage_enabled_token)
+        c.ctx_covered.reset(covered_token)
+        c.ctx_covered_files.reset(covered_files_token)
+        c._tls_coverage.covered = old_tls_covered
+        c._tls_coverage.covered_files = old_tls_covered_files
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_configure_file_level_coverage_sets_monitoring_event():
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    old_file_level = m._USE_FILE_LEVEL_COVERAGE
+    old_event = m.EVENT
+    old_tool_id = m._DD_TOOL_ID
+    m._DD_TOOL_ID = None
+
+    try:
+        m.configure_file_level_coverage(True)
+        assert m._USE_FILE_LEVEL_COVERAGE is True
+        assert m.EVENT == sys.monitoring.events.PY_START
+
+        m.configure_file_level_coverage(False)
+        assert m._USE_FILE_LEVEL_COVERAGE is False
+        assert m.EVENT == sys.monitoring.events.LINE
+    finally:
+        m._USE_FILE_LEVEL_COVERAGE = old_file_level
+        m.EVENT = old_event
+        m._DD_TOOL_ID = old_tool_id
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_file_event_handler_emits_import_dependencies_once():
     """File-level callbacks should not resend global import dependency metadata on every execution."""
