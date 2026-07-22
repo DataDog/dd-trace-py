@@ -268,7 +268,7 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
 
 
 def add_trace_source(span: Span, source: int) -> None:
-    """OR ``source`` (a ``TraceSource`` bit) into the span's ``_dd.p.ts`` trace-source mask.
+    """OR source (a TraceSource bit) into the span's _dd.p.ts trace-source mask.
 
     Marks that an enabled product originated or retained the trace so it is kept when APM
     tracing is disabled. The mask is serialized as a min 2-char lowercase hex string, so

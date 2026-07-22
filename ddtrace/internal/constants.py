@@ -69,7 +69,7 @@ SAMPLING_HASH_MODULO = 1 << 64
 SAMPLING_KNUTH_FACTOR = 1111111111111111111
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 # Propagated tag consolidating which product(s) originated/retained a trace as an
-# 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See ``TraceSource``.
+# 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See TraceSource.
 TRACE_SOURCE_PROPAGATION_KEY = "_dd.p.ts"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
@@ -177,7 +177,7 @@ class SamplingMechanism(object):
 
 
 class TraceSource(object):
-    """Bit values for the ``_dd.p.ts`` (trace source) propagation tag.
+    """Bit values for the _dd.p.ts (trace source) propagation tag.
 
     Each enabled product ORs its bit into the mask to signal it originated or retained
     the trace, so the trace is kept when APM tracing is disabled (DD_TRACE_ENABLED RFC).
