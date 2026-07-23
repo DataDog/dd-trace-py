@@ -1,6 +1,0 @@
----
-features:
-  - |
-    mistralai: Adds support for tracing synchronous and asynchronous streaming chat completion calls using the ``mistralai`` client.
-  - |
-    LLM Observability: Adds support for submitting LLM Observability spans for synchronous and asynchronous streaming chat completion calls using the ``mistralai`` client.
