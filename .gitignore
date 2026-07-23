@@ -221,6 +221,12 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
+# Core dump files
+/core
+/core.[0-9]*
+*.core
+vgcore.*
+
 # Rust build artifacts
 src/native/target*
 
