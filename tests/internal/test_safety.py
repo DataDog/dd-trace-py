@@ -1,5 +1,6 @@
 import sys
 
+from _pytest.mark.structures import MarkDecorator
 import pytest
 
 from ddtrace.internal.safety import SafeObjectProxy
@@ -9,7 +10,7 @@ from ddtrace.internal.safety import SafeObjectProxy
 # pure-Python ObjectProxy (wrapt.proxies), whose __wrapped__/__iter__ handling is incompatible
 # with SafeObjectProxy's attribute guarding. Re-enable once wrapt ships a 3.15-compatible
 # C extension.
-_wrapt_cext_missing_on_315 = pytest.mark.skipif(
+_wrapt_cext_missing_on_315: MarkDecorator = pytest.mark.skipif(
     sys.version_info >= (3, 15),
     reason="wrapt C extension unavailable on 3.15; pure-Python ObjectProxy breaks SafeObjectProxy",
 )
