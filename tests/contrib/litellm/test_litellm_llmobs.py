@@ -854,3 +854,26 @@ def test_shadow_tags_completion_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 7
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 4
+
+
+def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_spans):
+    """OpenRouter cost (usage.cost) captured through litellm is surfaced on the span's cost metrics.
+
+    OpenRouter returns the billed cost in every response; the litellm integration should emit it as
+    ``total_cost`` (plus ``input_cost``/``output_cost`` when they reconcile). Note: the
+    ``openrouter/openai/*`` model string is the case where litellm may defer to the openai
+    integration via ``_has_downstream_openai_span`` — this test also documents whether a span is
+    emitted at all for that route.
+    """
+    with request_vcr.use_cassette("completion_openrouter.yaml"):
+        litellm.completion(
+            model="openrouter/openai/gpt-oss-120b",
+            messages=[{"content": "What is the capital of France?", "role": "user"}],
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    metrics = get_llmobs_metrics(spans[0])
+    assert "total_cost" in metrics
+    assert metrics["total_cost"] > 0
+    if "input_cost" in metrics or "output_cost" in metrics:
+        assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

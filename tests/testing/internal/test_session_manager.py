@@ -186,6 +186,19 @@ class TestSessionManagerIsSkippableTest:
         assert session_manager.is_skippable_test(test_ref3) is True
 
 
+class TestSessionManagerITRCorrelationId:
+    def test_session_manager_propagates_itr_correlation_id_to_session(self) -> None:
+        session_manager = (
+            session_manager_mock()
+            .with_settings(MockDefaults.settings(itr_enabled=True, skipping_enabled=True))
+            .with_itr_correlation_id("itr-correlation-id")
+            .build_real_with_mocks(MockDefaults.test_environment())
+        )
+
+        assert session_manager.itr_correlation_id == "itr-correlation-id"
+        assert session_manager.session.itr_correlation_id == "itr-correlation-id"
+
+
 class TestSessionNameTest:
     def test_session_name_explicitly_from_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         env = {"DD_TEST_SESSION_NAME": "the_name", "DD_API_KEY": "somekey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
