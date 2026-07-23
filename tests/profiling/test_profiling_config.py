@@ -7,6 +7,24 @@ import pytest
 from ddtrace.internal.settings.profiling import ProfilingConfig
 
 
+class TestMaxFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 601, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
+
+        # One of the backend's 600 locations is reserved for the omitted-frame indicator.
+        assert ProfilingConfig().max_frames == 599
+
+    @pytest.mark.parametrize("value", (512, 599))
+    def test_preserves_value_within_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
+
+        assert ProfilingConfig().max_frames == value
+
+
 class TestAdaptiveSamplingConfig:
     def test_defaults(self) -> None:
         config = ProfilingConfig()

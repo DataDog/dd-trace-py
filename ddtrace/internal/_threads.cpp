@@ -1157,10 +1157,9 @@ PeriodicThread_dealloc(PeriodicThread* self)
     //
     // Full cleanup is therefore correct in all cases;
 
-    // Unmap the PeriodicThread from periodic_threads, but only if the entry
-    // still belongs to self (see unregister_periodic_thread_if_self).
-    if (self->ident != NULL && self->_state != nullptr)
-        unregister_periodic_thread_if_self(self->_state->periodic_threads, self->ident, (PyObject*)self);
+    // The OS thread removes itself from periodic_threads at exit (see thread
+    // lambda below); a blind delete here by recycled ident would evict a live
+    // replacement worker and deadlock any fork child that joins it.
 
     PeriodicThread_clear(self);
 

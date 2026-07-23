@@ -7,6 +7,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -298,7 +299,7 @@ class TestOptWriter(BaseWriter):
         }
 
     def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
-        self.metadata[event_type].update(metadata)
+        self.metadata.setdefault(event_type, {}).update(metadata)
 
     def put_item(self, item: TestItem[t.Any, t.Any]) -> None:
         event = self.serializers[type(item)](item)
@@ -390,6 +391,27 @@ class TestCoverageWriter(BaseWriter):
         )
         self.put_event(event)
 
+    def put_suite_coverage(self, suite: TestSuite, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
+        """Emit a coverage event keyed to the suite rather than an individual test run.
+
+        Used in suite-skipping mode: the backend expects no span_id on coverage events so that
+        it aggregates coverage at the suite level, matching the behaviour of the old plugin and
+        the JS tracer.
+        """
+        files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        TelemetryAPI.get().record_coverage_files(len(files))
+
+        if not files:
+            TelemetryAPI.get().record_coverage_is_empty()
+            return
+
+        event = {
+            "test_session_id": suite.session.item_id,
+            "test_suite_id": suite.item_id,
+            "files": files,
+        }
+        self.put_event(event)
+
     def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
 
@@ -469,75 +491,75 @@ class PayloadFileCoverageWriter(TestCoverageWriter):
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
-    return Event(
-        version=2,
-        type="test",
-        content={
-            "trace_id": test_run.trace_id,
-            "parent_id": 1,
-            "span_id": test_run.span_id,
-            "service": test_run.service,
-            "resource": test_run.name,
-            "name": "pytest.test",
-            "error": 1 if test_run.get_status() == TestStatus.FAIL else 0,
-            "start": test_run.start_ns,
-            "duration": test_run.duration_ns,
-            "meta": {
-                "span.kind": "test",
-                "test.module": test_run.module.name,
-                "test.module_path": test_run.module.module_path,
-                "test.name": test_run.name,
-                "test.status": test_run.get_status().value,
-                "test.suite": test_run.suite.name,
-                "type": "test",
-                **test_run.test.tags,
-                **test_run.tags,
-            },
-            "metrics": {
-                "_dd.py.partial_flush": 1,
-                "_dd.top_level": 1,
-                "_dd.tracer_kr": 1.0,
-                "_sampling_priority_v1": 1,
-                **test_run.metrics,
-            },
+    content = {
+        "trace_id": test_run.trace_id,
+        "parent_id": 1,
+        "span_id": test_run.span_id,
+        "service": test_run.service,
+        "resource": test_run.name,
+        "name": "pytest.test",
+        "error": 1 if test_run.get_status() == TestStatus.FAIL else 0,
+        "start": test_run.start_ns,
+        "duration": test_run.duration_ns,
+        "meta": {
+            "span.kind": "test",
+            "test.module": test_run.module.name,
+            "test.module_path": test_run.module.module_path,
+            "test.name": test_run.name,
+            "test.status": test_run.get_status().value,
+            "test.suite": test_run.suite.name,
             "type": "test",
-            "test_session_id": test_run.session.item_id,
-            "test_module_id": test_run.module.item_id,
-            "test_suite_id": test_run.suite.item_id,
+            **test_run.test.tags,
+            **test_run.tags,
         },
-    )
+        "metrics": {
+            "_dd.py.partial_flush": 1,
+            "_dd.top_level": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            **test_run.metrics,
+        },
+        "type": "test",
+        "test_session_id": test_run.session.item_id,
+        "test_module_id": test_run.module.item_id,
+        "test_suite_id": test_run.suite.item_id,
+    }
+    if test_run.session.itr_correlation_id and test_run.session.itr_skipping_level == ITRSkippingLevel.TEST:
+        content["itr_correlation_id"] = test_run.session.itr_correlation_id
+
+    return Event(version=2, type="test", content=content)
 
 
 def serialize_suite(suite: TestSuite) -> Event:
-    return Event(
-        version=1,
-        type="test_suite_end",
-        content={
-            "service": suite.service,
-            "resource": suite.name,
-            "name": "pytest.test_suite",
-            "error": 0,
-            "start": suite.start_ns,
-            "duration": suite.duration_ns,
-            "meta": {
-                "span.kind": "test",
-                "test.suite": suite.name,
-                "test.status": suite.get_status().value,
-                "type": "test_suite_end",
-                **suite.tags,
-            },
-            "metrics": {
-                "_dd.py.partial_flush": 1,
-                "_dd.tracer_kr": 1.0,
-                "_sampling_priority_v1": 1,
-                **suite.metrics,
-            },
+    content = {
+        "service": suite.service,
+        "resource": suite.name,
+        "name": "pytest.test_suite",
+        "error": 0,
+        "start": suite.start_ns,
+        "duration": suite.duration_ns,
+        "meta": {
+            "span.kind": "test",
+            "test.suite": suite.name,
+            "test.status": suite.get_status().value,
             "type": "test_suite_end",
-            "test_session_id": suite.session.item_id,
-            "test_module_id": suite.module.item_id,
-            "test_suite_id": suite.item_id,
+            **suite.tags,
         },
-    )
+        "metrics": {
+            "_dd.py.partial_flush": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            **suite.metrics,
+        },
+        "type": "test_suite_end",
+        "test_session_id": suite.session.item_id,
+        "test_module_id": suite.module.item_id,
+        "test_suite_id": suite.item_id,
+    }
+    if suite.session.itr_correlation_id and suite.session.itr_skipping_level == ITRSkippingLevel.SUITE:
+        content["itr_correlation_id"] = suite.session.itr_correlation_id
+
+    return Event(version=1, type="test_suite_end", content=content)
 
 
 def serialize_module(module: TestModule) -> Event:

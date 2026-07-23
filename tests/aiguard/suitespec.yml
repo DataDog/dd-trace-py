@@ -1,0 +1,78 @@
+---
+components:
+  ai_guard:
+    - ddtrace/aiguard/*
+    - ddtrace/appsec/ai_guard/*
+    - ddtrace/internal/aiguard/*
+    - ddtrace/internal/settings/aiguard.py
+suites:
+  ai_guard_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/api/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    retry: 2
+    venvs_per_job: 1
+  ai_guard_langchain:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/langchain/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    retry: 2
+    services:
+      - testagent
+    venvs_per_job: 2
+  ai_guard_openai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/openai/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    services:
+      - testagent
+    venvs_per_job: 2
+  ai_guard_anthropic:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/anthropic/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    services:
+      - testagent
+    venvs_per_job: 2
+  ai_guard_strands:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/strands_hooks/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    retry: 2
+    venvs_per_job: 1
+  ai_guard_litellm_guardrail:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/aiguard/litellm_guardrail/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    retry: 2
+    venvs_per_job: 2

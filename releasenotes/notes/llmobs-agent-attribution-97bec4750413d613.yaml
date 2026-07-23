@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: spans generated under an agent are now automatically
+    attributed to their nearest agent ancestor, both within a single process and
+    across service boundaries. This enables the Datadog backend to group and
+    display spans by the agent that produced them.

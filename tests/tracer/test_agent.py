@@ -557,3 +557,63 @@ def test_info(mock_connection, request_response, read_response, status_response,
 
     mock_connection.return_value = MockConn()
     assert info() == expected
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_NATIVE_SPAN_EVENTS": None, "OTEL_TRACES_EXPORTER": None})
+def test_trace_native_span_events_default_false():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is False
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
+def test_trace_native_span_events_auto_enabled_with_otlp_exporter():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is True
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "OTLP", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
+def test_trace_native_span_events_auto_enabled_case_insensitive():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is True
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "none", "DD_TRACE_NATIVE_SPAN_EVENTS": None})
+def test_trace_native_span_events_not_enabled_with_non_otlp_exporter():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is False
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_NATIVE_SPAN_EVENTS": "false"}, err=None)
+def test_trace_native_span_events_otlp_always_enabled():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is True
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": None, "DD_TRACE_NATIVE_SPAN_EVENTS": "true"}, err=None)
+def test_trace_native_span_events_user_true_without_otlp():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is True
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp,zipkin", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
+def test_trace_native_span_events_not_enabled_with_multi_exporter():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is False
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4", "DD_TRACE_NATIVE_SPAN_EVENTS": None}
+)
+def test_trace_native_span_events_not_forced_when_protocol_version_overrides_otlp():
+    # When DD_TRACE_AGENT_PROTOCOL_VERSION is set, the writer uses the non-OTLP path,
+    # so OTEL_TRACES_EXPORTER=otlp must not force native span events on.
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is False
