@@ -18,6 +18,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
+`Profiling and new CPython versions <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-profiling-new-cpython.rst>`_ (stack profiler / Echion migration checklist).
+
 Thanks for working with us!
 
 .. _change_process:
@@ -157,34 +159,6 @@ call is ``add_integration``, which generates telemetry data about the integratio
 Read the docstrings in ``ddtrace/internal/telemetry/writer.py`` for more comprehensive usage information
 about Instrumentation Telemetry.
 
-Configuration Registry
-----------------------
-
-When you add a new ``DD_*`` or ``OTEL_*`` environment variable to ddtrace, you must also register it in
-two places.
-
-**1. Local registry** (``supported-configurations.json``)
-
-Add an entry for the new variable following the existing schema, then regenerate the generated module::
-
-    python scripts/supported_configurations.py
-
-Stage and commit both ``supported-configurations.json`` and
-``ddtrace/internal/settings/_supported_configurations.py``. The pre-commit hook will catch any mismatch
-before commit, and the CI ``check`` job will enforce it on every PR.
-
-**2. Central Configuration Registry** (FPD)
-
-The key must also be added to the `Datadog Configuration Registry <https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations>`_
-by an **internal contributor**. If the key already exists with the same settings (default value, type)
-because another tracer language already registered it, this step can be skipped. If the existing entry's
-data doesn't match (e.g. different type or default), create a new implementation version in the registry
-and reference that version's letter in ``supported-configurations.json``.
-
-Not adding the config and implementation details to the central registry will cause the
-``validate_supported_configurations_v2_local_file`` GitLab CI job to fail, displaying the missing keys
-in its output. A Datadog maintainer must add the key to the registry before the PR can merge.
-
 .. toctree::
     :hidden:
 
@@ -192,6 +166,7 @@ in its output. A Datadog maintainer must add the key to the registry before the 
     contributing-integrations
     contributing-testing
     contributing-fuzzing
+    contributing-profiling-new-cpython
     contributing-tracing
     contributing-release
     releasenotes
