@@ -649,7 +649,7 @@ class Tracer(object):
         existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
         if span.service in config._integration_default_services or span.service == config._inferred_base_service:
             if not existing_service_source or (existing_service_source and integration_name != span._span_api):
-                span.set_tag(_SERVICE_SOURCE, integration_name)
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
