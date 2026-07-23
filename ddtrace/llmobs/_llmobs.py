@@ -97,6 +97,16 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
+from ddtrace.llmobs._constants import EVALUATIONS_ML_APP
+from ddtrace.llmobs._constants import EVALUATIONS_SOURCE
+from ddtrace.llmobs._constants import EVAL_NAME_TAG
+from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
+from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import JUDGE_TRACE_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_SPAN_ID_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -2682,6 +2692,61 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def evaluation(
+        cls,
+        name: str,
+        evaluated_span: Optional[dict] = None,
+        evaluated_ml_app: Optional[str] = None,
+        eval_scope: str = "span",
+        evaluated_session_id: Optional[str] = None,
+        _decorator: bool = False,
+    ) -> Span:
+        """
+        Open a judge trace for an external (SDK-run) evaluator.
+
+        Returns a root span under ``agent_service="datadog-evaluations"``, pre-tagged with the canonical
+        evaluation contract, so the judge trace surfaces in the Evaluation experience. Instrument the
+        judge inside the block with the normal ``LLMObs.llm`` / ``tool`` / ``agent`` calls — they nest
+        under this span and inherit the ``datadog-evaluations`` service, producing a single judge trace
+        (single-call or multi-step judge: identical code). Link the resulting score to it with
+        ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
+
+        :param str name: The evaluation name (e.g. "relevance"). Should match the ``label`` passed to
+                         ``submit_evaluation``.
+        :param dict evaluated_span: A dictionary of shape {'span_id': str, 'trace_id': str} identifying
+                                    the span being judged (from ``LLMObs.export_span``). Used for
+                                    span-scope evaluations.
+        :param str evaluated_ml_app: The ml_app of the application being judged.
+        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "session".
+        :param str evaluated_session_id: The id of the session being judged, for session-scope evaluations.
+
+        :returns: The judge root Span. Use it with ``with LLMObs.evaluation(...) as judge:``.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        span = cls._instance._start_span(
+            "workflow",
+            name="custom_evaluator.%s" % name,
+            agent_service=EVALUATIONS_ML_APP,
+            _decorator=_decorator,
+        )
+        if cls.enabled:
+            tags = {
+                "source": EVALUATIONS_SOURCE,
+                EVAL_NAME_TAG: name,
+                EVAL_SOURCE_TYPE_TAG: "external",
+            }
+            if evaluated_ml_app:
+                tags[EVALUATED_ML_APP_TAG] = evaluated_ml_app
+            if eval_scope == "session" and evaluated_session_id:
+                tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
+            elif evaluated_span:
+                tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
+                tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
+            cls.annotate(span=span, tags=tags)
+        return span
+
+    @classmethod
     def embedding(
         cls,
         model_name: Optional[str] = None,
@@ -3145,6 +3210,7 @@ class LLMObs(Service):
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
         agent_service: Optional[str] = None,
+        judge_span: Optional[dict] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
@@ -3169,6 +3235,10 @@ class LLMObs(Service):
         :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
                                 Use "trace" to associate the evaluation with an entire trace (the span provided
                                 via `span` should be the root span).
+        :param dict judge_span: An exported judge span of shape {'span_id': str, 'trace_id': str} (from
+                                LLMObs.export_span of a span opened with LLMObs.evaluation). When provided,
+                                its ids are recorded in the metric metadata (judge_trace_id/judge_span_id) so
+                                the score deep-links to the judge trace.
         """
         if cls.enabled is False:
             log.debug(
@@ -3305,6 +3375,25 @@ class LLMObs(Service):
                     raise LLMObsSubmitEvaluationError("Failed to parse reasoning. reasoning must be a string.")
                 else:
                     evaluation_metric["reasoning"] = reasoning
+
+            # Fold the judge span's ids into metadata so the UI deep-links the score -> judge trace.
+            # Opt-in: only when a judge_span is provided (e.g. from a span opened with LLMObs.evaluation).
+            if judge_span is not None:
+                if (
+                    not isinstance(judge_span, dict)
+                    or not isinstance(judge_span.get("span_id"), str)
+                    or not isinstance(judge_span.get("trace_id"), str)
+                ):
+                    error = "invalid_judge_span"
+                    raise TypeError(
+                        "`judge_span` must be a dictionary containing both span_id and trace_id keys. "
+                        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+                    )
+                metadata = {
+                    **(metadata or {}),
+                    JUDGE_TRACE_ID_KEY: judge_span["trace_id"],
+                    JUDGE_SPAN_ID_KEY: judge_span["span_id"],
+                }
 
             if metadata:
                 if not isinstance(metadata, dict):
