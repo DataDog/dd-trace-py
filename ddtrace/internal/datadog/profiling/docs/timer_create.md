@@ -4,7 +4,12 @@ Linux timer_create CPU stack profiler
 Status
 ------
 
-Draft.
+Draft. The implementation is private, disabled by default, and currently
+supports only Linux CPython 3.14+ builds with the GIL. The signal handler's raw
+frame walk depends on version-specific CPython interpreter-frame layouts that
+have been audited only for 3.14. The follow-up work described in this document
+does not add support for earlier Python versions, which require separate layout
+and safety audits.
 
 Context
 -------
