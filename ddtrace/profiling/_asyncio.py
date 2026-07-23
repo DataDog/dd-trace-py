@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from types import CodeType
 from types import ModuleType
 import typing
 
@@ -76,16 +77,16 @@ def link_existing_loop_to_current_thread() -> None:
 # follow-up once there's proper CI coverage for those versions.
 _monitoring_tool_id: typing.Optional[int] = None
 # Maps id(code) -> handler(return_value) for PY_RETURN dispatch
-_py_return_handlers: dict[int, typing.Callable[[typing.Any], None]] = {}
+_py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
 
 
-def _py_return_dispatch(code: typing.Any, instruction_offset: int, return_value: typing.Any) -> None:
-    handler = _py_return_handlers.get(id(code))
+def _py_return_dispatch(code: CodeType, instruction_offset: int, return_value: object) -> None:
+    handler: typing.Optional[typing.Callable[[object], None]] = _py_return_handlers.get(id(code))
     if handler is not None:
         handler(return_value)
 
 
-def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[typing.Any], None]) -> bool:
+def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
     """Register a sys.monitoring PY_RETURN hook for *func* on Python 3.15+.
 
     Returns True if the hook was installed, False if sys.monitoring is not used
@@ -94,11 +95,12 @@ def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typin
     global _monitoring_tool_id
 
     if sys.version_info >= (3, 15):
-        m = sys.monitoring  # type: ignore[attr-defined]
+        m: typing.Any = sys.monitoring  # type: ignore[attr-defined]
 
         if _monitoring_tool_id is None:
             # Tool IDs 4-5 are free custom slots; 0-3 are reserved (debugger, coverage,
             # profiler, optimizer). Try from the top to minimise conflicts.
+            candidate: int
             for candidate in (5, 4):
                 try:
                     m.use_tool_id(candidate, "dd-profiling-asyncio")
@@ -111,7 +113,7 @@ def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typin
                 return False
 
         try:
-            code = func.__code__
+            code: CodeType = func.__code__
             _py_return_handlers[id(code)] = handler
             m.set_local_events(_monitoring_tool_id, code, m.events.PY_RETURN)
             return True
@@ -165,7 +167,7 @@ def _(asyncio: ModuleType) -> None:
         policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
 
     if policy_class is not None:
-        _original_sel = policy_class.set_event_loop
+        _original_sel: typing.Callable[..., None] = policy_class.set_event_loop
 
         def _patched_set_event_loop(self: typing.Any, loop: typing.Optional[aio.AbstractEventLoop]) -> None:
             if init_stack:
@@ -178,7 +180,7 @@ def _(asyncio: ModuleType) -> None:
         tasks_module: ModuleType = sys.modules["asyncio"].tasks
 
         # --- _GatheringFuture.__init__ ---
-        _original_gf_init = tasks_module._GatheringFuture.__init__
+        _original_gf_init: typing.Callable[..., None] = tasks_module._GatheringFuture.__init__
 
         def _patched_gf_init(
             self: typing.Any,
@@ -192,17 +194,18 @@ def _(asyncio: ModuleType) -> None:
             # context to build a coroutine for later scheduling). In that case there is
             # no parent task to link from, so we skip link_tasks entirely.
             try:
-                parent = globals()["current_task"]()
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
             except RuntimeError:
                 return
             if parent is not None:
+                child: aio.Future[typing.Any]
                 for child in children:
                     stack.link_tasks(parent, child)
 
         tasks_module._GatheringFuture.__init__ = _patched_gf_init
 
         # --- asyncio.tasks._wait ---
-        _original_wait = tasks_module._wait
+        _original_wait: typing.Callable[..., typing.Any] = tasks_module._wait
 
         def _patched_wait(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             # fs is the first positional or the 'fs' keyword argument
@@ -211,10 +214,13 @@ def _(asyncio: ModuleType) -> None:
             # also be invoked outside a running loop. Skip link_tasks when current_task()
             # raises.
             try:
-                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
+                parent: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                    "aio.Task[typing.Any]", globals()["current_task"]()
+                )
             except RuntimeError:
                 return _original_wait(*args, **kwargs)
             if parent is not None:
+                future: aio.Future[typing.Any]
                 for future in fs:
                     stack.link_tasks(parent, future)
             return _original_wait(*args, **kwargs)
@@ -222,7 +228,7 @@ def _(asyncio: ModuleType) -> None:
         tasks_module._wait = _patched_wait  # type: ignore[attr-defined]
 
         # --- asyncio.tasks.as_completed ---
-        _original_as_completed = tasks_module.as_completed
+        _original_as_completed: typing.Callable[..., typing.Any] = tasks_module.as_completed
 
         def _patched_as_completed(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             fs: typing.Iterable[aio.Future[typing.Any]] = args[0] if args else kwargs.get("fs", ())
@@ -231,6 +237,7 @@ def _(asyncio: ModuleType) -> None:
 
             if parent is not None:
                 futures: set[aio.Future[typing.Any]] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                future: aio.Future[typing.Any]
                 for future in futures:
                     stack.link_tasks(parent, future)
                 # Replace fs with the ensured futures to avoid double-wrapping.
@@ -245,7 +252,7 @@ def _(asyncio: ModuleType) -> None:
         asyncio.as_completed = _patched_as_completed  # type: ignore[attr-defined]  # re-export alias
 
         # --- asyncio.tasks.shield ---
-        _original_shield = tasks_module.shield
+        _original_shield: typing.Callable[..., typing.Any] = tasks_module.shield
 
         def _patched_shield(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             loop: typing.Optional[aio.AbstractEventLoop] = kwargs.get("loop")
@@ -274,10 +281,12 @@ def _(asyncio: ModuleType) -> None:
                 taskgroup_class: typing.Optional[type[typing.Any]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    def _on_taskgroup_create_task_return(return_value: typing.Any) -> None:
-                        task: typing.Optional[aio.Task[typing.Any]] = return_value
+                    def _on_taskgroup_create_task_return(return_value: object) -> None:
+                        task: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                            "typing.Optional[aio.Task[typing.Any]]", return_value
+                        )
                         try:
-                            parent = globals()["current_task"]()
+                            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
                         except RuntimeError:
                             return
                         if parent is not None and task is not None:
@@ -285,14 +294,16 @@ def _(asyncio: ModuleType) -> None:
 
                     if not _register_return_hook(taskgroup_class.create_task, _on_taskgroup_create_task_return):
                         # Fallback for Python < 3.15: simple monkey-patch
-                        _original_tg_create_task = taskgroup_class.create_task
+                        _original_tg_create_task: typing.Callable[..., aio.Task[typing.Any]] = (
+                            taskgroup_class.create_task
+                        )
 
                         def _patched_tg_create_task(
                             self: typing.Any, *args: typing.Any, **kwargs: typing.Any
                         ) -> aio.Task[typing.Any]:
                             result: aio.Task[typing.Any] = _original_tg_create_task(self, *args, **kwargs)
                             try:
-                                parent = globals()["current_task"]()
+                                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
                             except RuntimeError:
                                 return result
                             if parent is not None and result is not None:
@@ -306,12 +317,12 @@ def _(asyncio: ModuleType) -> None:
         # They are context managers that schedule a callback to cancel the current
         # task if it times out; the timeout._task IS the current task, so there's
         # no parent-child relationship to track.
-        _original_create_task = tasks_module.create_task
+        _original_create_task: typing.Callable[..., aio.Task[typing.Any]] = tasks_module.create_task
 
-        def _on_create_task_return(return_value: typing.Any) -> None:
-            task: aio.Task[typing.Any] = return_value
+        def _on_create_task_return(return_value: object) -> None:
+            task: aio.Task[typing.Any] = typing.cast("aio.Task[typing.Any]", return_value)
             try:
-                parent = globals()["current_task"]()
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
             except RuntimeError:
                 return
             if parent is not None:
@@ -322,7 +333,7 @@ def _(asyncio: ModuleType) -> None:
             def _patched_create_task(*args: typing.Any, **kwargs: typing.Any) -> "aio.Task[typing.Any]":
                 task: "aio.Task[typing.Any]" = _original_create_task(*args, **kwargs)
                 try:
-                    parent = globals()["current_task"]()
+                    parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
                 except RuntimeError:
                     return task
                 if parent is not None:
@@ -357,7 +368,7 @@ def _(uvloop: ModuleType) -> None:
         uvloop, "new_event_loop", None
     )
     if new_event_loop_func is not None:
-        _original_nel = new_event_loop_func
+        _original_nel: typing.Callable[[], asyncio.AbstractEventLoop] = new_event_loop_func
 
         def _patched_new_event_loop() -> asyncio.AbstractEventLoop:
             loop: asyncio.AbstractEventLoop = _original_nel()
@@ -372,10 +383,10 @@ def _(uvloop: ModuleType) -> None:
 
     policy_class: typing.Optional[type[typing.Any]] = getattr(uvloop, "EventLoopPolicy", None)
     if policy_class is not None and hasattr(policy_class, "set_event_loop"):
-        _original_uvloop_sel = policy_class.set_event_loop
+        _original_uvloop_sel: typing.Callable[..., None] = policy_class.set_event_loop
 
         def _patched_uvloop_set_event_loop(self: typing.Any, loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
-            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
             if init_stack:
                 stack.set_uvloop_mode(thread_id, True)
             if init_stack and loop is not None:
