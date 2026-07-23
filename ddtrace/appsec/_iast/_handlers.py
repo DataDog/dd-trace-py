@@ -1,5 +1,6 @@
 from collections.abc import MutableMapping
 import functools
+from types import ModuleType
 from typing import Any
 
 from ddtrace.appsec._constants import IAST
@@ -20,15 +21,23 @@ from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.span_bus import span_from_context
 
 
 MessageMapContainer = None
-try:
-    from google._upb._message import MessageMapContainer  # type: ignore[no-redef]
-except ImportError:
-    pass
+
+
+# Only capture MessageMapContainer if the application (or another dependency)
+# imports google._upb._message on its own: importing it ourselves here would
+# force-load protobuf's upb backend during bootstrap, which the module-cloning
+# cleanup then unloads and can cause a second upb module to be loaded later,
+# breaking isinstance checks against it.
+@ModuleWatchdog.after_module_imported("google._upb._message")
+def _(module: ModuleType) -> None:
+    global MessageMapContainer
+    MessageMapContainer = getattr(module, "MessageMapContainer", None)
 
 
 log = get_logger(__name__)

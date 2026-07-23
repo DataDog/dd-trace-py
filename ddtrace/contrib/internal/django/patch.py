@@ -37,6 +37,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
@@ -400,7 +401,7 @@ def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
     would discard the collected entries anyway, and if the flag is later
     flipped on the WeakSet stays empty so the next request will walk.
     """
-    if resolver is None or not asm_config._api_security_endpoint_collection:
+    if resolver is None or not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
         return
     try:
         if resolver in _collected_resolvers:

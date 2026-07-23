@@ -15,6 +15,7 @@ from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
@@ -436,7 +437,7 @@ def _walk_wsgi_mounts(wsgi_app, script_name):
 
 def _collect_routes_once(app, script_name=""):
     """Walk ``app`` (and any DM reachable from its wsgi_app) once per ``(app, script_name)``."""
-    if not asm_config._api_security_endpoint_collection:
+    if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
         return
     if not isinstance(app, flask.Flask):
         return
@@ -468,7 +469,7 @@ def _collect_routes_once(app, script_name=""):
 def patched_dispatcher_middleware_init(wrapped, instance, args, kwargs):
     """Walk DM mounts eagerly at construction so sub-apps that never receive traffic still reach discovery."""
     wrapped(*args, **kwargs)
-    if not asm_config._api_security_endpoint_collection:
+    if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
         return
     try:
         for sub_app, sub_prefix in _walk_wsgi_mounts(getattr(instance, "app", None), ""):
@@ -513,7 +514,7 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             provide_automatic_options=provide_automatic_options,
             **kwargs,
         )
-        if asm_config._api_security_endpoint_collection:
+        if appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
             try:
                 scripts = _collected_scripts_by_app.get(instance)
             except TypeError:
