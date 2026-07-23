@@ -302,6 +302,16 @@ requirements_json_test:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
+# Regenerates the riot lockfiles + requirements.csv (this image has every
+# interpreter, incl. 3.15-dev, which contributors rarely have locally). On a PR
+# branch, drift is not a dead-end: commit_requirements_lockfiles pushes the fix
+# back automatically. On integration refs -- the default branch, release lines,
+# and merge-queue refs -- where a bot push is unsafe, drift stays a hard gate.
+#
+# NB: we intentionally do NOT gate on CI_COMMIT_REF_PROTECTED. The GitLab mirror
+# marks EVERY branch protected via a blanket `*` protected-branch rule, so that
+# variable is always "true" and cannot distinguish a PR branch from an
+# integration branch. We gate on the ref name instead.
 check_requirements_lockfiles:
   stage: tests
   needs: []
@@ -319,9 +329,113 @@ check_requirements_lockfiles:
   script:
     - pip install toml==0.10.2 pyyaml==6.0.2
     - scripts/compile-and-prune-test-requirements
-    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
     - python scripts/requirements_to_csv.py
-    - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
+    - |
+      set -euo pipefail
+      : > regen.patch
+      echo "REGEN_DRIFT=false" > regen.env
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+      git add -A .riot/requirements requirements.csv
+      # Match scripts/check-diff semantics: ignore pure-comment (#) line changes.
+      # Use --quiet (implies --exit-code) so we don't buffer the (potentially
+      # large) lockfile diff into a shell string just to test for emptiness.
+      if git diff --cached --quiet -G'^[^#]' -- .riot/requirements requirements.csv; then
+        echo "Lockfiles and requirements.csv are up to date."
+        exit 0
+      fi
+      echo "REGEN_DRIFT=true" > regen.env
+      git diff --cached > regen.patch
+      git --no-pager diff --cached --stat
+      if [ "${CI_COMMIT_REF_NAME:-}" = "main" ] \
+          || [ "${CI_COMMIT_REF_NAME:-}" = "${CI_DEFAULT_BRANCH:-main}" ] \
+          || [[ "${CI_COMMIT_REF_NAME:-}" =~ ^[0-9]+\.[0-9x]+$ ]] \
+          || [[ "${CI_COMMIT_REF_NAME:-}" == gh-readonly-queue/* ]] \
+          || [[ "${CI_COMMIT_REF_NAME:-}" == mq-working-branch-* ]]; then
+        echo "ERROR: .riot/requirements/*.txt and/or requirements.csv are out of date on an integration ref (default/release/merge-queue) where auto-commit is unsafe."
+        echo "Run scripts/compile-and-prune-test-requirements and python scripts/requirements_to_csv.py, then commit the result."
+        exit 1
+      fi
+      echo "Drift detected on PR branch '${CI_COMMIT_REF_NAME}'; commit_requirements_lockfiles will push the fix and trigger a fresh pipeline."
+  artifacts:
+    when: always
+    paths:
+      - regen.patch
+    reports:
+      dotenv: regen.env
+
+# Auto-commits the regenerated lockfiles/requirements.csv back to the PR branch
+# when check_requirements_lockfiles reports drift. Split from the regen job
+# because the push needs the dd-octo-sts image (has dd-octo-sts + gh), while the
+# regen needs the testrunner image (has every interpreter). The bot commit
+# advances the PR head, so the stale SHA can't be merged, and a fresh pipeline
+# validates the result.
+commit_requirements_lockfiles:
+  stage: tests
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  needs:
+    - job: check_requirements_lockfiles
+      artifacts: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    # The GitLab mirror marks EVERY branch protected (blanket `*` rule), so
+    # CI_COMMIT_REF_PROTECTED is useless here. Gate on the ref name instead:
+    # never auto-commit on the default branch, release lines, or merge-queue
+    # refs (they hard-fail in the regen job); only self-heal PR branches.
+    - if: $CI_COMMIT_REF_NAME == "main"
+      when: never
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+\.[0-9x]+$/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^gh-readonly-queue\//
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^mq-working-branch-/
+      when: never
+    - when: on_success
+  script:
+    - |
+      set -euo pipefail
+      # REGEN_DRIFT comes from the check job's dotenv artifact and is available
+      # here, but GitLab rules are evaluated before any job runs so dotenv
+      # variables cannot gate this job in `rules:`.
+      if [ "${REGEN_DRIFT:-false}" != "true" ]; then
+        echo "No lockfile drift; skipping auto-commit."
+        exit 0
+      fi
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+
+      # Re-apply the regenerated files captured by the regen job (a patch also
+      # carries deletions, which plain artifacts would not).
+      git apply regen.patch
+      git add -A .riot/requirements requirements.csv
+
+      GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.regenerate-requirements.push)
+      git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/DataDog/dd-trace-py.git"
+
+      git config user.name "dd-trace-py-ci-bot"
+      git config user.email "apm-python-team@datadoghq.com"
+      git commit -m "ci: regenerate riot lockfiles and requirements.csv [auto]"
+
+      if git push origin "HEAD:${CI_COMMIT_REF_NAME}"; then
+        echo "Pushed regenerated lockfiles to '${CI_COMMIT_REF_NAME}'; a fresh pipeline will validate them."
+        exit 0
+      fi
+
+      # Push failed. Distinguish "branch advanced mid-pipeline" (a newer pipeline
+      # will regenerate; nothing to do) from a genuine no-write-access failure
+      # (e.g. a fork PR) that a human must resolve.
+      git fetch origin "${CI_COMMIT_REF_NAME}" || true
+      REMOTE_SHA=$(git rev-parse "origin/${CI_COMMIT_REF_NAME}" 2>/dev/null || echo "")
+      if [ -n "${REMOTE_SHA}" ] && [ "${REMOTE_SHA}" != "${CI_COMMIT_SHA}" ]; then
+        echo "Branch '${CI_COMMIT_REF_NAME}' advanced during this pipeline; a newer pipeline will regenerate. Skipping."
+        exit 0
+      fi
+      echo "ERROR: could not push regenerated lockfiles (e.g. a fork PR without write access to DataDog/dd-trace-py)."
+      echo "Run scripts/compile-and-prune-test-requirements and python scripts/requirements_to_csv.py, then commit the result."
+      exit 1
 
 check_ci_dependencies:
   stage: tests
