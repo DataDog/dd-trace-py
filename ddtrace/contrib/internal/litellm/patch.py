@@ -34,7 +34,16 @@ def _supported_versions() -> dict[str, str]:
     return {"litellm": "*"}
 
 
-def _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False):
+def _handle_router_stream_response(
+    resp,
+    span,
+    kwargs,
+    instance,
+    integration,
+    args,
+    gateway_request=None,
+    is_async=False,
+):
     """
     Handle router streaming responses with fallback for different wrapper types.
 
@@ -43,12 +52,17 @@ def _handle_router_stream_response(resp, span, kwargs, instance, integration, ar
     """
     if hasattr(resp, "handler") and hasattr(resp.handler, "add_span"):
         resp.handler.add_span(span, kwargs, instance)
+        if hasattr(resp.handler, "add_gateway_request"):
+            resp.handler.add_gateway_request(gateway_request)
         return resp
 
     # Fallback: wrap the response in our own traced stream for compatibility
     kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
     handler_class = LiteLLMAsyncStreamHandler if is_async else LiteLLMStreamHandler
-    return make_traced_stream(resp, handler_class(integration, span, args, kwargs))
+    return make_traced_stream(
+        resp,
+        handler_class(integration, span, args, kwargs, gateway_request=gateway_request),
+    )
 
 
 def traced_completion(func, instance, args, kwargs):
@@ -134,16 +148,38 @@ def traced_router_completion(func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
+    fallbacks_configured = any(
+        kwargs.get(name, getattr(instance, name, None))
+        for name in ("fallbacks", "context_window_fallbacks", "content_policy_fallbacks")
+    )
+    gateway_request = integration._provider_metrics.start_gateway_request(
+        operation,
+        model,
+        stream,
+        fallbacks_configured=fallbacks_configured,
+    )
     resp = None
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False)
+            return _handle_router_stream_response(
+                resp,
+                span,
+                kwargs,
+                instance,
+                integration,
+                args,
+                gateway_request=gateway_request,
+                is_async=False,
+            )
+        integration._provider_metrics.finish_gateway_request(gateway_request, response=resp)
         return resp
-    except Exception:
+    except Exception as exc:
+        integration._provider_metrics.finish_gateway_request(gateway_request, exception=exc)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        integration._provider_metrics.detach_gateway_request(gateway_request)
         if not stream:
             kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
@@ -163,16 +199,38 @@ async def traced_router_acompletion(func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
+    fallbacks_configured = any(
+        kwargs.get(name, getattr(instance, name, None))
+        for name in ("fallbacks", "context_window_fallbacks", "content_policy_fallbacks")
+    )
+    gateway_request = integration._provider_metrics.start_gateway_request(
+        operation,
+        model,
+        stream,
+        fallbacks_configured=fallbacks_configured,
+    )
     resp = None
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=True)
+            return _handle_router_stream_response(
+                resp,
+                span,
+                kwargs,
+                instance,
+                integration,
+                args,
+                gateway_request=gateway_request,
+                is_async=True,
+            )
+        integration._provider_metrics.finish_gateway_request(gateway_request, response=resp)
         return resp
-    except Exception:
+    except Exception as exc:
+        integration._provider_metrics.finish_gateway_request(gateway_request, exception=exc)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        integration._provider_metrics.detach_gateway_request(gateway_request)
         if not stream:
             kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)

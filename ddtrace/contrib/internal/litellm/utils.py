@@ -27,11 +27,15 @@ class BaseLiteLLMStreamHandler:
         kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
         self.spans.append((span, kwargs))
 
+    def add_gateway_request(self, gateway_request):
+        self.options["gateway_request"] = gateway_request
+
     def _process_chunk(self, chunk, iterator=None):
         integration = getattr(self, "integration", None)
         provider_metrics = getattr(integration, "_provider_metrics", None)
         if provider_metrics is not None:
-            provider_metrics.observe_first_chunk(getattr(self, "options", {}).get("metric_attempt"), chunk)
+            provider_metrics.observe_chunk(getattr(self, "options", {}).get("metric_attempt"), chunk)
+            provider_metrics.observe_gateway_response(getattr(self, "options", {}).get("gateway_request"), chunk)
         # Capture the first non-empty response model. Only emitted as a span tag for azure/azure_text
         # providers (in finalize_stream), where the request model is an arbitrary deployment name.
         if not getattr(self, "response_model", None):
@@ -53,6 +57,10 @@ class BaseLiteLLMStreamHandler:
             provider_metrics.finish_attempt(
                 self.options.get("metric_attempt"),
                 self.integration._model_map,
+                exception=exception,
+            )
+            provider_metrics.finish_gateway_request(
+                self.options.get("gateway_request"),
                 exception=exception,
             )
         formatted_completions = None
