@@ -5,6 +5,7 @@ import inspect
 import sys
 from types import CoroutineType
 from types import FunctionType
+from typing import Any
 from typing import cast
 
 import pytest
@@ -1383,20 +1384,20 @@ async def test_lazy_async_wrapper_throw_forwarding():
 # ---------------------------------------------------------------------------
 
 
-def test_wrapping_context_thread_concurrent():
+def test_wrapping_context_thread_concurrent() -> None:
     """Storage set by one thread must not bleed into a concurrent thread."""
     import threading
 
-    results = {}
-    errors = []
+    results: dict[int, int] = {}
+    errors: list[str] = []
 
     class ThreadIsolationContext(DummyWrappingContext):
-        def __enter__(self):
+        def __enter__(self) -> "ThreadIsolationContext":
             super().__enter__()
             self.set("tid", threading.get_ident())
             return self
 
-        def __return__(self, value):
+        def __return__(self, value: Any) -> Any:
             stored = self.get("tid")
             current = threading.get_ident()
             if stored != current:
@@ -1412,11 +1413,11 @@ def test_wrapping_context_thread_concurrent():
 
     barrier = threading.Barrier(10)
 
-    def run():
+    def run() -> None:
         barrier.wait()
         foo()
 
-    threads = [threading.Thread(target=run) for _ in range(10)]
+    threads: list[threading.Thread] = [threading.Thread(target=run) for _ in range(10)]
     for t in threads:
         t.start()
     for t in threads:
@@ -1434,25 +1435,25 @@ def test_wrapping_context_thread_concurrent():
 
 
 @pytest.mark.asyncio
-async def test_wrapping_context_async_recursive():
+async def test_wrapping_context_async_recursive() -> None:
     """Each recursive coroutine call must have its own isolated storage slot."""
-    values = []
+    values: list[tuple[str, int]] = []
 
     class AsyncRecursiveContext(DummyWrappingContext):
-        def __enter__(self):
+        def __enter__(self) -> "AsyncRecursiveContext":
             super().__enter__()
-            n = self.__frame__.f_locals["n"]
+            n: int = self.__frame__.f_locals["n"]
             self.set("n", n)
             values.append(("enter", n))
             return self
 
-        def __return__(self, value):
-            n = self.__frame__.f_locals["n"]
+        def __return__(self, value: Any) -> Any:
+            n: int = self.__frame__.f_locals["n"]
             assert self.get("n") == n, f"storage mismatch: expected {n}, got {self.get('n')}"
             values.append(("return", n))
             return super().__return__(value)
 
-    async def afactorial(n):
+    async def afactorial(n: int) -> int:
         if n == 0:
             return 1
         return n * await afactorial(n - 1)

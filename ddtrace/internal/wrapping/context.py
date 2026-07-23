@@ -590,7 +590,7 @@ class ContextWrappedFunction(Protocol):
 if sys.version_info >= (3, 15):
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
-    _UWC_BASES: tuple = (BaseWrappingContext, _MonitoringEventHandler)
+    _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
 else:
     _UWC_BASES = (BaseWrappingContext,)
 

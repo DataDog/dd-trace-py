@@ -234,8 +234,8 @@ else:
         # happens is with finally blocks, which are duplicated at the end of the
         # bytecode.
         locs: deque[tuple[int, str]] = deque()
-        last_lineno = None
-        instrs = set()
+        last_lineno: int | None = None
+        instrs: set[str] = set()
         for i, item in enumerate(code):
             if not isinstance(item, Instr):
                 continue
@@ -254,7 +254,7 @@ else:
 
         if instrs == {"NOP"}:
             # If the line occurs on NOPs only, we instrument only the first one
-            last_instr = locs.pop()
+            last_instr: tuple[int, str] = locs.pop()
             locs.clear()
             locs.append(last_instr)
         elif "NOP" in instrs:
@@ -285,11 +285,11 @@ else:
             if not isinstance(item, Instr):
                 continue
             try:
-                hook_op = code[i + _INJECT_HOOK_OPCODE_POS]
-                arg_op = code[i + _INJECT_ARG_OPCODE_POS]
+                hook_op: object = code[i + _INJECT_HOOK_OPCODE_POS]
+                arg_op: object = code[i + _INJECT_ARG_OPCODE_POS]
                 if not isinstance(hook_op, Instr) or not isinstance(arg_op, Instr):
                     continue
-                opcodes = []
+                opcodes: list[str] = []
                 for j in range(i, i + len(_INJECT_HOOK_OPCODES)):
                     op = code[j]
                     if not isinstance(op, Instr):
@@ -322,9 +322,9 @@ else:
 
         Returns the list of hooks that failed to be injected.
         """
-        abstract_code = Bytecode.from_code(get_function_code(f))
+        abstract_code: Bytecode = Bytecode.from_code(get_function_code(f))
 
-        failed = []
+        failed: list[HookInfoType] = []
         for hook, line, arg in hooks:
             try:
                 _inject_hook(abstract_code, hook, line, arg)
@@ -344,9 +344,9 @@ else:
 
         Returns the list of hooks that failed to be ejected.
         """
-        abstract_code = Bytecode.from_code(f.__code__)
+        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
 
-        failed = []
+        failed: list[HookInfoType] = []
         for hook, line, arg in hooks:
             try:
                 _eject_hook(abstract_code, hook, line, arg)
@@ -365,7 +365,7 @@ else:
         argument. The latter is also used as an identifier for the hook. This should
         be kept in case the hook needs to be removed.
         """
-        abstract_code = Bytecode.from_code(f.__code__)
+        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
 
         _inject_hook(abstract_code, hook, line, arg)
 
@@ -379,7 +379,7 @@ else:
         The hook is identified by its line number and the argument passed to the
         hook.
         """
-        abstract_code = Bytecode.from_code(f.__code__)
+        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
 
         _eject_hook(abstract_code, hook, line, arg)
 

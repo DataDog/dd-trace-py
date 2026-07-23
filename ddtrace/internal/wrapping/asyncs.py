@@ -53,7 +53,7 @@ def _ensure_common_constant_none() -> None:
 
 COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
-ASYNC_HEAD_ASSEMBLY = None
+ASYNC_HEAD_ASSEMBLY: Assembly | None = None
 
 if PY >= (3, 15):
     _ensure_common_constant_none()
