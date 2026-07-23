@@ -858,7 +858,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     return Result<void>::ok();
 }
 
-Result<void>
+void
 ThreadInfo::sample_cpu_timer(EchionSampler& echion,
                              PyThreadState* tstate,
                              FrameStack&& captured_stack,
@@ -886,8 +886,6 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
     }
 
     this->render_unwound_stacks(echion);
-
-    return Result<void>::ok();
 }
 
 Result<void>

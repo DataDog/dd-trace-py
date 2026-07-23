@@ -16,7 +16,7 @@ constexpr uint16_t kMaxCpuTimerFrames = 512;
 
 struct RawFrame
 {
-    uintptr_t code_object = 0;
+    void* code_object = nullptr;
     int lasti = -1;
     int first_lineno = 0;
 };

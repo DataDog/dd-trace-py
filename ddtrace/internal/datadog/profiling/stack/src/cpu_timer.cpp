@@ -75,7 +75,7 @@ constexpr microsecond_t kDrainIntervalUs = 10'000;
 // private, so clamp aggressively for stability while keeping the 10ms default.
 constexpr uint64_t kMinIntervalMs = 2;
 constexpr uint32_t kDefaultRingCapacity = 64;
-constexpr size_t kMinAltStackSize = 128 * 1024;
+constexpr size_t kMinAltStackSize = size_t{ 128 } * 1024;
 constexpr size_t kAltStackSigstkszMultiplier = 4;
 constexpr uint64_t kHealthWindowEvents = 128;
 constexpr uint64_t kHealthBadRatioPercent = 90;
@@ -605,13 +605,13 @@ initialize_tid_table()
 bool
 validate_raw_code_object(const RawFrame& raw_frame)
 {
-    if (raw_frame.code_object == 0) {
+    if (raw_frame.code_object == nullptr) {
         return false;
     }
 
+    auto* code_object = static_cast<PyCodeObject*>(raw_frame.code_object);
     PyObject object_header{};
-    auto* object_addr = reinterpret_cast<PyObject*>(raw_frame.code_object);
-    if (copy_type(object_addr, object_header)) {
+    if (copy_type(reinterpret_cast<PyObject*>(code_object), object_header)) {
         return false;
     }
     if (object_header.ob_type != &PyCode_Type) {
@@ -619,9 +619,7 @@ validate_raw_code_object(const RawFrame& raw_frame)
     }
 
     int first_lineno = 0;
-    auto* firstlineno_addr = reinterpret_cast<decltype(PyCodeObject::co_firstlineno)*>(
-      raw_frame.code_object + offsetof(PyCodeObject, co_firstlineno));
-    if (copy_type(firstlineno_addr, first_lineno)) {
+    if (copy_type(&code_object->co_firstlineno, first_lineno)) {
         return false;
     }
     return first_lineno == raw_frame.first_lineno;
@@ -639,7 +637,7 @@ render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& r
             g_state.stage2_invalid_frame_count.fetch_add(1, std::memory_order_relaxed);
             continue;
         }
-        auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(raw_frame.code_object), raw_frame.lasti);
+        auto maybe_frame = Frame::get(echion, static_cast<PyCodeObject*>(raw_frame.code_object), raw_frame.lasti);
         if (!maybe_frame) {
             continue;
         }
@@ -671,10 +669,8 @@ render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& r
             tstate_arg = &tstate;
             maybe_thread->second->tstate_addr = reinterpret_cast<uintptr_t>(state.tstate);
         }
-        auto success = maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us);
-        if (success) {
-            return;
-        }
+        maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us);
+        return;
     }
 
     auto& renderer = echion.renderer();
@@ -1026,7 +1022,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
         }
 
         RawFrame& raw_frame = sample->frames[sample->depth];
-        raw_frame.code_object = reinterpret_cast<uintptr_t>(code);
+        raw_frame.code_object = code;
         raw_frame.lasti = lasti;
         raw_frame.first_lineno = first_lineno;
         sample->depth++;
@@ -1261,9 +1257,10 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
     }
 
     auto state = std::make_unique<CaptureState>(python_thread_id, native_id, name);
-    state->tstate = g_state.fault_injection_enabled.load(std::memory_order_acquire)
-                      ? reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1))
-                      : tstate;
+    // The intentionally invalid pointer exercises guarded signal-handler reads.
+    auto* fault_injection_tstate =
+      reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1)); // NOLINT(performance-no-int-to-ptr)
+    state->tstate = g_state.fault_injection_enabled.load(std::memory_order_acquire) ? fault_injection_tstate : tstate;
 
     if (current_thread && !install_current_thread_altstack(state->altstack)) {
         return;

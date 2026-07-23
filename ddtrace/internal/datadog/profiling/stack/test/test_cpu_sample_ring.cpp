@@ -10,6 +10,9 @@ using Datadog::CpuTimer::RawSample;
 
 namespace {
 
+int first_code_object;
+int second_code_object;
+
 RawSample
 make_sample(uint64_t id)
 {
@@ -18,10 +21,10 @@ make_sample(uint64_t id)
     sample.python_thread_id = 2'000 + id;
     sample.native_tid = 3'000 + id;
     sample.depth = 2;
-    sample.frames[0].code_object = static_cast<uintptr_t>(4'000 + id);
+    sample.frames[0].code_object = &first_code_object;
     sample.frames[0].lasti = static_cast<int>(5'000 + id);
     sample.frames[0].first_lineno = static_cast<int>(6'000 + id);
-    sample.frames[1].code_object = static_cast<uintptr_t>(7'000 + id);
+    sample.frames[1].code_object = &second_code_object;
     sample.frames[1].lasti = static_cast<int>(8'000 + id);
     sample.frames[1].first_lineno = static_cast<int>(9'000 + id);
     return sample;
