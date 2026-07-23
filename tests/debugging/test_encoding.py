@@ -972,22 +972,43 @@ def test_is_namedtuple_type_detects_both_flavors(_type):
         list,
         dict,
         type("PlainTupleSubclass", (tuple,), {}),
-        type("FurtherSubclass", (PointFunctional,), {}),
     ],
 )
 def test_is_namedtuple_type_rejects_non_namedtuples(_type):
     assert not utils._is_namedtuple_type(_type)
 
 
-@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+def test_is_namedtuple_type_detects_subclasses():
+    # A subclass of a namedtuple inherits a valid _fields tuple, so it is still
+    # treated as a namedtuple.
+    assert utils._is_namedtuple_type(type("FurtherSubclass", (PointFunctional,), {}))
+
+
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
 def test_serialize_namedtuple(_type):
     assert utils.serialize(_type(1, 2)) == "%s(x=1, y=2)" % _type.__name__
 
 
-@pytest.mark.parametrize("_type", [PointFunctional, PointTyped])
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
 def test_capture_value_namedtuple(_type):
     assert utils.capture_value(_type(1, 2)) == {
         "type": _type.__qualname__,
+        "fields": {
+            "x": {"type": "int", "value": "1"},
+            "y": {"type": "int", "value": "2"},
+        },
+    }
+
+
+def test_serialize_namedtuple_subclass():
+    subclass = type("FurtherSubclass", (PointFunctional,), {})
+    assert utils.serialize(subclass(1, 2)) == "FurtherSubclass(x=1, y=2)"
+
+
+def test_capture_value_namedtuple_subclass():
+    subclass = type("FurtherSubclass", (PointFunctional,), {})
+    assert utils.capture_value(subclass(1, 2)) == {
+        "type": subclass.__qualname__,
         "fields": {
             "x": {"type": "int", "value": "1"},
             "y": {"type": "int", "value": "2"},

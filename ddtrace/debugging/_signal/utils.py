@@ -108,14 +108,12 @@ def _(numpy: ModuleType) -> None:
 
 
 def _is_namedtuple_type(cls: type) -> bool:
-    if not (_isinstance(cls, type) and issubclass(cls, tuple)):
-        return False
-
-    if tuple not in (safe_getattr(cls, "__bases__", ()) or ()):
+    mro = safe_getattr(cls, "__mro__", None)
+    if not (type(mro) is tuple and tuple in mro):
         return False
 
     fields = safe_getattr(cls, "_fields", None)
-    return isinstance(fields, tuple) and all(type(f) is str for f in fields)
+    return type(fields) is tuple and all(type(f) is str for f in fields)
 
 
 def _fields_of(value: Any) -> dict[str, Any]:
