@@ -338,6 +338,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._pending_chunks = [chunk]
         self._pending_message_id = incoming_id
 
+        # Without a message_id, there is no need to buffer the turn.
+        if incoming_id is None:
+            self._flush_pending_turn()
+
     def _flush_pending_turn(self) -> None:
         """Emit the llm/step spans for the buffered AssistantMessage chunks, if any."""
         if not self._pending_chunks:
