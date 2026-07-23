@@ -42,6 +42,7 @@ def traced_agent_run_stream(func, instance, args, kwargs):
         model=getattr(instance, "model", None),
         kind="agent",
     )
+    integration.set_session_id(span, kwargs.get("conversation_id"))
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
@@ -61,6 +62,7 @@ def traced_agent_iter(func, instance, args, kwargs):
         model=getattr(instance, "model", None),
         kind="agent",
     )
+    integration.set_session_id(span, kwargs.get("conversation_id"))
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance

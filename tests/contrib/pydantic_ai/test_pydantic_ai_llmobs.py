@@ -501,6 +501,113 @@ class TestLLMObsPydanticAISpanLinks:
         assert second_llm_span_data["span_links"][0]["attributes"] == {"from": "output", "to": "input"}
 
 
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>")],
+)
+class TestLLMObsPydanticAISessionId:
+    """The raw `conversation_id` kwarg passed to run/run_stream/iter is propagated as the
+    LLMObs `session_id`, except when it's `None` (omitted) or the `'new'` sentinel — see
+    `PydanticAIIntegration.set_session_id` for why those two values are skipped rather than
+    propagated as-is.
+    """
+
+    async def test_agent_run_with_conversation_id(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            result = await agent.run("Hello, world!", conversation_id="test-conversation")
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            input_value="Hello, world!",
+            output_value=result.output,
+            metadata=expected_agent_metadata(),
+            tags={**PYDANTIC_AI_TAGS, "session_id": "test-conversation"},
+        )
+
+    async def test_agent_run_stream_with_conversation_id(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    ):
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!", conversation_id="test-conversation") as result:
+                async for chunk in result.stream(debounce_by=None):
+                    output = chunk
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            input_value="Hello, world!",
+            output_value=output,
+            metadata=expected_agent_metadata(),
+            tags={**PYDANTIC_AI_TAGS, "session_id": "test-conversation"},
+        )
+
+    async def test_agent_iter_with_conversation_id(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.iter("Hello, world!", conversation_id="test-conversation") as agent_run:
+                async for _ in agent_run:
+                    pass
+                output = agent_run.result.output
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            input_value="Hello, world!",
+            output_value=output,
+            metadata=expected_agent_metadata(),
+            tags={**PYDANTIC_AI_TAGS, "session_id": "test-conversation"},
+        )
+
+    async def test_agent_run_with_conversation_id_new_sentinel_is_not_propagated(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    ):
+        """`conversation_id='new'` tells pydantic-ai to fork a fresh conversation off the
+        supplied history; pydantic-ai replaces it internally with a generated UUID7 we have no
+        access to at span-creation time. Propagating the literal string `'new'` would silently
+        group every unrelated fresh conversation under one shared session, so it must be
+        skipped entirely rather than used as the session id."""
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            await agent.run("Hello, world!", conversation_id="new")
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        tags = _get_llmobs_data_metastruct(spans[0])["tags"]
+        assert "session_id" not in tags
+
+    async def test_agent_run_with_conversation_id_omitted_is_not_propagated(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    ):
+        """When `conversation_id` isn't passed explicitly, we don't attempt to reconstruct the
+        id pydantic-ai resolves internally (e.g. inherited from `message_history`, or a fresh
+        UUID7) — only an explicit `conversation_id` kwarg is propagated as the session id."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [
+            ModelRequest(
+                parts=[UserPromptPart(content="Hello from history!")],
+                conversation_id="conversation-from-history",
+            )
+        ]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            await agent.run(message_history=message_history)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        tags = _get_llmobs_data_metastruct(spans[0])["tags"]
+        assert "session_id" not in tags
+
+
 class _UnserializableSentinel:
     """Stand-in for provider sentinels such as OpenAI's ``Omit`` / ``NOT_GIVEN``."""
 
