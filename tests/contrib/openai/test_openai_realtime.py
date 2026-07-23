@@ -55,9 +55,11 @@ class _FakeSpan:
         self.span_id = id(self)
         self.trace_id = 1
 
-    def finish(self):
+    def finish(self, finish_time=None):
         self.finished = True
-        self.finish_ns = time.time_ns()
+        # Real ddtrace Span.finish takes an optional epoch-seconds end; the state machine back-dates
+        # phase/turn spans to a historical end. Record it (ns) so tests can assert durations/ordering.
+        self.finish_ns = int(finish_time * 1e9) if finish_time is not None else time.time_ns()
 
 
 class _RecordingIntegration:
@@ -66,12 +68,23 @@ class _RecordingIntegration:
     def __init__(self):
         self.responses = []
         self.tools = []
+        # Workflow spans (the turn root + user-speech/agent-speech windows) recorded by name.
+        self.workflows = []
 
     def trace(self, operation_id, **kwargs):
         return _FakeSpan(operation_id)
 
     def _llmobs_set_tags_from_realtime_response(
-        self, span, model_name, input_messages, output_messages, metadata, metrics, session_id=None, audio_timing=None
+        self,
+        span,
+        model_name,
+        input_messages,
+        output_messages,
+        metadata,
+        metrics,
+        session_id=None,
+        audio_timing=None,
+        parent_span=None,
     ):
         self.responses.append(
             {
@@ -83,6 +96,22 @@ class _RecordingIntegration:
                 "metrics": metrics,
                 "session_id": session_id,
                 "audio_timing": audio_timing,
+                "parent_span": parent_span,
+            }
+        )
+
+    def _llmobs_set_tags_from_realtime_workflow(
+        self, span, name, session_id=None, parent_span=None, input_value=None, output_value=None, metadata=None
+    ):
+        self.workflows.append(
+            {
+                "span": span,
+                "name": name,
+                "session_id": session_id,
+                "parent_span": parent_span,
+                "input_value": input_value,
+                "output_value": output_value,
+                "metadata": metadata,
             }
         )
 
