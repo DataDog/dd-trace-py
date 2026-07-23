@@ -2277,6 +2277,13 @@
         ]
       }
     ],
+    "DD_LITELLM_PROVIDER_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_LITELLM_SERVICE": [
       {
         "implementation": "A",

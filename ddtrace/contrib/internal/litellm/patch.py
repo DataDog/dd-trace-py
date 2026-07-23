@@ -3,18 +3,26 @@ import sys
 import litellm
 
 from ddtrace import config
+from ddtrace.contrib.internal.litellm.metrics import LiteLLMProviderMetrics
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
-config._add("litellm", {})
+config._add(
+    "litellm",
+    {
+        "provider_metrics_enabled": asbool(env.get("DD_LITELLM_PROVIDER_METRICS_ENABLED", default=False)),
+    },
+)
 
 
 def get_version() -> str:
@@ -56,13 +64,19 @@ def traced_completion(func, instance, args, kwargs):
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
+    metric_attempt = integration._provider_metrics.start_attempt(operation, model, stream)
     resp = None
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return make_traced_stream(resp, LiteLLMStreamHandler(integration, span, args, kwargs))
+            return make_traced_stream(
+                resp,
+                LiteLLMStreamHandler(integration, span, args, kwargs, metric_attempt=metric_attempt),
+            )
+        integration._provider_metrics.finish_attempt(metric_attempt, integration._model_map, response=resp)
         return resp
-    except Exception:
+    except Exception as exc:
+        integration._provider_metrics.finish_attempt(metric_attempt, integration._model_map, exception=exc)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -85,13 +99,19 @@ async def traced_acompletion(func, instance, args, kwargs):
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
+    metric_attempt = integration._provider_metrics.start_attempt(operation, model, stream)
     resp = None
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs))
+            return make_traced_stream(
+                resp,
+                LiteLLMAsyncStreamHandler(integration, span, args, kwargs, metric_attempt=metric_attempt),
+            )
+        integration._provider_metrics.finish_attempt(metric_attempt, integration._model_map, response=resp)
         return resp
-    except Exception:
+    except Exception as exc:
+        integration._provider_metrics.finish_attempt(metric_attempt, integration._model_map, exception=exc)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -175,6 +195,10 @@ def patch():
     litellm._datadog_patch = True
 
     integration = LiteLLMIntegration(integration_config=config.litellm)
+    integration._provider_metrics = LiteLLMProviderMetrics(
+        enabled=config.litellm.provider_metrics_enabled,
+        cost_calculator=litellm.completion_cost,
+    )
     litellm._datadog_integration = integration
 
     wrap("litellm", "completion", traced_completion)

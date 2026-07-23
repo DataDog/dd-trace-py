@@ -28,6 +28,10 @@ class BaseLiteLLMStreamHandler:
         self.spans.append((span, kwargs))
 
     def _process_chunk(self, chunk, iterator=None):
+        integration = getattr(self, "integration", None)
+        provider_metrics = getattr(integration, "_provider_metrics", None)
+        if provider_metrics is not None:
+            provider_metrics.observe_first_chunk(getattr(self, "options", {}).get("metric_attempt"), chunk)
         # Capture the first non-empty response model. Only emitted as a span tag for azure/azure_text
         # providers (in finalize_stream), where the request model is an arbitrary deployment name.
         if not getattr(self, "response_model", None):
@@ -44,6 +48,13 @@ class BaseLiteLLMStreamHandler:
             self.chunks[0].insert(0, chunk)
 
     def finalize_stream(self, exception=None):
+        provider_metrics = getattr(self.integration, "_provider_metrics", None)
+        if provider_metrics is not None:
+            provider_metrics.finish_attempt(
+                self.options.get("metric_attempt"),
+                self.integration._model_map,
+                exception=exception,
+            )
         formatted_completions = None
         for span, kwargs in self.spans:
             response_model = getattr(self, "response_model", None)

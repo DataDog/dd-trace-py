@@ -29,4 +29,17 @@ Configuration
    The service name reported by default for LiteLLM requests.
 
    Alternatively, set this option with the ``DD_LITELLM_SERVICE`` environment variable.
+
+.. py:data:: ddtrace.config.litellm["provider_metrics_enabled"]
+
+   Whether to emit the experimental Open Trajectory provider-attempt metric
+   profile as DogStatsD distributions. The profile includes operation duration,
+   input and output token usage, streaming time to first chunk, and authoritative
+   provider-reported or LiteLLM-calculated cost. Metrics are emitted independently
+   of trace export and do not include prompts, responses, request IDs, users,
+   tenants, turns, or sessions. Error types use the bounded
+   ``litellm.<snake_case_exception_class>`` form.
+
+   This option is disabled by default. Enable it with the
+   ``DD_LITELLM_PROVIDER_METRICS_ENABLED`` environment variable.
 """  # noqa: E501
