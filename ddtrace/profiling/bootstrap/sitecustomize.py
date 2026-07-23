@@ -26,7 +26,8 @@ def start_profiler() -> None:
         bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
 
     # Export the profiler so we can introspect it if needed
-    bootstrap.profiler = profiler.Profiler()  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    profiler_instance = profiler.Profiler()
+    bootstrap.profiler = profiler_instance  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     bootstrap.profiler.start()  # type: ignore[attr-defined]  # pyright: ignore[reportCallIssue]
 
 

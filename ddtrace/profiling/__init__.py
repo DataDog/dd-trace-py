@@ -4,8 +4,8 @@ from typing import Any
 # Native profiling extensions may be absent on some Python versions (e.g. 3.15
 # until setup.py gates are lifted). Mirror the is_available pattern used by
 # ddtrace.internal.datadog.profiling.{ddup,stack}.
-is_available = False
-failure_msg = ""
+is_available: bool = False
+failure_msg: str = ""
 
 try:
     from .profiler import Profiler  # noqa: F401
@@ -13,7 +13,7 @@ try:
     is_available = True
 except Exception as e:
     failure_msg = str(e)
-    _profiler_import_error = e
+    _profiler_import_error: BaseException = e
 
     class Profiler:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:

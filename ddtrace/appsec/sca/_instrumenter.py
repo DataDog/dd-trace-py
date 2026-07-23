@@ -63,9 +63,9 @@ def _first_instr_line(code: types.CodeType) -> int:
 
     for instr in dis.get_instructions(code):
         # Prefer explicit line_number when provided by the instruction object.
-        line = getattr(instr, "line_number", None)
+        line: Optional[int] = getattr(instr, "line_number", None)
         if line is None:
-            starts_line = instr.starts_line
+            starts_line: bool | int | None = instr.starts_line
             if isinstance(starts_line, int) and not isinstance(starts_line, bool):
                 line = starts_line
         if line is None or line == code.co_firstlineno:

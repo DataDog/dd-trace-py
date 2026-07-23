@@ -91,14 +91,17 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
-        for function, wrapping_context in list(self._wrapper_map.items()):
+        wrapper_items: list[tuple[FunctionType, WrappingContext]] = list(self._wrapper_map.items())
+        for function, wrapping_context in wrapper_items:
             wrapping_context.unwrap()
         self._wrapper_map.clear()
 
         if PY >= (3, 15):
-            for function in list(self._code_map):
+            functions: list[FunctionType] = list(self._code_map)
+            for function in functions:
                 eject_all_hooks(function)
 
-        for function, code in self._code_map.items():
+        code_items: list[tuple[FunctionType, CodeType]] = list(self._code_map.items())
+        for function, code in code_items:
             function.__code__ = code
         self._code_map.clear()
