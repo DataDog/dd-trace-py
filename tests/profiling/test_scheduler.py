@@ -3,6 +3,8 @@ import logging
 import time
 from unittest import mock
 
+import pytest
+
 from ddtrace.profiling import scheduler
 
 
@@ -30,8 +32,8 @@ def test_before_flush():
     assert x["OK"]
 
 
-def test_before_flush_failure(caplog):
-    def call_me():
+def test_before_flush_failure(caplog: pytest.LogCaptureFixture) -> None:
+    def call_me() -> None:
         raise Exception("LOL")
 
     s = scheduler.Scheduler(before_flush=call_me)

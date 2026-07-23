@@ -18,7 +18,10 @@ except ImportError:
     # Provide a no-op stub so StackCollector can be imported on Python 3.15.
     import types as _types
 
-    _task = _types.SimpleNamespace(initialize_gevent_support=lambda: None)  # type: ignore[assignment]
+    def _initialize_gevent_support() -> None:
+        return None
+
+    _task = _types.SimpleNamespace(initialize_gevent_support=_initialize_gevent_support)  # type: ignore[assignment]
 from ddtrace.profiling.collector import threading
 from ddtrace.trace import Tracer
 

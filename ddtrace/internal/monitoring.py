@@ -105,7 +105,7 @@ def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
     try:
         sys.monitoring.set_local_events(tool_id, code, events)
     except ValueError:
-        fallback = events & ~_E.PY_UNWIND
+        fallback: int = events & ~_E.PY_UNWIND
         if fallback != events:
             sys.monitoring.set_local_events(tool_id, code, fallback)
         else:
