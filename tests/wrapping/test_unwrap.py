@@ -24,6 +24,7 @@ import inspect
 import sys
 from types import FunctionType
 from typing import Any
+from typing import Union
 from typing import cast
 
 import pytest
@@ -73,12 +74,15 @@ class _ContextRestore:
         self._ctx.pop(fn).unwrap()
 
 
+_Restore = Union[_InternalRestore, _ContextRestore]
+
+
 @pytest.fixture(params=[_InternalRestore, _ContextRestore], ids=["internal_wrap", "wrapping_context"])
-def restore(request: pytest.FixtureRequest) -> _InternalRestore | _ContextRestore:
-    return cast(_InternalRestore | _ContextRestore, request.param())
+def restore(request: pytest.FixtureRequest) -> _Restore:
+    return cast(_Restore, request.param())
 
 
-def test_roundtrip_restores_behavior_and_signature(restore: _InternalRestore | _ContextRestore) -> None:
+def test_roundtrip_restores_behavior_and_signature(restore: _Restore) -> None:
     def f(a: Any, b: int = 2, *, k: int = 3) -> tuple[Any, int, int]:
         return (a, b, k)
 
