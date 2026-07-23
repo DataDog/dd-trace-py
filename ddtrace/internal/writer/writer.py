@@ -10,7 +10,6 @@ from typing import Callable
 from typing import Optional
 from typing import TextIO
 
-from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -19,10 +18,10 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -643,6 +642,10 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
     does not support native span events.
     """
+    # Import lazily: ai_guard settings pull in the aiguard package, so a top-level import
+    # would give the writer an import-time dependency on it.
+    from ddtrace.internal.settings.aiguard import aiguard_config
+
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
     if (
@@ -651,13 +654,14 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or in_azure_function()
         or asm_config._asm_enabled
         or asm_config._iast_enabled
-        or ai_guard_config._ai_guard_enabled
+        or aiguard_config._ai_guard_enabled
         or config._llmobs_enabled
     ):
         default = "v0.4"
     resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
-        log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        if not agent_config.trace_otlp_export_enabled:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"
     if config._llmobs_enabled and resolved != "v0.4":
         log.warning(
@@ -839,10 +843,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if metrics_headers:
                 builder.set_otlp_metrics_headers(metrics_headers)
             builder.set_connection_timeout(otel_config.exporter.METRICS_TIMEOUT)
-            # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
-            # attributes on the exported metric.
-            if config._otel_semantics_enabled:
-                builder.enable_otel_trace_semantics()
+        # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
+        # attributes on the exported metric.
+        if config._otel_trace_semantics_enabled and (
+            self._otlp_endpoint is not None or self._otlp_metrics_endpoint is not None
+        ):
+            builder.enable_otel_trace_semantics()
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
 

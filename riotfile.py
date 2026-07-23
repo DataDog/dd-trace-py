@@ -752,6 +752,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pytest-benchmark": latest,
                 "pytest-memray": latest,
+                "numpy": latest,
             },
             pys=select_pys(),
         ),
