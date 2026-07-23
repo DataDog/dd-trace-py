@@ -113,20 +113,13 @@ def _default_wrap_span_name(f: Callable) -> str:
 
 def _service_source_is_integration(span: Span, integration_name: str) -> bool:
     existing_service_source = span._get_str_attribute(_SERVICE_SOURCE) or ""
-    # _span_api should be a late fallback, shouldn't overwrite anything
-    if existing_service_source and integration_name != span._span_api:
-        return False
-
-    # opt. sources should never be overridden
-    if existing_service_source.startswith("opt."):
-        return False
-
-    if span.service in config._integration_default_services:
-        return True
-
-    if span.service == config._inferred_base_service:
-        return True
-
+    if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+        if (
+            not existing_service_source
+            or not existing_service_source.startswith("opt.")
+            or integration_name != span._span_api
+        ):
+            return True
     return False
 
 
