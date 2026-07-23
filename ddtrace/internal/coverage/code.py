@@ -125,12 +125,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls,
         include_paths: t.Optional[list[Path]] = None,
         collect_import_time_coverage: bool = False,
-        file_level_coverage: bool = False,
+        file_level_coverage: t.Optional[bool] = None,
     ):
         if ModuleCodeCollector.is_installed():
             return
 
-        configure_file_level_coverage(file_level_coverage)
+        file_level_coverage = configure_file_level_coverage(file_level_coverage)
 
         super().install()
 

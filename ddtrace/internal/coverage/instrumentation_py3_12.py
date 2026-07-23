@@ -113,7 +113,7 @@ _tls_context = _threading.local()
 _use_disable_optimization: bool = True
 
 
-def configure_file_level_coverage(enabled: t.Optional[bool] = None) -> None:
+def configure_file_level_coverage(enabled: t.Optional[bool] = None) -> bool:
     """Configure the monitoring event used for coverage before sys.monitoring registration.
 
     Production callers pass the already-resolved Test Optimization setting so the collector and backend agree on
@@ -124,10 +124,11 @@ def configure_file_level_coverage(enabled: t.Optional[bool] = None) -> None:
     file_level_coverage = _get_file_level_coverage(enabled)
     if _DD_TOOL_ID is not None and file_level_coverage != _USE_FILE_LEVEL_COVERAGE:
         log.warning("Cannot change coverage mode after sys.monitoring registration")
-        return
+        return _USE_FILE_LEVEL_COVERAGE
 
     _USE_FILE_LEVEL_COVERAGE = file_level_coverage
     EVENT = _event_for_file_level_coverage(file_level_coverage)
+    return file_level_coverage
 
 
 def set_active_context_covered_files(covered_files: t.Optional[t.Set[str]]) -> None:  # noqa: UP006

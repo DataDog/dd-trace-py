@@ -2,8 +2,8 @@ import sys
 
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
-def configure_file_level_coverage(enabled: object = None) -> None:
-    pass
+def configure_file_level_coverage(enabled: object = None) -> bool:
+    return bool(enabled)
 
 
 if sys.version_info >= (3, 16):

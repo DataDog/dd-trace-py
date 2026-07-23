@@ -9,7 +9,7 @@ from ddtrace.internal.coverage.threading_coverage import _patch_threading
 def install(
     include_paths: t.Optional[list[Path]] = None,
     collect_import_time_coverage: bool = False,
-    file_level_coverage: bool = False,
+    file_level_coverage: t.Optional[bool] = None,
 ) -> None:
     ModuleCodeCollector.install(
         include_paths=include_paths,
