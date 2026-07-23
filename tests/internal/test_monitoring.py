@@ -25,14 +25,6 @@ if TYPE_CHECKING:
 else:
     monitoring = pytest.importorskip("ddtrace.internal.monitoring")
 
-# TODO(py-315): the full 3.15 monitoring/profiling stack (PR #17624 and its
-# dependencies) is not yet enabled on this branch. Skip on 3.15 for now; the
-# stacked PRs remove this mark and these tests run and pass on 3.15.
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 15),
-    reason="TODO(py-315): enable once the 3.15 monitoring stack lands (PR #17624 + deps)",
-)
-
 # Fetched via getattr so the type checker treats it as Any: the source module's
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes it
 # under a pre-3.15 Python version.
