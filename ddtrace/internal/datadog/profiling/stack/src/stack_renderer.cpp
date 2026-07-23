@@ -203,13 +203,18 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
         return;
     }
 
-    auto maybe_name_id = Datadog::intern_string(name);
+    std::string display_name = module.empty() ? name : module + "." + name;
+    auto maybe_name_id = Datadog::intern_string(display_name);
     if (!maybe_name_id) {
         return;
     }
     auto name_id = *maybe_name_id;
 
-    auto maybe_filename_id = Datadog::intern_string(module);
+    // Native frames have no source file. Use a synthetic filename so the backend
+    // attributes them to third-party ("library") code via the code-provenance
+    // manifest. This sentinel must match the entry added in code_provenance.py.
+    static constexpr std::string_view native_filename = "<native>";
+    auto maybe_filename_id = Datadog::intern_string(native_filename);
     if (!maybe_filename_id) {
         return;
     }
@@ -255,6 +260,18 @@ StackRenderer::render_stack_end()
     }
 
     sample->flush_sample();
+    SampleManager::drop_sample(sample);
+    sample = nullptr;
+}
+
+void
+StackRenderer::abort_sample()
+{
+    if (sample == nullptr) {
+        return;
+    }
+
+    // Return the partially-built sample to the pool without flushing it.
     SampleManager::drop_sample(sample);
     sample = nullptr;
 }

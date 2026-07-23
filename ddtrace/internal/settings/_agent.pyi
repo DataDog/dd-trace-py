@@ -6,6 +6,7 @@ class AgentConfig(DDConfig):
     trace_agent_url: str
     dogstatsd_url: str
     trace_agent_timeout_seconds: float
+    trace_otlp_export_enabled: bool
     trace_native_span_events: bool
     _trace_agent_hostname: Optional[str]
     _trace_agent_port: Optional[int]
@@ -15,6 +16,8 @@ class AgentConfig(DDConfig):
     _dogstatsd_url: Optional[str]
     _agent_host: Optional[str]
     _agent_port: Optional[int]
+    _trace_agent_protocol_version: Optional[str]
+    _trace_native_span_events: bool
 
 config: AgentConfig
 

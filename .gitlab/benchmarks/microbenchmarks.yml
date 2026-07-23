@@ -209,6 +209,8 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen
