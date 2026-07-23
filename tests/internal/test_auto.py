@@ -49,7 +49,7 @@ def test_auto():
     sys.version_info >= (3, 15),
     reason="greenlet (via gevent) has no 3.15-compatible wheel yet (C-ext ABI break); re-enable when upstream ships",
 )
-def test_pytest_with_gevent_and_ddtrace_auto():
+def test_pytest_with_gevent_and_ddtrace_auto() -> None:
     """
     Test that pytest works when a module imports ddtrace.auto and gevent is installed.
 
@@ -134,7 +134,7 @@ def test_dataclasses_not_unloaded():
 
 
 @pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
-def test_yaml_not_unloaded():
+def test_yaml_not_unloaded() -> None:
     # Regression test for APMS-20000. The module cleanup used to drop and force a
     # reimport of ``yaml``/``_yaml``. Consumers (e.g. Airflow's airflow/utils/yaml.py)
     # capture ``yaml.load``/``yaml.SafeLoader`` at import time; after the cleanup those
@@ -187,7 +187,7 @@ def test_yaml_not_unloaded():
     sys.version_info >= (3, 15),
     reason="greenlet (via gevent) has no 3.15-compatible wheel yet (C-ext ABI break); re-enable when upstream ships",
 )
-def test_uwsgi_gevent():
+def test_uwsgi_gevent() -> None:
     """
     Test that we support uwsgi + gevent when threads are patched.
     """

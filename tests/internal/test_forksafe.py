@@ -5,6 +5,7 @@ import sys
 import threading
 from types import ModuleType
 
+from _pytest.mark.structures import MarkDecorator
 import cloudpickle
 import pytest
 
@@ -15,7 +16,7 @@ from ddtrace.internal import forksafe
 # (a wrapt.ObjectProxy subclass) uses the pure-Python proxy, whose pickling path raises
 # "TypeError: __class__ must be set to a class, not 'property' object". Re-enable once wrapt
 # ships a 3.15-compatible C extension.
-_wrapt_cext_missing_on_315 = pytest.mark.skipif(
+_wrapt_cext_missing_on_315: MarkDecorator = pytest.mark.skipif(
     sys.version_info >= (3, 15),
     reason="wrapt C extension unavailable on 3.15; pure-Python ObjectProxy breaks ResetObject pickling",
 )
