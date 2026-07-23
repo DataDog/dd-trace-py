@@ -11,7 +11,10 @@ from ddtrace.internal.runtime import container
 def _build_client(base_url: str, timeout_ms: int) -> Any:
     from ddtrace.internal.http_client import HTTPClient
 
-    return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False)
+    # max_retries=1: recovers from a stale pooled keep-alive connection (the
+    # server closing it before the client's pool does) without masking real
+    # failures behind repeated retries.
+    return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False, max_retries=1)
 
 
 forksafe.register(_build_client.cache_clear)
