@@ -57,15 +57,16 @@ def try_until_timeout(
 ):
     """Utility decorator that tries to call a check until there is a
     timeout.  The wait between attempts grows following a Fibonacci
-    backoff (capped at ``max_timeout``, defaults to ``timeout * 10``),
-    so that repeated failures back off instead of hammering the service
-    at a fixed rate.
+    backoff (capped at ``max_timeout``, defaults to ``timeout * 3`` so
+    that callers relying on the old fixed-interval budget don't see it
+    balloon by default), so that repeated failures back off instead of
+    hammering the service at a fixed rate.
 
     """
     if not args:
         args = {}
     if max_timeout is None:
-        max_timeout = timeout * 10
+        max_timeout = timeout * 3
 
     def wrap(fn):
         def wrapper(**kwargs):
@@ -80,9 +81,10 @@ def try_until_timeout(
                     fn(**_kwargs)
                 except exception as e:
                     err = e
-                    sleep_for = min(timeout * (PHI**i), max_timeout)
-                    log.info("Failed: %s. Retrying in %.1fs", e, sleep_for)
-                    time.sleep(sleep_for)
+                    if i < tries - 1:
+                        sleep_for = min(timeout * (PHI**i), max_timeout)
+                        log.info("Failed: %s. Retrying in %.1fs", e, sleep_for)
+                        time.sleep(sleep_for)
                 else:
                     break
             else:
