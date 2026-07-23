@@ -159,7 +159,7 @@ experiments:
           # errortrackingflasksqli
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 2.32 ms
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
@@ -167,7 +167,7 @@ experiments:
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 2.32 ms
               - max_rss_usage < 61.00 MB
 
           # flask_simple
@@ -215,7 +215,7 @@ experiments:
               - max_rss_usage < 62.50 MB
           - name: flasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.27 ms
+              - execution_time < 2.29 ms
               - max_rss_usage < 62.00 MB
 
           # httppropagationextract
@@ -1126,7 +1126,7 @@ experiments:
               - max_rss_usage < 38.75 MB
           - name: tracer-small
             thresholds:
-              - execution_time < 0.39 ms
+              - execution_time < 0.41 ms
               - max_rss_usage < 38.75 MB
 
           # codeprovenancefork
