@@ -19,8 +19,12 @@ Mechanism-specific (the matrix's other two mechanisms have no in-place unwrap), 
 these opt out of the all-mechanisms ``mech`` guardrail.
 """
 
+from collections.abc import Callable
 import inspect
 import sys
+from types import FunctionType
+from typing import Any
+from typing import cast
 
 import pytest
 
@@ -32,11 +36,11 @@ from ddtrace.internal.wrapping.context import WrappingContext
 pytestmark = pytest.mark.mechanism_specific
 
 
-def _noop(wrapped, args, kwargs):
+def _noop(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     return wrapped(*args, **kwargs)
 
 
-def _noop2(wrapped, args, kwargs):
+def _noop2(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     return wrapped(*args, **kwargs)
 
 
@@ -47,44 +51,45 @@ class _NoopContext(WrappingContext):
 class _InternalRestore:
     """internal wrap()/unwrap() round-trip on a function (mutates in place)."""
 
-    def wrap(self, fn):
+    def wrap(self, fn: FunctionType) -> None:
         _internal_wrap(fn, _noop)
 
-    def unwrap(self, fn):
+    def unwrap(self, fn: FunctionType) -> None:
         _internal_unwrap(fn, _noop)
 
 
 class _ContextRestore:
     """WrappingContext wrap()/unwrap(); the instance is retained to unwrap with."""
 
-    def __init__(self):
-        self._ctx = {}
+    def __init__(self) -> None:
+        self._ctx: dict[FunctionType, WrappingContext] = {}
 
-    def wrap(self, fn):
+    def wrap(self, fn: FunctionType) -> None:
         ctx = _NoopContext(fn)
         ctx.wrap()
         self._ctx[fn] = ctx
 
-    def unwrap(self, fn):
+    def unwrap(self, fn: FunctionType) -> None:
         self._ctx.pop(fn).unwrap()
 
 
 @pytest.fixture(params=[_InternalRestore, _ContextRestore], ids=["internal_wrap", "wrapping_context"])
-def restore(request):
-    return request.param()
+def restore(request: pytest.FixtureRequest) -> _InternalRestore | _ContextRestore:
+    return cast(_InternalRestore | _ContextRestore, request.param())
 
 
-def test_roundtrip_restores_behavior_and_signature(restore):
-    def f(a, b=2, *, k=3):
+def test_roundtrip_restores_behavior_and_signature(restore: _InternalRestore | _ContextRestore) -> None:
+    def f(a: Any, b: int = 2, *, k: int = 3) -> tuple[Any, int, int]:
         return (a, b, k)
 
-    sig = str(inspect.signature(f))
-    assert f(1) == (1, 2, 3)
-    restore.wrap(f)
-    assert f(1) == (1, 2, 3)  # transparent while wrapped
-    restore.unwrap(f)
-    assert f(1) == (1, 2, 3)  # behaviour restored after unwrap
-    assert str(inspect.signature(f)) == sig
+    fn = cast(FunctionType, f)
+    sig = str(inspect.signature(fn))
+    assert fn(1) == (1, 2, 3)
+    restore.wrap(fn)
+    assert fn(1) == (1, 2, 3)  # transparent while wrapped
+    restore.unwrap(fn)
+    assert fn(1) == (1, 2, 3)  # behaviour restored after unwrap
+    assert str(inspect.signature(fn)) == sig
 
 
 def test_internal_wrap_unwrap_reinstates_original_code():

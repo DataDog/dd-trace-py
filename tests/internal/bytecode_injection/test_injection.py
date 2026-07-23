@@ -1,9 +1,14 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 import sys
+from types import FunctionType
+from typing import Any
+from typing import Optional
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection import InvalidLine
 from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
@@ -13,7 +18,12 @@ from ddtrace.internal.utils.inspection import linenos
 
 
 @contextmanager
-def injected_hook(f, hook, arg, line=None):
+def injected_hook(
+    f: FunctionType,
+    hook: HookType,
+    arg: Any,
+    line: Optional[int] = None,
+) -> Iterator[FunctionType]:
     code = f.__code__
 
     if line is None:

@@ -31,7 +31,7 @@ PY = sys.version_info[:2]
 #     return
 # -----------------------------------------------------------------------------
 GENERATOR_ASSEMBLY = Assembly()
-GENERATOR_HEAD_ASSEMBLY = None
+GENERATOR_HEAD_ASSEMBLY: Assembly | None = None
 
 if PY >= (3, 15):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
