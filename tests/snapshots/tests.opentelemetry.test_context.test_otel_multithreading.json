@@ -219,6 +219,9 @@
           "parent_id": 5,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "otel"
+          },
           "duration": 65583917,
           "start": 1777046316057209504
         }]]
