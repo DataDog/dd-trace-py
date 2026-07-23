@@ -12,6 +12,25 @@ from unittest.mock import patch
 
 from bm import Scenario
 
+from ddtrace.internal.settings._telemetry import config as telemetry_config
+
+
+try:
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+except ModuleNotFoundError as error:
+    if error.name != "ddtrace.internal.settings.appsec_telemetry":
+        raise
+
+    from ddtrace.internal.settings._config import config as tracer_config
+
+    def _enable_sca():
+        tracer_config._sca_enabled = True
+
+else:
+
+    def _enable_sca():
+        appsec_telemetry_config.SCA_ENABLED = True
+
 
 # --- Backward-compatible imports ---
 # New API (this branch): DependencyTracker with collect_report()
@@ -46,9 +65,7 @@ if not HAS_OLD_API:
 def _populate_tracker(tracker, n, sca_enabled):
     """Pre-populate a DependencyTracker with n dependencies as already-reported."""
     if sca_enabled:
-        from ddtrace.internal.settings._config import config as tracer_config
-
-        tracer_config._sca_enabled = True
+        _enable_sca()
     for i in range(n):
         name = "package-%d" % i
         meta = [] if sca_enabled else None
@@ -86,9 +103,8 @@ def _collect_report_no_new_modules(tracker):
     """Run collect_report with no new module discovery (mocked)."""
     with (
         patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-        patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+        patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
     ):
-        mock_config.DEPENDENCY_COLLECTION = True
         mock_modules.get_newly_imported_modules.return_value = set()
         return tracker.collect_report()
 
@@ -101,13 +117,12 @@ def _collect_report_new_modules(tracker, module_names, dists):
 
     with (
         patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-        patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+        patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
         patch(
             "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
             side_effect=fake_get_dist,
         ),
     ):
-        mock_config.DEPENDENCY_COLLECTION = True
         mock_modules.get_newly_imported_modules.return_value = module_names
         return tracker.collect_report()
 
@@ -156,9 +171,7 @@ class TelemetryDependencies(Scenario):
         for _ in range(loops):
             tracker = DependencyTracker()
             if sca:
-                from ddtrace.internal.settings._config import config as tracer_config
-
-                tracer_config._sca_enabled = True
+                _enable_sca()
             t0 = time.perf_counter()
             _collect_report_new_modules(tracker, module_names, dists)
             total += time.perf_counter() - t0
