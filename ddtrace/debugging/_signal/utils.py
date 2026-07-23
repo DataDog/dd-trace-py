@@ -16,6 +16,7 @@ from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Iterable
 from typing import Optional
 
@@ -109,7 +110,10 @@ def _(numpy: ModuleType) -> None:
 
 def _is_namedtuple_type(cls: type) -> bool:
     mro = safe_getattr(cls, "__mro__", None)
-    if not (type(mro) is tuple and tuple in mro):
+    if type(mro) is not tuple or len(mro) < 3:
+        return False
+
+    if not (mro[-2] is tuple or (mro[-2] is Generic and mro[-3] is tuple)):
         return False
 
     fields = safe_getattr(cls, "_fields", None)
