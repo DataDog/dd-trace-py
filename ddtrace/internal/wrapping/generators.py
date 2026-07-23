@@ -1,5 +1,6 @@
 import sys
 from types import CodeType
+from typing import Optional
 
 import bytecode as bc
 
@@ -31,7 +32,7 @@ PY = sys.version_info[:2]
 #     return
 # -----------------------------------------------------------------------------
 GENERATOR_ASSEMBLY = Assembly()
-GENERATOR_HEAD_ASSEMBLY: Assembly | None = None
+GENERATOR_HEAD_ASSEMBLY: Optional[Assembly] = None
 
 if PY >= (3, 15):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
