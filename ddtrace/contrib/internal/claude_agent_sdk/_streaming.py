@@ -211,6 +211,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             instance=self.instance,
             activate=False,  # spans the caller starts while iterating should not nest under this span
         )
+        self._keep_step_active_in_llmobs()
         # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
         if self._step_tool_span_refs:
             for tool_ref in self._step_tool_span_refs:
@@ -234,6 +235,20 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 "output",
                 "input",
             )
+
+    def _keep_step_active_in_llmobs(self) -> None:
+        """Re-activate the step span as the active LLMObs span.
+
+        Creating the llm (or a tool) span makes that leaf the active LLMObs span, so anything
+        opened while the turn is still buffering would parent under it instead of the step.
+        Re-activating the step keeps it the parent.
+        """
+        if self.current_step_span is None or not self.integration.llmobs_enabled:
+            return
+        from ddtrace.llmobs import LLMObs
+
+        if LLMObs._instance is not None:
+            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -457,6 +472,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "tool_input": tool_input,
             "tool_id": tool_id,
         }
+        self._keep_step_active_in_llmobs()
 
     def _handle_tool_result_block(self, block: Any) -> None:
         """Finalize the matching tool span for a ToolResultBlock if one is active."""
