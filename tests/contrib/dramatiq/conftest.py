@@ -4,7 +4,7 @@ from dramatiq.brokers.stub import StubBroker
 import pytest
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def stub_broker():
     broker = StubBroker()
     broker.emit_after("process_boot")
