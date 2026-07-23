@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -20,6 +21,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
@@ -184,19 +186,26 @@ class OpenAIIntegration(BaseLLMIntegration):
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
         audio_timing: Optional[dict[str, int]] = None,
+        parent_span: Optional[Span] = None,
     ) -> None:
-        """Tag a per-turn Realtime span (llm kind) built by the realtime state machine.
+        """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
 
-        Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
-        conversation in the UI (there is no parent session span). ``audio_timing`` carries absolute
-        (unix ns) anchors for the turn's audio segments (``_dd.llmobs.audio.*``) and is merged into
-        metadata so the full-conversation-playback UI can place each segment and compute latency.
+        Nested under its turn root (a workflow span) via explicit ``parent_id``/``trace_id`` when
+        ``parent_span`` is given, the same way the tool span nests (the active context has moved on by
+        finalize). ``session_id`` groups all turns of one connection into a single conversation in the
+        UI. ``audio_timing`` carries absolute (unix ns) anchors for the turn's audio segments
+        (``_dd.llmobs.audio.*``), merged into metadata so the single-span path still carries timing.
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         model_provider = self._get_model_provider(span)
         merged_metadata = dict(metadata or {})
         if audio_timing:
             merged_metadata.update(audio_timing)
+        parent_id = None
+        trace_id = None
+        if parent_span is not None:
+            parent_id = str(parent_span.span_id)
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
         _annotate_llmobs_span_data(
             span,
             name="{}.{}".format(provider, span.resource) if span.resource else None,
@@ -208,6 +217,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata=merged_metadata,
             metrics=metrics or None,
             session_id=session_id,
+            parent_id=parent_id,
+            trace_id=trace_id,
         )
         # Mirror the base llmobs_set_tags path: also stamp the LLMObs->APM shadow token metrics so
         # realtime spans are consistent with every other OpenAI span for APM-only users.
@@ -215,6 +226,77 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
         except Exception:
             log.debug("Error applying shadow metrics for realtime span %s", span, exc_info=True)
+
+    def _llmobs_set_tags_from_realtime_tool(
+        self,
+        span: Span,
+        parent_span: Optional[Span],
+        name: str,
+        call_id: str,
+        arguments: Any,
+        result: Any,
+        session_id: Optional[str] = None,
+        error: bool = False,
+    ) -> None:
+        """Tag a tool-kind child span for a single Realtime function/MCP call.
+
+        The span is nested under its emitting turn's span via an explicit LLMObs ``parent_id`` /
+        ``trace_id`` (stamped here rather than relying on the active context, which has already moved
+        on by the time a client tool result lands). Input is the call arguments, output the result.
+        """
+        if error:
+            span.error = 1
+        parent_id = str(parent_span.span_id) if parent_span is not None else None
+        trace_id = None
+        if parent_span is not None:
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
+        _annotate_llmobs_span_data(
+            span,
+            name=name or "tool",
+            kind="tool",
+            parent_id=parent_id,
+            trace_id=trace_id,
+            session_id=session_id,
+            # Pass raw values; _annotate_llmobs_span_data serializes them (avoid double-encoding).
+            input_value=arguments if arguments is not None else "",
+            output_value=result if result is not None else "",
+            metadata={"tool_id": call_id} if call_id else None,
+        )
+
+    def _llmobs_set_tags_from_realtime_workflow(
+        self,
+        span: Span,
+        name: str,
+        session_id: Optional[str] = None,
+        parent_span: Optional[Span] = None,
+        input_value: Any = None,
+        output_value: Any = None,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Tag a workflow-kind span in the realtime turn tree.
+
+        Used for the turn root (the whole perceived turn), the user-speech window, and the agent-speech
+        window. Nested under ``parent_span`` via explicit ``parent_id``/``trace_id`` when a parent is
+        given; the turn root has none (it is the root of the turn's trace, grouped by ``session_id``).
+        These are timing regions, so the audio bytes ride on the llm span, not here.
+        """
+        parent_id = None
+        trace_id = None
+        if parent_span is not None:
+            parent_id = str(parent_span.span_id)
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
+        _annotate_llmobs_span_data(
+            span,
+            name=name,
+            kind="workflow",
+            parent_id=parent_id,
+            trace_id=trace_id,
+            session_id=session_id,
+            # Pass raw values; _annotate_llmobs_span_data serializes them (avoid double-encoding).
+            input_value=input_value if input_value is not None else "",
+            output_value=output_value if output_value is not None else "",
+            metadata=metadata,
+        )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
