@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: Introduce ``LLMObs.evaluation()``, a span factory (like
+    ``LLMObs.llm``/``agent``/``tool``) that opens a judge trace under
+    ``ml_app:datadog-evaluations`` for an external (SDK-run) evaluator. Any
+    ``LLMObs.llm``/``tool``/``agent`` spans created inside the block nest into a
+    single judge trace, so custom LLM-as-a-judge evaluators can emit their own
+    steps and token usage. Also adds an optional ``judge_span`` argument to
+    ``LLMObs.submit_evaluation`` that links a submitted evaluation metric to its
+    judge trace (via ``judge_trace_id``/``judge_span_id`` in the metric metadata).
