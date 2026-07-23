@@ -111,16 +111,6 @@ def _default_wrap_span_name(f: Callable) -> str:
     return f"{f.__module__}.{f.__name__}"
 
 
-def _service_source_is_integration(span: Span, integration_name: str) -> bool:
-    existing_service_source = span._get_str_attribute(_SERVICE_SOURCE) or ""
-    service_is_default = (
-        span.service in config._integration_default_services or span.service == config._inferred_base_service
-    )
-    source_is_overridable = not existing_service_source or not existing_service_source.startswith("opt.")
-    integration_name_is_valid_source = integration_name != span._span_api
-    return service_is_default and integration_name_is_valid_source and source_is_overridable
-
-
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> list[SpanProcessor]:
@@ -656,8 +646,10 @@ class Tracer(object):
         core.dispatch("trace.span_finish", (span,))
 
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
-        if _service_source_is_integration(span, integration_name):
-            span._set_attribute(_SERVICE_SOURCE, integration_name)
+        existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
+        if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+            if not existing_service_source or (existing_service_source and integration_name != span._span_api):
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
