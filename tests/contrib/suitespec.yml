@@ -432,6 +432,18 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+    env:
+      # This job's services are heavier than average; pin resources and disable
+      # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_CPU_REQUEST: '2'
+      KUBERNETES_CPU_LIMIT: '2'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
+      KUBERNETES_SERVICE_CPU_REQUEST: '2'
+      KUBERNETES_SERVICE_CPU_LIMIT: '2'
+      KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
   azure_durable_functions:
     venvs_per_job: 3
     paths:

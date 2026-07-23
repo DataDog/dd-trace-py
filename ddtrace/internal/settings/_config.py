@@ -400,11 +400,6 @@ def _default_config() -> dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_sca_enabled": _ConfigItem(
-            default=None,
-            envs=["DD_APPSEC_SCA_ENABLED"],
-            modifier=asbool,
-        ),
         "_llmobs_enabled": _ConfigItem(
             default=False,
             envs=["DD_LLMOBS_ENABLED"],

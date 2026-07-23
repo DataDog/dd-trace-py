@@ -25,7 +25,6 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -45,6 +44,7 @@ from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -563,7 +563,7 @@ class Tracer(object):
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
+                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, TRACE_SOURCE_PROPAGATION_KEY):
                     span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
