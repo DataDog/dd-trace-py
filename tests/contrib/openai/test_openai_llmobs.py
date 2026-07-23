@@ -9,6 +9,7 @@ from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
@@ -3214,3 +3215,29 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34
+
+
+class TestLLMObsOpenAIOpenRouter:
+    """OpenRouter cost capture through the OpenAI-compatible client.
+
+    OpenRouter returns the billed cost on ``usage.cost`` (plus a ``usage.cost_details`` breakdown)
+    in every response. The integration should surface it on the span's ``total_cost`` metric, adding
+    ``input_cost``/``output_cost`` only when the upstream breakdown reconciles with the billed total.
+    """
+
+    def test_chat_completion_openrouter_cost(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter.yaml"):
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
+            client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[{"role": "user", "content": "What is the capital of France?"}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = get_llmobs_metrics(spans[0])
+        # total_cost is OpenRouter's billed cost, captured directly rather than estimated from tokens.
+        assert "total_cost" in metrics
+        assert metrics["total_cost"] > 0
+        # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
+        if "input_cost" in metrics or "output_cost" in metrics:
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
