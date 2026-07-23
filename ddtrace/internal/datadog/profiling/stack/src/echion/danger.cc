@@ -167,6 +167,24 @@ profiling_fault_handler_still_installed()
     return true;
 }
 
+bool
+segv_handler_installed()
+{
+    // Recovery needs our handler to own BOTH SIGSEGV and SIGBUS
+    // (a copy fault can arrive as either); anything else means we can't recover.
+    const int signals[] = { SIGSEGV, SIGBUS };
+    for (int signo : signals) {
+        struct sigaction current;
+        if (sigaction(signo, nullptr, &current) != 0) {
+            return false;
+        }
+        if (current.sa_sigaction != segv_handler || (current.sa_flags & SA_SIGINFO) == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void
 register_profiling_fault_recover(ProfilingFaultRecover recover)
 {
