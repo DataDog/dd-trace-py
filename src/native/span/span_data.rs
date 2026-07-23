@@ -356,6 +356,13 @@ impl SpanData {
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
         let mut span = Self::default();
+        // Pre-size the attribute stores so set_tag/set_metric push into an allocated Vec instead
+        // of reallocating from an empty one (the top per-span native allocator under memray).
+        // Small PyDict-MINSIZE-like caps (meta 8 / metrics 4) skip the early realloc chain for the
+        // common case without over-allocating the many small child spans; measured net win of
+        // ~-7% bytes and ~-19% allocations on the attribute-store bucket vs lazy growth.
+        span.meta = MetaMap::with_capacity(8);
+        span.metrics = MetricsMap::with_capacity(4);
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
