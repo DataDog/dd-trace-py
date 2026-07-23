@@ -33,7 +33,7 @@ PY = sys.version_info[:2]
 #     return
 # -----------------------------------------------------------------------------
 GENERATOR_ASSEMBLY = Assembly()
-GENERATOR_HEAD_ASSEMBLY = None
+GENERATOR_HEAD_ASSEMBLY: Assembly | None = None
 
 if PY >= NEXT_PY_VERSION_INFO:
     # TODO: remove when migrating the app to py-315
