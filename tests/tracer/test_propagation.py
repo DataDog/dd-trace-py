@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 
-import ddtrace
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -27,6 +26,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -52,7 +52,6 @@ from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_tracer as fastapi_tracer  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
 
-from ..utils import override_env
 from ..utils import override_global_config
 
 
@@ -307,9 +306,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
-
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             headers = {
@@ -351,8 +348,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -368,9 +364,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
-
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -399,8 +393,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             # Ensure span is dropped (no appsec event upstream or in this span)
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -450,8 +443,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -495,8 +487,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -562,8 +553,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -615,8 +605,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -634,8 +623,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -688,8 +676,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
