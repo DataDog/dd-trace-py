@@ -18,6 +18,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -99,11 +100,6 @@ class ASMConfig(DDConfig):
     _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
-    _api_security_endpoint_collection = DDConfig.var(bool, API_SECURITY.ENDPOINT_COLLECTION, default=True)
-    _api_security_endpoint_collection_limit = DDConfig.var(
-        int, API_SECURITY.ENDPOINT_COLLECTION_LIMIT, default=DEFAULT.ENDPOINT_COLLECTION_LIMIT
-    )
-
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
@@ -327,7 +323,7 @@ class ASMConfig(DDConfig):
         return (
             self._asm_enabled
             or self._iast_enabled
-            or tracer_config._sca_enabled is True
+            or appsec_telemetry_config.SCA_ENABLED is True
             or aiguard_config._ai_guard_enabled
         ) and not self._apm_tracing_enabled
 
