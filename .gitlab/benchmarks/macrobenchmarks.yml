@@ -426,7 +426,5 @@ notify-slo-breaches:
   stage: notify
   needs: ["check-slo-breaches"]
   when: always
-  # Temporary override while benchmarking platform updates their template
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
   variables:
     CHANNEL: "apm-python-release"
