@@ -102,7 +102,7 @@ class _IdentityWeakKeyDictionary:
         del self._data[key_id]
 
     def values(self) -> Iterator[Any]:
-        for ref, value in self._data.values():
+        for ref, value in list(self._data.values()):
             if ref() is not None:
                 yield value
 
@@ -137,7 +137,12 @@ class MonitoringEventHandler(ABC):
         pass
 
     def on_py_line(self, code: CodeType, line_number: int) -> Optional[object]:
-        """Return ``sys.monitoring.DISABLE`` to stop future events on this line."""
+        """Return ``sys.monitoring.DISABLE`` to request disabling future LINE events.
+
+        The multiplexer forwards ``DISABLE`` to CPython only when every registered
+        LINE handler for this code object returns it. If any handler returns a
+        different value, LINE events continue for that location.
+        """
         return None
 
 
