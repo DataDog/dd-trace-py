@@ -382,6 +382,9 @@ class TestITR:
             @pytest.mark.skipif(False, reason='datadog_itr_unskippable')
             def test_forced_run():
                 assert True
+
+            def test_sibling_also_runs():
+                assert False
             """,
         )
 
@@ -401,13 +404,20 @@ class TestITR:
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
-        assert result.ret == 0
-        # The unskippable file was not ignored — its test ran and passed.
-        result.assertoutcome(passed=1)
+        assert result.ret == 1
+        # The unskippable file was not ignored, and the whole suite ran instead of skipping siblings test-by-test.
+        result.assertoutcome(passed=1, failed=1)
 
         # test event present (file was collected, not ignored)
         test_event = event_capture.event_by_test_name("test_forced_run")
         assert test_event["content"]["meta"]["test.status"] == "pass"
+        assert test_event["content"]["meta"]["test.itr.unskippable"] == "true"
+        assert test_event["content"]["meta"]["test.itr.forced_run"] == "true"
+
+        sibling_event = event_capture.event_by_test_name("test_sibling_also_runs")
+        assert sibling_event["content"]["meta"]["test.status"] == "fail"
+        assert sibling_event["content"]["meta"]["test.itr.forced_run"] == "true"
+        assert sibling_event["content"]["meta"].get("test.skipped_by_itr") is None
 
         # No ITR-skip events emitted (the suite ran, it wasn't skipped)
         [session] = event_capture.events_by_type("test_session_end")

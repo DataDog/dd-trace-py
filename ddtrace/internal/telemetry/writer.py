@@ -11,6 +11,7 @@ from typing import Union
 import urllib.parse as parse
 
 from ddtrace.internal import core
+from ddtrace.internal import excepthook
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
@@ -147,7 +148,6 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence_payloads = itertools.count(1)
     _sequence_configurations = itertools.count(1)
-    _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
     CWD = os.getcwd()
 
     def __init__(self, is_periodic: bool = True, agentless: Optional[bool] = None) -> None:
@@ -771,12 +771,10 @@ class TelemetryWriter(PeriodicService):
 
             self.app_shutdown()
 
-        return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
-
     def install_excepthook(self) -> None:
-        """Install a hook that intercepts unhandled exception and send metrics about them."""
-        sys.excepthook = self._telemetry_excepthook
+        """Register a hook that intercepts unhandled exceptions and sends metrics about them."""
+        excepthook.register(self._telemetry_excepthook)
 
     def uninstall_excepthook(self) -> None:
-        """Uninstall the global tracer except hook."""
-        sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK
+        """Unregister the telemetry excepthook."""
+        excepthook.unregister(self._telemetry_excepthook)
