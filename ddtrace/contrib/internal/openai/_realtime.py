@@ -5,14 +5,17 @@ the connection's send/parse_event/close methods (all typed sub-resource sends fu
 RealtimeConnection.send, and recv/iteration/recv_bytes() all funnel through parse_event) and feed
 each observed event into a _RealtimeState machine.
 
-Each conversation turn becomes its own llm span (started on response.created), carrying the
-user/assistant transcripts, audio, token usage, and any tool calls for that turn (function calls and
-MCP calls the model made, plus the function_call_output results the app fed back). Every turn span
-is annotated with a per-connection session_id so the UI groups them into one conversation - there is
-no parent
-"session" span, which keeps each trace one turn small (no accumulation toward the per-event size
-budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
-turn spans naturally nest under it.)
+Each conversation turn becomes its own trace rooted at a workflow "turn" span, with child spans that
+separate the phases by owner: a "user speech" workflow span (the human speaking window), an llm span
+for the model's work (generation - started at the end of user speech and finished at response.done,
+carrying the user/assistant transcripts, audio, and token usage), an "agent speech" workflow span
+(the human hearing window). Any tool calls the model makes are captured on the llm span. Splitting
+the phases keeps span duration meaningful: the llm span measures model latency, not the time the
+human spent talking, and time-to-first-agent-audio falls out of the span boundaries. Every span is
+annotated with a per-connection session_id so the UI groups all of a connection's turns into one
+conversation; there is no parent "session" span across turns, which keeps each trace one turn small
+(no accumulation toward the per-event size budget) and renders cleanly. (If the caller wraps the
+connection in their own LLMObs context, the turn roots naturally nest under it.)
 
 A turn span is finalized on response.done - except that the user's input transcription
 (conversation.item.input_audio_transcription.completed) is asynchronous and frequently arrives after
@@ -117,6 +120,9 @@ class _AudioAccumulator:
         # on the shared session timeline for full-conversation playback. Set even when bytes are later
         # dropped (oversize), since ``present`` still surfaces a marker.
         self.start_ns: Optional[int] = None
+        # Total decoded bytes seen for this segment, never capped, used only to derive playback
+        # duration (the speaking window) even when the byte cap dropped the buffered chunks.
+        self.total_decoded_bytes: int = 0
 
     def append(self, b64: str) -> None:
         if not b64:
@@ -124,12 +130,14 @@ class _AudioAccumulator:
         if self.start_ns is None:
             self.start_ns = time.time_ns()
         self.present = True
+        decoded = (len(b64) * 3) // 4  # decoded size ~= 3/4 of the base64 length
+        self.total_decoded_bytes += decoded
         if self.oversize:
             return
-        self._bytes += (len(b64) * 3) // 4  # decoded size ~= 3/4 of the base64 length
+        self._bytes += decoded
         if self._bytes > _AUDIO_ACCUM_MAX_BYTES:
             self.oversize = True
-            self.chunks = []  # free what we had — the guard would drop the whole thing anyway
+            self.chunks = []  # free what we had; the guard would drop the whole thing anyway
             return
         self.chunks.append(b64)
 
@@ -139,6 +147,7 @@ class _AudioAccumulator:
         self.oversize = False
         self._bytes = 0
         self.start_ns = None
+        self.total_decoded_bytes = 0
 
 
 class _InputTurn:
@@ -167,7 +176,13 @@ class _ResponseTurn:
         self.usage: Any = None
         self.model: Optional[str] = None
         self.status: Optional[str] = None
+        # ``root_span`` is the turn's workflow root (parents the user-speech, llm, and agent-speech
+        # spans); ``span`` is the llm (generation) span, kept as the tool-span parent.
+        self.root_span: Any = None
         self.span: Any = None
+        # Wall-clock (unix ns) when response.done arrived; the llm span ends here (generation
+        # complete), not when the agent finishes speaking.
+        self.response_done_ns: Optional[int] = None
         # Function/MCP calls the model made this turn (+ inline MCP results).
         self.tool_calls: list[ToolCall] = []
         self.tool_results: list[ToolResult] = []
@@ -291,19 +306,40 @@ class _RealtimeState:
         if response_id is None:
             return
         # A new turn starting means a prior turn's input transcription is almost certainly not coming
-        # anymore — flush anything still waiting so its span doesn't hang.
+        # anymore, so flush anything still waiting so its span doesn't hang.
         self._flush_awaiting()
         turn = _ResponseTurn(self._pending_input)
         self._pending_input = _InputTurn()
         turn.model = self._model
+        # Turn root (workflow): the whole perceived turn and the root of this turn's trace, grouped by
+        # session_id (or nested under the caller's own LLMObs context if there is one). Back-dated to
+        # when the user started speaking (or spoke-end) when known.
         try:
-            # No parent_context: each turn is its own root trace, grouped by session_id (or nested
-            # under the caller's own LLMObs context if there is one).
+            turn.root_span = self._integration.trace(
+                "createRealtimeTurn",
+                submit_to_llmobs=True,
+                instance=SimpleNamespace(_client=self._client),
+                activate=False,
+            )
+            turn_start = turn.input.audio.start_ns or turn.input.speech_end_ns
+            if turn_start is not None:
+                turn.root_span.start_ns = int(turn_start)
+        except Exception:
+            log.debug("error starting realtime turn span", exc_info=True)
+            turn.root_span = None
+        # LLM span (generation): child of the turn root, back-dated to the end of user speech (buffer
+        # commit) so its duration is model work rather than the human's speaking time. Kept as
+        # ``turn.span`` so any child spans nest under it.
+        try:
             turn.span = self._integration.trace(
                 "createRealtimeResponse",
                 instance=SimpleNamespace(_client=self._client),
                 activate=False,
+                parent_context=turn.root_span,
             )
+            llm_start = turn.input.speech_end_ns or turn.input.audio.start_ns
+            if llm_start is not None:
+                turn.span.start_ns = int(llm_start)
         except Exception:
             log.debug("error starting realtime response span", exc_info=True)
         self._responses[response_id] = turn
@@ -314,6 +350,7 @@ class _RealtimeState:
         turn = self._responses.pop(response_id, None)
         if turn is None:
             return
+        turn.response_done_ns = time.time_ns()
         turn.usage = _get_attr(response, "usage", None)
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
@@ -357,22 +394,154 @@ class _RealtimeState:
     # -- tagging helpers ----------------------------------------------------
 
     def _finalize_turn(self, turn: _ResponseTurn) -> None:
-        if turn.span is None:
+        if turn.span is None and turn.root_span is None:
             return
         # Drop the cached transcript for this turn's input item so the map can't grow across a long
         # session (every finalize path goes through here).
         if turn.input.item_id is not None:
             self._input_transcripts.pop(turn.input.item_id, None)
         try:
-            if turn.status == "failed":
+            if turn.status == "failed" and turn.span is not None:
                 turn.span.error = 1
             self._tag_response(turn)
         except Exception:
             log.debug("error tagging realtime response span", exc_info=True)
+        # Root and phase spans are additive; a failure tagging them must never drop the llm span, so
+        # they get their own guard rather than sharing the llm span's.
+        try:
+            self._tag_turn_root(turn)
+            self._emit_phase_spans(turn)
+        except Exception:
+            log.debug("error tagging realtime turn/phase spans", exc_info=True)
         finally:
-            turn.span.finish()
+            # LLM span ends when generation completes (response.done); the turn root ends at the
+            # latest child end (agent playback end when the turn produced output audio).
+            if turn.span is not None:
+                self._finish_span_at(turn.span, turn.response_done_ns)
+            if turn.root_span is not None:
+                self._finish_span_at(turn.root_span, self._turn_end_ns(turn))
+
+    def _tag_turn_root(self, turn: _ResponseTurn) -> None:
+        """Tag the turn's workflow root (no parent; it is the root of this turn's trace). Carries the
+        turn's user/assistant transcripts as its input/output for a readable waterfall row."""
+        if turn.root_span is None:
+            return
+        self._integration._llmobs_set_tags_from_realtime_workflow(
+            turn.root_span,
+            name="realtime turn",
+            session_id=self._session_id,
+            input_value=turn.input.transcript or turn.input.text or None,
+            output_value=turn.transcript or turn.text or None,
+        )
+
+    def _emit_phase_spans(self, turn: _ResponseTurn) -> None:
+        """Emit the user-speech and agent-speech workflow spans that bracket the llm span.
+
+        These are timing regions (the human speaking window and the human hearing window) nested under
+        the turn root; the audio bytes themselves ride on the llm span. Each is emitted only when that
+        side produced audio, so a text-only turn skips user-speech and a tool-only turn skips
+        agent-speech.
+        """
+        root = turn.root_span
+        if root is None:
+            return
+        in_start = turn.input.audio.start_ns
+        if in_start is not None:
+            in_end = turn.input.speech_end_ns
+            if in_end is None:
+                dur = _segment_duration_ns(
+                    turn.input.audio.total_decoded_bytes, self._input_audio_mime, self._input_audio_rate
+                )
+                in_end = in_start + dur if dur else None
+            self._emit_workflow_span(
+                "createRealtimeUserSpeech",
+                "user speech",
+                root,
+                in_start,
+                in_end,
+                output_value=turn.input.transcript or turn.input.text or None,
+            )
+        out_start = turn.audio.start_ns
+        if out_start is not None:
+            dur = _segment_duration_ns(turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate)
+            out_end = out_start + dur if dur else turn.response_done_ns
+            self._emit_workflow_span(
+                "createRealtimeAgentSpeech",
+                "agent speech",
+                root,
+                out_start,
+                out_end,
+                output_value=turn.transcript or turn.text or None,
+            )
+
+    def _emit_workflow_span(
+        self,
+        operation: str,
+        name: str,
+        parent_span: Any,
+        start_ns: Optional[int],
+        end_ns: Optional[int],
+        output_value: Any = None,
+    ) -> None:
+        try:
+            span = self._integration.trace(
+                operation,
+                submit_to_llmobs=True,
+                instance=SimpleNamespace(_client=self._client),
+                activate=False,
+                parent_context=parent_span,
+            )
+            if start_ns is not None:
+                span.start_ns = int(start_ns)
+        except Exception:
+            log.debug("error starting realtime %s span", name, exc_info=True)
+            return
+        try:
+            self._integration._llmobs_set_tags_from_realtime_workflow(
+                span,
+                name=name,
+                session_id=self._session_id,
+                parent_span=parent_span,
+                output_value=output_value,
+            )
+        except Exception:
+            log.debug("error tagging realtime %s span", name, exc_info=True)
+        finally:
+            self._finish_span_at(span, end_ns)
+
+    def _finish_span_at(self, span: Any, end_ns: Optional[int]) -> None:
+        """Finish ``span`` at an absolute unix-ns time when it is a valid end (after the span's start),
+        else finish at now. Never lets a bad timestamp raise out of finalize."""
+        try:
+            start_ns = getattr(span, "start_ns", None)
+            if end_ns is not None and start_ns is not None and end_ns > start_ns:
+                span.finish(finish_time=end_ns / 1e9)
+            else:
+                span.finish()
+        except Exception:
+            log.debug("error finishing realtime span", exc_info=True)
+            try:
+                span.finish()
+            except Exception:
+                pass
+
+    def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
+        """Latest child end for the turn root: agent playback end when there was output audio, else
+        response.done, else the user speech end."""
+        candidates: list[int] = []
+        if turn.response_done_ns is not None:
+            candidates.append(turn.response_done_ns)
+        if turn.audio.start_ns is not None:
+            dur = _segment_duration_ns(turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate)
+            if dur:
+                candidates.append(turn.audio.start_ns + dur)
+        if turn.input.speech_end_ns is not None:
+            candidates.append(turn.input.speech_end_ns)
+        return max(candidates) if candidates else None
 
     def _tag_response(self, turn: _ResponseTurn) -> None:
+        if turn.span is None:
+            return
         input_message = self._build_message(
             "user",
             turn.input.transcript or turn.input.text,
@@ -412,6 +581,7 @@ class _RealtimeState:
             metrics=_usage_metrics(turn.usage),
             session_id=self._session_id,
             audio_timing=_audio_timing(turn),
+            parent_span=turn.root_span,
         )
 
     def _build_message(
@@ -591,6 +761,22 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return metrics or None
+
+
+def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Optional[int]:
+    """Approximate playback duration (in ns) of an audio segment from its decoded byte count.
+
+    PCM16 is 2 bytes per sample, so ``bytes / (rate * 2)`` seconds; G.711 is 1 byte per sample at the
+    fixed 8 kHz rate. Any other or unknown format returns None (we do not guess a duration). Used to
+    size the user-speech and agent-speech workflow spans and the turn root's end.
+    """
+    if not decoded_bytes or decoded_bytes <= 0:
+        return None
+    if is_pcm16_audio_mime(mime) and sample_rate > 0:
+        return int(decoded_bytes / (sample_rate * 2) * 1_000_000_000)
+    if g711_variant(mime) is not None:
+        return int(decoded_bytes / G711_SAMPLE_RATE * 1_000_000_000)
+    return None
 
 
 def _audio_timing(turn: "_ResponseTurn") -> Optional[dict[str, int]]:
