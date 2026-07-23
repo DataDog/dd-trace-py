@@ -4,12 +4,10 @@ Linux timer_create CPU stack profiler
 Status
 ------
 
-Draft. The implementation is private, disabled by default, and currently
-supports only Linux CPython 3.14+ builds with the GIL. The signal handler's raw
-frame walk depends on version-specific CPython interpreter-frame layouts that
-have been audited only for 3.14. The follow-up work described in this document
-does not add support for earlier Python versions, which require separate layout
-and safety audits.
+Draft. The implementation is private, disabled by default, and supports Linux
+CPython 3.12+ builds with the GIL. The signal handler's raw frame walk uses
+version-specific access for the CPython 3.12, 3.13, and 3.14 interpreter-frame
+layouts.
 
 Context
 -------
@@ -109,6 +107,27 @@ With the common `pid_max`, the directory is approximately 32 KiB and each
 allocated leaf is approximately 9 KiB. Thread churn can increase the number of
 retained leaves over the process lifetime, but normal memory use follows the
 number of TID blocks encountered rather than the entire kernel TID namespace.
+
+### 5.3 CPython frame-layout compatibility
+
+The signal handler reads interpreter frames directly and therefore has explicit
+version branches for each supported layout:
+
+- CPython 3.12 stores the active frame in
+  `PyThreadState.cframe->current_frame`. Interpreter frames use `f_code` and
+  `prev_instr`.
+- CPython 3.13 stores `current_frame` directly on `PyThreadState`. Interpreter
+  frames use the untagged `f_executable` pointer and `instr_ptr`.
+- CPython 3.14 retains direct `current_frame`, but `f_executable` is a tagged
+  `_PyStackRef`. It also adds `FRAME_OWNED_BY_INTERPRETER` shim frames, which
+  the walker skips.
+
+Every potentially faulting remote field read remains guarded. Instruction
+indexes are computed with checked integer-address arithmetic rather than C++
+pointer subtraction across potentially invalid objects.
+
+Source versions inspected: CPython 3.12.0 and 3.12.13, 3.13.0 and 3.13.14,
+and 3.14.0 and 3.14.6.
 
 
 6. Thread discovery and uvicorn worker fix

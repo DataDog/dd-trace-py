@@ -3,8 +3,8 @@ import sys
 import pytest
 
 
-CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.14+"
-CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 14)
+CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.12+"
+CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 12)
 
 
 @pytest.mark.subprocess(
@@ -38,6 +38,7 @@ def test_cpu_timer_profiler_emits_cpu_samples():
     stats = stack._cpu_timer_debug_stats()
     p.stop()
 
+    assert stats["supported"] is True, stats
     assert 0 < stats["tid_table_allocated_pages"] < stats["tid_table_directory_size"], stats
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))

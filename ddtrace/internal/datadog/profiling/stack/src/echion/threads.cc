@@ -962,7 +962,7 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
         if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
             threads.insert(tstate.prev);
 
-#if PY_VERSION_HEX >= 0x030e0000
+#if PY_VERSION_HEX >= 0x030c0000
         const uint64_t native_thread_id = tstate.native_thread_id;
 #else
         const uint64_t native_thread_id = 0;
@@ -985,8 +985,8 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
             // ThreadInfo from best-effort registration but no armed CPU timer, for
             // example an already-existing main thread when profiling starts from an
             // auxiliary thread. Reconcile CPU timer arming from the PyThreadState
-            // walk so wall-sampler discovery is the safety net. PyThreadState exposes
-            // native_thread_id on CPython 3.14+, matching the CPU timer support floor.
+            // walk so wall-sampler discovery is the safety net. The CPU timer's
+            // supported CPython versions expose native_thread_id here.
             if (native_thread_id != 0 &&
                 !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, native_thread_id)) {
                 Datadog::CpuTimer::Engine::get().register_thread(

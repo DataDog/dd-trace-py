@@ -8,8 +8,8 @@ import sys
 import pytest
 
 
-CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.14+"
-CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 14)
+CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.12+"
+CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 12)
 REPO_ROOT = Path(__file__).parents[2]
 HAZARD_APP = REPO_ROOT / "tests" / "profiling" / "cpu_timer_native_syscall_hazard_app.py"
 

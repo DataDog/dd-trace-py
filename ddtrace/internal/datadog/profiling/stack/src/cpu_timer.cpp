@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -52,7 +53,7 @@ namespace CpuTimer {
 
 namespace {
 
-#if defined(__linux__) && PY_VERSION_HEX >= 0x030e0000 && !defined(Py_GIL_DISABLED)
+#if defined(__linux__) && PY_VERSION_HEX >= 0x030c0000 && !defined(Py_GIL_DISABLED)
 #define DD_CPU_TIMER_SUPPORTED 1
 #else
 #define DD_CPU_TIMER_SUPPORTED 0
@@ -804,6 +805,93 @@ guarded_read_scalar(CaptureState& state, T& out, const T* src)
     return true;
 }
 
+// AIDEV-NOTE: These helpers mirror private CPython 3.12-3.14 frame layouts.
+// Keep every remote field access behind guarded_read_scalar(), and audit each
+// branch against the corresponding CPython source before widening support.
+bool
+read_current_frame(CaptureState& state, PyThreadState* tstate, DataDog::py_frame_t*& frame)
+{
+#if PY_VERSION_HEX >= 0x030d0000
+    return guarded_read_scalar(state, frame, &tstate->current_frame);
+#else
+    // CPython 3.12 keeps the active interpreter frame on the current C frame.
+    _PyCFrame* cframe = nullptr;
+    return guarded_read_scalar(state, cframe, &tstate->cframe) && cframe != nullptr &&
+           guarded_read_scalar(state, frame, &cframe->current_frame);
+#endif
+}
+
+bool
+read_frame_code_and_instruction(CaptureState& state,
+                                DataDog::py_frame_t* frame,
+                                PyCodeObject*& code,
+                                _Py_CODEUNIT*& instruction)
+{
+#if PY_VERSION_HEX >= 0x030e0000
+    decltype(frame->f_executable.bits) executable_bits{};
+    if (!guarded_read_scalar(state, executable_bits, &frame->f_executable.bits)) {
+        return false;
+    }
+    code = reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) & ~static_cast<uintptr_t>(7));
+#elif PY_VERSION_HEX >= 0x030d0000
+    PyObject* executable = nullptr;
+    if (!guarded_read_scalar(state, executable, &frame->f_executable)) {
+        return false;
+    }
+    code = reinterpret_cast<PyCodeObject*>(executable);
+#else
+    if (!guarded_read_scalar(state, code, &frame->f_code)) {
+        return false;
+    }
+#endif
+
+#if PY_VERSION_HEX >= 0x030d0000
+    return guarded_read_scalar(state, instruction, &frame->instr_ptr);
+#else
+    return guarded_read_scalar(state, instruction, &frame->prev_instr);
+#endif
+}
+
+bool
+compute_lasti(PyCodeObject* code, _Py_CODEUNIT* instruction, int& lasti)
+{
+    if (code == nullptr || instruction == nullptr) {
+        return false;
+    }
+
+    const uintptr_t code_address = reinterpret_cast<uintptr_t>(code);
+    constexpr uintptr_t code_offset = offsetof(PyCodeObject, co_code_adaptive);
+    if (code_address > std::numeric_limits<uintptr_t>::max() - code_offset) {
+        return false;
+    }
+
+    const uintptr_t bytecode_address = code_address + code_offset;
+    const uintptr_t instruction_address = reinterpret_cast<uintptr_t>(instruction);
+    if (instruction_address < bytecode_address) {
+#if PY_VERSION_HEX < 0x030d0000
+        // A newly initialized 3.12 frame points one code unit before the first
+        // instruction. Preserve its valid lasti=-1 representation.
+        if (bytecode_address - instruction_address == sizeof(_Py_CODEUNIT)) {
+            lasti = -1;
+            return true;
+        }
+#endif
+        return false;
+    }
+
+    const uintptr_t byte_offset = instruction_address - bytecode_address;
+    if (byte_offset % sizeof(_Py_CODEUNIT) != 0) {
+        return false;
+    }
+    const uintptr_t code_unit_offset = byte_offset / sizeof(_Py_CODEUNIT);
+    if (code_unit_offset > static_cast<uintptr_t>(std::numeric_limits<int>::max())) {
+        return false;
+    }
+
+    lasti = static_cast<int>(code_unit_offset);
+    return true;
+}
+
 bool
 cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext)
 {
@@ -894,7 +982,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     bool failed = false;
     PyThreadState* tstate = state->tstate;
     DataDog::py_frame_t* frame = nullptr;
-    if (tstate == nullptr || !guarded_read_scalar(*state, frame, &tstate->current_frame)) {
+    if (tstate == nullptr || !read_current_frame(*state, tstate, frame)) {
         failed = true;
     }
 
@@ -909,7 +997,11 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        if (owner == FRAME_OWNED_BY_CSTACK || owner == FRAME_OWNED_BY_INTERPRETER) {
+        bool skip_frame = owner == FRAME_OWNED_BY_CSTACK;
+#if PY_VERSION_HEX >= 0x030e0000
+        skip_frame = skip_frame || owner == FRAME_OWNED_BY_INTERPRETER;
+#endif
+        if (skip_frame) {
             frame = previous;
             continue;
         }
@@ -918,17 +1010,11 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        decltype(frame->f_executable.bits) executable_bits{};
-        _Py_CODEUNIT* instr_ptr = nullptr;
-        if (!guarded_read_scalar(*state, executable_bits, &frame->f_executable.bits) ||
-            !guarded_read_scalar(*state, instr_ptr, &frame->instr_ptr)) {
-            failed = true;
-            break;
-        }
-
-        PyCodeObject* code =
-          reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) & ~static_cast<uintptr_t>(7));
-        if (code == nullptr || instr_ptr == nullptr) {
+        PyCodeObject* code = nullptr;
+        _Py_CODEUNIT* instruction = nullptr;
+        int lasti = 0;
+        if (!read_frame_code_and_instruction(*state, frame, code, instruction) ||
+            !compute_lasti(code, instruction, lasti)) {
             failed = true;
             break;
         }
@@ -939,9 +1025,6 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        const int lasti =
-          static_cast<int>((instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(code)) -
-                           static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
         RawFrame& raw_frame = sample->frames[sample->depth];
         raw_frame.code_object = reinterpret_cast<uintptr_t>(code);
         raw_frame.lasti = lasti;
