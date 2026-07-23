@@ -1,10 +1,7 @@
 """Tests for ddtrace.internal.monitoring, the multiplexed sys.monitoring layer.
 
-These focus on the local-vs-global event split for PY_UNWIND. PY_UNWIND is a
-global-only sys.monitoring event: passing it to ``set_local_events`` raises
-``ValueError: invalid local event set``. The module therefore enables PY_UNWIND
-via ``set_events`` (global) and keeps PY_START/PY_RETURN/LINE per-code via
-``set_local_events`` (local).
+On Python 3.15+, PY_UNWIND is a per-code event and is enabled via
+``set_local_events`` together with PY_START/PY_RETURN/LINE.
 """
 
 import sys
@@ -29,6 +26,7 @@ else:
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes it
 # under a pre-3.15 Python version.
 _E: Any = getattr(monitoring, "_E")
+_DISABLE: Any = getattr(monitoring, "_DISABLE")
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
@@ -73,11 +71,7 @@ def registered() -> Iterator[
 def test_register_unwind_handler_does_not_raise(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
-    """Regression: registering a PY_UNWIND-only handler must not raise.
-
-    Before the fix, ``register`` passed PY_UNWIND to ``set_local_events`` which
-    raised ``ValueError: invalid local event set``.
-    """
+    """Registering a PY_UNWIND-only handler enables the per-code unwind event."""
 
     def boom() -> None:
         raise ValueError("boom")
@@ -85,10 +79,10 @@ def test_register_unwind_handler_does_not_raise(
     registered(boom.__code__, UnwindHandler())
 
 
-def test_unwind_enabled_globally_not_locally(
+def test_unwind_enabled_locally(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
-    """PY_UNWIND must be a global event; it must not appear in local events."""
+    """PY_UNWIND is enabled per code object on Python 3.15+."""
 
     def boom() -> None:
         raise ValueError("boom")
@@ -101,23 +95,18 @@ def test_unwind_enabled_globally_not_locally(
     local_events: int = _sys_monitoring.get_local_events(tool_id, boom.__code__)
     global_events: int = _sys_monitoring.get_events(tool_id)
 
-    assert not (local_events & _E.PY_UNWIND), "PY_UNWIND must not be a local event"
-    assert global_events & _E.PY_UNWIND, "PY_UNWIND must be enabled globally"
+    assert local_events & _E.PY_UNWIND, "PY_UNWIND must be a local event on 3.15+"
+    assert not (global_events & _E.PY_UNWIND), "PY_UNWIND must not be enabled globally"
 
 
-def test_on_py_unwind_does_not_disable_unregistered_code() -> None:
-    """Regression: the unwind callback must return None (never DISABLE).
-
-    PY_UNWIND fires for every unwinding frame, including code with no handler.
-    Returning DISABLE would permanently disarm the global event for that code
-    location with no re-arm path, so unregistered code must yield None.
-    """
+def test_on_py_unwind_disables_unregistered_code() -> None:
+    """The unwind callback returns DISABLE when no handler is registered."""
 
     def unrelated() -> None:
         pass
 
     result: object | None = monitoring._on_py_unwind(unrelated.__code__, 0, ValueError("x"))
-    assert result is None, "unregistered code must not be disabled (must return None, not DISABLE)"
+    assert result is _DISABLE
 
 
 def test_unwind_callback_fires_on_exception(
@@ -138,8 +127,8 @@ def test_unwind_callback_fires_on_exception(
     )
 
 
-def test_unregister_disables_global_unwind() -> None:
-    """Unregistering the last unwind handler clears the global PY_UNWIND event."""
+def test_unregister_clears_local_unwind() -> None:
+    """Unregistering the last unwind handler clears the per-code PY_UNWIND event."""
 
     def boom() -> None:
         raise ValueError("boom")
@@ -149,19 +138,19 @@ def test_unregister_disables_global_unwind() -> None:
 
     tool_id: int | None = monitoring._tool_id
     assert tool_id is not None
-    assert _sys_monitoring.get_events(tool_id) & _E.PY_UNWIND
+    assert _sys_monitoring.get_local_events(tool_id, boom.__code__) & _E.PY_UNWIND
 
     monitoring.unregister(boom.__code__, handler)
 
-    assert not (_sys_monitoring.get_events(tool_id) & _E.PY_UNWIND), (
-        "global PY_UNWIND should be disabled once no handlers need it"
+    assert not (_sys_monitoring.get_local_events(tool_id, boom.__code__) & _E.PY_UNWIND), (
+        "local PY_UNWIND should be disabled once no handlers need it"
     )
 
 
-def test_mixed_local_and_global_events(
+def test_mixed_local_events(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
-    """A handler overriding both PY_START and PY_UNWIND gets each at its scope."""
+    """A handler overriding both PY_START and PY_UNWIND gets each as local events."""
 
     def fn() -> None:
         raise ValueError("mixed")
@@ -173,8 +162,8 @@ def test_mixed_local_and_global_events(
 
     local_events: int = _sys_monitoring.get_local_events(tool_id, fn.__code__)
     assert local_events & _E.PY_START, "PY_START must be a local event"
-    assert not (local_events & _E.PY_UNWIND), "PY_UNWIND must not be local"
-    assert _sys_monitoring.get_events(tool_id) & _E.PY_UNWIND, "PY_UNWIND must be global"
+    assert local_events & _E.PY_UNWIND, "PY_UNWIND must be a local event on 3.15+"
+    assert not (_sys_monitoring.get_events(tool_id) & _E.PY_UNWIND), "PY_UNWIND must not be global"
 
     with pytest.raises(ValueError):
         fn()
