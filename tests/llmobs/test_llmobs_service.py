@@ -653,6 +653,54 @@ def test_agent_span(llmobs):
     assert get_llmobs_span_kind(span) == "agent"
 
 
+def test_evaluation_span_span_scope(llmobs):
+    with llmobs.evaluation(
+        name="relevance",
+        evaluated_span={"span_id": "111", "trace_id": "222"},
+        evaluated_ml_app="my-app",
+    ) as judge:
+        assert judge.name == "custom_evaluator.relevance"
+        assert judge.resource == "workflow"
+        assert judge.span_type == "llm"
+    assert get_llmobs_span_kind(judge) == "workflow"
+    assert get_llmobs_ml_app(judge) == "datadog-evaluations"
+    tags = get_llmobs_tags(judge)
+    assert tags["source"] == "datadog-evaluations"
+    assert tags["eval_name"] == "relevance"
+    assert tags["eval_source_type"] == "external"
+    assert tags["evaluated_ml_app"] == "my-app"
+    assert tags["evaluated_trace_id"] == "222"
+    assert tags["evaluated_span_id"] == "111"
+    assert "evaluated_session_id" not in tags
+
+
+def test_evaluation_span_session_scope(llmobs):
+    with llmobs.evaluation(
+        name="relevance",
+        eval_scope="session",
+        evaluated_session_id="sess-123",
+        evaluated_ml_app="my-app",
+    ) as judge:
+        pass
+    assert get_llmobs_ml_app(judge) == "datadog-evaluations"
+    tags = get_llmobs_tags(judge)
+    assert tags["evaluated_session_id"] == "sess-123"
+    assert "evaluated_span_id" not in tags
+    assert "evaluated_trace_id" not in tags
+
+
+def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+        with llmobs.tool(name="fetch_kb") as tool_span:
+            pass
+        with llmobs.llm(name="grade", model_name="gpt-4o-mini", model_provider="openai") as llm_span:
+            pass
+    # Spans opened inside the judge root inherit the datadog-evaluations service.
+    assert get_llmobs_tags(judge)["ml_app"] == "datadog-evaluations"
+    assert get_llmobs_tags(tool_span)["ml_app"] == "datadog-evaluations"
+    assert get_llmobs_tags(llm_span)["ml_app"] == "datadog-evaluations"
+
+
 def test_embedding_span_no_model_sets_default(llmobs):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
         pass
@@ -2439,6 +2487,63 @@ def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_wr
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
         )
     )
+
+
+def test_submit_evaluation_judge_span_adds_metadata(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="score",
+        value=4,
+        ml_app="dummy",
+        judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="score",
+            score_value=4,
+            metadata={"judge_trace_id": "j-trace", "judge_span_id": "j-span"},
+        )
+    )
+
+
+def test_submit_evaluation_judge_span_merges_with_existing_metadata(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="score",
+        value=4,
+        ml_app="dummy",
+        metadata={"foo": "bar"},
+        judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="score",
+            score_value=4,
+            metadata={"foo": "bar", "judge_trace_id": "j-trace", "judge_span_id": "j-span"},
+        )
+    )
+
+
+def test_submit_evaluation_invalid_judge_span_raises(llmobs):
+    with pytest.raises(TypeError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="score",
+            value=4,
+            ml_app="dummy",
+            judge_span={"span_id": "j-span"},  # missing trace_id
+        )
 
 
 def test_submit_evaluation_span_with_tag_value_enqueues_writer_with_categorical_metric(
