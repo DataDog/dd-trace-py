@@ -83,6 +83,12 @@ def test_standard_tags():
     assert f.get("log_injection_enabled") is True
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
+    assert "otlp_traces_export_enabled" in f
+    assert "otlp_metrics_export_enabled" in f
+    assert "otlp_logs_export_enabled" in f
+    assert isinstance(f.get("otlp_traces_export_enabled"), bool)
+    assert isinstance(f.get("otlp_metrics_export_enabled"), bool)
+    assert isinstance(f.get("otlp_logs_export_enabled"), bool)
     assert f.get("sampling_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
@@ -237,6 +243,52 @@ def test_runtime_metrics_enabled_via_env_var_start():
         f.get("runtime_metrics_enabled"),
         asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")),
     )
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        # Clear any inherited OTLP-related env so the defaults are deterministic.
+        OTEL_SDK_DISABLED=None,
+        OTEL_TRACES_EXPORTER=None,
+        OTEL_METRICS_EXPORTER=None,
+        OTEL_LOGS_EXPORTER=None,
+        DD_TRACE_OTEL_ENABLED=None,
+        DD_METRICS_OTEL_ENABLED=None,
+        DD_LOGS_OTEL_ENABLED=None,
+    )
+)
+def test_otlp_export_enabled_fields_default():
+    from ddtrace.internal import debug
+
+    f = debug.collect()
+
+    assert f.get("otlp_traces_export_enabled") is False
+    assert f.get("otlp_metrics_export_enabled") is False
+    assert f.get("otlp_logs_export_enabled") is False
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        # trace_otlp_export_enabled is derived at config init, so it must come from the
+        # environment; DD_TRACE_AGENT_PROTOCOL_VERSION is cleared because it disables OTLP.
+        OTEL_TRACES_EXPORTER="otlp",
+        DD_TRACE_AGENT_PROTOCOL_VERSION=None,
+    ),
+    err=None,
+)
+def test_otlp_export_enabled_fields_set():
+    import ddtrace
+    from ddtrace.internal import debug
+
+    # Metrics/logs are read live from the global config, so they can be toggled here.
+    ddtrace.config._otel_metrics_enabled = True
+    ddtrace.config._otel_logs_enabled = True
+
+    f = debug.collect()
+
+    assert f.get("otlp_traces_export_enabled") is True
+    assert f.get("otlp_metrics_export_enabled") is True
+    assert f.get("otlp_logs_export_enabled") is True
 
 
 def test_to_json():
