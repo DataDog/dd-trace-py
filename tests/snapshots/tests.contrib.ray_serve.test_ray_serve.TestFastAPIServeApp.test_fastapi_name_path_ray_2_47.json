@@ -205,7 +205,7 @@
                          "meta": {
                            "_dd.base_service": "ray._private.workers",
                            "_dd.p.tid": "6a0499c800000000",
-                           "_dd.svc_src": "fastapi",
+                           "_dd.svc_src": "ray",
                            "component": "ray",
                            "ray.serve.app_name": "default"
                          },

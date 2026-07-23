@@ -146,6 +146,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
       "runtime-id": "bc05b544ef2242f28add8cf932f2953e"
