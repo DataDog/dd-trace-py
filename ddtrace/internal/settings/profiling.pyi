@@ -24,6 +24,7 @@ class ProfilingConfig(DDConfig):
     heap: ProfilingConfigHeap
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
+    gc: ProfilingConfigGC
 
 class ProfilingConfigStack(DDConfig):
     enabled: bool
@@ -61,6 +62,13 @@ class ProfilingConfigException(DDConfig):
     enabled: bool
     sampling_interval: int
     collect_message: bool
+
+class ProfilingConfigGC(DDConfig):
+    enabled: bool
+    interval_s: int
+    top_n: int
+    survivor_threshold: int
+    referrers_enabled: bool
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]
