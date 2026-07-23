@@ -8,6 +8,7 @@ This module supports two modes:
 The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
 """
 
+from contextvars import ContextVar
 import dis
 import sys
 import threading as _threading
@@ -89,6 +90,7 @@ CodeHookData = t.Tuple[  # noqa: UP006
 ]
 _CODE_HOOKS: t.Dict[CodeType, CodeHookData] = {}  # noqa: UP006
 _IMPORTS_EMITTED: t.Set[CodeType] = set()  # noqa: UP006
+_ctx_covered_files: ContextVar[t.Optional[t.Set[str]]] = ContextVar("ctx_covered_files", default=None)  # noqa: UP006
 _tls_context = _threading.local()
 
 # NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
@@ -129,7 +131,15 @@ def configure_file_level_coverage(enabled: t.Optional[bool] = None) -> None:
 
 
 def set_active_context_covered_files(covered_files: t.Optional[t.Set[str]]) -> None:  # noqa: UP006
-    _tls_context.covered_files = covered_files
+    _ctx_covered_files.set(covered_files)
+    if sys.version_info >= (3, 14):
+        _tls_context.covered_files = covered_files
+
+
+def _get_active_context_covered_files() -> t.Optional[t.Set[str]]:  # noqa: UP006
+    if sys.version_info >= (3, 14):
+        return getattr(_tls_context, "covered_files", None)
+    return _ctx_covered_files.get()
 
 
 def has_other_monitoring_tools() -> bool:
@@ -287,7 +297,7 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
         # Report file-level coverage using line 0 as a sentinel value and emit this code object's pre-extracted import
         # dependency metadata. This keeps dependency tracking tied to executed code objects without parsing bytecode in
         # the hot callback.
-        active_covered_files = getattr(_tls_context, "covered_files", None)
+        active_covered_files = _get_active_context_covered_files()
         if active_covered_files is None or path not in active_covered_files:
             if file_hook is not None:
                 file_hook(path)

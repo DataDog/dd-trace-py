@@ -314,10 +314,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered = ctx_covered.get()[-1]
                 _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
-            if _PY_GE_314:
+            if _PY_GE_312:
                 from ddtrace.internal.coverage.instrumentation_py3_12 import set_active_context_covered_files
 
-                set_active_context_covered_files(_tls_coverage.covered_files)
+                set_active_context_covered_files(ctx_covered_files.get()[-1])
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
@@ -354,10 +354,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered = covered_lines_stack[-1]
                 _tls_coverage.covered_files = covered_files_stack[-1]
 
-            if _PY_GE_314:
+            if _PY_GE_312:
                 from ddtrace.internal.coverage.instrumentation_py3_12 import set_active_context_covered_files
 
-                set_active_context_covered_files(_tls_coverage.covered_files)
+                set_active_context_covered_files(covered_files_stack[-1] if covered_files_stack else None)
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
