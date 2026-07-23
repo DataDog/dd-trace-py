@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69faf94800000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "aiohttp_client",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "aiohttp_client",
       "http.method": "GET",

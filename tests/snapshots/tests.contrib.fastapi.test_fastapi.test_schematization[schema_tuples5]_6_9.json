@@ -65,7 +65,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m"
+            "_dd.svc_src": "fastapi"
           },
           "duration": 25375,
           "start": 1776177933562718095
