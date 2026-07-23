@@ -78,6 +78,11 @@ class TaintEngineContext
     // get_tainted_object_map prior to adding container-aware behavior.
     TaintedObjectMapTypePtr get_tainted_object_map_from_pyobject(PyObject* tainted_object);
 
+    // Container-aware membership check scoped to a single map. Mirrors the
+    // list/tuple/dict traversal of get_tainted_object_map, but only consults
+    // the provided map_ptr instead of scanning all active slots.
+    static bool is_object_tainted_in_map(PyObject* obj, const TaintedObjectMapTypePtr& map_ptr);
+
     //    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*>
     //    objects);
 
