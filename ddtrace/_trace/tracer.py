@@ -113,14 +113,12 @@ def _default_wrap_span_name(f: Callable) -> str:
 
 def _service_source_is_integration(span: Span, integration_name: str) -> bool:
     existing_service_source = span._get_str_attribute(_SERVICE_SOURCE) or ""
-    if span.service in config._integration_default_services or span.service == config._inferred_base_service:
-        if (
-            not existing_service_source
-            or not existing_service_source.startswith("opt.")
-            or integration_name != span._span_api
-        ):
-            return True
-    return False
+    service_is_default = (
+        span.service in config._integration_default_services or span.service == config._inferred_base_service
+    )
+    source_is_overridable = not existing_service_source or not existing_service_source.startswith("opt.")
+    integration_name_is_valid_source = integration_name != span._span_api
+    return service_is_default and integration_name_is_valid_source and source_is_overridable
 
 
 def _default_span_processors_factory(
