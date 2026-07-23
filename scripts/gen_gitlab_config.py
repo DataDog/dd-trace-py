@@ -92,7 +92,10 @@ class JobSpec:
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
 
-        services = set(self.services or [])
+        # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
+        # some services depend on others being ready first (e.g. azureeventhubsemulator
+        # depends on azurite), and the wait script checks readiness in argument order.
+        services = list(dict.fromkeys(self.services or []))
         if services:
             lines.append("  services:")
 
@@ -103,9 +106,9 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for = services.copy()
+        wait_for = list(services)
         if self.snapshot:
-            wait_for.add("testagent")
+            wait_for.append("testagent")
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
