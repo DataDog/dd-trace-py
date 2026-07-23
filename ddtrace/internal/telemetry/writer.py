@@ -2,7 +2,6 @@
 import http.client as httplib
 import itertools
 import os
-import sys
 import time
 import traceback
 from typing import Any
@@ -11,11 +10,13 @@ from typing import Union
 import urllib.parse as parse
 
 from ddtrace.internal import core
+from ddtrace.internal import excepthook
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.utils.http import get_connection
 
 from ...internal import atexit
@@ -147,7 +148,6 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence_payloads = itertools.count(1)
     _sequence_configurations = itertools.count(1)
-    _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
     CWD = os.getcwd()
 
     def __init__(self, is_periodic: bool = True, agentless: Optional[bool] = None) -> None:
@@ -375,18 +375,14 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
-        if asm_config is None:
-            return None
-
-        if not asm_config._api_security_endpoint_collection or not self._enabled:
+        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
             return None
 
         if not endpoint_collection.endpoints:
             return None
 
         with self._service_lock:
-            return endpoint_collection.flush(asm_config._api_security_endpoint_collection_limit)
+            return endpoint_collection.flush(appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT)
 
     def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
@@ -771,12 +767,10 @@ class TelemetryWriter(PeriodicService):
 
             self.app_shutdown()
 
-        return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
-
     def install_excepthook(self) -> None:
-        """Install a hook that intercepts unhandled exception and send metrics about them."""
-        sys.excepthook = self._telemetry_excepthook
+        """Register a hook that intercepts unhandled exceptions and sends metrics about them."""
+        excepthook.register(self._telemetry_excepthook)
 
     def uninstall_excepthook(self) -> None:
-        """Uninstall the global tracer except hook."""
-        sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK
+        """Unregister the telemetry excepthook."""
+        excepthook.unregister(self._telemetry_excepthook)

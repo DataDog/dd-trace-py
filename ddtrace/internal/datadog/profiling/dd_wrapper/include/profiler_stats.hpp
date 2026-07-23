@@ -40,7 +40,8 @@ class ProfilerStats
     // Samples dropped because the cap was reached (cumulative over tracker lifetime)
     std::optional<size_t> heap_tracker_cap_drops;
 
-    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
+    // Peak number of asyncio tasks seen across sampled threads in any single sampling
+    // cycle during the current profile period (see set_asyncio_task_count).
     std::optional<size_t> asyncio_task_count;
 
     // Number of greenlets currently tracked by the stack profiler
