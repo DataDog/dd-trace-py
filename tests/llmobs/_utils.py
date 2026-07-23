@@ -20,7 +20,9 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -121,6 +123,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         "service:{}".format(tags.get("service", "tests.llmobs")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "agent_service:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
     ]
@@ -135,7 +138,9 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
-            "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
+            "{}:{}".format(k, v)
+            for k, v in tags.items()
+            if k not in ("version", "env", "service", "ml_app", "agent_service")
         )
     return sorted(expected_tags)
 
@@ -324,6 +329,25 @@ def _expected_llmobs_non_llm_span_event(
     return span_event
 
 
+def _expected_agent_attribution(span):
+    """Independently compute the agent_attribution block expected on a span event.
+
+    Walks the LLMObs ancestor chain to the nearest "agent" span (full walk) — this must
+    match the implementation, which achieves the same result via one-level inheritance at
+    activation. Returns the resolved block, or ``None`` when no agent ancestor exists (the
+    span event omits the block entirely in that case).
+    """
+    ancestor = _get_nearest_llmobs_ancestor(span)
+    while ancestor is not None:
+        if get_llmobs_span_kind(ancestor) == "agent":
+            return {
+                "pagent_name": get_llmobs_span_name(ancestor) or ancestor.name,
+                "pagent_span_id": str(ancestor.span_id),
+            }
+        ancestor = _get_nearest_llmobs_ancestor(ancestor)
+    return None
+
+
 def _llmobs_base_span_event(
     span,
     span_kind,
@@ -372,6 +396,9 @@ def _llmobs_base_span_event(
             "sampling_decision": mock.ANY,
         },
     }
+    expected_agent_attribution = _expected_agent_attribution(span)
+    if expected_agent_attribution is not None:
+        span_event["meta"]["agent_attribution"] = expected_agent_attribution
     if session_id:
         span_event["session_id"] = session_id
     if error:

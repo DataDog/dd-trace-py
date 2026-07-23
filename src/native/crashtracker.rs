@@ -5,14 +5,15 @@ use std::time::Duration;
 
 use libdd_crashtracker::{
     register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    report_unhandled_exception, CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata,
+    StackFrame, StackTrace, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
 mod crashtracker_runtime_stacks;
 use crashtracker_runtime_stacks::{
-    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-    native_runtime_stack_string_callback,
+    get_cached_dump_traceback_fn, init_dump_traceback_fn, init_frame_get_back_fn,
+    native_runtime_stack_frame_callback, native_runtime_stack_string_callback,
 };
 
 pub trait RustWrapper {
@@ -172,10 +173,14 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
+// TODO(py-315)(pyo3 0.28): `skip_from_py_object` opts out of the Clone-driven
+// automatic FromPyObject derive that pyo3 deprecated in 0.28. This type is
+// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
+// as an owned value, so skipping is safe.
 #[pyclass(
-    skip_from_py_object,
     name = "CrashtrackerMetadata",
-    module = "datadog.internal._native"
+    module = "datadog.internal._native",
+    skip_from_py_object
 )]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
@@ -262,6 +267,7 @@ pub fn crashtracker_init<'py>(
         {
             unsafe {
                 init_dump_traceback_fn();
+                init_frame_get_back_fn();
             }
             let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
             if dump_fn_available {
@@ -317,6 +323,31 @@ pub fn crashtracker_on_fork<'py>(
 #[pyfunction(name = "crashtracker_status")]
 pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
     CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
+}
+
+#[pyfunction(name = "crashtracker_report_unhandled_exception")]
+pub fn crashtracker_report_unhandled_exception_py(
+    exception_type: Option<&str>,
+    exception_message: Option<&str>,
+    frames: Vec<HashMap<String, Option<String>>>,
+) -> anyhow::Result<()> {
+    let stack_frames: Vec<StackFrame> = frames
+        .into_iter()
+        .map(|f| {
+            let mut sf = StackFrame::new();
+            sf.function = f.get("function").and_then(|v| v.clone());
+            sf.file = f.get("file").and_then(|v| v.clone());
+            sf.line = f
+                .get("line")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<u32>().ok());
+            sf
+        })
+        .collect();
+
+    let stacktrace = StackTrace::from_frames(stack_frames, false);
+    report_unhandled_exception(exception_type, exception_message, stacktrace)?;
+    Ok(())
 }
 
 // We expose the receiver_entry_point_stdin to use from Python script, _dd_crashtracker_receiver

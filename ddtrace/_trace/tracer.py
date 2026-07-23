@@ -8,6 +8,8 @@ import logging
 import os
 from os import getpid
 from threading import Lock
+from typing import Any
+from typing import AsyncGenerator
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -23,7 +25,6 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -43,6 +44,7 @@ from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -190,6 +192,9 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._store_metadata()
+
+    def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=__version__,
@@ -331,7 +336,11 @@ class Tracer(object):
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value.
-        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
+        :param bool appsec_enabled: Reflects the AppSec (ASM) state on the tracer: it updates
+            ``asm_config._asm_enabled`` and forces the trace writer to a payload format compatible
+            with ASM metadata. It does NOT start the WAF span processor on its own. AppSec is
+            activated via ``DD_APPSEC_ENABLED`` (product startup) or remote configuration, both of
+            which register the processor through ``load_appsec()`` before reconfiguring the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
         :param list[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
@@ -399,6 +408,7 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
@@ -553,7 +563,7 @@ class Tracer(object):
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
+                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, TRACE_SOURCE_PROPAGATION_KEY):
                     span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
@@ -580,11 +590,11 @@ class Tracer(object):
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
 
-        if config.env:
+        if config.env and not config._otel_trace_semantics_enabled:
             span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        if config.version and not config._otel_trace_semantics_enabled:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
@@ -796,13 +806,30 @@ class Tracer(object):
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
     ) -> AnyCallable:
-        """Wrap a generator function with tracing."""
+        """Wrap an async generator function with tracing."""
 
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                async for value in f(*args, **kwargs):
-                    yield value
+                # Delegate to the wrapped async generator: forward sent values,
+                # thrown exceptions, and close requests. This is required so that
+                # `try/finally` cleanup inside the generator runs; otherwise, the wrapper
+                # can fail when used with `contextlib.asynccontextmanager`.
+                agen: AsyncGenerator[Any, Any] = f(*args, **kwargs)
+                to_send: Any = None
+                to_throw: Optional[BaseException] = None
+                while True:
+                    try:
+                        item: Any = await (agen.athrow(to_throw) if to_throw is not None else agen.asend(to_send))
+                    except StopAsyncIteration:
+                        return
+                    try:
+                        to_send, to_throw = (yield item), None
+                    except GeneratorExit:
+                        await agen.aclose()
+                        raise
+                    except BaseException as exc:
+                        to_throw = exc
 
         return cast(AnyCallable, func_wrapper)
 

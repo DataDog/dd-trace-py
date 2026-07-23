@@ -47,6 +47,7 @@ Datadog::ProfilerStats::reset_state()
     string_table_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
+    heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
@@ -114,9 +115,25 @@ Datadog::ProfilerStats::get_heap_tracker_size() const
 }
 
 void
+Datadog::ProfilerStats::set_heap_tracker_cap_drops(size_t count)
+{
+    heap_tracker_cap_drops = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
+{
+    return heap_tracker_cap_drops;
+}
+
+void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
-    asyncio_task_count = count;
+    // Track the peak (max) asyncio task count observed across sampling cycles
+    // within a profile period
+    if (!asyncio_task_count.has_value() || count > *asyncio_task_count) {
+        asyncio_task_count = count;
+    }
 }
 
 std::optional<size_t>
@@ -190,6 +207,13 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_heap_tracker_count) {
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_heap_cap_drops = get_heap_tracker_cap_drops();
+    if (maybe_heap_cap_drops) {
+        internal_metadata_json += R"("heap_tracker_cap_drops": )";
+        append_to_string(internal_metadata_json, *maybe_heap_cap_drops);
         internal_metadata_json += ",";
     }
 

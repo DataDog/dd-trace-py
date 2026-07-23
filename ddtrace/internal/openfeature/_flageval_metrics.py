@@ -136,7 +136,7 @@ class FlagEvalMetrics:
         log.debug("Flag evaluation metrics shutdown")
 
 
-class FlagEvalHook(Hook):
+class FlagEvalMetricsHook(Hook):
     """
     OpenFeature Hook that tracks flag evaluation metrics.
 

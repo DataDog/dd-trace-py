@@ -43,24 +43,16 @@ def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
 
 def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.sampling import add_trace_source
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
     span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
-    # set Security propagation tag
-    span._set_attribute(APPSEC.PROPAGATION_HEADER, "02")
-    span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
-
-
-def _aiguard_manual_keep(span: Span) -> None:
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
-
-    span._override_sampling_decision(USER_KEEP)
-    # set decision maker to AI_GUARD = -13
-    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.AI_GUARD}")
+    # set trace source propagation tag (_dd.p.ts) with the ASM bit
+    add_trace_source(span, TraceSource.ASM)
 
 
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
@@ -175,6 +167,7 @@ def track_user_login_success_event(
     if not span:
         return
     user_id = _maybe_hash(user_id, real_mode)
+    session_id = _maybe_hash(session_id, real_mode)
     span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if user_id:
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
@@ -379,3 +372,7 @@ def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Op
             entry_span._set_attribute(user.ID, str(userid))
     if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()
+
+
+# Registered here (always imported on AppSec startup) so set_user enforces user blocking.
+core.on("set_user_for_asm", block_request_if_user_blocked, "block_user")

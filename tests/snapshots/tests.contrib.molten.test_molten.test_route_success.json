@@ -1,0 +1,343 @@
+[[
+  {
+    "name": "molten.request",
+    "service": "molten",
+    "resource": "GET /hello/{name}/{age}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.molten",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a42c31e00000000",
+      "_dd.svc_src": "molten",
+      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:-c,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.molten",
+      "component": "molten",
+      "http.method": "GET",
+      "http.route": "/hello/{name}/{age}",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1:8000/hello/Jim/24",
+      "language": "python",
+      "molten.route": "hello",
+      "molten.version": "1.0.2",
+      "runtime-id": "59fd62f7b55e441ca466c76eb2e111db",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 50039.0
+    },
+    "duration": 3082708,
+    "start": 1782760222160649549
+  },
+     {
+       "name": "molten.middleware.__call__",
+       "service": "molten",
+       "resource": "molten.middleware.ResponseRendererMiddleware",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 112000,
+       "start": 1782760222161309924
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.HeaderComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 55167,
+       "start": 1782760222161660590
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.CookiesComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 36625,
+       "start": 1782760222161771965
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.QueryParamComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 38375,
+       "start": 1782760222161861882
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.RequestBodyComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 6,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 33917,
+       "start": 1782760222161947965
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.RequestDataComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 7,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 35542,
+       "start": 1782760222162029882
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.SchemaComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 8,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 41750,
+       "start": 1782760222162112007
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.UploadedFileComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 9,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 37875,
+       "start": 1782760222162201132
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.HeaderComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 10,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 38000,
+       "start": 1782760222162432549
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.CookiesComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 11,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 32750,
+       "start": 1782760222162521007
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.QueryParamComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 12,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 33667,
+       "start": 1782760222162599257
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.RequestBodyComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 13,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 95750,
+       "start": 1782760222162678340
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.RequestDataComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 14,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 84875,
+       "start": 1782760222162961424
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.SchemaComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 15,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 40042,
+       "start": 1782760222163129590
+     },
+     {
+       "name": "molten.components.can_handle_parameter",
+       "service": "molten",
+       "resource": "molten.components.UploadedFileComponent.can_handle_parameter",
+       "trace_id": 0,
+       "span_id": 16,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 55042,
+       "start": 1782760222163218965
+     },
+     {
+       "name": "tests.contrib.molten.test_molten.hello",
+       "service": "molten",
+       "resource": "tests.contrib.molten.test_molten.hello",
+       "trace_id": 0,
+       "span_id": 17,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 40666,
+       "start": 1782760222163359049
+     },
+     {
+       "name": "molten.renderers.render",
+       "service": "molten",
+       "resource": "molten.renderers.JSONRenderer.render",
+       "trace_id": 0,
+       "span_id": 18,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.molten",
+         "_dd.svc_src": "molten",
+         "component": "molten",
+         "span.kind": "server"
+       },
+       "duration": 58375,
+       "start": 1782760222163489299
+     }]]
