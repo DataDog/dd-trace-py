@@ -1605,24 +1605,28 @@ def test_activate_distributed_headers_no_llmobs_trace_id_starts_new_context(llmo
             trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123", PROPAGATED_LLMOBS_TRACE_ID_KEY: None}
         )
         mock_extract.return_value = dummy_context
-        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+        # Patch the whole context_provider (a native pyclass whose methods are read-only)
+        # rather than its `activate` method, so we can still observe the activate call.
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider") as mock_provider:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_llmobs_logs.debug.assert_called_once_with(
                 "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
                 "Defaulting to the corresponding APM trace ID."
             )
-            mock_activate.assert_called_once_with(dummy_context)
+            mock_provider.activate.assert_called_once_with(dummy_context)
 
 
 def test_activate_distributed_headers_activates_context(llmobs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
         dummy_context = Context(trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123"})
         mock_extract.return_value = dummy_context
-        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+        # Patch the whole context_provider (a native pyclass whose methods are read-only)
+        # rather than its `activate` method, so we can still observe the activate call.
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider") as mock_provider:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
-            mock_activate.assert_called_once_with(dummy_context)
+            mock_provider.activate.assert_called_once_with(dummy_context)
 
 
 def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):

@@ -64,10 +64,8 @@ class Span(SpanData):
         "context",
         "_store",
         # Internal attributes
-        "_parent_context",
         "_local_root_value",
         "_service_entry_span_value",
-        "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",

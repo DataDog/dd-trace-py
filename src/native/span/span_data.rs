@@ -54,6 +54,13 @@ pub struct SpanData {
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
+    /// The parent `Span` (a `SpanData` subclass), or `None` for a root span.
+    /// Set from Python during span creation; read natively by the context
+    /// provider when walking the ancestor chain in `_update_active`.
+    pub _parent: Option<Py<PyAny>>,
+    /// The parent `Context` this span was created under, or `None`.
+    /// Held as `Py<PyAny>` because `Context` is still a pure-Python class.
+    pub _parent_context: Option<Py<PyAny>>,
 }
 
 impl SpanData {
@@ -431,6 +438,41 @@ impl SpanData {
     #[inline(always)]
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
+    }
+
+    // _parent property — the parent Span, or None for a root span.
+    #[getter(_parent)]
+    #[inline(always)]
+    fn get_parent<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._parent.as_ref().map(|p| p.bind(py).clone())
+    }
+
+    #[setter(_parent)]
+    #[inline(always)]
+    fn set_parent(&mut self, value: &Bound<'_, PyAny>) {
+        // None → no parent; any other value is stored as-is.
+        self._parent = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+
+    // _parent_context property — the parent Context, or None.
+    #[getter(_parent_context)]
+    #[inline(always)]
+    fn get_parent_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._parent_context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    #[setter(_parent_context)]
+    #[inline(always)]
+    fn set_parent_context(&mut self, value: &Bound<'_, PyAny>) {
+        self._parent_context = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
     }
 
     // ── Attribute API (meta / metrics) ──────────────────────────────────────
@@ -889,6 +931,15 @@ impl SpanData {
         }
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
+        }
+        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
+        // can reach back to the span through the Context. Both must be visited
+        // so the cyclic GC can collect a finished trace.
+        if let Some(p) = &self._parent {
+            visit.call(p)?;
+        }
+        if let Some(c) = &self._parent_context {
+            visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
         // Atomic types can't form cycles, but visit them for correct refcount
