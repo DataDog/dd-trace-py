@@ -705,9 +705,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
+    fast_copy_user_disabled = !want;
     set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
