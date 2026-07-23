@@ -118,7 +118,6 @@
                   "_dd.p.tid": "6a01ffd600000000",
                   "_dd.svc_src": "ray",
                   "component": "ray",
-                  "ray.serve.handle_source": "PROXY",
                   "ray.serve.request_id": "dfadecdb-f563-4121-92e3-7d375dd27731",
                   "runtime-id": "bd33c747f53e40799418bf4c333378a6"
                 },
