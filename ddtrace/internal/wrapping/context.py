@@ -707,17 +707,19 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             original_code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
-                    # Allow wrapping a new function instance that shares the same
-                    # code object as an already-wrapped (but orphaned) function.
-                    # This happens when closures are re-created in a loop: each
-                    # iteration produces a new function object but the same code
-                    # object. If the new function is not itself registered, the old
-                    # monitoring registration is stale and should be replaced.
-                    if _fn_registry.get(f) is _ctx_registry[original_code]:
+                    existing: "_UniversalWrappingContext" = _ctx_registry[original_code]
+                    if _fn_registry.get(f) is existing:
                         raise ValueError("Function already wrapped")
-                    # Stale entry: clean up old monitoring before re-registering.
-                    old: "_UniversalWrappingContext" = _ctx_registry.pop(original_code)
-                    _monitoring.unregister(original_code, old)
+                    # Only replace a registry entry when the prior wrapped function
+                    # has been collected. A live function sharing this code object is
+                    # still actively wrapped and must not be unregistered.
+                    try:
+                        existing.__wrapped__
+                    except RuntimeError:
+                        _ctx_registry.pop(original_code)
+                        _monitoring.unregister(original_code, existing)
+                    else:
+                        raise ValueError("Function already wrapped")
 
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.
@@ -726,8 +728,6 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 link_function_to_code(original_code, f)
                 monitor_code: CodeType = original_code.replace()
                 migrate_line_hooks(original_code, monitor_code)
-                set_function_code(f, monitor_code)
-                self._original_code = original_code
 
                 _ctx_registry[monitor_code] = self
                 _fn_registry[f] = self
@@ -738,7 +738,11 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     weakref.ref(f),
                 )
                 self._finalize.atexit = False
-            _monitoring.register(monitor_code, self)
+                # Register monitoring before swapping __code__ so no thread can
+                # observe monitor_code without an active handler.
+                _monitoring.register(monitor_code, self)
+                set_function_code(f, monitor_code)
+                self._original_code = original_code
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
