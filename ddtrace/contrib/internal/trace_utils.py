@@ -396,9 +396,7 @@ def set_service_and_source(
 ) -> None:
     service_source = ""
     mapped_service = config.service_mapping.get(service, service)
-    if _service_state.is_user_provided_service():
-        service_source = "m"
-    elif service != mapped_service:
+    if service != mapped_service:
         service_source = "opt.service_mapping"
         service = mapped_service
     elif int_config.get("split_by_domain", False):
@@ -410,6 +408,8 @@ def set_service_and_source(
             "integration_name",
             int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
         )
+    elif _service_state.is_user_provided_service():
+        service_source = "m"
     if service_source:
         span.set_tag(_SERVICE_SOURCE, service_source)
     if service:
