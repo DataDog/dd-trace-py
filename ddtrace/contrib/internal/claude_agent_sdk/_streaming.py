@@ -209,6 +209,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             submit_to_llmobs=True,
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
+            activate=False,  # spans the caller starts while iterating should not nest under this span
         )
         # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
         if self._step_tool_span_refs:
@@ -329,6 +330,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         # Same turn continued: accumulate onto the buffered chunks (usage counted once).
         if self._pending_chunks and incoming_id is not None and incoming_id == self._pending_message_id:
             self._pending_chunks.append(chunk)
+            self._open_tool_spans(content)
             return
 
         # New turn: flush the previous one, then start buffering this chunk.
@@ -337,10 +339,19 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._create_step_span()
         self._pending_chunks = [chunk]
         self._pending_message_id = incoming_id
+        self._open_tool_spans(content)
 
         # Without a message_id, there is no need to buffer the turn.
         if incoming_id is None:
             self._flush_pending_turn()
+
+    def _open_tool_spans(self, content: Any) -> None:
+        """Open a tool span for each ToolUseBlock in a chunk's content."""
+        if not isinstance(content, list):
+            return
+        for block in content:
+            if type(block).__name__ == "ToolUseBlock":
+                self._handle_tool_use_block(block)
 
     def _flush_pending_turn(self) -> None:
         """Emit the llm/step spans for the buffered AssistantMessage chunks, if any."""
@@ -361,16 +372,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
         response = self._merge_assistant_chunks(chunks)
 
-        # _finalize_llm_span must run before the ToolUseBlock loop so
-        # _last_llm_span_ref is set when _handle_tool_use_block emits the
-        # llm → tool link.
         self._finalize_llm_span(response)
-
-        content = getattr(response, "content", []) or []
-        if isinstance(content, list):
-            for block in content:
-                if type(block).__name__ == "ToolUseBlock":
-                    self._handle_tool_use_block(block)
 
         # Defer or finalize the step span.
         if self._active_tool_spans:
@@ -435,12 +437,18 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
+            activate=False,
         )
-        if self._last_llm_span_ref is not None:
+        # Link from the current turn's llm span, which is still open (not yet finalized) when
+        # tools are opened eagerly. Fall back to the last finalized llm span if it is gone.
+        llm_ref = (
+            self._snapshot(self.current_llm_span) if self.current_llm_span is not None else self._last_llm_span_ref
+        )
+        if llm_ref is not None:
             add_span_link(
                 tool_span,
-                self._last_llm_span_ref.span_id,
-                self._last_llm_span_ref.trace_id,
+                llm_ref.span_id,
+                llm_ref.trace_id,
                 "output",
                 "input",
             )
