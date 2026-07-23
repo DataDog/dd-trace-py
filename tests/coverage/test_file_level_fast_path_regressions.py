@@ -3,6 +3,31 @@ import sys
 import pytest
 
 
+def test_file_level_paths_include_line_only_context_coverage():
+    """File-level path snapshots must preserve files only present in the line coverage context.
+
+    Python < 3.12 records file-level coverage through line hooks, and multiprocessing child coverage is merged back
+    into the parent line dictionary. In both cases, the file-level upload path must include those line-dict keys.
+    """
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import _get_ctx_covered_files
+    from ddtrace.internal.coverage.code import _get_ctx_covered_lines
+
+    old_instance = ModuleCodeCollector._instance
+    collector = ModuleCodeCollector()
+    collector._file_level_coverage = True
+    ModuleCodeCollector._instance = collector
+
+    try:
+        with ModuleCodeCollector.CollectInContext() as context_collector:
+            _get_ctx_covered_files().add("/repo/parent.py")
+            _get_ctx_covered_lines()["/repo/child.py"].add(0)
+
+            assert context_collector.get_covered_file_paths() == {"/repo/parent.py", "/repo/child.py"}
+    finally:
+        ModuleCodeCollector._instance = old_instance
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_same_file_fast_path_preserves_late_dynamic_import_dependency():

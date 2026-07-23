@@ -419,7 +419,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             return covered_lines
 
         def get_covered_file_paths(self) -> t.AbstractSet[str]:
-            covered_file_paths = _get_ctx_covered_files()
+            # Python < 3.12 and injected child-process coverage may only update the line-oriented
+            # context data. Merge those keys into the file set so file-level uploads still include
+            # every file that would have been emitted by get_covered_lines().
+            covered_file_paths = set(_get_ctx_covered_files())
+            covered_file_paths.update(_get_ctx_covered_lines())
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
             return covered_file_paths
