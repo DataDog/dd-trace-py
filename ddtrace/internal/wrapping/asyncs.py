@@ -1,6 +1,7 @@
 import enum
 import sys
 from types import CodeType
+from typing import Optional
 
 import bytecode as bc
 
@@ -55,7 +56,7 @@ def _ensure_common_constant_none() -> None:
 
 COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
-ASYNC_HEAD_ASSEMBLY: Assembly | None = None
+ASYNC_HEAD_ASSEMBLY: Optional[Assembly] = None
 
 if PY >= NEXT_PY_VERSION_INFO:
     # TODO: remove when migrating the app to py-315
