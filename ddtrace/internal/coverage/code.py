@@ -168,6 +168,17 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_covered_file_paths.add(path)
                 _get_ctx_covered_lines()[path].add(0)
 
+    def hook_line(self, path: str, line: int) -> None:
+        if self._coverage_enabled:
+            lines = self.covered[path]
+            lines.add(line)
+
+        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
+            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
+            # reporting coverage
+            ctx_lines = _get_ctx_covered_lines()[path]
+            ctx_lines.add(line)
+
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
         path: str
@@ -177,15 +188,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         if self._file_level_coverage and line == 0:
             self.hook_file(path)
         else:
-            if self._coverage_enabled:
-                lines = self.covered[path]
-                lines.add(line)
-
-            if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
-                # Import-time contexts store their lines in a non-context variable to be aggregated on request when
-                # reporting coverage
-                ctx_lines = _get_ctx_covered_lines()[path]
-                ctx_lines.add(line)
+            self.hook_line(path, line)
 
         if import_name is not None:
             self.hook_import(path, import_name)
