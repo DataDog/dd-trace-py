@@ -34,17 +34,25 @@ import subprocess  # nosec B404
 import sys
 import tempfile
 import time
+from typing import TYPE_CHECKING
 from typing import Any
+from typing import TextIO
 
 
-_REPO_ROOT = Path(__file__).parent.parent
-_BASELINE_FILE = _REPO_ROOT / "scripts" / "profiles" / "compatibility_baselines.json"
+if TYPE_CHECKING:
+    import asyncio
+
+    from tests.profiling.collector import pprof_pb2
+
+
+_REPO_ROOT: Path = Path(__file__).parent.parent
+_BASELINE_FILE: Path = _REPO_ROOT / "scripts" / "profiles" / "compatibility_baselines.json"
 
 # Names used for asyncio tasks in the profiler sample collection suite.
 # These must be unique strings that won't appear in any other samples.
-_ASYNCIO_TASK_NAMES = ["compat-task-0", "compat-task-1", "compat-task-2"]
-_PROFILER_RUN_SECONDS = 5.0
-_MIN_WALL_TIME_SAMPLES = 2
+_ASYNCIO_TASK_NAMES: list[str] = ["compat-task-0", "compat-task-1", "compat-task-2"]
+_PROFILER_RUN_SECONDS: float = 5.0
+_MIN_WALL_TIME_SAMPLES: int = 2
 
 
 # =============================================================================
@@ -84,7 +92,7 @@ def _suite_asyncio_guards() -> dict[str, Any]:
 
     # Exercise the policy hook: asyncio.set_event_loop() triggers
     # stack.track_asyncio_loop() via the BaseDefaultEventLoopPolicy wrapper.
-    loop = asyncio.new_event_loop()
+    loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
     finally:
@@ -117,8 +125,8 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
     # (It may already be imported, but importing it again is a no-op.)
     import ddtrace.profiling._asyncio  # noqa: F401
 
-    pprof_prefix = os.path.join(tmpdir, "compat")
-    output_filename = pprof_prefix + "." + str(os.getpid())
+    pprof_prefix: str = os.path.join(tmpdir, "compat")
+    output_filename: str = pprof_prefix + "." + str(os.getpid())
 
     ddup.config(
         env="test",
@@ -129,12 +137,12 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
     ddup.start()
 
     async def _workload() -> None:
-        end = time.monotonic() + _PROFILER_RUN_SECONDS
+        end: float = time.monotonic() + _PROFILER_RUN_SECONDS
         while time.monotonic() < end:
             await asyncio.sleep(0.05)
 
     with stack_collector.StackCollector():
-        loop = asyncio.new_event_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(
@@ -159,11 +167,11 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         sys.path.insert(0, str(_REPO_ROOT))
         from tests.profiling.collector import pprof_utils
 
-        profile = pprof_utils.parse_newest_profile(output_filename)
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
         result["pprof_written"] = True
 
-        wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+        wall_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        task_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_label_key(profile, "task name")
 
         result["wall_time_samples"] = len(wall_samples)
         result["asyncio_task_samples"] = len(task_samples)
@@ -171,12 +179,12 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         # Extract the actual task name strings from the pprof string table
         names_seen: set[str] = set()
         for sample in task_samples:
-            label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+            label: pprof_pb2.Label | None = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
             if label is not None:
                 names_seen.add(profile.string_table[label.str])
         result["asyncio_task_names_seen"] = sorted(names_seen)
 
-        expected = set(_ASYNCIO_TASK_NAMES)
+        expected: set[str] = set(_ASYNCIO_TASK_NAMES)
         if result["wall_time_samples"] < _MIN_WALL_TIME_SAMPLES:
             result["error"] = (
                 f"Too few wall-time samples: {result['wall_time_samples']} < {_MIN_WALL_TIME_SAMPLES}. "
@@ -202,7 +210,7 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         # zstandard or protobuf not installed — degrade to file-existence check
         import glob as _glob
 
-        files = _glob.glob(pprof_prefix + "*.pprof")
+        files: list[str] = _glob.glob(pprof_prefix + "*.pprof")
         result["pprof_written"] = bool(files)
         result["passed"] = result["pprof_written"]
         result["pprof_parse_skipped"] = True
@@ -262,23 +270,24 @@ def _find_python(version: str | None) -> str:
         return version
 
     # Try exact pyenv path first (handles pre-releases like 3.15.0a7)
-    pyenv_root = os.path.expanduser("~/.pyenv/versions")
-    pyenv_exact = os.path.join(pyenv_root, version, "bin", "python3")
+    pyenv_root: str = os.path.expanduser("~/.pyenv/versions")
+    pyenv_exact: str = os.path.join(pyenv_root, version, "bin", "python3")
     if os.path.isfile(pyenv_exact):
         return pyenv_exact
 
     # Try python3.X in PATH (handles short versions like "3.15")
-    short = version.split(".")
+    short: list[str] = version.split(".")
+    short_name: str = ""
     if len(short) >= 2:
         short_name = f"python{short[0]}.{short[1]}"
-        found = shutil.which(short_name)
+        found: str | None = shutil.which(short_name)
         if found:
             return found
 
     # Try pyenv glob for partial versions (e.g. "3.15" matches "3.15.0a7")
     import glob as _glob
 
-    matches = _glob.glob(os.path.join(pyenv_root, version + "*", "bin", "python3"))
+    matches: list[str] = _glob.glob(os.path.join(pyenv_root, version + "*", "bin", "python3"))
     if matches:
         matches.sort()
         return matches[-1]
@@ -293,8 +302,9 @@ def _find_python(version: str | None) -> str:
 def _load_baselines() -> dict[str, Any]:
     if not _BASELINE_FILE.exists():
         return {}
+    f: TextIO
     with open(_BASELINE_FILE) as f:
-        data = json.load(f)
+        data: object = json.load(f)
     if not isinstance(data, dict):
         return {}
     return data
@@ -302,6 +312,7 @@ def _load_baselines() -> dict[str, Any]:
 
 def _save_baselines(baselines: dict[str, Any]) -> None:
     _BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    f: TextIO
     with open(_BASELINE_FILE, "w") as f:
         json.dump(baselines, f, indent=2)
         f.write("\n")
@@ -309,7 +320,7 @@ def _save_baselines(baselines: dict[str, Any]) -> None:
 
 def _baseline_key(python_exe: str) -> str:
     """Return MAJOR.MINOR for the given Python executable (e.g. '3.15')."""
-    out = subprocess.check_output(  # nosec B603
+    out: str = subprocess.check_output(  # nosec B603
         [python_exe, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
         text=True,
     ).strip()
@@ -317,21 +328,21 @@ def _baseline_key(python_exe: str) -> str:
 
 
 def _format_result(name: str, result: dict[str, Any], width: int = 22) -> str:
-    label = f"  {name:<{width}}"
+    label: str = f"  {name:<{width}}"
     if result.get("skipped"):
-        reason = result.get("reason", "no reason given")
+        reason: str = result.get("reason", "no reason given")
         return f"{label}SKIP  ({reason})"
     if result.get("passed"):
-        extras = []
+        extras: list[str] = []
         if "wall_time_samples" in result:
             extras.append(f"{result['wall_time_samples']} wall-time samples")
         if "asyncio_task_names_seen" in result and result["asyncio_task_names_seen"]:
             extras.append("tasks: " + ", ".join(result["asyncio_task_names_seen"]))
         if result.get("pprof_parse_skipped"):
             extras.append("pprof content not validated (missing zstandard/protobuf)")
-        suffix = f"  ({', '.join(extras)})" if extras else ""
+        suffix: str = f"  ({', '.join(extras)})" if extras else ""
         return f"{label}PASS{suffix}"
-    err = result.get("error", "unknown error")
+    err: str = result.get("error", "unknown error")
     return f"{label}FAIL\n    {err}"
 
 
@@ -340,13 +351,13 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
     failures: list[str] = []
 
     for suite in ("asyncio_guards", "profiler_samples"):
-        cur = results.get(suite, {})
-        ref = baseline.get(suite, {})
+        cur: dict[str, Any] = results.get(suite, {})
+        ref: dict[str, Any] = baseline.get(suite, {})
         if not ref:
             continue  # baseline doesn't have this suite — skip
 
-        cur_passed = cur.get("passed", False)
-        ref_passed = ref.get("passed", True)  # assume baseline was passing
+        cur_passed: bool = cur.get("passed", False)
+        ref_passed: bool = ref.get("passed", True)  # assume baseline was passing
 
         if ref_passed and not cur_passed:
             failures.append(f"{suite}: was PASS in baseline, now FAIL — {cur.get('error', '?')}")
@@ -361,9 +372,9 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
 
         # Check task names
         if "asyncio_task_names_seen" in ref:
-            expected = set(ref["asyncio_task_names_seen"])
-            got = set(cur.get("asyncio_task_names_seen", []))
-            missing = expected - got
+            expected: set[str] = set(ref["asyncio_task_names_seen"])
+            got: set[str] = set(cur.get("asyncio_task_names_seen", []))
+            missing: set[str] = expected - got
             if missing:
                 failures.append(f"{suite}: task names missing from samples: {sorted(missing)}")
 
@@ -371,7 +382,7 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Verify ddtrace profiler compatibility on any Python version.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -399,7 +410,7 @@ def main() -> None:
     parser.add_argument("--subprocess", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--subprocess-quick", action="store_true", help=argparse.SUPPRESS)
 
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     # --- Subprocess mode ---
     if args.subprocess:
@@ -407,9 +418,9 @@ def main() -> None:
         return
 
     # --- Orchestrator mode ---
-    python_exe = _find_python(args.python)
+    python_exe: str = _find_python(args.python)
 
-    version_str = (
+    version_str: str = (
         subprocess.check_output(  # nosec B603
             [python_exe, "-c", "import sys; print(sys.version)"],
             text=True,
@@ -422,11 +433,11 @@ def main() -> None:
     if args.quick:
         print("  (quick mode — import checks only)")
 
-    cmd = [python_exe, __file__, "--subprocess"]
+    cmd: list[str] = [python_exe, __file__, "--subprocess"]
     if args.quick:
         cmd.append("--subprocess-quick")
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
+    proc: subprocess.CompletedProcess[str] = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
 
     if proc.returncode != 0 and not proc.stdout.strip():
         print(f"\nSubprocess crashed (exit {proc.returncode}):")
@@ -443,15 +454,15 @@ def main() -> None:
 
     if proc.stderr.strip():
         print("\n[profiler stderr]")
-        for line in proc.stderr.strip().splitlines():
-            print(f"  {line}")
+        for stderr_line in proc.stderr.strip().splitlines():
+            print(f"  {stderr_line}")
 
     print()
-    all_passed = True
+    all_passed: bool = True
     for suite_name in ("asyncio_guards", "profiler_samples"):
         if suite_name not in results:
             continue
-        line = _format_result(suite_name, results[suite_name])
+        line: str = _format_result(suite_name, results[suite_name])
         print(line)
         if not results[suite_name].get("passed") and not results[suite_name].get("skipped"):
             all_passed = False
@@ -462,12 +473,12 @@ def main() -> None:
         if not all_passed:
             print("Not saving baseline — some checks failed. Fix them first, then re-run with --baseline.")
         else:
-            baseline_key = _baseline_key(python_exe)
-            baselines = _load_baselines()
+            baseline_key: str = _baseline_key(python_exe)
+            baselines: dict[str, Any] = _load_baselines()
             # Only save the expected task names (not transient names like "<invalid>")
             # so the baseline comparison is deterministic across runs.
-            seen_names = set(results.get("profiler_samples", {}).get("asyncio_task_names_seen", []))
-            stable_names = sorted(seen_names & set(_ASYNCIO_TASK_NAMES))
+            seen_names: set[str] = set(results.get("profiler_samples", {}).get("asyncio_task_names_seen", []))
+            stable_names: list[str] = sorted(seen_names & set(_ASYNCIO_TASK_NAMES))
 
             baselines[baseline_key] = {
                 "asyncio_guards": results.get("asyncio_guards", {}),
@@ -486,11 +497,11 @@ def main() -> None:
         if baseline_key not in baselines:
             print(f"No baseline for Python {baseline_key}. Run with --baseline on a known-good version first.")
         else:
-            failures = _compare_with_baseline(results, baselines[baseline_key])
+            failures: list[str] = _compare_with_baseline(results, baselines[baseline_key])
             if failures:
                 print("Baseline comparison FAILED:")
-                for f in failures:
-                    print(f"  - {f}")
+                for failure in failures:
+                    print(f"  - {failure}")
                 all_passed = False
             else:
                 print(f"Baseline comparison PASSED (vs Python {baseline_key} baseline).")
