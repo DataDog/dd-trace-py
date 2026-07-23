@@ -563,6 +563,7 @@ dependencies = [
  "libdd-capabilities-impl",
  "libdd-common",
  "libdd-crashtracker",
+ "libdd-crashtracker-ffi",
  "libdd-data-pipeline",
  "libdd-ddsketch",
  "libdd-http-client",
@@ -1586,6 +1587,25 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "uuid",
+ "windows 0.59.0",
+]
+
+[[package]]
+name = "libdd-crashtracker-ffi"
+version = "37.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "anyhow",
+ "build_common",
+ "function_name",
+ "libc",
+ "libdd-common",
+ "libdd-common-ffi",
+ "libdd-crashtracker",
+ "serde",
+ "serde_json",
+ "symbolic-common",
+ "symbolic-demangle",
  "windows 0.59.0",
 ]
 
