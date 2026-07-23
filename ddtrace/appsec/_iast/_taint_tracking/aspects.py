@@ -50,9 +50,11 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_w
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.internal.utils import get_argument_value
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
+_URLLIB_ALWAYS_SAFE_BYTES = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~")
 
 _extend_aspect = aspects.extend_aspect
 _join_aspect = aspects.join_aspect
@@ -118,6 +120,7 @@ __all__ = [
     "title_aspect",
     "translate_aspect",
     "upper_aspect",
+    "urllib_parse_quote_from_bytes_aspect",
 ]
 
 
@@ -190,6 +193,67 @@ def bytearray_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_propagation_error_log("bytearray_aspect", e)
+    return result
+
+
+def urllib_parse_quote_from_bytes_aspect(
+    wrapped: Callable[..., str], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> str:
+    result = wrapped(*args, **kwargs)
+    try:
+        value = get_argument_value(args, kwargs, 0, "bs")
+        if not isinstance(value, (bytes, bytearray)):
+            return result
+        ranges = get_ranges(value)
+        if not ranges:
+            return result
+
+        if all(taint_range.start == 0 and taint_range.length == len(value) for taint_range in ranges):
+            taint_pyobject_with_ranges(
+                result,
+                tuple(
+                    TaintRange(0, len(result), taint_range.source, taint_range.secure_marks) for taint_range in ranges
+                ),
+            )
+            return result
+
+        safe = get_argument_value(args, kwargs, 1, "safe", optional=True)
+        if safe is None:
+            safe = b"/"
+        safe_bytes = (
+            safe.encode("ascii", "ignore") if isinstance(safe, str) else bytes(byte for byte in safe if byte < 128)
+        )
+        safe_set = _URLLIB_ALWAYS_SAFE_BYTES.union(safe_bytes)
+        boundaries = sorted(
+            {
+                boundary
+                for taint_range in ranges
+                for boundary in (taint_range.start, taint_range.start + taint_range.length)
+            }
+        )
+        offsets = {}
+        input_offset = 0
+        output_offset = 0
+        for boundary in boundaries:
+            while input_offset < boundary:
+                output_offset += 1 if value[input_offset] in safe_set else 3
+                input_offset += 1
+            offsets[boundary] = output_offset
+
+        taint_pyobject_with_ranges(
+            result,
+            tuple(
+                TaintRange(
+                    start=offsets[taint_range.start],
+                    length=offsets[taint_range.start + taint_range.length] - offsets[taint_range.start],
+                    source=taint_range.source,
+                    secure_marks=taint_range.secure_marks,
+                )
+                for taint_range in ranges
+            ),
+        )
+    except Exception as e:
+        iast_propagation_error_log("urllib_parse_quote_from_bytes_aspect", e)
     return result
 
 
