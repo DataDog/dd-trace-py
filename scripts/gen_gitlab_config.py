@@ -60,7 +60,6 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_venv_artifacts: bool = False
     skip_pip_cache: bool = False
 
     python_versions: t.Optional[set[str]] = None
@@ -93,7 +92,10 @@ class JobSpec:
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
 
-        services = set(self.services or [])
+        # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
+        # some services depend on others being ready first (e.g. azureeventhubsemulator
+        # depends on azurite), and the wait script checks readiness in argument order.
+        services = list(dict.fromkeys(self.services or []))
         if services:
             lines.append("  services:")
 
@@ -104,9 +106,9 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for = services.copy()
+        wait_for = list(services)
         if self.snapshot:
-            wait_for.add("testagent")
+            wait_for.append("testagent")
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
@@ -154,16 +156,6 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
-
-        if self.skip_venv_artifacts:
-            lines.append("  artifacts:")
-            lines.append("    when: always")
-            lines.append("    paths:")
-            lines.append("      - core.*")
-            lines.append("      - ddtrace/**/*.so*")
-            lines.append("    reports:")
-            lines.append("      junit: test-results/junit*.xml")
-            lines.append("    expire_in: 1 week")
 
         return "\n".join(lines)
 

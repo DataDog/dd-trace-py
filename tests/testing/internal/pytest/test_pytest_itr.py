@@ -382,6 +382,9 @@ class TestITR:
             @pytest.mark.skipif(False, reason='datadog_itr_unskippable')
             def test_forced_run():
                 assert True
+
+            def test_sibling_also_runs():
+                assert False
             """,
         )
 
@@ -401,13 +404,20 @@ class TestITR:
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
-        assert result.ret == 0
-        # The unskippable file was not ignored — its test ran and passed.
-        result.assertoutcome(passed=1)
+        assert result.ret == 1
+        # The unskippable file was not ignored, and the whole suite ran instead of skipping siblings test-by-test.
+        result.assertoutcome(passed=1, failed=1)
 
         # test event present (file was collected, not ignored)
         test_event = event_capture.event_by_test_name("test_forced_run")
         assert test_event["content"]["meta"]["test.status"] == "pass"
+        assert test_event["content"]["meta"]["test.itr.unskippable"] == "true"
+        assert test_event["content"]["meta"]["test.itr.forced_run"] == "true"
+
+        sibling_event = event_capture.event_by_test_name("test_sibling_also_runs")
+        assert sibling_event["content"]["meta"]["test.status"] == "fail"
+        assert sibling_event["content"]["meta"]["test.itr.forced_run"] == "true"
+        assert sibling_event["content"]["meta"].get("test.skipped_by_itr") is None
 
         # No ITR-skip events emitted (the suite ran, it wasn't skipped)
         [session] = event_capture.events_by_type("test_session_end")
@@ -478,3 +488,37 @@ class TestITR:
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []
+
+    def test_itr_coverage_enabled_with_coverage_report_upload(self, pytester: Pytester) -> None:
+        """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
+        even when coverage_report_upload_enabled=True.
+
+        Both mechanisms can run simultaneously because CollectInContext.__enter__ dynamically
+        detects other sys.monitoring tools and disables the DISABLE optimisation + restart_events()
+        to avoid corrupting their state.
+        """
+        pytester.makepyfile(test_placeholder="def test_ok(): pass")
+
+        setup_coverage_calls: list[bool] = []
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    coverage_enabled=True,
+                    coverage_report_upload_enabled=True,
+                ),
+            ),
+            setup_standard_mocks(),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.setup_coverage_collection",
+                side_effect=lambda **kwargs: setup_coverage_calls.append(True),
+            ),
+        ):
+            pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert len(setup_coverage_calls) == 1, (
+            "setup_coverage_collection() must be called when coverage_enabled=True "
+            "even when coverage_report_upload_enabled=True; "
+            f"was called {len(setup_coverage_calls)} time(s)"
+        )

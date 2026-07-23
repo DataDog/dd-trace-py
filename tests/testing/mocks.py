@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import typing as t
+from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -112,6 +113,7 @@ class SessionManagerMockBuilder:
         self._test_properties: dict[TestRef, TestProperties] = {}
         self._known_tests: set[TestRef] = set()
         self._known_commits: list[str] = []
+        self._itr_correlation_id: t.Optional[str] = None
         self._workspace_path = "/fake/workspace"
         self._retry_handlers: list[Mock] = []
         self._env_tags: dict[str, str] = {}
@@ -151,6 +153,11 @@ class SessionManagerMockBuilder:
         self._known_tests = tests
         return self
 
+    def with_itr_correlation_id(self, correlation_id: str) -> "SessionManagerMockBuilder":
+        """Set the ITR correlation ID returned by the skippable tests endpoint."""
+        self._itr_correlation_id = correlation_id
+        return self
+
     def with_workspace_path(self, path: str) -> "SessionManagerMockBuilder":
         """Set workspace path."""
         self._workspace_path = path
@@ -179,7 +186,8 @@ class SessionManagerMockBuilder:
         mock_manager.env_tags = self._env_tags
 
         mock_manager.itr_skipping_level = self._itr_skipping_level
-        mock_manager.session = Mock()
+        mock_manager.session = MagicMock()
+        mock_manager.session.metrics = {}
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
@@ -216,7 +224,7 @@ class SessionManagerMockBuilder:
             mock_client.get_test_management_properties.return_value = self._test_properties
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
-            mock_client.get_skippable_tests.return_value = (self._skippable_items, None)
+            mock_client.get_skippable_tests.return_value = (self._skippable_items, self._itr_correlation_id)
             mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
