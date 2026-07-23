@@ -70,8 +70,6 @@ def cleanup_loaded_modules() -> None:
             "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
-            "google",
-            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch

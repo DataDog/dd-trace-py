@@ -736,6 +736,22 @@ class TestPromptManagement:
     """Tests for prompt management (write) operations."""
 
     @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}], env_ids=["env-1"]),
+            lambda: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}], env_ids=["env-1"]),
+            lambda: LLMObs.update_prompt_version("p1", 1, env_ids=["env-1"]),
+        ],
+    )
+    def test_write_prompt_env_ids(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call()
+
+        assert json.loads(conn.requests[-1]["body"])["env_ids"] == ["env-1"]
+
+    @pytest.mark.parametrize(
         "status,exc_type",
         [
             (400, PromptValidationError),

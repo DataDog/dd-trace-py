@@ -152,8 +152,10 @@ def _lineno_of(func, substring):
 def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import exception_is_available
 
-    assert profiling_config.exception.enabled is False
+    assert exception_is_available
+    assert profiling_config.exception.enabled is True
     assert profiling_config.exception.sampling_interval == 100
     assert profiling_config.exception.collect_message is False
 
@@ -808,7 +810,7 @@ def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
     samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
 
-    # With sampling_interval=1, the first exception is always sampled. ddup aggregates samples
+    # With sampling_interval=1 every exception is sampled. ddup aggregates samples
     # with identical stacks into a single pprof row with a summed count value.
     # The invariant we are looking for is that the total exception-samples count for the
     # ValueError we raised must not exceed 1.

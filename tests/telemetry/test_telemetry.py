@@ -1,6 +1,10 @@
 import os
+import sys
+from types import ModuleType
 
 import pytest
+
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
@@ -18,6 +22,13 @@ assert telemetry_writer._worker is not None
     assert status == 0, stderr
     assert stdout == b"", stderr
     assert stderr == b""
+
+
+def test_report_endpoints_while_asm_config_is_initializing(monkeypatch):
+    initializing_asm = ModuleType("ddtrace.internal.settings.asm")
+    monkeypatch.setitem(sys.modules, initializing_asm.__name__, initializing_asm)
+
+    assert telemetry_writer._report_endpoints() is None
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -287,7 +298,13 @@ f.wsgi_app()
     assert len(app_started_event) == 1
 
     logs_event = test_agent_session.get_events("logs")
-    error_log = logs_event[0]["payload"]["logs"][0]
+    # Filter out crashtracker logs (contain "is_crash:true" in the message)
+    telemetry_logs = [
+        event
+        for event in logs_event
+        if not any("is_crash:true" in log.get("message", "") for log in event["payload"]["logs"])
+    ]
+    error_log = telemetry_logs[0]["payload"]["logs"][0]
     assert error_log["message"] == "Unhandled exception from ddtrace code"
     assert error_log["level"] == "ERROR"
     assert "patched_wsgi_app" in error_log["stack_trace"]
@@ -363,13 +380,19 @@ def test_installed_excepthook():
     # importing ddtrace initializes the telemetry writer and installs the excepthook
     import ddtrace  # noqa: F401
 
-    assert sys.excepthook.__name__ == "_telemetry_excepthook"
+    # ddtrace installs a single dispatching hook that fans out to registered callbacks
+    from ddtrace.internal import excepthook
+
+    assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
     from ddtrace.internal.telemetry import telemetry_writer
 
     assert telemetry_writer._enabled is True
+    assert telemetry_writer._telemetry_excepthook in excepthook._hooks
     telemetry_writer.uninstall_excepthook()
-    assert sys.excepthook.__name__ != "_telemetry_excepthook"
+    assert telemetry_writer._telemetry_excepthook not in excepthook._hooks
+    # The dispatcher stays installed even after a component unregisters
+    assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
 
 def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):

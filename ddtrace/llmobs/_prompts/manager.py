@@ -601,6 +601,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -611,6 +612,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -623,6 +626,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -632,6 +636,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -662,15 +668,18 @@ class PromptManager:
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
-        if labels is None and description is None:
-            raise PromptValidationError(0, "At least one of labels or description must be provided")
+        if labels is None and description is None and env_ids is None:
+            raise PromptValidationError(0, "At least one of labels, description, or env_ids must be provided")
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {}
         if labels is not None:
             body["labels"] = labels
         if description is not None:
             body["description"] = description
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request(
             "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
         )
