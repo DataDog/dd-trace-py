@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ebb09200000000",
-      "_dd.svc_src": "rq",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "rq",
       "job.func_name": "__call__",
@@ -43,7 +43,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ebb09200000000",
-      "_dd.svc_src": "rq",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "rq",
       "job.id": "abc",
@@ -72,7 +72,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ebb09200000000",
-      "_dd.svc_src": "rq",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "rq",
       "job.id": "edae0540-1b82-4f4d-8af6-5ed36c5e7858",
