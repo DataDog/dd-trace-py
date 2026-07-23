@@ -1,23 +1,46 @@
 from functools import lru_cache
 from http import HTTPStatus
+import logging
+import socket
 from typing import Any
 from typing import Optional
+from urllib.parse import urlsplit
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.runtime import container
+
+
+log = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=64)
 def _build_client(base_url: str, timeout_ms: int) -> Any:
     from ddtrace.internal.http_client import HTTPClient
 
-    # max_retries=1: recovers from a stale pooled keep-alive connection (the
-    # server closing it before the client's pool does) without masking real
-    # failures behind repeated retries.
-    return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False, max_retries=1)
+    return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False)
 
 
 forksafe.register(_build_client.cache_clear)
+
+
+def _diagnose_connection_failure(base_url: str) -> str:
+    # DEV: the native client's ConnectionFailedError message only carries the
+    # Rust HTTP backend's top-level error Display, not its full `.source()`
+    # chain (e.g. the underlying DNS failure) — that detail is discarded
+    # before it reaches Python. Resolving the hostname ourselves recovers it
+    # for debugging, since DNS failures are otherwise indistinguishable from
+    # any other connection failure from this exception alone.
+    host = urlsplit(base_url).hostname
+    if not host:
+        return f"could not parse a host from base_url={base_url!r}"
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        return f"DNS resolution for host {host!r} failed: {e}"
+    except Exception as e:
+        return f"DNS resolution for host {host!r} raised {e!r}"
+    return f"DNS resolution for host {host!r} succeeded; the failure is not name resolution"
 
 
 class _CaseInsensitiveHeaders:
@@ -104,7 +127,15 @@ class NativeHTTPConnection:
         # get()/delete() don't accept a body kwarg at all, unlike post()/put()/patch().
         if self._pending_body is not None and self._method not in ("get", "delete"):
             kwargs["body"] = self._pending_body
-        return HTTPResponse(req_fn(self._path, **kwargs))
+        try:
+            return HTTPResponse(req_fn(self._path, **kwargs))
+        except ConnectionFailedError:
+            log.debug(
+                "native HTTP client connection to %s failed: %s",
+                self._base_url,
+                _diagnose_connection_failure(self._base_url),
+            )
+            raise
 
     def close(self) -> None:
         pass

@@ -39,7 +39,15 @@ libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev =
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = [
   "stats-obfuscation"
 ] }
-libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
+# DEV: `hyper-backend` (rather than the default `reqwest-backend`) avoids
+# hickory-dns, a pure-Rust DNS resolver that mishandles bare, single-label
+# hostnames resolved through custom search/ndots resolv.conf setups (e.g.
+# Docker Compose/Kubernetes service names via embedded DNS) — it uses the
+# system resolver instead, like the stdlib http.client this replaces did.
+libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", default-features = false, features = [
+  "https",
+  "hyper-backend",
+] }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true, features = [
     "cbindgen",

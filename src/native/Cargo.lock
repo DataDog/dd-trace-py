@@ -578,6 +578,7 @@ dependencies = [
  "pyo3-ffi",
  "rand 0.9.4",
  "rustc-hash 1.1.0",
+ "rustls",
  "serde",
  "serde_json",
  "tracing",
@@ -1653,6 +1654,9 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e5
 dependencies = [
  "bytes",
  "fastrand",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "libdd-common",
  "reqwest",
  "thiserror 2.0.18",
