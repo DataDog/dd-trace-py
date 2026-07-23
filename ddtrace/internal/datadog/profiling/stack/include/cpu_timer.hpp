@@ -28,6 +28,9 @@ struct DebugStats
     uint64_t reused_altstack_too_small_count = 0;
     uint64_t blocked_signal_count = 0;
     uint64_t tid_out_of_bounds = 0;
+    uint64_t tid_table_directory_size = 0;
+    uint64_t tid_table_allocated_pages = 0;
+    uint64_t tid_table_allocation_failures = 0;
     uint64_t timer_syscall_failures = 0;
     uint64_t accepted_signal_oob_tid_count = 0;
     uint64_t handler_hijack_disable_count = 0;

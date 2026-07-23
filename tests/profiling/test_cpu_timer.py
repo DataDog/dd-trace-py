@@ -21,6 +21,7 @@ def test_cpu_timer_profiler_emits_cpu_samples():
     import os
     import time
 
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
@@ -34,7 +35,10 @@ def test_cpu_timer_profiler_emits_cpu_samples():
     p = profiler.Profiler()
     p.start()
     assert cpu_timer_busy_loop() > 0
+    stats = stack._cpu_timer_debug_stats()
     p.stop()
+
+    assert 0 < stats["tid_table_allocated_pages"] < stats["tid_table_directory_size"], stats
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")

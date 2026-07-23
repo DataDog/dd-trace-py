@@ -84,6 +84,27 @@ sampling accuracy and reports the component costs for evaluation. A later
 rollout may widen the CPU timer interval as a last resort, but it must not
 silently claim that the overhead target was met.
 
+### 5.2 Signal-safe TID lookup
+
+The `SIGPROF` handler and nested fault-recovery handler must find the current
+thread's `CaptureState` from `gettid()` without locks or allocation. Linux TIDs
+are sparse values up to `pid_max`, commonly 4,194,304, so a dense array of one
+atomic pointer and one activity flag per possible TID consumes approximately
+36 MiB on a 64-bit process even when only a few threads are armed.
+
+The implementation instead uses a two-level table. A small top-level directory
+covers the TID namespace in blocks of 1,024. Fixed-size leaves containing state
+pointers and handler-activity flags are allocated on the control path before a
+timer is armed for any TID in that block. Published leaves are never freed, so
+the signal path performs two bounded atomic lookups without requiring table
+reclamation. Fork-child cleanup clears only allocated leaves and retains them
+for reuse.
+
+With the common `pid_max`, the directory is approximately 32 KiB and each
+allocated leaf is approximately 9 KiB. Thread churn can increase the number of
+retained leaves over the process lifetime, but normal memory use follows the
+number of TID blocks encountered rather than the entire kernel TID namespace.
+
 
 6. Thread discovery and uvicorn worker fix
 ------------------------------------------

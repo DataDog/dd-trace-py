@@ -464,6 +464,9 @@ stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args)
         set_debug_stat(dict, "reused_altstack_too_small_count", stats.reused_altstack_too_small_count) != 0 ||
         set_debug_stat(dict, "blocked_signal_count", stats.blocked_signal_count) != 0 ||
         set_debug_stat(dict, "tid_out_of_bounds", stats.tid_out_of_bounds) != 0 ||
+        set_debug_stat(dict, "tid_table_directory_size", stats.tid_table_directory_size) != 0 ||
+        set_debug_stat(dict, "tid_table_allocated_pages", stats.tid_table_allocated_pages) != 0 ||
+        set_debug_stat(dict, "tid_table_allocation_failures", stats.tid_table_allocation_failures) != 0 ||
         set_debug_stat(dict, "timer_syscall_failures", stats.timer_syscall_failures) != 0 ||
         set_debug_stat(dict, "accepted_signal_oob_tid_count", stats.accepted_signal_oob_tid_count) != 0 ||
         set_debug_stat(dict, "handler_hijack_disable_count", stats.handler_hijack_disable_count) != 0 ||

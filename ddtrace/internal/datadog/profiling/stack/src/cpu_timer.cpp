@@ -1,6 +1,7 @@
 #include "cpu_timer.hpp"
 
 #include "cpu_sample_ring.hpp"
+#include "cpu_timer_tid_table.hpp"
 
 #include "echion/danger.h"
 #include "echion/frame.h"
@@ -75,7 +76,6 @@ constexpr uint64_t kMinIntervalMs = 2;
 constexpr uint32_t kDefaultRingCapacity = 64;
 constexpr size_t kMinAltStackSize = 128 * 1024;
 constexpr size_t kAltStackSigstkszMultiplier = 4;
-constexpr size_t kMaxSlotBytes = 256 * 1024 * 1024;
 constexpr uint64_t kHealthWindowEvents = 128;
 constexpr uint64_t kHealthBadRatioPercent = 90;
 constexpr uint32_t kHealthBadWindowsLimit = 3;
@@ -243,9 +243,7 @@ struct EngineState
     std::vector<std::unique_ptr<CaptureState>> retired;
     std::vector<std::pair<void*, size_t>> leaked_altstacks;
 
-    std::unique_ptr<std::atomic<CaptureState*>[]> slots;
-    std::unique_ptr<std::atomic<bool>[]> handler_active;
-    size_t slot_capacity = 0;
+    CpuTimerTidTable<CaptureState> tid_table;
 
     struct sigaction previous_sigprof
     {};
@@ -258,6 +256,7 @@ struct EngineState
     std::atomic<uint64_t> reused_altstack_too_small_count{ 0 };
     std::atomic<uint64_t> blocked_signal_count{ 0 };
     std::atomic<uint64_t> tid_out_of_bounds{ 0 };
+    std::atomic<uint64_t> tid_table_allocation_failures{ 0 };
     std::atomic<uint64_t> timer_syscall_failures{ 0 };
     std::atomic<uint64_t> accepted_signal_oob_tid_count{ 0 };
     std::atomic<uint64_t> handler_hijack_disable_count{ 0 };
@@ -560,20 +559,13 @@ arm_timer(CaptureState& state)
 void
 clear_slot(CaptureState& state)
 {
-    const uint64_t tid = state.native_tid;
-    if (tid > 0 && tid < g_state.slot_capacity) {
-        g_state.slots[tid].store(nullptr, std::memory_order_seq_cst);
-    }
+    g_state.tid_table.clear(state.native_tid);
 }
 
 bool
 handler_inactive(CaptureState& state)
 {
-    const uint64_t tid = state.native_tid;
-    if (tid == 0 || tid >= g_state.slot_capacity) {
-        return true;
-    }
-    return !g_state.handler_active[tid].load(std::memory_order_seq_cst);
+    return !g_state.tid_table.is_handler_active(state.native_tid);
 }
 
 void
@@ -600,30 +592,13 @@ retire_state_locked(std::unique_ptr<CaptureState> state, bool current_thread)
 }
 
 bool
-initialize_slots()
+initialize_tid_table()
 {
-    if (g_state.slot_capacity != 0) {
+    if (g_state.tid_table.max_tid() != 0) {
         return true;
     }
 
-    const long pid_max = read_pid_max();
-    const size_t capacity = static_cast<size_t>(pid_max) + 1;
-    const size_t bytes = capacity * (sizeof(std::atomic<CaptureState*>) + sizeof(std::atomic<bool>));
-    if (bytes > kMaxSlotBytes) {
-        return false;
-    }
-
-    auto slots = std::make_unique<std::atomic<CaptureState*>[]>(capacity);
-    auto active = std::make_unique<std::atomic<bool>[]>(capacity);
-    for (size_t i = 0; i < capacity; i++) {
-        slots[i].store(nullptr, std::memory_order_relaxed);
-        active[i].store(false, std::memory_order_relaxed);
-    }
-
-    g_state.slots = std::move(slots);
-    g_state.handler_active = std::move(active);
-    g_state.slot_capacity = capacity;
-    return true;
+    return g_state.tid_table.initialize(static_cast<size_t>(read_pid_max()));
 }
 
 bool
@@ -838,8 +813,8 @@ cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext)
     const int saved_errno = errno;
 
     const pid_t tid = raw_gettid();
-    if (tid > 0 && static_cast<size_t>(tid) < g_state.slot_capacity) {
-        CaptureState* state = g_state.slots[tid].load(std::memory_order_seq_cst);
+    if (tid > 0) {
+        CaptureState* state = g_state.tid_table.load(static_cast<uint64_t>(tid));
         if (state != nullptr && state->fault_armed) {
             state->fault_armed = 0;
             errno = saved_errno;
@@ -871,16 +846,16 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     }
 
     const pid_t tid = raw_gettid();
-    if (tid <= 0 || static_cast<size_t>(tid) >= g_state.slot_capacity) {
+    CaptureState* state = nullptr;
+    CpuTimerTidTable<CaptureState>::HandlerToken handler_token;
+    if (tid <= 0 || !g_state.tid_table.enter_handler(static_cast<uint64_t>(tid), state, handler_token)) {
         g_state.accepted_signal_oob_tid_count.fetch_add(1, std::memory_order_relaxed);
         errno = saved_errno;
         return;
     }
 
-    g_state.handler_active[tid].store(true, std::memory_order_seq_cst);
-    CaptureState* state = g_state.slots[tid].load(std::memory_order_seq_cst);
     if (state == nullptr) {
-        g_state.handler_active[tid].store(false, std::memory_order_seq_cst);
+        g_state.tid_table.leave_handler(handler_token);
         errno = saved_errno;
         return;
     }
@@ -906,7 +881,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     if (sample == nullptr) {
         state->dropped_count.fetch_add(1, std::memory_order_relaxed);
         state->dropped_cpu_ns.fetch_add(delta, std::memory_order_relaxed);
-        g_state.handler_active[tid].store(false, std::memory_order_seq_cst);
+        g_state.tid_table.leave_handler(handler_token);
         errno = saved_errno;
         return;
     }
@@ -978,14 +953,14 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     if (failed || sample->depth == 0) {
         state->capture_failed_count.fetch_add(1, std::memory_order_relaxed);
         state->capture_failed_cpu_ns.fetch_add(delta, std::memory_order_relaxed);
-        g_state.handler_active[tid].store(false, std::memory_order_seq_cst);
+        g_state.tid_table.leave_handler(handler_token);
         errno = saved_errno;
         return;
     }
 
     state->ring.publish_for_producer();
     state->published_count.fetch_add(1, std::memory_order_relaxed);
-    g_state.handler_active[tid].store(false, std::memory_order_seq_cst);
+    g_state.tid_table.leave_handler(handler_token);
     errno = saved_errno;
 }
 
@@ -1038,7 +1013,8 @@ Engine::start()
     if (g_state.blocked_signal_count.load(std::memory_order_acquire) > 0) {
         return false;
     }
-    if (!initialize_slots()) {
+    if (!initialize_tid_table()) {
+        g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
         g_state.permanently_disabled.store(true, std::memory_order_release);
         return false;
     }
@@ -1143,12 +1119,7 @@ Engine::postfork_child()
     g_state.leaked_altstacks.clear();
     g_state.live_by_thread_id.clear();
     g_state.retired.clear();
-    if (g_state.slot_capacity != 0) {
-        for (size_t i = 0; i < g_state.slot_capacity; i++) {
-            g_state.slots[i].store(nullptr, std::memory_order_relaxed);
-            g_state.handler_active[i].store(false, std::memory_order_relaxed);
-        }
-    }
+    g_state.tid_table.reset();
     if (was_active && !g_state.stopped_once.load(std::memory_order_acquire) &&
         !g_state.permanently_disabled.load(std::memory_order_acquire)) {
         register_profiling_fault_recover(cpu_timer_fault_recover);
@@ -1188,8 +1159,12 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         g_state.pending_unprepared.fetch_add(1, std::memory_order_relaxed);
         return;
     }
-    if (native_id == 0 || native_id >= g_state.slot_capacity) {
+    if (!g_state.tid_table.contains(native_id)) {
         g_state.tid_out_of_bounds.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    if (!g_state.tid_table.ensure(native_id)) {
+        g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
         return;
     }
     if (current_thread && (is_signal_blocked(SIGPROF) || is_signal_blocked(SIGSEGV) || is_signal_blocked(SIGBUS))) {
@@ -1238,7 +1213,14 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
             retire_state_locked(std::move(old), old_current_thread);
         }
         g_state.live_by_thread_id.emplace(python_thread_id, std::move(state));
-        g_state.slots[native_id].store(state_ptr, std::memory_order_seq_cst);
+        if (!g_state.tid_table.publish(native_id, state_ptr)) {
+            auto published = g_state.live_by_thread_id.find(python_thread_id);
+            auto failed_state = std::move(published->second);
+            g_state.live_by_thread_id.erase(published);
+            retire_state_locked(std::move(failed_state), current_thread);
+            g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
     }
 
     if (!arm_timer(*state_ptr)) {
@@ -1396,6 +1378,9 @@ Engine::debug_stats() const
     stats.reused_altstack_too_small_count = g_state.reused_altstack_too_small_count.load(std::memory_order_relaxed);
     stats.blocked_signal_count = g_state.blocked_signal_count.load(std::memory_order_relaxed);
     stats.tid_out_of_bounds = g_state.tid_out_of_bounds.load(std::memory_order_relaxed);
+    stats.tid_table_directory_size = g_state.tid_table.directory_size();
+    stats.tid_table_allocated_pages = g_state.tid_table.allocated_page_count();
+    stats.tid_table_allocation_failures = g_state.tid_table_allocation_failures.load(std::memory_order_relaxed);
     stats.timer_syscall_failures = g_state.timer_syscall_failures.load(std::memory_order_relaxed);
     stats.accepted_signal_oob_tid_count = g_state.accepted_signal_oob_tid_count.load(std::memory_order_relaxed);
     stats.handler_hijack_disable_count = g_state.handler_hijack_disable_count.load(std::memory_order_relaxed);
