@@ -28,6 +28,8 @@ from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
+from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 
@@ -42,7 +44,8 @@ class SignalState(str, Enum):
     NONE = "NONE"
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
-    SKIP_RATE = "SKIP_RATE"
+    SKIP_RATE_GLOBAL = "SKIP_RATE_GLOBAL"
+    SKIP_RATE_PROBE = "SKIP_RATE_PROBE"
     SKIP_BUDGET = "SKIP_BUDGET"
     COND_ERROR = "COND_ERROR"
     DONE = "DONE"
@@ -86,6 +89,7 @@ class Signal(abc.ABC):
     errors: list[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
+    _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         probe = self.probe
@@ -106,19 +110,47 @@ class Signal(abc.ABC):
         if condition is None:
             return True
 
+        # RFC: skip at probe entry when error rate has been exceeded previously
+        if Time.monotonic() < probe._error_throttled_until:
+            self.state = SignalState.SKIP_COND_ERROR
+            return False
+
+        t_start = Time.monotonic()
         try:
-            if bool(condition.eval(scope)):
-                return True
+            result = bool(condition.eval(scope))
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            self.state = (
-                SignalState.SKIP_COND_ERROR
-                if probe.condition_error_limiter.limit() is RateLimitExceeded
-                else SignalState.COND_ERROR
-            )
-        else:
-            self.state = SignalState.SKIP_COND
+            if probe.condition_error_limiter.limit() is RateLimitExceeded:
+                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
+                self.state = SignalState.SKIP_COND_ERROR
+            else:
+                self.state = SignalState.COND_ERROR
+            return False
+        finally:
+            self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
 
+        # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
+        eval_timeout_ms = di_config.evaluation_timeout_ms
+        if self._eval_duration_ms > eval_timeout_ms:
+            self.errors.append(
+                EvaluationError(
+                    expr=condition.dsl,
+                    message=(
+                        f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms"
+                    ),
+                )
+            )
+            if probe.condition_error_limiter.limit() is RateLimitExceeded:
+                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
+                self.state = SignalState.SKIP_COND_ERROR
+                return False
+            self.state = SignalState.COND_ERROR
+            return False
+
+        if result:
+            return True
+
+        self.state = SignalState.SKIP_COND
         return False
 
     def _rate_limit_exceeded(self) -> bool:
@@ -130,7 +162,7 @@ class Signal(abc.ABC):
 
         exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
         if exceeded:
-            self.state = SignalState.SKIP_RATE
+            self.state = SignalState.SKIP_RATE_PROBE
 
         return exceeded
 
@@ -239,7 +271,7 @@ class Signal(abc.ABC):
             return
 
         if global_limiter is not None and global_limiter.limit() is RateLimitExceeded:
-            self.state = SignalState.SKIP_RATE
+            self.state = SignalState.SKIP_RATE_GLOBAL
             return
 
         if self._rate_limit_exceeded():
