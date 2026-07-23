@@ -120,7 +120,9 @@ def _(asyncio: ModuleType) -> None:
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
             f(*args, **kwargs)
-            children = get_argument_value(args, kwargs, 1, "children")
+            children: list[aio.Future[typing.Any]] = typing.cast(
+                "list[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 1, "children")
+            )
             assert children is not None  # nosec: assert is used for typing
 
             # TODO(py-315): current_task() raises RuntimeError on Python 3.15+ when there
@@ -128,7 +130,7 @@ def _(asyncio: ModuleType) -> None:
             # context to build a coroutine for later scheduling). In that case there is
             # no parent task to link from, so we skip link_tasks entirely.
             try:
-                parent = globals()["current_task"]()
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
             except RuntimeError:
                 return
             if parent is not None:
@@ -141,14 +143,18 @@ def _(asyncio: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
-            result = f(*args, **kwargs)
-            futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+            result: tuple[set[aio.Future[typing.Any]], set[aio.Future[typing.Any]]] = f(*args, **kwargs)
+            futures: set[aio.Future[typing.Any]] = typing.cast(
+                "set[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs")
+            )
 
             # TODO(py-315): same guard as the _GatheringFuture wrapper above — _wait may
             # also be invoked outside a running loop. Skip link_tasks when current_task()
             # raises.
             try:
-                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
+                parent: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                    "aio.Task[typing.Any]", globals()["current_task"]()
+                )
             except RuntimeError:
                 return result
             if parent is not None:
