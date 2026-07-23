@@ -247,3 +247,55 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     from google.protobuf import empty_pb2  # noqa:F401
 
     print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_STACK_V2_ENABLED="true",
+        DD_PROFILING_STACK_FAST_COPY="1",
+        DD_PROFILING_ENABLE_CODE_PROVENANCE="true",
+    ),
+    out="OK\n",
+)
+def test_stack_profiler_start_stop_under_load_no_crash() -> None:
+    # Regression test for PROF-14568: repeatedly starting/stopping the profiler
+    # while threads churn frames must not crash. The final shutdown flush used to
+    # trigger code-provenance cold imports while the native sampler was still
+    # walking live frames during teardown (with fast_copy enabled), leading to a
+    # SIGSEGV in safe_memcpy. A clean exit (no SIGSEGV) means the race is closed.
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import code_provenance
+    from ddtrace.profiling.profiler import Profiler
+
+    stop_evt = threading.Event()
+
+    def churn() -> None:
+        def recurse(depth):
+            if depth <= 0:
+                return sum(len(str(i)) for i in range(8))
+            return recurse(depth - 1)
+
+        while not stop_evt.is_set():
+            recurse(20)
+
+    workers = [threading.Thread(target=churn, daemon=True) for _ in range(6)]
+    for w in workers:
+        w.start()
+
+    try:
+        for _ in range(15):
+            # Force the next flush to recompute provenance (re-trigger cold imports).
+            code_provenance._code_provenance_file_path = None
+            prof = Profiler()
+            prof.start()
+            time.sleep(0.1)
+            prof.stop(flush=True)
+    finally:
+        stop_evt.set()
+        for w in workers:
+            w.join(timeout=1.0)
+
+    print("OK")

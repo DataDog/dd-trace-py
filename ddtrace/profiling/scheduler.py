@@ -36,7 +36,29 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Starting scheduler")
         super(Scheduler, self)._start_service()
         self._last_export = time.time_ns()
+        self._prewarm_code_provenance()
         LOG.debug("Scheduler started")
+
+    def _prewarm_code_provenance(self) -> None:
+        """Compute the code provenance file eagerly, at startup.
+
+        ``ddup.upload`` resolves the code provenance file on its first call, which
+        the very first time triggers cold ``importlib.metadata`` imports
+        (setuptools/_distutils_hack/packaging). When that first call is the final
+        shutdown flush, those imports run while the native stack sampler is still
+        walking live frames during interpreter teardown, which can read freed
+        objects and crash the process (PROF-14568). Doing the work here -- at
+        startup, on the starting thread, when nothing is being torn down --
+        ensures the shutdown flush hits the cached result and performs no imports.
+        """
+        if not self._enable_code_provenance:
+            return
+        try:
+            from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
+
+            get_code_provenance_file()
+        except Exception:
+            LOG.debug("Failed to pre-warm code provenance", exc_info=True)
 
     def flush(self) -> None:
         """Flush events from recorder to exporters."""

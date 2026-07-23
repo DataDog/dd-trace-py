@@ -25,6 +25,13 @@
 
 using namespace Datadog;
 
+// Py_IsFinalizing is public API since 3.13; _Py_IsFinalizing on older versions.
+#if PY_VERSION_HEX >= 0x30d0000
+#define dd_py_is_finalizing Py_IsFinalizing
+#else
+#define dd_py_is_finalizing _Py_IsFinalizing
+#endif
+
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <ctime>
@@ -356,6 +363,15 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     while (seq_num == thread_seq_num.load()) {
+        // If the interpreter is shutting down, stop sampling immediately. During
+        // finalization, frames and code objects are freed out from under us, so
+        // unwinding a thread would read freed memory and fault (PROF-14568). The
+        // profiler's own shutdown normally stops this thread first, but this guard
+        // covers teardown paths that don't (e.g. uWSGI --skip-atexit, hard exits).
+        if (dd_py_is_finalizing()) {
+            break;
+        }
+
         // Check if a pause has been requested (e.g., for signal handler swapping).
         // Block until resumed or the thread is asked to stop.
         if (pause_requested_.load(std::memory_order_acquire)) {
