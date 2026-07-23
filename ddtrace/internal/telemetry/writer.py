@@ -2,7 +2,6 @@
 import http.client as httplib
 import itertools
 import os
-import sys
 import time
 import traceback
 from typing import Any
