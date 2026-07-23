@@ -569,14 +569,42 @@ impl SpanData {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        let mut span = Self::default();
-        // Pre-size the attribute stores so set_tag/set_metric push into an allocated Vec instead
-        // of reallocating from an empty one (the top per-span native allocator under memray).
-        // Small PyDict-MINSIZE-like caps (meta 8 / metrics 4) skip the early realloc chain for the
-        // common case without over-allocating the many small child spans; measured net win of
-        // ~-7% bytes and ~-19% allocations on the attribute-store bucket vs lazy growth.
-        span.meta = MetaMap::with_capacity(8);
-        span.metrics = MetricsMap::with_capacity(4);
+        let mut span = Self {
+            // Initialize span_id from parameter or generate random
+            span_id: span_id
+                .and_then(|obj| obj.extract::<u64>().ok())
+                .unwrap_or_else(crate::rand::rand64bits),
+            span_type: span_type
+                .map(|obj| extract_backed_string_or_none(obj))
+                .unwrap_or_else(|| PyBackedString::py_none(py)),
+            // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
+            parent_id: parent_id
+                .and_then(|obj| obj.extract::<u64>().ok())
+                .unwrap_or(0),
+            // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
+            start: match start {
+                None => wall_clock_ns(), // Common case: native time capture
+                Some(obj) => {
+                    // start is in seconds (float or int), convert to nanoseconds
+                    obj.extract::<f64>()
+                        .map(|s| (s * 1e9) as i64)
+                        .or_else(|_| obj.extract::<i64>().map(|s| s * 1_000_000_000))
+                        .unwrap_or_else(|_| wall_clock_ns()) // Invalid value: fall back to current time
+                }
+            },
+            // Initialize span_api: use provided value or default to "datadog"
+            span_api: span_api
+                .map(|obj| extract_backed_string_or_default(obj))
+                .unwrap_or_else(|| PyBackedString::from_static_str("datadog")),
+            // Pre-size the attribute stores so set_tag/set_metric push into an allocated Vec instead
+            // of reallocating from an empty one (the top per-span native allocator under memray).
+            // Small PyDict-MINSIZE-like caps (meta 8 / metrics 4) skip the early realloc chain for the
+            // common case without over-allocating the many small child spans; measured net win of
+            // ~-7% bytes and ~-19% allocations on the attribute-store bucket vs lazy growth.
+            meta: MetaMap::with_capacity(8),
+            metrics: MetricsMap::with_capacity(4),
+            ..Default::default()
+        };
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
@@ -589,29 +617,6 @@ impl SpanData {
             Some(obj) => span.set_resource(obj),
             None => span.resource = span.name.clone_ref(py),
         }
-        span.span_type = span_type
-            .map(|obj| extract_backed_string_or_none(obj))
-            .unwrap_or_else(|| PyBackedString::py_none(py));
-        // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
-        span.parent_id = parent_id
-            .and_then(|obj| obj.extract::<u64>().ok())
-            .unwrap_or(0);
-        // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
-        span.start = match start {
-            None => wall_clock_ns(), // Common case: native time capture
-            Some(obj) => {
-                // start is in seconds (float or int), convert to nanoseconds
-                obj.extract::<f64>()
-                    .map(|s| (s * 1e9) as i64)
-                    .or_else(|_| obj.extract::<i64>().map(|s| s * 1_000_000_000))
-                    .unwrap_or_else(|_| wall_clock_ns()) // Invalid value: fall back to current time
-            }
-        };
-        // duration defaults to None ("not finished") via Default — no init needed.
-        // Initialize span_id from parameter or generate random
-        span.span_id = span_id
-            .and_then(|obj| obj.extract::<u64>().ok())
-            .unwrap_or_else(crate::rand::rand64bits);
         // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
         // When auto-generating, reads the Rust-owned AtomicBool set by Python Config.__init__:
         //   enabled  → generate_128bit_trace_id() (SystemTime upper bits + random lower bits)
@@ -651,10 +656,6 @@ impl SpanData {
         };
         // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
         span._trace_id_py = trace_id_cached;
-        // Initialize span_api: use provided value or default to "datadog"
-        span.span_api = span_api
-            .map(|obj| extract_backed_string_or_default(obj))
-            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
