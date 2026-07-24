@@ -1,5 +1,6 @@
 #include "profiler_state.hpp"
 
+#include "current_task_links.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>
@@ -199,6 +200,9 @@ ProfilerState::postfork_child()
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
+
+    // Drop any current-task associations inherited from the parent's threads.
+    CurrentTaskLinks::postfork_child();
 
     // Free our copy of the Profiles Dictionary - its String IDs refer to memory
     // that doesn't exist in the child process

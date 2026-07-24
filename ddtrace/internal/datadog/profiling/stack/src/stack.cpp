@@ -1,4 +1,5 @@
 #include "cast_to_pyfunc.hpp"
+#include "dd_wrapper/include/current_task_links.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "origin_task_links.hpp"
 #include "python_headers.hpp"
@@ -478,6 +479,50 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().update_greenlet_frame(greenlet_id, frame);
     Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+// Records the greenlet currently running on the calling OS thread so that
+// collectors which cannot call into Python (e.g. the memory allocator hook)
+// can still attribute their samples to the active greenlet. The name may be
+// None, in which case only the id association is recorded.
+static PyObject*
+set_current_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uintptr_t greenlet_id;
+    PyObject* name;
+
+    if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &name))
+        return NULL;
+
+    std::string_view greenlet_name;
+    if (name != Py_None) {
+        Py_ssize_t name_size = 0;
+        const char* name_data = PyUnicode_AsUTF8AndSize(name, &name_size);
+        if (name_data == nullptr) {
+            PyErr_Clear();
+        } else if (name_size > 0) {
+            greenlet_name = std::string_view(name_data, static_cast<size_t>(name_size));
+        }
+    }
+
+    // The record is keyed by the calling OS thread's thread-local storage, which
+    // is the same thread that will subsequently allocate, so the memory
+    // collector reads exactly what we write here. set_current_task copies the
+    // name into a fixed buffer, so it is safe to hand it a view into the Python
+    // string here.
+    CurrentTaskLinks::set_current_task(static_cast<int64_t>(greenlet_id), greenlet_name);
+
+    Py_RETURN_NONE;
+}
+
+// Drops the current-greenlet association for the calling OS thread. Used when a
+// greenlet dies so its allocations stop being attributed to a dead task.
+static PyObject*
+clear_current_greenlet(PyObject* Py_UNUSED(m), PyObject* Py_UNUSED(args))
+{
+    CurrentTaskLinks::clear_current_task();
 
     Py_RETURN_NONE;
 }
@@ -976,6 +1021,14 @@ static PyMethodDef stack_methods[] = {
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
+    { "set_current_greenlet",
+      set_current_greenlet,
+      METH_VARARGS,
+      "Record the greenlet currently running on the calling OS thread" },
+    { "clear_current_greenlet",
+      clear_current_greenlet,
+      METH_NOARGS,
+      "Clear the current-greenlet association for the calling OS thread" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_target_overhead",

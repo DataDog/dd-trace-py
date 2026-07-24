@@ -2,6 +2,7 @@
 
 #include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
+#include "current_task_links.hpp"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
  * CPython API calls that could allocate, free, or touch error state.
@@ -50,6 +51,29 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
 
     // Pass empty name; push_threadinfo will fall back to str(thread_id)
     sample.push_threadinfo(thread_id, thread_native_id, "");
+}
+
+/* Attribute the sample to the user-space task (e.g. gevent greenlet) currently
+ * running on this OS thread, if one is known.
+ *
+ * The association is published by the stack profiler's greenlet tracer on each
+ * greenlet switch and stored in thread-local storage in dd_wrapper. Reading it
+ * here is allocation-free and touches no Python API, so it is safe inside the
+ * allocator hook. Without this, all greenlets multiplexed onto one OS thread
+ * collapse into a single timeline lane keyed only by the OS thread id. */
+static void
+push_taskinfo_to_sample(Datadog::Sample& sample)
+{
+    int64_t task_id = 0;
+    std::string_view task_name;
+    if (!Datadog::CurrentTaskLinks::get_current_task(&task_id, &task_name)) {
+        return;
+    }
+
+    sample.push_task_id(task_id);
+    if (!task_name.empty()) {
+        sample.push_task_name(task_name);
+    }
 }
 
 /* Collect frames from the current thread's frame chain and push to sample.
@@ -122,6 +146,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
 
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
+    push_taskinfo_to_sample(sample);
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
 }
 

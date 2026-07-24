@@ -55,6 +55,7 @@ add_library(
     dd_wrapper SHARED
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
+    src/current_task_links.cpp
     src/ddup_interface.cpp
     src/libdatadog_helpers.cpp
     src/native_call_tracker.cpp
