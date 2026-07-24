@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    OpenTelemetry logs: Fixes an issue where enabling OpenTelemetry logs collection
+    (``DD_LOGS_OTEL_ENABLED=true``) could cause the tracer to export its own internal log
+    records, producing a growing volume of exported logs. The tracer's own log records and
+    the OpenTelemetry exporter's log records are now excluded from OpenTelemetry logs export,
+    while application logs continue to be collected and exported as before.
