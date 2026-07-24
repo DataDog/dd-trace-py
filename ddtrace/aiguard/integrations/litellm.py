@@ -30,7 +30,7 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 GUARDRAIL_NAME = "datadog_ai_guard"
@@ -188,7 +188,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         # Blocking is a trusted server-side policy (litellm config / DD_AI_GUARD_BLOCK).
         # Request-body dynamic params may only strengthen it (monitor -> block), never weaken
         # it, so a proxy caller cannot disable enforcement on its own request.
-        server_block = ai_guard_config._ai_guard_block if self._block is None else bool(self._block)
+        server_block = aiguard_config._ai_guard_block if self._block is None else bool(self._block)
         raw = dynamic_params.get("block")
         if raw is None:
             return server_block

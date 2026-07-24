@@ -54,8 +54,19 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
-// Whether init_segv_catcher succeeded at constructor time. Persists even if
-// fast_copy_active is later toggled off by set_fast_copy_enabled.
+// User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
+inline bool fast_copy_user_disabled = false;
+
+// Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
+inline bool fast_copy_syscall_fallback = false;
+
+inline void
+mark_fast_copy_syscall_fallback()
+{
+    fast_copy_syscall_fallback = true;
+}
+
+// Set at init; survives toggling fast_copy_active.
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX
