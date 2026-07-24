@@ -35,6 +35,26 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _annotate_llmobs_span_data(span, kind=kind)
         return span
 
+    def set_session_id(self, span: Span, conversation_id: Optional[str]) -> None:
+        """Set the caller-provided ``conversation_id`` as the LLMObs session for this span.
+
+        Two values are intentionally ignored rather than propagated as-is:
+
+        - ``None`` (the default): most calls don't pass ``conversation_id`` explicitly, so this
+          is just the common no-op case — nothing to propagate.
+        - ``"new"``: pydantic-ai documents this as a sentinel on ``conversation_id`` meaning
+          "fork a fresh conversation off the supplied history", which it replaces internally
+          with a freshly generated id we have no access to here. Setting the session id to the
+          literal string ``"new"`` would silently group every unrelated fresh conversation
+          under one shared session, which is worse than not setting a session id at all.
+
+        Called at agent-span creation, before any child tool spans are created, so the session
+        id propagates to them.
+        """
+        if not self.llmobs_enabled or not conversation_id or conversation_id == "new":
+            return
+        _annotate_llmobs_span_data(span, session_id=conversation_id)
+
     def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
         if model:
             model_name, provider = self._get_model_and_provider(model)
