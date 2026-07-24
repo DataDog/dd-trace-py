@@ -18,6 +18,7 @@ from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -630,3 +631,40 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
+
+
+def test_construct_tool_call_function_call_none_arguments():
+    """A streamed function_call chunk whose arguments is None must not raise (coerced to "")."""
+    stored = []
+    openai_construct_tool_call_from_streamed_chunk(
+        stored, function_call_chunk=SimpleNamespace(name="get_weather", arguments=None)
+    )
+    assert stored == [{"name": "get_weather", "arguments": ""}]
+
+
+def test_construct_tool_call_tool_call_none_arguments():
+    """A streamed tool_call chunk whose function.arguments is None must not raise (coerced to "")."""
+    stored = []
+    openai_construct_tool_call_from_streamed_chunk(
+        stored,
+        tool_call_chunk=SimpleNamespace(
+            index=0,
+            id="call_1",
+            type="function",
+            function=SimpleNamespace(name="get_weather", arguments=None),
+            custom=None,
+        ),
+    )
+    assert stored[0]["function"] == {"name": "get_weather", "arguments": ""}
+
+
+def test_construct_tool_call_arguments_still_concatenate():
+    """Regression guard: real string argument chunks still concatenate across chunks."""
+    stored = []
+    openai_construct_tool_call_from_streamed_chunk(
+        stored, function_call_chunk=SimpleNamespace(name="get_weather", arguments='{"loc"')
+    )
+    openai_construct_tool_call_from_streamed_chunk(
+        stored, function_call_chunk=SimpleNamespace(name="get_weather", arguments=':"NYC"}')
+    )
+    assert stored[0]["arguments"] == '{"loc":"NYC"}'

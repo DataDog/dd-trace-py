@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves a ``TypeError`` when reconstructing an OpenAI streamed tool call whose ``arguments`` (or custom tool ``input``) chunk is ``None`` instead of a string. The value is now coerced to an empty string, so the span keeps its ``kind`` tag and is no longer dropped.
