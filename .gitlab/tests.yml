@@ -42,11 +42,12 @@ include:
         riot list "${hash}"
 
         case "${SUITE_NAME:-}" in
-          internal|telemetry|tracer)
-            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=true
+          *iast*|*testing*|*ci_visibility*|*pytest*|*asynctest*|*profile*|*crashtracker*)
+            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false
+
             ;;
           *)
-            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false
+            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=true
             ;;
         esac
 
