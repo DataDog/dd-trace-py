@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    loguru: Fixes the patcher copying every user-provided ``extra`` key
+    into the log record's top level when ``DD_LOGS_INJECTION`` was
+    disabled.
