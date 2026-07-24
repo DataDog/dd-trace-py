@@ -484,8 +484,8 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
 
 // ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
 
-// Cached sys.monitoring.DISABLE sentinel and tool ID (looked up at runtime)
-static constexpr const char* g_tool_name = "dd-profiling";
+// Cached sys.monitoring.DISABLE sentinel and tool ID. The tool ID is supplied
+// by the Python-side monitoring_registry when start_native_monitoring is called.
 static PyObject* g_disable_sentinel = nullptr;
 static int g_tool_id = -1;
 
@@ -596,7 +596,9 @@ static PyMethodDef native_call_handler_def = {
 };
 
 // Helper to clean up sys.monitoring state on error during start_native_monitoring.
-// Unregisters events and frees the tool ID so a subsequent start attempt can succeed.
+// Unregisters events so a subsequent start attempt can succeed. The tool ID
+// lifetime is owned by the Python-side monitoring_registry (which called
+// use_tool_id and will call free_tool_id), so this must NOT free it.
 static void
 cleanup_native_monitoring(PyObject* monitoring, bool events_set)
 {
@@ -604,13 +606,24 @@ cleanup_native_monitoring(PyObject* monitoring, bool events_set)
         PyObject* r = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
         Py_XDECREF(r);
     }
-    PyObject* r = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
-    Py_XDECREF(r);
+    g_tool_id = -1;
 }
 
 static PyObject*
-start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* args)
 {
+    // The sys.monitoring tool ID is allocated by the Python-side
+    // monitoring_registry (which owns its lifetime) and passed in here. This
+    // module only wires up the CALL event and callback for that ID.
+    int tool_id = -1;
+    if (!PyArg_ParseTuple(args, "i", &tool_id)) {
+        return nullptr;
+    }
+    if (tool_id < 0) {
+        PyErr_SetString(PyExc_ValueError, "start_native_monitoring: tool_id must be non-negative");
+        return nullptr;
+    }
+
     // Import sys.monitoring
     PyObject* sys_mod = PyImport_ImportModule("sys");
     if (!sys_mod) {
@@ -632,50 +645,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         }
     }
 
-    // Look up PROFILER_ID at runtime instead of hardcoding
-    if (g_tool_id < 0) {
-        PyObject* id_obj = PyObject_GetAttrString(monitoring, "PROFILER_ID");
-        if (!id_obj) {
-            Py_DECREF(monitoring);
-            return nullptr;
-        }
-        g_tool_id = static_cast<int>(PyLong_AsLong(id_obj));
-        Py_DECREF(id_obj);
-        if (g_tool_id == -1 && PyErr_Occurred()) {
-            Py_DECREF(monitoring);
-            return nullptr;
-        }
-    }
-
-    // use_tool_id(g_tool_id, "dd-profiling")
-    // If the tool ID is already claimed, check whether it's ours (idempotent
-    // start) or belongs to another tool (raise RuntimeError).
-    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", g_tool_id, g_tool_name);
-    if (!result) {
-        if (!PyErr_ExceptionMatches(PyExc_ValueError)) {
-            Py_DECREF(monitoring);
-            return nullptr;
-        }
-        PyErr_Clear();
-
-        PyObject* current_name = PyObject_CallMethod(monitoring, "get_tool", "i", g_tool_id);
-        if (!current_name) {
-            Py_DECREF(monitoring);
-            return nullptr;
-        }
-
-        const char* name = PyUnicode_AsUTF8(current_name);
-        bool is_ours = name && strcmp(name, g_tool_name) == 0;
-        Py_DECREF(current_name);
-
-        if (!is_ours) {
-            Py_DECREF(monitoring);
-            PyErr_SetString(PyExc_RuntimeError, "sys.monitoring PROFILER_ID is already claimed by another tool");
-            return nullptr;
-        }
-    } else {
-        Py_DECREF(result);
-    }
+    g_tool_id = tool_id;
 
     // Get events.CALL
     PyObject* events = PyObject_GetAttrString(monitoring, "events");
@@ -694,7 +664,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
 
     // set_events(g_tool_id, CALL)
-    result = PyObject_CallMethod(monitoring, "set_events", "iO", g_tool_id, call_event);
+    PyObject* result = PyObject_CallMethod(monitoring, "set_events", "iO", g_tool_id, call_event);
     if (!result) {
         cleanup_native_monitoring(monitoring, false);
         Py_DECREF(call_event);
@@ -785,19 +755,14 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // register_callback(g_tool_id, CALL, None)
     result = PyObject_CallMethod(monitoring, "register_callback", "iOO", g_tool_id, call_event, Py_None);
     Py_DECREF(call_event);
-    if (!result) {
-        Py_DECREF(monitoring);
-        return nullptr;
-    }
-    Py_DECREF(result);
-
-    // free_tool_id(g_tool_id)
-    result = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
     Py_DECREF(monitoring);
     if (!result) {
         return nullptr;
     }
     Py_DECREF(result);
+
+    // tool ID is owned by the Python-side monitoring_registry, which
+    // calls free_tool_id when the caller releases it so we don't need to free it here.
     g_tool_id = -1;
 
     Py_CLEAR(g_disable_sentinel);
@@ -1035,8 +1000,8 @@ static PyMethodDef stack_methods[] = {
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,
-      METH_NOARGS,
-      "Start sys.monitoring-based native call tracking" },
+      METH_VARARGS,
+      "Start sys.monitoring-based native call tracking for the given tool_id" },
     { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
     { "_native_call_registry_size",
       stack_native_call_registry_size,

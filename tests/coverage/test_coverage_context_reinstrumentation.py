@@ -395,9 +395,9 @@ def test_sequential_contexts_with_other_monitoring_tool():
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
     file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
-    # Register another sys.monitoring tool BEFORE install, simulating coverage.py
-    # Pick a free slot that is not in the ddtrace candidate list to avoid interference
-    other_slot = 0
+    # Register another sys.monitoring tool BEFORE install, simulating coverage.py.
+    # Pick a currently-free slot so we don't collide with a slot ddtrace uses.
+    other_slot = next(s for s in range(6) if sys.monitoring.get_tool(s) is None)
     sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
 
     install(include_paths=[include_path])
@@ -477,8 +477,8 @@ def test_repeated_execution_with_other_monitoring_tool():
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
     file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
-    # Register another sys.monitoring tool
-    other_slot = 0
+    # Register another sys.monitoring tool on a currently-free slot.
+    other_slot = next(s for s in range(6) if sys.monitoring.get_tool(s) is None)
     sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
 
     install(include_paths=[include_path])
@@ -616,8 +616,9 @@ def test_events_rearmed_when_other_tool_registers_after_early_execution():
 
     called_in_session(0, 1)  # events for lib.py lines are now DISABLE'd
 
-    # Step 3: another monitoring tool registers (simulating coverage.py in pytest_configure)
-    other_slot = 0
+    # Step 3: another monitoring tool registers (simulating coverage.py in pytest_configure).
+    # Pick a currently-free slot so we don't collide with the slot ddtrace already acquired.
+    other_slot = next(s for s in range(6) if sys.monitoring.get_tool(s) is None)
     sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
 
     # Step 4 & 5: per-test context — must capture the same code executed in step 2

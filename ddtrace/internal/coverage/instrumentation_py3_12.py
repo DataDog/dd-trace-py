@@ -15,6 +15,7 @@ import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.monitoring import monitoring_registry
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -51,12 +52,11 @@ _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
-# NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
-# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since other coverage tools may use it.
-# _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines() is a no-op
-# while it remains None.
+# _DD_TOOL_ID is None until _ensure_registered() succeeds; instrument_all_lines() is a no-op
+# while it remains None.  Slot allocation is handled by the central monitoring_registry which
+# tries slots in priority order and avoids collisions with other dd-trace-py components.
 _DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
-_DD_CANDIDATE_SLOTS = (4, 3, 1)
+_DD_TOOL_NAME = "datadog"
 
 # Store: (hook, path, import_names_by_line, line_hook, file_hook, import_hook)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
@@ -90,23 +90,23 @@ _use_disable_optimization: bool = True
 
 
 def has_other_monitoring_tools() -> bool:
-    """Check whether any non-datadog tool is registered with sys.monitoring.
+    """Check whether any other tool's state a global restart_events() would corrupt.
 
-    Iterates all six tool slots (0-5) and returns True if any slot other than ours is occupied.
-    This is used to decide whether the DISABLE optimisation (and the global restart_events() call
-    it requires) is safe to use.
+    Delegates to monitoring_registry.has_restart_sensitive_tools(), excluding our own slot.
+    This returns True when either:
+
+    - A non-dd-trace-py (external) tool is registered, or
+    - Another dd-trace-py tool that relies on returning sys.monitoring.DISABLE is registered
+      (the native call profiler). Even though such a tool is tracked by the registry, a
+      global sys.monitoring.restart_events() would re-arm its DISABLE'd locations, defeating its
+      zero-overhead-after-warmup behaviour — so we must stop calling restart_events() then too.
 
     Note: this can't see the two legacy tool slots that back sys.settrace()/sys.setprofile()-based
     debuggers and profilers. restart_events()'s global reach does include those, but resetting a
     legacy tracer's own DISABLE-equivalent state isn't a correctness issue for it, so this blind
     spot is treated as acceptable.
     """
-    for tool_id in range(6):
-        if tool_id == _DD_TOOL_ID:
-            continue
-        if sys.monitoring.get_tool(tool_id):
-            return True
-    return False
+    return monitoring_registry.has_restart_sensitive_tools(exclude={_DD_TOOL_NAME})
 
 
 def _rearm_all_events() -> None:
@@ -171,23 +171,17 @@ def _ensure_registered() -> bool:
     """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
     global _DD_TOOL_ID
 
-    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == _DD_TOOL_NAME:
         return True
 
-    for slot in _DD_CANDIDATE_SLOTS:
-        try:
-            sys.monitoring.use_tool_id(slot, "datadog")
-            _DD_TOOL_ID = slot
-            break
-        except ValueError:
-            continue
-    else:
-        log.warning(
-            "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
-            _DD_CANDIDATE_SLOTS,
-        )
+    # uses_disable=True: our _event_handler returns sys.monitoring.DISABLE (when the
+    # optimisation is active), so advertise that to the registry.
+    tool_id = monitoring_registry.acquire(_DD_TOOL_NAME, uses_disable=True)
+    if tool_id is None:
+        log.warning("No sys.monitoring tool slot available, not gathering coverage")
         return False
 
+    _DD_TOOL_ID = tool_id
     mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
     log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
     sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)

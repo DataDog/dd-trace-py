@@ -5,6 +5,7 @@ import threading
 import time
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.monitoring import monitoring_registry
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector._fast_poisson import PoissonSampler
@@ -17,15 +18,9 @@ _current_thread = threading.current_thread
 
 MAX_EXCEPTION_MESSAGE_LEN = 128
 
-# sys.monitoring tool ID for the exception profiler.
-# CPython provides IDs 0-5:
-#   0 = DEBUGGER_ID
-#   1 = COVERAGE_ID (used by dd-trace-py coverage)
-#   2 = PROFILER_ID (used by the native stack profiler)
-#   3 = used by error tracking (handled exceptions)
-#   4 = **used here**
-#   5 = OPTIMIZER_ID
-_MONITORING_TOOL_ID = 4
+# Tool name for the central monitoring_registry.
+_MONITORING_TOOL_NAME = "dd-trace-exception-profiler"
+_MONITORING_TOOL_ID = None
 
 
 cdef class _SamplerState:
@@ -160,25 +155,30 @@ class ExceptionCollector(collector.Collector):
         self._monitoring_registered = False
 
     def _start_service(self) -> None:
-        global _state
+        global _state, _MONITORING_TOOL_ID
 
         if _GIL_DISABLED:
             LOG.debug("Exception profiling is not supported on free-threaded CPython, skipping")
             return
 
         if HAS_MONITORING:
+            tool_id = monitoring_registry.acquire(_MONITORING_TOOL_NAME)
+            if tool_id is None:
+                LOG.error("Failed to set up exception monitoring: no sys.monitoring slot available")
+                return
+
+            _MONITORING_TOOL_ID = tool_id
             try:
-                # Claim the tool ID *before* writing _state so that a ValueError
-                # (tool ID already in use) leaves the existing _state untouched.
-                sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
                     sys.monitoring.events.RAISE,
                     _on_exception,
                 )
-            except ValueError:
+            except Exception:
                 LOG.exception("Failed to set up exception monitoring")
+                monitoring_registry.release(_MONITORING_TOOL_NAME)
+                _MONITORING_TOOL_ID = None
                 return
 
             _state = _SamplerState(self._sampling_interval, self._collect_message)
@@ -190,35 +190,32 @@ class ExceptionCollector(collector.Collector):
         LOG.debug("ExceptionCollector started: interval=%d", _state.sampling_interval)
 
     def _stop_service(self) -> None:
-        global _state
+        global _state, _MONITORING_TOOL_ID
 
         if not self._monitoring_registered:
             _state = None
             return
 
         # Each cleanup step is independent: always attempt all three so that
-        # free_tool_id() is called even if an earlier step fails.  Failing to
-        # free the tool_id permanently consumes sys.monitoring slot
-        # _MONITORING_TOOL_ID and prevents any future profiler restart from
-        # registering the callback again.
-        try:
-            sys.monitoring.register_callback(
-                _MONITORING_TOOL_ID,
-                sys.monitoring.events.RAISE,
-                None,
-            )
-        except Exception:
-            LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
+        # the tool slot is released even if an earlier step fails.
+        if _MONITORING_TOOL_ID is not None:
+            try:
+                sys.monitoring.register_callback(
+                    _MONITORING_TOOL_ID,
+                    sys.monitoring.events.RAISE,
+                    None,
+                )
+            except Exception:
+                LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
 
-        try:
-            sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
-        except Exception:
-            LOG.debug("Failed to disable exception monitoring events", exc_info=True)
+            try:
+                sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
+            except Exception:
+                LOG.debug("Failed to disable exception monitoring events", exc_info=True)
 
-        try:
-            sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-        except Exception:
-            LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+            # Release through the central registry (calls free_tool_id internally).
+            monitoring_registry.release(_MONITORING_TOOL_NAME)
+            _MONITORING_TOOL_ID = None
 
         self._monitoring_registered = False
         _state = None
