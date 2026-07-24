@@ -83,12 +83,34 @@ Backporting
 
 Each minor version has its own branch.
 
-* **Fix PRs** are backported to the most recent release branch only when they are critically important.
-* **New features** (``feat`` PRs) are not backported.
-* **Chore, documentation, and other PRs** are not backported.
+**Supported branch window**
 
-If your pull request is a critical ``fix`` change, apply the backport labels corresponding to the minor
-versions that need the change.
+Bug fixes are backported to the **N=3 most recent stable minor branches** (currently 4.8, 4.9, 4.10).
+The authoritative list is in `.github/backport-targets.yml <../.github/backport-targets.yml>`_.
+Critical fixes (crashes, data loss, security) should target all branches in that file,
+including release candidates.
+
+**What gets backported**
+
+* **Fix PRs** (``fix(...)`` title prefix) — backported automatically (see below).
+* **New features** (``feat`` PRs) — not backported.
+* **Chore, documentation, refactor, and test PRs** — not backported.
+
+**Automation**
+
+Two workflows handle backports so that manual labeling is a last resort, not the default:
+
+1. **Auto-label** (``.github/workflows/pr-auto-label-backport.yml``): when you open or edit a
+   ``fix(...)`` PR, backport labels are added automatically for all supported stable branches.
+   Remove any labels that are not appropriate for your fix before merging.
+
+2. **Auto-backport** (``.github/workflows/auto-backport.yml``): on merge of a ``fix(...)`` PR,
+   cherry-pick PRs are opened automatically for any supported branches that were not already
+   covered by a manual label. If a cherry-pick cannot be applied cleanly, a GitHub issue is
+   filed instead — see the issue for instructions on manual resolution.
+
+To suppress all automatic backports for a PR (e.g., a fix for a feature that only exists on
+``main``), add the ``no-backport`` label before merging.
 
 Tests
 -----
