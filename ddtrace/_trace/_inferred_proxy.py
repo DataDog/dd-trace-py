@@ -10,6 +10,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.time import Time
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
@@ -39,6 +40,7 @@ class ProxyInfo:
     span_name: str
     component: str
     resource_arn_builder: Optional[Callable[[ProxyHeaderContext], Optional[str]]] = None
+    does_provide_timestamp: bool = True
 
 
 def _api_gateway_rest_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str]:
@@ -57,6 +59,7 @@ supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
     "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
+    "azure-fd": ProxyInfo("azure.frontdoor", "azure-fd", does_provide_timestamp=False),
 }
 
 # Span names for supported proxy systems (API Gateway, etc.).
@@ -170,6 +173,16 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
 
 def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     proxy_header_system = _extract_header_value(POSSIBLE_PROXY_HEADER_SYSTEM, headers)
+
+    # Exit if proxy header system name is not present
+    if not proxy_header_system:
+        return None
+
+    # Exit if proxy header system is not supported
+    if proxy_header_system not in supported_proxies:
+        log.debug("Received headers to create inferred proxy span but unsupported proxy type: %r", proxy_header_system)
+        return None
+
     proxy_header_start_time_ms = _extract_header_value(POSSIBLE_PROXY_HEADER_START_TIME_MS, headers)
     proxy_header_path = _extract_header_value(POSSIBLE_PROXY_HEADER_PATH, headers)
     proxy_header_resource_path = _extract_header_value(POSSIBLE_PROXY_HEADER_RESOURCE_PATH, headers)
@@ -185,16 +198,17 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
     header_user_agent = _extract_header_value(HEADER_USERAGENT, headers)
 
-    # Exit if start time header is not present
-    if proxy_header_start_time_ms is None:
-        return None
+    proxy_info = supported_proxies[proxy_header_system]
 
-    # Exit if proxy header system name is not present or is a system we don't support
-    if not (proxy_header_system and proxy_header_system in supported_proxies):
-        log.debug(
-            "Received headers to create inferred proxy span but headers include an unsupported proxy type", headers
-        )
-        return None
+    # ensure a slash is prepended to path if one isn't already
+    if proxy_header_path and not proxy_header_path.startswith("/"):
+        proxy_header_path = f"/{proxy_header_path}"
+
+    # If the proxy is expected to provide a timestamp, require it; otherwise fall back to current time (ms).
+    if not proxy_header_start_time_ms:
+        if proxy_info.does_provide_timestamp:
+            return None
+        proxy_header_start_time_ms = str(Time.time_ns() // 1_000_000)  # convert ns to ms
 
     return ProxyHeaderContext(
         proxy_header_system,
