@@ -42,7 +42,7 @@ include:
         riot list "${hash}"
 
         case "${SUITE_NAME:-}" in
-          tests/internal|tests/telemetry|tests/tracer)
+          internal|telemetry|tracer)
             export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=true
             ;;
           *)
