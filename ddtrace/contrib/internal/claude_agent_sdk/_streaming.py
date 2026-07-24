@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import add_span_link
@@ -343,10 +344,16 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
+        # AIDEV-NOTE: Pin each tool span's parent to the current step in both trees — APM
+        # (parent_context) and LLM Obs (activate). Otherwise trace() defaults the parent to the
+        # active span, so parallel tools chain onto the prior open tool instead of nesting siblings.
+        if self.current_step_span is not None and LLMObs.enabled:
+            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
         tool_span = self.integration.trace(
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
+            parent_context=self.current_step_span,
         )
         if self._last_llm_span_ref is not None:
             add_span_link(
