@@ -35,6 +35,11 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
+def integration(pydantic_ai):
+    return pydantic_ai._datadog_integration
+
+
+@pytest.fixture
 def openai_patched():
     patch_openai()
     import openai
