@@ -36,8 +36,6 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..constants import DEFAULT_MAX_PAYLOAD_SIZE
-from ..constants import DEFAULT_PROCESSING_INTERVAL
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
@@ -48,7 +46,6 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
-from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.http import Response
 from ..utils.http import verify_url
@@ -69,22 +66,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
-
-
-def _env_bool(key: str, default: bool) -> bool:
-    return asbool(env[key]) if key in env else default
-
-
-def _env_float(key: str, default: float) -> float:
-    return float(env[key]) if key in env else default
-
-
-def _env_int(key: str, default: int) -> int:
-    return int(env[key]) if key in env else default
-
-
-def _env_optional_bool(key: str) -> Optional[bool]:
-    return asbool(env[key]) if key in env else None
 
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
@@ -215,7 +196,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         use_gzip: bool = False,
     ) -> None:
         if processing_interval is None:
-            processing_interval = _env_float("DD_TRACE_WRITER_INTERVAL_SECONDS", DEFAULT_PROCESSING_INTERVAL)
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
@@ -245,7 +226,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         )(self._send_payload)
 
         self._reuse_connections = (
-            _config_facts.trace_writer_connection_reuse() if reuse_connections is None else reuse_connections
+            config._trace_writer_connection_reuse if reuse_connections is None else reuse_connections
         )
 
     def _intake_endpoint(self, client=None):
@@ -267,7 +248,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
-        if _config_facts.health_metrics_enabled() and self.dogstatsd:
+        if config._health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:
@@ -383,7 +364,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 response.reason,
             )
             # Append the payload if requested
-            if _env_bool("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False):
+            if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, bytes):
@@ -600,10 +581,8 @@ class AgentlessTraceWriter(HTTPWriter):
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
     ) -> None:
-        buffer_size = min(buffer_size or _config_facts.trace_writer_buffer_size(), self.MAX_BUFFER_SIZE)
-        max_payload_size = max_payload_size or _env_int(
-            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
-        )
+        buffer_size = min(buffer_size or config._trace_writer_buffer_size, self.MAX_BUFFER_SIZE)
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
         client = AgentlessWriterClient(buffer_size, max_payload_size)
         headers = {
             "Content-Type": client.encoder.content_type,
@@ -655,7 +634,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
 
     Resolution order:
     1. ``api_version`` argument (caller-supplied explicit override).
-    2. ``DD_TRACE_API_VERSION`` / ``_config_facts.trace_api()`` environment setting.
+    2. ``DD_TRACE_API_VERSION`` / ``config._trace_api`` environment setting.
     3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
        ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
@@ -679,12 +658,12 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or config._llmobs_enabled
     ):
         default = "v0.4"
-    resolved = api_version or _config_facts.trace_api() or default
+    resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
         if not agent_config.trace_otlp_export_enabled:
             log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"
-    if _config_facts.llmobs_enabled() and resolved != "v0.4":
+    if config._llmobs_enabled and resolved != "v0.4":
         log.warning(
             "Setting api version to v0.4; LLM Observability requires v0.4 to transmit meta_struct payloads. "
             "Requested api version '%s' is unsupported when LLM Observability is enabled.",
@@ -723,14 +702,14 @@ def _build_base_exporter_builder(
     )
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
     # from both the trace payload and the OTLP resource attributes (host.name).
-    if _config_facts.report_hostname():
+    if config._report_hostname:
         builder.set_hostname(get_hostname())
-    if _config_facts.service():
-        builder.set_service(_config_facts.service() or "")
-    if _config_facts.env():
-        builder.set_env(_config_facts.env() or "")
-    if _config_facts.version():
-        builder.set_app_version(_config_facts.version() or "")
+    if config.service:
+        builder.set_service(config.service)
+    if config.env:
+        builder.set_env(config.env)
+    if config.version:
+        builder.set_app_version(config.version)
     if test_session_token is not None:
         builder.set_test_session_token(test_session_token)
     # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
@@ -777,7 +756,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         otlp_metrics_endpoint: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
-            processing_interval = _env_float("DD_TRACE_WRITER_INTERVAL_SECONDS", DEFAULT_PROCESSING_INTERVAL)
+            processing_interval = config._trace_writer_interval_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -793,10 +772,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
                 )
 
-        buffer_size = buffer_size or _config_facts.trace_writer_buffer_size()
-        max_payload_size = max_payload_size or _env_int(
-            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE
-        )
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
         if self._api_version not in WRITER_CLIENTS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",
@@ -879,12 +856,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_client_side_stats_obfuscation()
 
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
-        if _config_facts.telemetry_enabled() and sys.platform.startswith("linux"):
+        if config._telemetry_enabled and sys.platform.startswith("linux"):
             heartbeat_ms = int(
-                _env_float("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60) * 1000
+                config._telemetry_heartbeat_interval * 1000
             )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-            builder.enable_telemetry(heartbeat_ms, get_runtime_id(), _config_facts.debug_mode())
-        if _config_facts.health_metrics_enabled():
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+        if config._health_metrics_enabled:
             builder.enable_health_metrics()
         return builder.build(get_native_runtime())
 
@@ -971,7 +948,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
-        if _config_facts.health_metrics_enabled() and self.dogstatsd:
+        if config._health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:
@@ -1111,7 +1088,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 str(e),
             )
             # Append the payload if requested
-            if _env_bool("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False):
+            if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
@@ -1184,11 +1161,11 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = AgentlessTraceWriter.compute_intake_url(_config_facts.dd_site().lower())
+        intake_url = AgentlessTraceWriter.compute_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,
-            api_key=_config_facts.dd_api_key() or "",
+            api_key=config._dd_api_key,
             dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
             sync_mode=_use_sync_mode(),
             report_metrics=not asm_config._apm_opt_out,
@@ -1206,8 +1183,8 @@ def create_trace_writer(
         otel_config.exporter.TRACE_METRICS_ENDPOINT
         if _is_otlp_trace_metrics_enabled(
             otel_config.exporter,
-            _env_optional_bool("OTEL_TRACES_SPAN_METRICS_ENABLED"),
-            _config_facts.otel_metrics_enabled(),
+            config._otel_stats_computation_enabled,
+            config._otel_metrics_enabled,
         )
         else None
     )
@@ -1216,10 +1193,8 @@ def create_trace_writer(
         intake_url=agent_config.trace_agent_url,
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
-        compute_stats_enabled=_config_facts.trace_compute_stats(),
-        client_side_stats_obfuscation=_env_bool(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False
-        ),
+        compute_stats_enabled=config._trace_compute_stats,
+        client_side_stats_obfuscation=config._client_side_stats_obfuscation,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,
