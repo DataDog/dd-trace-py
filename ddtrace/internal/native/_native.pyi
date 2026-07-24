@@ -811,6 +811,188 @@ class config:
         ...
 
 # -----------------------------------------------------------------------------
+# Remote configuration
+# -----------------------------------------------------------------------------
+
+class RemoteConfigProduct:
+    """A remote-config product. One class attribute per libdatadog product.
+
+    Constructed natively; compare/hash by variant. ``str()`` yields the wire
+    name (e.g. ``"ASM_FEATURES"``); ``int()`` yields the discriminant.
+    """
+
+    AgentConfig: "RemoteConfigProduct"
+    AgentTask: "RemoteConfigProduct"
+    ApmTracing: "RemoteConfigProduct"
+    Asm: "RemoteConfigProduct"
+    AsmData: "RemoteConfigProduct"
+    AsmDD: "RemoteConfigProduct"
+    AsmFeatures: "RemoteConfigProduct"
+    FfeFlags: "RemoteConfigProduct"
+    LiveDebugger: "RemoteConfigProduct"
+    LiveDebuggerSymbolDb: "RemoteConfigProduct"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigCapabilities:
+    """A remote-config capability bit. One class attribute per libdatadog
+    capability; ``int()`` yields the bit position the client encodes.
+    """
+
+    AsmActivation: "RemoteConfigCapabilities"
+    AsmIpBlocking: "RemoteConfigCapabilities"
+    AsmDdRules: "RemoteConfigCapabilities"
+    AsmExclusions: "RemoteConfigCapabilities"
+    AsmRequestBlocking: "RemoteConfigCapabilities"
+    AsmResponseBlocking: "RemoteConfigCapabilities"
+    AsmUserBlocking: "RemoteConfigCapabilities"
+    AsmCustomRules: "RemoteConfigCapabilities"
+    AsmCustomBlockingResponse: "RemoteConfigCapabilities"
+    AsmTrustedIps: "RemoteConfigCapabilities"
+    AsmApiSecuritySampleRate: "RemoteConfigCapabilities"
+    ApmTracingSampleRate: "RemoteConfigCapabilities"
+    ApmTracingLogsInjection: "RemoteConfigCapabilities"
+    ApmTracingHttpHeaderTags: "RemoteConfigCapabilities"
+    ApmTracingCustomTags: "RemoteConfigCapabilities"
+    AsmProcessorOverrides: "RemoteConfigCapabilities"
+    AsmCustomDataScanners: "RemoteConfigCapabilities"
+    AsmExclusionData: "RemoteConfigCapabilities"
+    ApmTracingEnabled: "RemoteConfigCapabilities"
+    ApmTracingDataStreamsEnabled: "RemoteConfigCapabilities"
+    AsmRaspSqli: "RemoteConfigCapabilities"
+    AsmRaspLfi: "RemoteConfigCapabilities"
+    AsmRaspSsrf: "RemoteConfigCapabilities"
+    AsmRaspShi: "RemoteConfigCapabilities"
+    AsmRaspXxe: "RemoteConfigCapabilities"
+    AsmRaspRce: "RemoteConfigCapabilities"
+    AsmRaspNosqli: "RemoteConfigCapabilities"
+    AsmRaspXss: "RemoteConfigCapabilities"
+    ApmTracingSampleRules: "RemoteConfigCapabilities"
+    CsmActivation: "RemoteConfigCapabilities"
+    AsmAutoUserInstrumMode: "RemoteConfigCapabilities"
+    AsmEndpointFingerprint: "RemoteConfigCapabilities"
+    AsmSessionFingerprint: "RemoteConfigCapabilities"
+    AsmNetworkFingerprint: "RemoteConfigCapabilities"
+    AsmHeaderFingerprint: "RemoteConfigCapabilities"
+    AsmTruncationRules: "RemoteConfigCapabilities"
+    AsmRaspCmdi: "RemoteConfigCapabilities"
+    ApmTracingEnableDynamicInstrumentation: "RemoteConfigCapabilities"
+    ApmTracingEnableExceptionReplay: "RemoteConfigCapabilities"
+    ApmTracingEnableCodeOrigin: "RemoteConfigCapabilities"
+    ApmTracingEnableLiveDebugging: "RemoteConfigCapabilities"
+    AsmDdMulticonfig: "RemoteConfigCapabilities"
+    AsmTraceTaggingRules: "RemoteConfigCapabilities"
+    AsmExtendedDataCollection: "RemoteConfigCapabilities"
+    ApmTracingMulticonfig: "RemoteConfigCapabilities"
+    FfeFlagConfigurationRules: "RemoteConfigCapabilities"
+    DdDataStreamsTransactionExtractors: "RemoteConfigCapabilities"
+    LlmObsActivation: "RemoteConfigCapabilities"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigChange:
+    """A single remote-config change handed to Python.
+
+    ``content`` is the raw unparsed config bytes for an add/update, or ``None``
+    to signal a removal.
+    """
+
+    @property
+    def path(self) -> str: ...
+    @property
+    def product(self) -> RemoteConfigProduct: ...
+    @property
+    def config_id(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def version(self) -> int: ...
+    @property
+    def content(self) -> Optional[bytes]: ...
+
+class RemoteConfigReader:
+    """Consumer side of the cross-process broadcast (forked children).
+
+    Reads the manifest + contents the origin publishes to shared memory and
+    diffs successive snapshots into changes.
+    """
+
+    def wait_for_change(self, timeout_ms: int) -> bool:
+        """Block until the origin notifies or ``timeout_ms`` elapses.
+
+        Returns ``True`` if woken by a notification, ``False`` on timeout. On
+        Linux this is a futex wait on the manifest generation word; elsewhere it
+        polls.
+        """
+        ...
+    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+        """Return the changes since the last read (removals first).
+
+        ``enabled_products`` are the wire names the caller currently subscribes
+        to; configs for other products are withheld so they are re-emitted once
+        their product is enabled.
+        """
+        ...
+    def reset(self) -> None:
+        """Forget delivered state so the next ``read()`` returns the full snapshot."""
+        ...
+
+class RemoteConfigClient:
+    """Native single-target remote config client (origin process).
+
+    Children consume published configs via :class:`RemoteConfigReader` instead.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        agent_url: str,
+        tracer_version: str,
+        client_id: str,
+        runtime_id: str,
+        service: str,
+        env: str,
+        app_version: str,
+        language: Optional[str] = None,
+        tags: Optional[list[tuple[str, str]]] = None,
+        process_tags: Optional[list[tuple[str, str]]] = None,
+        timeout_ms: int = 5000,
+        test_session_token: Optional[str] = None,
+    ) -> "RemoteConfigClient": ...
+    def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
+        """Add capabilities the client advertises to the agent."""
+        ...
+    def update_capabilities(
+        self,
+        mask: list[RemoteConfigCapabilities],
+        capabilities: list[RemoteConfigCapabilities],
+    ) -> None:
+        """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        ...
+    def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
+        """Perform a single fetch against the agent and return the per-poll changes."""
+        ...
+    def set_config_state(self, path: str, error: Optional[str] = None) -> None:
+        """Acknowledge (``error=None``) or report an error for an applied config."""
+        ...
+    def get_client_id(self) -> str:
+        """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def enable_shared_memory(self) -> None:
+        """Enable cross-process broadcast. Call on the origin before forking."""
+        ...
+    def make_reader(self) -> RemoteConfigReader:
+        """Create a reader over the inherited broadcast segments (forked child)."""
+        ...
+
+# -----------------------------------------------------------------------------
 # HTTP client
 # -----------------------------------------------------------------------------
 

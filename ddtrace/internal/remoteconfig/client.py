@@ -1,21 +1,12 @@
-import base64
-import dataclasses
-import enum
-import hashlib
 import json
 import os
-import re
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterable
-from typing import Mapping
 from typing import Optional
 from typing import Sequence
 import uuid
 
 import ddtrace
-from ddtrace.internal import agent
-from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
@@ -26,24 +17,21 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
-from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 
-log = get_logger(__name__)
+if TYPE_CHECKING:
+    from ddtrace.internal.native import RemoteConfigProduct
 
-TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+log = get_logger(__name__)
 
 # Threshold for callback execution time warning (in seconds)
 CALLBACK_EXECUTION_WARNING_THRESHOLD = 0.5
@@ -72,241 +60,175 @@ class RemoteConfigClientConfig(DDConfig):
 config = RemoteConfigClientConfig()
 
 
-class RemoteConfigError(Exception):
+def _build_tags(tracer_version: str) -> list[tuple[str, str]]:
+    """Assemble the tracer tags reported to the agent (git metadata, env, version, host)."""
+    tags = ddtrace.config.tags.copy()
+    gitmetadata.add_tags(tags)
+    if ddtrace.config.env:
+        tags["env"] = ddtrace.config.env
+    if ddtrace.config.version:
+        tags["version"] = ddtrace.config.version
+    tags["tracer_version"] = tracer_version
+    tags["host_name"] = get_hostname()
+    return [(str(k), str(v)) for k, v in tags.items()]
+
+
+def _build_process_tags() -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for tag in process_tags.process_tags_list or []:
+        key, _, value = tag.partition(":")
+        pairs.append((key, value))
+    return pairs
+
+
+def _test_session_token() -> Optional[str]:
+    """Resolve the dd-apm-test-agent session token for Remote Config requests.
+
+    Reads the token from the canonical ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` env
+    var (the same carrier the trace writer uses) directly, rather than importing
+    the writer module — the writer pulls in ``settings.asm``, and dragging that
+    into the RC client's runtime path is an unnecessary coupling. The native client
+    forwards the token via ``Endpoint.test_token`` (the ``X-Datadog-Test-Session-Token``
+    header); without it the agent will not match session-scoped configs to this client.
     """
-    An error occurred during the configuration update procedure.
-    The error is reported to the agent.
-    """
-
-
-@dataclasses.dataclass
-class Signature:
-    keyid: str
-    sig: str
-
-
-@dataclasses.dataclass
-class Key:
-    keytype: str
-    keyid_hash_algorithms: list[str]
-    keyval: Mapping
-    scheme: str
-
-
-@dataclasses.dataclass
-class Role:
-    keyids: list[str]
-    threshold: int
-
-
-@dataclasses.dataclass
-class Root:
-    _type: str
-    spec_version: str
-    consistent_snapshot: bool
-    expires: str
-    keys: Mapping[str, Key]
-    roles: Mapping[str, Role]
-    version: int = 0
-
-    def __post_init__(self):
-        if self._type != "root":
-            raise ValueError("Root: invalid root type")
-        for k, v in self.keys.items():
-            if isinstance(v, dict):
-                self.keys[k] = Key(**v)
-        for k, v in self.roles.items():
-            if isinstance(v, dict):
-                self.roles[k] = Role(**v)
-
-
-@dataclasses.dataclass
-class SignedRoot:
-    signatures: list[Signature]
-    signed: Root
-
-    def __post_init__(self):
-        for i in range(len(self.signatures)):
-            if isinstance(self.signatures[i], dict):
-                self.signatures[i] = Signature(**self.signatures[i])
-        if isinstance(self.signed, dict):
-            self.signed = Root(**self.signed)
-
-
-@dataclasses.dataclass
-class TargetDesc:
-    length: int
-    hashes: Mapping[str, str]
-    custom: Mapping[str, Any]
-
-
-@dataclasses.dataclass
-class Targets:
-    _type: str
-    custom: Mapping[str, Any]
-    expires: str
-    spec_version: str
-    targets: Mapping[str, TargetDesc]
-    version: int = 0
-
-    def __post_init__(self):
-        if self._type != "targets":
-            raise ValueError("Targets: invalid targets type")
-        if self.spec_version not in ("1.0", "1.0.0"):
-            raise ValueError("Targets: invalid spec version")
-        for k, v in self.targets.items():
-            if isinstance(v, dict):
-                self.targets[k] = TargetDesc(**v)
-
-
-@dataclasses.dataclass
-class SignedTargets:
-    signatures: list[Signature]
-    signed: Targets
-    version: int = 0
-
-    def __post_init__(self):
-        for i in range(len(self.signatures)):
-            if isinstance(self.signatures[i], dict):
-                self.signatures[i] = Signature(**self.signatures[i])
-        if isinstance(self.signed, dict):
-            self.signed = Targets(**self.signed)
-
-
-@dataclasses.dataclass
-class TargetFile:
-    path: str
-    raw: str
-
-
-class ConfigStatus(enum.IntEnum):
-    OK = 0
-    EXPIRED = 1
-
-
-@dataclasses.dataclass
-class AgentPayload:
-    roots: Optional[list[SignedRoot]] = None
-    targets: Optional[SignedTargets] = None
-    target_files: list[TargetFile] = dataclasses.field(default_factory=list)
-    client_configs: set[str] = dataclasses.field(default_factory=set)
-    config_status: int = ConfigStatus.OK
-
-    def __post_init__(self):
-        if self.roots is not None:
-            for i in range(len(self.roots)):
-                if isinstance(self.roots[i], str):
-                    self.roots[i] = SignedRoot(**json.loads(base64.b64decode(self.roots[i])))
-        if isinstance(self.targets, str):
-            self.targets = SignedTargets(**json.loads(base64.b64decode(self.targets)))
-        for i in range(len(self.target_files)):
-            if isinstance(self.target_files[i], dict):
-                self.target_files[i] = TargetFile(**self.target_files[i])
-
-    @classmethod
-    def from_agent_response(cls, data: Mapping[str, Any]) -> "AgentPayload":
-        """Build from the agent's raw response, ignoring fields we don't (yet) model.
-
-        The agent's response proto evolves over time; unknown fields must not
-        fail the whole poll.
-        """
-        known_fields = {f.name for f in dataclasses.fields(cls)}
-        unknown_fields = data.keys() - known_fields
-        if unknown_fields:
-            log.warning("Unhandled field(s) in agent remote config response, ignoring: %s", sorted(unknown_fields))
-        return cls(**{k: v for k, v in data.items() if k in known_fields})
-
-
-AppliedConfigType = dict[str, ConfigMetadata]
-TargetsType = dict[str, ConfigMetadata]
+    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if not additional_headers:
+        return None
+    return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
 
 
 class RemoteConfigClient:
-    """
-    The Remote Configuration client regularly checks for updates on the agent
-    and dispatches configurations to registered products.
-    """
+    """Adapter over the native (libdatadog) Remote Configuration client."""
 
     def __init__(self) -> None:
-        tracer_version = _pep440_to_semver()
-
         self.id = str(uuid.uuid4())
         self.agent_url = agent_config.trace_agent_url
 
-        self._headers = {"content-type": "application/json"}
-        additional_header_str = env.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            self._headers.update(parse_tags_str(additional_header_str))
-
-        tags = ddtrace.config.tags.copy()
-
-        # Add git metadata tags, if available
-        gitmetadata.add_tags(tags)
-
-        if ddtrace.config.env:
-            tags["env"] = ddtrace.config.env
-        if ddtrace.config.version:
-            tags["version"] = ddtrace.config.version
-        tags["tracer_version"] = tracer_version
-        tags["host_name"] = get_hostname()
-
-        self._client_tracer = dict(
-            runtime_id=runtime.get_runtime_id(),
-            language="python",
-            tracer_version=tracer_version,
-            service=ddtrace.config.service,
-            extra_services=list(ddtrace.config._get_extra_services()),
-            env=ddtrace.config.env,
-            app_version=ddtrace.config.version,
-            tags=[":".join(_) for _ in tags.items()],
-        )
-
-        if p_tags_list := process_tags.process_tags_list:
-            self._client_tracer["process_tags"] = p_tags_list
-
-        self.cached_target_files: list[AppliedConfigType] = []
-
         # Product callbacks for single subscriber architecture
-        self._product_callbacks: dict[str, RCCallback] = {}
+        self._product_callbacks: "dict[RemoteConfigProduct, RCCallback]" = {}
+        # Track which products are enabled (reported to the agent each poll)
+        self._enabled_products: "set[RemoteConfigProduct]" = set()
+        self._capability_values: list = []
 
-        # Track which products are enabled
-        self._enabled_products: set[str] = set()
+        # Native client (created lazily on the master process) and the
+        # native reader (created in forked children to consume SHM).
+        self._native: Optional[Any] = None
+        self._reader: Optional[Any] = None
 
-        # Serializes connector read + dispatch between the subscriber thread and the
-        # synchronous pump (forksafe: reset on fork). Product callbacks must not re-enter.
-        self._dispatch_lock = forksafe.Lock()
+    def ensure_native(self) -> Any:
+        if self._native is None:
+            from ddtrace.internal.native import RemoteConfigClient as _NativeClient
+            from ddtrace.internal.native_runtime import get_native_runtime
 
-        # Single global connector and subscriber for all products
-        self._global_connector = PublisherSubscriberConnector()
-        self._global_subscriber = RemoteConfigSubscriber(
-            self._global_connector, self._dispatch_to_products, "GlobalSubscriber", self._dispatch_lock
-        )
+            tracer_version = _pep440_to_semver()
+            self._native = _NativeClient(
+                get_native_runtime(),
+                agent_url=str(self.agent_url),
+                tracer_version=tracer_version,
+                client_id=self.id,
+                runtime_id=runtime.get_runtime_id(),
+                service=ddtrace.config.service or "",
+                env=ddtrace.config.env or "",
+                app_version=ddtrace.config.version or "",
+                tags=_build_tags(tracer_version),
+                process_tags=_build_process_tags(),
+                timeout_ms=int(agent_config.trace_agent_timeout_seconds * 1000),
+                test_session_token=_test_session_token(),
+            )
+            if self._capability_values:
+                self._native.add_capabilities(self._capability_values)
+        return self._native
 
-        self._applied_configs: AppliedConfigType = {}
-        self._last_targets_version = 0
-        self._last_error: Optional[str] = None
-        self._backend_state: Optional[str] = None
-        self._capabilities: int = 0
+    def renew_id(self) -> None:
+        self.id = str(uuid.uuid4())
 
-    def _encode_capabilities(self, capabilities: int) -> str:
-        return base64.b64encode(capabilities.to_bytes((capabilities.bit_length() + 7) // 8, "big")).decode()
+    def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
+        self._product_callbacks[product_name] = callback
+        log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
 
-    def _dispatch_to_products(self, payloads: Sequence[Payload]) -> None:
-        """Dispatch payloads from the global subscriber to registered product callbacks.
+    def enabled_product_names(self) -> list:
+        return [str(p) for p in self._enabled_products]
 
-        This method runs in child processes and performs the following:
-        1. Calls periodic() on all registered callbacks (happens every poll cycle)
-        2. Groups payloads by product and dispatches them to their callbacks
+    def unregister_product(self, product_name: "RemoteConfigProduct") -> None:
+        self._product_callbacks.pop(product_name, None)
+        log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)
 
-        Args:
-            payloads: Sequence of configuration payloads to dispatch
+    def update_product_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> bool:
+        if product_name in self._product_callbacks:
+            self._product_callbacks[product_name] = callback
+            log.debug("[%s][P: %s] Updated callback for product %s", os.getpid(), os.getppid(), product_name)
+            return True
+        return False
+
+    def enable_product(self, product_name: "RemoteConfigProduct") -> None:
+        self._enabled_products.add(product_name)
+        log.debug("[%s][P: %s] Enabled product %s", os.getpid(), os.getppid(), product_name)
+
+    def disable_product(self, product_name: "RemoteConfigProduct") -> None:
+        self._enabled_products.discard(product_name)
+        log.debug("[%s][P: %s] Disabled product %s", os.getpid(), os.getppid(), product_name)
+
+    def add_capabilities(self, capabilities) -> None:
+        # `capabilities` are native RemoteConfigCapabilities values; buffer them
+        # (so they survive lazy native creation) and forward to the native client,
+        # which does the accumulation/encoding.
+        caps = list(capabilities)
+        if not caps:
+            return
+        self._capability_values.extend(caps)
+        if self._native is not None:
+            self._native.add_capabilities(caps)
+
+    def update_capabilities(self, mask, capabilities) -> None:
+        # Replace the capabilities within `mask` by `capabilities` (their intersection
+        # with `mask`), leaving others untouched. Unlike `add_capabilities`, this can
+        # *clear* bits, so re-advertising follows one-click activation/deactivation.
+        mask_set = set(mask)
+        active = [c for c in capabilities if c in mask_set]
+        self._capability_values = [c for c in self._capability_values if c not in mask_set]
+        self._capability_values.extend(active)
+        if self._native is not None:
+            self._native.update_capabilities(list(mask_set), active)
+
+    def reset_products(self) -> None:
+        self._product_callbacks = dict()
+        self._enabled_products = set()
+
+    def _build_payloads(self, changes: Sequence[Any]) -> dict[Any, list[Payload]]:
+        grouped: dict[Any, list[Payload]] = {}
+        for change in changes:
+            raw = change.content
+            content: PayloadType = None
+            if raw is not None:
+                try:
+                    content = json.loads(raw)
+                except Exception:
+                    log.debug("invalid remote config JSON content for %s", change.path, exc_info=True)
+                    if self._native is not None:
+                        try:
+                            self._native.set_config_state(change.path, "invalid JSON content")
+                        except Exception:
+                            log.debug("failed to report config error for %s", change.path, exc_info=True)
+                    continue
+            metadata = ConfigMetadata(
+                id=change.config_id,
+                product_name=str(change.product),
+                sha256_hash=None,
+                length=len(raw) if raw is not None else None,
+                tuf_version=change.version,
+            )
+            grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
+        return grouped
+
+    def run_periodic(self) -> None:
+        """Run every registered product's ``periodic()`` housekeeping.
+
+        This is intentionally decoupled from config delivery: the origin poller
+        calls it once per cycle regardless of fetch outcome (see
+        ``RemoteConfigPoller.periodic``), so stale-state timeouts keep firing
+        even while the agent is unavailable.
         """
-        # Make a copy of the product callbacks at the time of dispatch to avoid
-        # issues if callbacks are registered/unregistered while dispatching
-        product_callbacks = self._product_callbacks.copy()
-
-        # Call periodic method for all registered callbacks
-        for product_name, callback in product_callbacks.items():
+        for product, callback in self._product_callbacks.copy().items():
             try:
                 with StopWatch() as sw:
                     callback.periodic()
@@ -316,7 +238,7 @@ class RemoteConfigClient:
                         TELEMETRY_LOG_LEVEL.WARNING,
                         "Periodic RC operation exceeded threshold",
                         tags={
-                            "product": product_name,
+                            "product": str(product),
                             "callback_type": "periodic",
                             "elapsed_time": "%.3f" % elapsed_time,
                         },
@@ -326,39 +248,16 @@ class RemoteConfigClient:
                     "[%s][P: %s] Error calling periodic method for product %s",
                     os.getpid(),
                     os.getppid(),
-                    product_name,
+                    product,
                     exc_info=True,
                 )
 
-        self._dispatch_payloads(payloads, product_callbacks)
+    def _dispatch_payloads(self, grouped: dict[Any, list[Payload]]) -> None:
+        # Copy the callbacks so registration/unregistration during dispatch is safe.
+        product_callbacks = self._product_callbacks.copy()
 
-    def _pump_subscriber(self) -> None:
-        """Apply just-published configs synchronously, so apply_state is promoted before
-        the next poll reports it. The lock serializes with the background subscriber thread
-        (kept for forked children); failures are contained like that thread's periodic().
-        """
-        try:
-            with self._dispatch_lock:
-                self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
-        except Exception:
-            log.error("[%s][P: %s] Error pumping remote config to products", os.getpid(), os.getppid(), exc_info=True)
-
-    def _dispatch_payloads(self, payloads: Sequence[Payload], product_callbacks: dict[str, RCCallback]) -> None:
-        if not payloads:
-            return
-
-        # Group payloads by product name
-        product_payloads: dict[str, list[Payload]] = {}
-        for payload in payloads:
-            if payload.metadata and payload.metadata.product_name:
-                product_name = payload.metadata.product_name
-                if product_name not in product_payloads:
-                    product_payloads[product_name] = []
-                product_payloads[product_name].append(payload)
-
-        # Dispatch to each product's callback
-        for product_name, product_payload_list in product_payloads.items():
-            product_callback = product_callbacks.get(product_name)
+        for product, product_payload_list in grouped.items():
+            product_callback = product_callbacks.get(product)
             if product_callback is not None:
                 try:
                     log.debug(
@@ -366,7 +265,7 @@ class RemoteConfigClient:
                         os.getpid(),
                         os.getppid(),
                         len(product_payload_list),
-                        product_name,
+                        product,
                     )
                     with StopWatch() as sw:
                         product_callback(product_payload_list)
@@ -376,502 +275,76 @@ class RemoteConfigClient:
                             TELEMETRY_LOG_LEVEL.WARNING,
                             "RC callback operation exceeded threshold",
                             tags={
-                                "product": product_name,
+                                "product": str(product),
                                 "callback_type": "payload",
                                 "elapsed_time": "%.3f" % elapsed_time,
                             },
                         )
                 except Exception:
-                    # Product-side failure: logged here, surfaced via the product's telemetry
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
                         os.getppid(),
-                        product_name,
+                        product,
                         product_payload_list,
                         exc_info=True,
                     )
-            # Delivered (or no product to apply it): acknowledge so it isn't stuck pending
-            self._set_apply_state_for_payloads(product_payload_list, 2)
 
-    def _set_apply_state_for_payloads(
-        self, payloads: Sequence[Payload], apply_state: int, apply_error: Optional[str] = None
-    ) -> None:
-        """Promote apply_state after the product callback ran.
+    def _dispatch_to_products(self, grouped: dict[Any, list[Payload]]) -> None:
+        # Run housekeeping then deliver payloads. Used by the child-process
+        # subscriber, whose own timer is the only thing that ticks periodic()
+        # in the child (a bare poll tick passes an empty ``grouped``).
+        self.run_periodic()
+        self._dispatch_payloads(grouped)
 
-        Match by path + sha256_hash + tuf_version so a late callback can't
-        overwrite a newer config; skip removals (content is None).
+    def dispatch_native_changes(self, records: Sequence[Any]) -> None:
+        """Build payloads from native change records and dispatch them.
+
+        Used by the child-process subscriber: a bare poll tick (``records`` is
+        empty) still fires every callback's ``periodic()`` via an empty dispatch.
         """
-        for payload in payloads:
-            if payload.content is None:
-                continue
-            # Written from the subscriber thread or the poller (pump); read by _build_state
-            applied = self._applied_configs.get(payload.path)
-            if (
-                applied is None
-                or applied.sha256_hash != payload.metadata.sha256_hash
-                or applied.tuf_version != payload.metadata.tuf_version
-            ):
-                continue
-            applied.apply_state = apply_state
-            applied.apply_error = apply_error
-
-    def renew_id(self):
-        # called after the process is forked to declare a new id
-        self.id = str(uuid.uuid4())
-        self._client_tracer["runtime_id"] = runtime.get_runtime_id()
-        self._applied_configs.clear()
-
-    def register_callback(
-        self,
-        product_name: str,
-        callback: RCCallback,
-    ) -> None:
-        """
-        Register a product callback for the single-subscriber architecture.
-
-        Args:
-            product_name: Name of the product (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
-            callback: Callback function to invoke when payloads are received in child processes
-        """
-        self._product_callbacks[product_name] = callback
-        log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
-
-    def enable_product(self, product_name: str) -> None:
-        """
-        Enable a product to be included in client payloads sent to the agent.
-
-        Enabling a product means it will be added to the 'products' list in the
-        payload, signaling to the agent that this client wants to receive
-        configurations for this product.
-
-        Args:
-            product_name: Name of the product to enable
-        """
-        self._enabled_products.add(product_name)
-        log.debug("[%s][P: %s] Enabled product %s", os.getpid(), os.getppid(), product_name)
-
-    def disable_product(self, product_name: str) -> None:
-        """
-        Disable a product, removing it from client payloads sent to the agent.
-
-        The product's callback will remain registered and can still receive
-        configurations if the agent sends them, but the client will not
-        request configurations for this product.
-
-        Args:
-            product_name: Name of the product to disable
-        """
-        self._enabled_products.discard(product_name)
-        log.debug("[%s][P: %s] Disabled product %s", os.getpid(), os.getppid(), product_name)
-
-    def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
-        for capability in capabilities:
-            self._capabilities |= capability
-
-    def update_capabilities(self, mask: int, capabilities: int) -> None:
-        """Replace the bits within ``mask`` with ``capabilities`` (can clear bits, unlike add_capabilities)."""
-        self._capabilities = (self._capabilities & ~mask) | (capabilities & mask)
-
-    def update_product_callback(self, product_name: str, callback: RCCallback) -> bool:
-        """Update the callback for a registered product."""
-        if product_name in self._product_callbacks:
-            self._product_callbacks[product_name] = callback
-            log.debug("[%s][P: %s] Updated callback for product %s", os.getpid(), os.getppid(), product_name)
-            return True
-        return False
-
-    def unregister_product(self, product_name: str) -> None:
-        """Unregister a product."""
-        self._product_callbacks.pop(product_name, None)
-        log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)
-
-    def is_subscriber_running(self) -> bool:
-        """Check if the global subscriber is running."""
-        return self._global_subscriber.status == ServiceStatus.RUNNING
-
-    def start_subscriber(self) -> None:
-        """Start the global subscriber thread."""
-        if not self.is_subscriber_running():
-            self._global_subscriber.start()
-            log.debug("[%s][P: %s] Started global subscriber", os.getpid(), os.getppid())
-
-    def stop_subscriber(self, join: bool = False) -> None:
-        """Stop the global subscriber thread."""
-        if self.is_subscriber_running():
-            self._global_subscriber.stop(join=join)
-            log.debug("[%s][P: %s] Stopped global subscriber", os.getpid(), os.getppid())
-
-    def restart_subscriber(self, join: bool = False) -> None:
-        """Restart the global subscriber thread."""
-        self._global_subscriber.force_restart(join=join)
-        log.debug("[%s][P: %s] Restarted global subscriber", os.getpid(), os.getppid())
-
-    def reset_products(self) -> None:
-        """Clear all registered products and enabled products."""
-        self._product_callbacks = dict()
-        self._enabled_products = set()
-
-    def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
-        try:
-            return self._send_request_with_retry(payload)
-        except OSError as e:
-            log.debug("Unexpected connection error in remote config client request: %s", str(e))
-            return None
-
-    @fibonacci_backoff_with_jitter(
-        attempts=3,
-        initial_wait=0.2,
-        until=lambda result: isinstance(result, Mapping) or result is None,
-    )
-    def _send_request_with_retry(self, payload: str) -> Optional[Mapping[str, Any]]:
-        conn = None
-        try:
-            if config.log_payloads:
-                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)
-
-            conn = agent.get_connection(self.agent_url, timeout=agent_config.trace_agent_timeout_seconds)
-            conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
-            resp = conn.getresponse()
-            data_length = resp.headers.get("Content-Length")
-            if data_length is not None and int(data_length) == 0:
-                log.debug("[%s][P: %s] RC response payload empty", os.getpid(), os.getppid())
-                return None
-            data = resp.read()
-
-            if config.log_payloads:
-                log.debug("[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8"))
-        finally:
-            if conn is not None:
-                conn.close()
-
-        if resp.status == 404:
-            # Remote configuration is not enabled or unsupported by the agent
-            return None
-
-        if resp.status < 200 or resp.status >= 300:
-            log.debug("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
-            return None
-
-        return json.loads(data)
-
-    @staticmethod
-    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[bytes]:
-        """Return the raw (base64-decoded, hash-verified) target bytes. Integrity failures
-        raise RemoteConfigError (fails the whole poll); JSON parsing is left to the caller.
-        """
-        candidates = [item.raw for item in payload.target_files if item.path == target]
-        if len(candidates) != 1 or candidates[0] is None:
-            log.debug(
-                "invalid target_files for %r. target files: %s", target, [item.path for item in payload.target_files]
-            )
-            return None
-
-        try:
-            raw = base64.b64decode(candidates[0])
-        except Exception:
-            raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
-
-        computed_hash = hashlib.sha256(raw).hexdigest()
-        if computed_hash != config.sha256_hash:
-            raise RemoteConfigError(
-                "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
-            )
-
-        return raw
-
-    def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
-        self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
-        return dict(
-            client=dict(
-                id=self.id,
-                products=list(self._enabled_products),
-                is_tracer=True,
-                client_tracer=self._client_tracer,
-                state=state,
-                capabilities=self._encode_capabilities(self._capabilities),
-            ),
-            cached_target_files=self.cached_target_files,
-        )
-
-    def _build_state(self) -> Mapping[str, Any]:
-        has_error = self._last_error is not None
-        state = dict(
-            root_version=1,
-            targets_version=self._last_targets_version,
-            config_states=[
-                (
-                    dict(
-                        id=config.id,
-                        version=config.tuf_version,
-                        product=config.product_name,
-                        apply_state=config.apply_state,
-                        apply_error=config.apply_error,
-                    )
-                    if config.apply_error
-                    else dict(
-                        id=config.id,
-                        version=config.tuf_version,
-                        product=config.product_name,
-                        apply_state=config.apply_state,
-                    )
-                )
-                for config in self._applied_configs.values()
-            ],
-            has_error=has_error,
-        )
-        if self._backend_state is not None:
-            state["backend_client_state"] = self._backend_state
-        if has_error:
-            state["error"] = self._last_error
-        return state
-
-    @staticmethod
-    def _accumulate_payload(
-        payload_list: list[Payload],
-        config_content: PayloadType,
-        target: str,
-        config_metadata: ConfigMetadata,
-    ) -> None:
-        """Accumulate a payload to be published to the global connector."""
-        payload_list.append(Payload(config_metadata, target, config_content))
-
-    def _reconcile_configurations(
-        self,
-        payload_list: list[Payload],
-        applied_configs: AppliedConfigType,
-        client_configs: TargetsType,
-        payload: AgentPayload,
-    ) -> None:
-        # Single pass over applied vs incoming configs. Each target is
-        # compared exactly once, and disables are queued before any apply
-        # payloads so product callbacks observe removals strictly before
-        # new or updated configs.
-        to_apply_changed: list[tuple[str, ConfigMetadata]] = []
-        for target, applied in self._applied_configs.items():
-            incoming = client_configs.get(target)
-            if incoming is None:
-                # Case 1 — removed: target is no longer assigned to this
-                # client. Notify the product so it can drop the stale config.
-                self._remove_config(payload_list, target, applied)
-            elif applied == incoming:
-                # Case 2 — unchanged: carry the existing metadata into the
-                # next snapshot, no payload needed.
-                applied_configs[target] = applied
-            else:
-                # Case 3 — changed: defer to the apply phase below so the
-                # fresh payload is queued after any disables.
-                to_apply_changed.append((target, incoming))
-
-        for target, incoming in to_apply_changed:
-            # Case 3 (continued) — fetch and publish the updated content after
-            # all the removals have taken place.
-            self._apply_config(payload_list, applied_configs, target, incoming, payload)
-
-        for target, incoming in client_configs.items():
-            if target not in self._applied_configs:
-                # Case 4 — new: target appears for the first time; fetch
-                # and publish its content.
-                self._apply_config(payload_list, applied_configs, target, incoming, payload)
-
-    def _remove_expired_configurations(self) -> None:
-        """Disable every currently applied configuration.
-
-        Called when the agent reports ``ConfigStatus.EXPIRED``: it hasn't reached the backend
-        in a while and is serving configuration from a stale cache whose TUF signatures have
-        expired, so it must be treated as removed rather than left applied.
-        """
-        payload_list: list[Payload] = []
-        for target, applied in self._applied_configs.items():
-            self._remove_config(payload_list, target, applied)
-
-        with self._dispatch_lock:
-            self._publish_configuration(payload_list)
-            self._applied_configs = {}
-
-        self._add_apply_config_to_cache()
-        self._pump_subscriber()
-
-    def _remove_config(self, payload_list: list[Payload], target: str, config: ConfigMetadata) -> None:
-        if config.product_name not in self._product_callbacks:
-            return
-        try:
-            log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
-            self._accumulate_payload(payload_list, None, target, config)
-        except Exception:
-            log.debug("error while removing product %s config %r", config.product_name, config)
-
-    def _apply_config(
-        self,
-        payload_list: list[Payload],
-        applied_configs: AppliedConfigType,
-        target: str,
-        config: ConfigMetadata,
-        payload: AgentPayload,
-    ) -> None:
-        if config.product_name not in self._product_callbacks:
-            return
-
-        # Integrity failures (base64/hash) raise here and fail the whole poll (retryable)
-        raw = self._extract_target_file(payload, target, config)
-        if raw is None:
-            return
-
-        try:
-            config_content = json.loads(raw)
-            log.debug("[%s][P: %s] Load new configuration: %s", os.getpid(), os.getppid(), target)
-            self._accumulate_payload(payload_list, config_content, target, config)
-        except Exception:
-            # Malformed payload that can't be deserialized: the only case reported as errored
-            error_message = "Failed to deserialize configuration %s for product %r" % (config, config.product_name)
-            log.debug(error_message, exc_info=True)
-            config.apply_state = 3  # Error state
-            config.apply_error = error_message
-            applied_configs[target] = config
-        else:
-            # Promoted to 2 once the subscriber runs the callback (_dispatch_to_products)
-            config.apply_state = 1  # Unacknowledged (apply pending)
-            applied_configs[target] = config
-
-    def _add_apply_config_to_cache(self):
-        if self._applied_configs:
-            cached_data = []
-            for target, config in self._applied_configs.items():
-                cached_data.append(
-                    {
-                        "path": target,
-                        "length": config.length,
-                        "hashes": [{"algorithm": "sha256", "hash": config.sha256_hash}],
-                    }
-                )
-            self.cached_target_files = cached_data
-        else:
-            self.cached_target_files = []
-
-    def _validate_config_exists_in_target_paths(
-        self, payload_client_configs: set[str], payload_target_files: list[TargetFile]
-    ) -> None:
-        paths = {_.path for _ in payload_target_files}
-        paths = paths.union({_["path"] for _ in self.cached_target_files})
-
-        # !(payload.client_configs is a subset of paths or payload.client_configs is equal to paths)
-        if not set(payload_client_configs) <= paths:
-            raise RemoteConfigError("Not all client configurations have target files")
-
-    @staticmethod
-    def _validate_signed_target_files(
-        payload_target_files: list[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType
-    ) -> None:
-        for target in payload_target_files:
-            if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
-                client_configs and not client_configs.get(target.path)
-            ):
-                raise RemoteConfigError(f"target file {target.path} does not exist in client_config and signed targets")
-
-    def _publish_configuration(self, payload_list: list[Payload]) -> None:
-        """Publish all accumulated payloads to the global connector."""
-        if not payload_list:
-            return
-
-        log.debug(
-            "[%s][P: %s] Publishing %d payloads to global connector",
-            os.getpid(),
-            os.getppid(),
-            len(payload_list),
-        )
-        self._global_connector.write(payload_list)
-
-    def _process_targets(self, payload: AgentPayload) -> tuple[Optional[int], Optional[str], Optional[TargetsType]]:
-        if payload.targets is None:
-            # no targets received
-            return None, None, None
-        signed = payload.targets.signed
-        targets = dict()
-        for target, metadata in signed.targets.items():
-            m = TARGET_FORMAT.match(target)
-            if m is None:
-                raise RemoteConfigError("unexpected target format {!r}".format(target))
-            _, product_name, config_id, _ = m.groups()
-            targets[target] = ConfigMetadata(
-                id=config_id,
-                product_name=product_name,
-                sha256_hash=metadata.hashes.get("sha256"),
-                length=metadata.length,
-                tuf_version=metadata.custom.get("v"),
-            )
-        backend_state = signed.custom.get("opaque_backend_state")
-        return signed.version, backend_state, targets
-
-    def _process_response(self, data: Mapping[str, Any]) -> None:
-        try:
-            payload = AgentPayload.from_agent_response(data)
-        except Exception as e:
-            log.debug("invalid agent payload received: %r", data, exc_info=True)
-            msg = f"invalid agent payload received: {e}"
-            raise RemoteConfigError(msg)
-
-        if payload.config_status == ConfigStatus.EXPIRED:
-            # The agent hasn't been able to reach the backend for a while and its TUF
-            # signatures have expired: per RC backend semantics, expired configuration must
-            # be treated as removed rather than kept applied.
-            log.debug(
-                "[%s][P: %s] Agent served remote config from an expired cache, removing all applied configurations",
-                os.getpid(),
-                os.getppid(),
-            )
-            self._remove_expired_configurations()
-            return
-
-        self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
-
-        # 1. Deserialize targets
-        if payload.targets is None:
-            return
-        last_targets_version, backend_state, targets = self._process_targets(payload)
-        if last_targets_version is None or targets is None:
-            return
-
-        client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-
-        self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
-
-        # 2. Reconcile applied vs incoming configurations in a single pass:
-        #    queue disables for targets no longer assigned, carry over
-        #    unchanged configs, and apply new or updated ones.
-        applied_configs: AppliedConfigType = dict()
-        payload_list: list[Payload] = []
-        self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
-
-        # 3. Publish, then snapshot, atomically: a failed publish leaves the previous state
-        #    intact (poll is retried), and no consumer sees a payload before _applied_configs.
-        with self._dispatch_lock:
-            self._publish_configuration(payload_list)
-            self._last_targets_version = last_targets_version
-            self._applied_configs = applied_configs
-            self._backend_state = backend_state
-
-        self._add_apply_config_to_cache()
-
-        # 4. Apply synchronously so apply_state is promoted before the next poll reports it
-        self._pump_subscriber()
+        self._dispatch_to_products(self._build_payloads(records) if records else {})
 
     def request(self) -> bool:
         try:
-            state = self._build_state()
-            payload = json.dumps(self._build_payload(state))
-            response = self._send_request(payload)
-            if response is None:
-                return False
-            self._process_response(response)
-            self._last_error = None
+            native = self.ensure_native()
+            changes = native.poll(
+                list(self._enabled_products),
+                list(ddtrace.config._get_extra_services()),
+            )
+            # Deliver payloads only; product periodic() housekeeping is driven
+            # once per cycle by the poller (RemoteConfigPoller.periodic), so it
+            # keeps running even when a fetch fails.
+            self._dispatch_payloads(self._build_payloads(changes))
             return True
-
-        except RemoteConfigError as e:
-            self._last_error = str(e)
-            log.debug("remote configuration client reported an error", exc_info=True)
-        except ValueError:
-            log.debug("Unexpected response data", exc_info=True)
         except Exception:
-            log.debug("Unexpected error", exc_info=True)
+            log.debug("remote configuration client request failed", exc_info=True)
+            return False
 
-        return False
+    def enable_shared_memory(self) -> None:
+        """Enable cross-process SHM on the master process (called before forking)."""
+        try:
+            self.ensure_native().enable_shared_memory()
+        except Exception:
+            log.debug("failed to enable remote config broadcast", exc_info=True)
+
+    def make_reader(self) -> Optional[Any]:
+        """Create a native reader over the inherited shared memory or reuse an existing one."""
+        if self._reader is not None:
+            # Reused across a fork-of-a-fork: the mapped SHM segments survive the fork,
+            # only the memoized data must be cleared so the full snapshot is re-emitted here.
+            try:
+                self._reader.reset()
+            except Exception:
+                log.debug("failed to reset inherited remote config reader", exc_info=True)
+                self._reader = None
+            return self._reader
+
+        if self._native is None:
+            return None
+        try:
+            self._reader = self._native.make_reader()
+        except Exception:
+            log.debug("failed to create remote config reader", exc_info=True)
+            self._reader = None
+        return self._reader

@@ -661,7 +661,7 @@ class SyncRemoteConfigPoller(RemoteConfigPoller):
 
     def poll(self) -> None:
         """Force client subscriber to poll new data for testing."""
-        self._client._global_subscriber.periodic()
+        self._client.dispatch_native_changes([])
 
 
 @pytest.fixture

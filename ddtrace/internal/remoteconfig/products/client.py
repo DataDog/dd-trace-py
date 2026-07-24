@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.settings._agent import config as agent_config
 
@@ -28,10 +29,10 @@ def _register_rc_products() -> None:
     flare_callback = TracerFlareCallback(flare, _flare_state)
 
     # Register for both AGENT_CONFIG and AGENT_TASK products (they share the same callback)
-    remoteconfig_poller.register_callback("AGENT_CONFIG", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_CONFIG")
-    remoteconfig_poller.register_callback("AGENT_TASK", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_TASK")
+    remoteconfig_poller.register_callback(RemoteConfigProduct.AgentConfig, flare_callback)
+    remoteconfig_poller.enable_product(RemoteConfigProduct.AgentConfig)
+    remoteconfig_poller.register_callback(RemoteConfigProduct.AgentTask, flare_callback)
+    remoteconfig_poller.enable_product(RemoteConfigProduct.AgentTask)
 
 
 def post_preload():

@@ -10,60 +10,78 @@ experiments:
           - name: coreapiscenario-has_listeners_no_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-has_listeners_with_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_no_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_1_listener
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_50_listeners
             thresholds:
               - execution_time < 0.05 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_no_args_no_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_no_args_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_exception_no_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_exception_listeners
             thresholds:
               - execution_time < 0.03 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_with_results_no_listeners
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_with_results_1_listener
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_with_results_listeners
             thresholds:
               - execution_time < 0.05 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-core_dispatch_with_results_50_listeners
             thresholds:
               - execution_time < 0.25 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-context_with_data_listeners
             thresholds:
               - execution_time < 0.02 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-context_with_data_no_listeners
             thresholds:
               - execution_time < 0.01 ms
           - name: coreapiscenario-get_item_exists
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-get_item_missing
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-set_item
             thresholds:
               - execution_time < 0.03 ms
+              - max_rss_usage < 38.00 MB
 
           # djangosimple
           - name: djangosimple-appsec
@@ -273,6 +291,7 @@ experiments:
           - name: httppropagationinject-with_priority_and_origin
             thresholds:
               - execution_time < 0.04 ms
+              - max_rss_usage < 38.00 MB
           - name: httppropagationinject-with_sampling_priority
             thresholds:
               - execution_time < 0.03 ms
@@ -660,18 +679,22 @@ experiments:
           - name: ratelimiter-defaults
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: ratelimiter-high_rate_limit
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: ratelimiter-long_window
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: ratelimiter-low_rate_limit
             thresholds:
               - execution_time < 0.01 ms
           - name: ratelimiter-no_rate_limit
             thresholds:
               - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
           - name: ratelimiter-short_window
             thresholds:
               - execution_time < 0.01 ms
