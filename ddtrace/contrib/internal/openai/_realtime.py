@@ -417,8 +417,13 @@ class _RealtimeState:
         turn.tool_calls, turn.tool_results = _extract_response_tools(response)
         # Backfill each call's name/arguments onto its open tool span (earlier events may not have
         # carried them), then handle the two result paths. Client function_call spans stay open until
-        # the app returns a function_call_output; server MCP calls carry their result inline here.
-        mcp_results = {tr.get("tool_id"): tr.get("result") for tr in turn.tool_results}
+        # the app returns a function_call_output; server MCP calls carry their result (or error)
+        # inline here. Keep MCP output and error apart so a failed call marks its span errored.
+        mcp_io = {
+            str(_get_attr(item, "id", "") or ""): (_get_attr(item, "output", None), _get_attr(item, "error", None))
+            for item in (_get_attr(response, "output", None) or [])
+            if _get_attr(item, "type", "") == "mcp_call"
+        }
         for tool_call in turn.tool_calls:
             call_id = tool_call.get("tool_id")
             if not call_id:
@@ -438,7 +443,12 @@ class _RealtimeState:
                 # Label the eventual function_call_output with this call's tool name.
                 self._tool_call_names[call_id] = name
             elif call_type == "mcp_call":
-                self._finish_tool_span(call_id, mcp_results.get(call_id))
+                output, mcp_error = mcp_io.get(call_id, (None, None))
+                self._finish_tool_span(
+                    call_id,
+                    str(output) if output is not None else None,
+                    error=str(mcp_error) if mcp_error is not None else None,
+                )
         if not turn.input.transcript and turn.input.item_id is not None:
             turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
         # Hold the span open for a late input transcription ONLY when transcription is actually

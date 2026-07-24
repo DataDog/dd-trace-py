@@ -362,7 +362,8 @@ def test_realtime_state_mcp_call_captured():
 def test_realtime_state_function_call_emits_tool_span():
     """A client function_call emits a real tool-kind child span, opened when the call is observed
     (output_item.added) and finished when the app returns the result (function_call_output), parented
-    under the emitting turn's span with a duration spanning the real tool execution."""
+    under the emitting turn's span with a duration spanning the real tool execution.
+    """
     integration, state = _new_state()
     state.on_server_event(_session_created(transcription=False))
     # Turn 1: the model emits a function call. The span opens on output_item.added and its arguments
@@ -389,7 +390,9 @@ def test_realtime_state_function_call_emits_tool_span():
             response=_ns(
                 id="r1",
                 status="completed",
-                output=[_ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")],
+                output=[
+                    _ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")
+                ],
             ),
         )
     )
@@ -421,7 +424,8 @@ def test_realtime_state_function_call_emits_tool_span():
 
 def test_realtime_state_mcp_call_emits_tool_span():
     """A server MCP call emits a tool span opened on output_item.added and finished inline at
-    response.done with the server-side result (no app round-trip)."""
+    response.done with the server-side result (no app round-trip).
+    """
     integration, state = _new_state()
     state.on_server_event(_session_created(transcription=False))
     state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
@@ -439,7 +443,14 @@ def test_realtime_state_mcp_call_emits_tool_span():
                 id="r1",
                 status="completed",
                 output=[
-                    _ns(type="mcp_call", id="mcp_1", name="search", arguments='{"q": "x"}', output="result text", error=None)
+                    _ns(
+                        type="mcp_call",
+                        id="mcp_1",
+                        name="search",
+                        arguments='{"q": "x"}',
+                        output="result text",
+                        error=None,
+                    )
                 ],
             ),
         )
@@ -453,6 +464,40 @@ def test_realtime_state_mcp_call_emits_tool_span():
     assert tool["parent_span"] is integration.responses[0]["span"]
     assert tool["span"].finished is True
     assert tool["span"].start_ns is not None and tool["span"].start_ns <= tool["span"].finish_ns
+    assert not state._pending_tool_spans
+
+
+def test_realtime_state_mcp_call_error_marks_span_error():
+    """A server MCP call that fails (error set, no output) marks its tool span errored, and carries
+    the error text as the span's output rather than being reported as a successful call.
+    """
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.output_item.added",
+            response_id="r1",
+            item=_ns(type="mcp_call", id="mcp_1", name="search"),
+        )
+    )
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[
+                    _ns(type="mcp_call", id="mcp_1", name="search", arguments='{"q": "x"}', output=None, error="boom")
+                ],
+            ),
+        )
+    )
+    assert len(integration.tools) == 1
+    tool = integration.tools[0]
+    assert tool["error"] is True
+    assert tool["result"] == "boom"
+    assert tool["span"].finished is True
     assert not state._pending_tool_spans
 
 
@@ -511,7 +556,9 @@ def test_realtime_state_tool_span_started_on_arguments_delta():
             response=_ns(
                 id="r1",
                 status="completed",
-                output=[_ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")],
+                output=[
+                    _ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")
+                ],
             ),
         )
     )
@@ -1066,7 +1113,8 @@ def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_integration_mcp_tool_span(openai, openai_llmobs, test_spans):
     """A server MCP call emits a real tool-kind child span, nested under the turn span (real
-    integration): opened on output_item.added, finished inline at response.done with its result."""
+    integration): opened on output_item.added, finished inline at response.done with its result.
+    """
     messages = [
         json.dumps(
             {"type": "session.created", "event_id": "e0", "session": {"type": "realtime", "model": "gpt-realtime"}}
