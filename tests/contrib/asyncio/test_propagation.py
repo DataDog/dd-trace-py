@@ -10,6 +10,7 @@ from ddtrace.trace import Context
 
 
 _orig_create_task = asyncio.BaseEventLoop.create_task
+_orig_handle_run = asyncio.Handle._run
 
 
 def test_event_loop_unpatch(tracer):
@@ -18,6 +19,7 @@ def test_event_loop_unpatch(tracer):
     unpatch()
     assert isinstance(tracer.context_provider, DefaultContextProvider)
     assert asyncio.BaseEventLoop.create_task == _orig_create_task
+    assert asyncio.Handle._run == _orig_handle_run
 
 
 @pytest.mark.asyncio

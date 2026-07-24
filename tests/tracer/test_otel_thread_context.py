@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import ctypes
 import os
@@ -8,6 +9,8 @@ import pytest
 
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
+from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
+from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -66,6 +69,62 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         uninstalled_provider.activate(None)
 
         assert _published_span_id() == span.span_id
+
+
+def test_span_context_tracks_asyncio_task_switches(tracer: Tracer):
+    was_patched = getattr(asyncio, "_datadog_patch", False)
+    patch_asyncio()
+
+    async def run_tasks() -> None:
+        first_started = asyncio.Event()
+        resume_first = asyncio.Event()
+        first_resumed = asyncio.Event()
+
+        async def first() -> None:
+            with tracer.trace("first") as span:
+                first_started.set()
+                await resume_first.wait()
+                assert _published_span_id() == span.span_id
+                first_resumed.set()
+
+        async def second() -> None:
+            await first_started.wait()
+            with tracer.trace("second"):
+                resume_first.set()
+                await first_resumed.wait()
+
+        await asyncio.gather(first(), second())
+
+    try:
+        asyncio.run(run_tasks())
+    finally:
+        if not was_patched:
+            unpatch_asyncio()
+
+
+def test_span_context_skips_finished_span_captured_by_asyncio_handle(tracer: Tracer):
+    was_patched = getattr(asyncio, "_datadog_patch", False)
+    patch_asyncio()
+
+    async def run_callback() -> None:
+        loop = asyncio.get_running_loop()
+        callback_finished = loop.create_future()
+
+        with tracer.trace("parent") as parent:
+            with tracer.trace("child"):
+
+                def callback() -> None:
+                    callback_finished.set_result(_published_span_id())
+
+                loop.call_soon(callback)
+
+            assert await callback_finished == parent.span_id
+
+    try:
+        asyncio.run(run_callback())
+    finally:
+        if not was_patched:
+            unpatch_asyncio()
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
