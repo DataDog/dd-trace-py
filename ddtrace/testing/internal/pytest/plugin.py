@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 from collections import defaultdict
 from functools import lru_cache
+import inspect
 from io import StringIO
 import logging
 from pathlib import Path
@@ -9,6 +11,8 @@ import random
 import traceback
 import typing as t
 
+from _pytest import hookspec as pytest_hookspec
+from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
@@ -23,6 +27,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -40,6 +45,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -55,16 +61,32 @@ from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
     from pytest_timeout import _get_item_settings as _pytest_timeout_get_item_settings
 except (ImportError, AttributeError):
     _pytest_timeout_get_item_settings = None
+
+
+try:
+    pytest.hookimpl(specname="pytest_runtest_protocol")(lambda: None)
+    _HOOKIMPL_SUPPORTS_SPECNAME = True
+except TypeError:
+    # pluggy < 1.0.0 (used by pytest 6) does not accept specname=. Keep module importable;
+    # TestOptPluginWithProtocol has an inline fallback for these environments.
+    _HOOKIMPL_SUPPORTS_SPECNAME = False
+
+_PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
+    "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
+)
+_STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
 
 
 if t.TYPE_CHECKING:
@@ -77,10 +99,32 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    _HAS_STASH = True
 except AttributeError:
-    # Fallback for pytest < 7.0 - use a simple key
-    # (older pytest versions don't have StashKey)
+    # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
+    # Do not check pytest.Config.stash at class level: on supported pytest versions, stash is an instance attribute.
+    _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+
+
+def _stash_set(config, key, value):
+    """Store a value on a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        config.stash[key] = value
+    else:
+        setattr(config, "_dd_" + str(key), value)
+
+
+def _stash_get(config, key, default=None):
+    """Retrieve a value from a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        return config.stash.get(key, default)
+    return getattr(config, "_dd_" + str(key), default)
+
 
 TEST_FRAMEWORK = "pytest"
 
@@ -284,9 +328,18 @@ class TestOptPlugin:
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
+        self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
+        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
+        # same ignored suites), but we must only report/count them once per session. We elect the
+        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_ignored_suite_event_owner = True
+        self._itr_ignored_suite_paths: list[Path] = []
+        self._itr_unskippable_suites: set[SuiteRef] = set()
 
         self.manager = session_manager
         self.session = self.manager.session
@@ -303,6 +356,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
+                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -358,6 +412,11 @@ class TestOptPlugin:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
+        # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+            session.exitstatus = pytest.ExitCode.OK
+
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
@@ -410,6 +469,9 @@ class TestOptPlugin:
             # file are no longer needed. Clean them up to keep .git/ tidy.
             self.manager.cleanup_upload_artifacts()
 
+        if self.manager.settings.coverage_enabled:
+            uninstall_coverage()
+
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
             self._logs_handler = None
@@ -424,18 +486,48 @@ class TestOptPlugin:
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
     ) -> None:
-        if not self.manager.atf_all_flaky_tests:
-            return
-        selected = []
-        deselected = []
-        for item in items:
-            if item_to_test_ref(item) in self.manager.test_properties:
-                selected.append(item)
-            else:
-                deselected.append(item)
-        if deselected:
-            config.hook.pytest_deselected(items=deselected)
-        items[:] = selected
+        if self.manager.atf_all_flaky_tests:
+            selected = []
+            deselected = []
+            for item in items:
+                if item_to_test_ref(item) in self.manager.test_properties:
+                    selected.append(item)
+                else:
+                    deselected.append(item)
+            if deselected:
+                config.hook.pytest_deselected(items=deselected)
+            items[:] = selected
+
+    def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
+        """Skip collection of entire test files whose suite is ITR-skippable.
+
+        This fires before the file is imported, saving the cost of module import and test discovery.
+        We only ignore a file when we are sure it is safe to do so:
+          - suite-level ITR skipping is active, and
+          - no test in the file carries a statically-detectable unskippable marker. Comments mentioning
+            the marker reason do not force normal collection.
+        """
+        if collection_path.suffix != ".py":
+            return None
+
+        # Check suite-level skippability first (cheap: returns False immediately in test mode
+        # or when the suite is not in the skippable set) to avoid unnecessary file I/O.
+        if not self.manager.is_skippable_suite_path(collection_path, root_path=config.rootpath):
+            return None
+
+        # The suite is skippable — scan the source for a real unskippable marker before committing
+        # to the skip. A comment mentioning datadog_itr_unskippable is not enough to make the
+        # suite run.
+        try:
+            source = collection_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return None
+
+        if _source_has_itr_unskippable_marker(source):
+            return None
+
+        self._itr_ignored_suite_paths.append(collection_path)
+        return True
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -447,8 +539,74 @@ class TestOptPlugin:
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
+            if (
+                self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
+                and self.manager.is_skippable_test(test_ref)
+                and _is_test_unskippable(item)
+            ):
+                self._itr_unskippable_suites.add(test_ref.suite)
+
+        async_flush_events = _get_async_flush_events(len(session.items))
+        self.manager.writer.set_async_flush_events(async_flush_events)
+        self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
+        self._emit_itr_ignored_suite_events(session)
+
+    def _emit_itr_ignored_suite_events(self, session: pytest.Session) -> None:
+        """Emit test_suite_end (status=skip) events for suites skipped wholesale by pytest_ignore_collect.
+
+        Mirrors what the JS tracer has always done: one suite-skip event per ignored file, no
+        test-level spans inside it.  Also starts/finishes any TestModule whose every suite was
+        ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
+
+        Under xdist, every worker performs a full, unsharded collection pass and so discovers the
+        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        actually emits events/metrics to avoid multiplying counts by the number of workers.
+        """
+        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
+            return
+
+        # Use rootdir so module names match what item_to_test_ref produces from nodeids.
+        root_path = session.config.rootpath
+
+        running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
+
+        ignored_by_module: dict[str, list[Path]] = defaultdict(list)
+        for path in self._itr_ignored_suite_paths:
+            try:
+                relative = path.relative_to(root_path)
+            except ValueError:
+                continue
+            module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+            ignored_by_module[module_name].append(path)
+
+        for module_name, paths in ignored_by_module.items():
+            test_module, created_module = self.session.get_or_create_child(module_name)
+            if created_module:
+                # paths[0] already passed the root-relative filter above, so this cannot raise.
+                module_path = paths[0].parent.relative_to(root_path)
+                test_module.set_location(module_path=module_path)
+                test_module.start()
+                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+            for path in paths:
+                relative = path.relative_to(root_path)
+                suite_name = relative.name
+                test_suite, _ = test_module.get_or_create_child(suite_name)
+                if not test_suite.is_started():
+                    test_suite.start()
+                    TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+                test_suite.mark_skipped_by_itr()
+                test_suite.finish()
+                self.manager.writer.put_item(test_suite)
+                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+                self.session.tests_skipped_by_itr += 1
+
+            if module_name not in running_module_names:
+                test_module.finish()
+                self.manager.writer.put_item(test_module)
+                TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -489,6 +647,8 @@ class TestOptPlugin:
             # is already populated when the SessionManager was created in pytest_load_initial_conftest.
             if self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
                 test.mark_unskippable()
+                if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+                    self._itr_unskippable_suites.add(test_ref.suite)
 
             # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
@@ -520,7 +680,6 @@ class TestOptPlugin:
             # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
-    @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
@@ -571,9 +730,14 @@ class TestOptPlugin:
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+            self.manager.coverage_writer.put_suite_coverage(
+                test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
+        else:
+            self.manager.coverage_writer.put_coverage(
+                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
@@ -587,6 +751,14 @@ class TestOptPlugin:
             test_module.finish()
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    if _HOOKIMPL_SUPPORTS_SPECNAME:
+        pytest_runtest_protocol_wrapper = pytest.hookimpl(
+            tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol"
+        )(pytest_runtest_protocol_wrapper)
+    else:
+        pytest_runtest_protocol = pytest.hookimpl(tryfirst=True, hookwrapper=True)(pytest_runtest_protocol_wrapper)
+        del pytest_runtest_protocol_wrapper
 
     def _reset_pytest_timeout(self, item: pytest.Item) -> None:
         """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
@@ -648,6 +820,8 @@ class TestOptPlugin:
                 item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
             )
         else:
+            # Apply quarantine masking before logging reports (non-retry path).
+            self._apply_quarantine_masking(test, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
 
@@ -729,6 +903,24 @@ class TestOptPlugin:
 
         return retry_reports, reports
 
+    def _apply_quarantine_masking(self, test: Test, reports: _ReportGroup) -> None:
+        """Apply quarantine masking to test reports so failures don't break the pipeline.
+
+        For quarantined tests (that are not ATF), this converts failed reports to look like xfail results.
+        This is applied after all retries so that ATR can see real FAIL status during retries.
+        """
+        for report in reports.values():
+            self._apply_quarantine_masking_to_report(test, report)
+
+    def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
+        """Apply quarantine masking to a single report (e.g. the final retry report)."""
+        if not test.is_quarantined() or test.is_attempt_to_fix():
+            return
+
+        if report.outcome == "failed":
+            report.outcome = "skipped"
+            report.wasxfail = "dd_quarantined"
+
     def _log_retry_final_reports(
         self,
         item: pytest.Item,
@@ -743,11 +935,15 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
+        # Apply quarantine masking to the final report after retries are done.
+        self._apply_quarantine_masking_to_report(test, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = last_reports.get(TestPhase.TEARDOWN)
+        self._apply_quarantine_masking_to_report(test, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -869,8 +1065,34 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        self.reports_by_nodeid[item.nodeid][call.when] = report
-        self.excinfo_by_report[report] = call.excinfo
+
+        if self._store_passing_reports:
+            # Opt-out for the outcome aggregation optimization. This keeps the previous behavior: retain every pytest
+            # phase report and derive the final Datadog outcome later in _get_test_outcome(). It is slower because the
+            # common pass path stores a report object and exception-info entry for every setup/call/teardown phase, but
+            # it is useful as a private safety valve if a third-party plugin relies on report storage in an unexpected
+            # way.
+            self.reports_by_nodeid[item.nodeid][call.when] = report
+            self.excinfo_by_report[report] = call.excinfo
+        elif (
+            report.passed
+            and not getattr(report, "wasxfail", None)
+            and call.when == TestPhase.CALL
+            and item.nodeid in self.outcomes_by_nodeid
+        ):
+            # Fast path: a normal passing report carries no status metadata we need to preserve, so we do not store it.
+            # The implicit outcome is PASS when _get_test_outcome() finds no aggregate outcome for the item.
+            #
+            # The one important exception is external retry plugins (for example pytest-flaky or pytest-rerunfailures):
+            # they may emit a failed call report followed by a passing call report for the same pytest item. Since the
+            # later pass is no longer stored and cannot overwrite the earlier failure in reports_by_nodeid, clear the
+            # aggregate failure here. A later teardown failure, if any, will still be recorded by the non-passing path.
+            self.outcomes_by_nodeid.pop(item.nodeid, None)
+        elif not report.passed or getattr(report, "wasxfail", None):
+            # Non-passing and xfail/xpass reports carry status, error, skip, or xfail metadata. Aggregate just that
+            # final outcome data instead of retaining all phase reports. This keeps the frequent PASS path allocation
+            # free while preserving the information needed to tag the Datadog test run.
+            self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
@@ -890,44 +1112,64 @@ class TestOptPlugin:
 
         return None
 
+    def _update_test_outcome(
+        self,
+        nodeid: str,
+        report: pytest.TestReport,
+        excinfo: t.Optional[pytest.ExceptionInfo[t.Any]],
+    ) -> None:
+        status, tags = self.outcomes_by_nodeid.get(nodeid, (TestStatus.PASS, {}))
+
+        if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
+            tags[TestTag.XFAIL_REASON] = str(wasxfail)
+            tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
+        # Preserve a failure once recorded. A later teardown failure may still override a skip, matching pytest's
+        # session outcome semantics for fixture finalizer errors.
+        if status == TestStatus.FAIL:
+            self.outcomes_by_nodeid[nodeid] = (status, tags)
+            return
+
+        if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif report.skipped:
+            status = TestStatus.SKIP
+            reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+            tags[TestTag.SKIP_REASON] = reason
+
+        self.outcomes_by_nodeid[nodeid] = (status, tags)
+
     def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
-
-        This methods consumes the test reports and exception information for the specified test, and removes them from
-        the dictionaries.
         """
-        status = TestStatus.PASS
-        tags = {}
+        if outcome := self.outcomes_by_nodeid.pop(nodeid, None):
+            return outcome
 
+        # Compatibility fallback for callers/tests that still populate the old report dictionaries directly.
+        status = TestStatus.PASS
+        tags: dict[str, str] = {}
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
-
-            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
-                tags[TestTag.XFAIL_REASON] = str(wasxfail)
-                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
-
-            excinfo = self.excinfo_by_report.pop(report, None)
-
-            if report.failed:
-                status = TestStatus.FAIL
-                tags.update(_get_exception_tags(excinfo))
+            self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
+            status, tags = self.outcomes_by_nodeid[nodeid]
+            if status == TestStatus.FAIL:
                 break
 
-            if report.skipped:
-                status = TestStatus.SKIP
-                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
-                tags[TestTag.SKIP_REASON] = reason
-                break
-
+        self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
+            return
+
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE and test_ref.suite in self._itr_unskippable_suites:
+            test.mark_forced_run()
             return
 
         if test.is_unskippable():
@@ -935,7 +1177,6 @@ class TestOptPlugin:
             return
 
         if test.is_attempt_to_fix():
-            # if the test is an attempt-to-fix, behave as it if were not selected for skipping.
             return
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
@@ -977,6 +1218,22 @@ class TestOptPlugin:
         print_test_report_links(terminalreporter, self.manager)
 
 
+def _pytest_ignore_collect_collection_path(
+    self: TestOptPlugin, collection_path: Path, config: pytest.Config
+) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(collection_path, config)
+
+
+def _pytest_ignore_collect_path(self: TestOptPlugin, path: t.Any, config: pytest.Config) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(Path(str(path)), config)
+
+
+if _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_collection_path)
+else:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_path)
+
+
 class TestOptPluginWithProtocol(TestOptPlugin):
     """
     TestOptPlugin subclass that registers pytest_runtest_protocol, taking ownership of test execution and retries.
@@ -990,6 +1247,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
         failed attempt should fail the test from pytest's point of view.
+
+        Quarantined tests also do NOT use xfail here: applying xfail upfront causes pytest to report failures as
+        "skipped" (xfail), which prevents ATR from seeing a FAIL status and retrying. Instead, quarantine masking is
+        applied after all retries in _apply_quarantine_masking.
         """
         if not self.manager.settings.test_management.enabled:
             return
@@ -998,14 +1259,78 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         elif test.is_attempt_to_fix():
             return
         elif test.is_quarantined():
-            item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
+            # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
+            return
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
+        # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
+        # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
+        # If not, we perform the full setup+run+teardown lifecycle here.
+        if item.nodeid not in self.tests_by_nodeid:
+            return self._protocol_with_setup(item, nextitem)
+
         item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
         self._do_test_runs(item, nextitem)
         item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
         return True  # Do not run other pytest_runtest_protocol hooks after this one.
+
+    def _protocol_with_setup(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        """Full test protocol including lifecycle setup and teardown.
+
+        Used in pytest 6 where pluggy does not support the ``specname`` parameter on
+        ``@pytest.hookimpl``, so the base class ``pytest_runtest_protocol_wrapper``
+        (which relies on ``specname="pytest_runtest_protocol"``) never fires as a hookwrapper.
+        This method replicates the wrapper's behaviour inline so that EFD retries,
+        span tracking, and event emission all work correctly.
+        """
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
+
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
+        self.tests_by_nodeid[item.nodeid] = test
+        self._handle_itr(item, test_ref, test)
+        self._apply_test_management_markers(item, test)
+
+        with trace_context(self.enable_ddtrace_trace_filter) as _context:
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+            with coverage_collection() as coverage_data:
+                item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+                self._do_test_runs(item, nextitem)
+                item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+
+        test.finish()
+
+        self.manager.coverage_writer.put_coverage(
+            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+        )
+
+        if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
+            test_suite.finish()
+            self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+
+        if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
+            test_module.finish()
+            self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+        return True
 
 
 class RetryReports:
@@ -1079,7 +1404,7 @@ class RetryReports:
         if test.is_flaky_run():
             extra_user_properties += [("dd_flaky", True)]
 
-        final_report = pytest.TestReport(
+        final_report = TestReport(
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
@@ -1230,16 +1555,16 @@ def pytest_load_initial_conftests(
         yield
         return
 
-    early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
+    _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
     # NOTE: Coverage collection decision tree:
-    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
-    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
-    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
-    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
-    # when we know if pytest-cov is available.
-    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only use our own coverage collector if report upload is not enabled
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
+    # Both can run simultaneously. CollectInContext.__enter__ dynamically detects other
+    # sys.monitoring tools (e.g. coverage.py) and disables the DISABLE optimisation + restart_events()
+    # to avoid corrupting their state.
+    # The coverage.py startup itself is handled later in pytest_configure.
+    if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
     yield
@@ -1247,7 +1572,7 @@ def pytest_load_initial_conftests(
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path)
+    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -1272,7 +1597,7 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
@@ -1320,8 +1645,11 @@ def pytest_configure(config: pytest.Config) -> None:
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
 
-    if config.pluginmanager.hasplugin("pytest-bdd"):
-        config.pluginmanager.register(BddTestOptPlugin(plugin))
+    if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
+        try:
+            config.pluginmanager.register(BddTestOptPlugin(plugin))
+        except Exception:
+            log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
@@ -1391,6 +1719,119 @@ def _get_skipif_condition(marker: pytest.Mark) -> t.Any:
         condition = True  # `skipif` with no condition is equivalent to plain `skip`.
 
     return condition
+
+
+_UNKNOWN_AST_VALUE = object()
+
+
+def _ast_resolve_constant(node: t.Optional[ast.AST], constants: dict[str, t.Any]) -> t.Any:
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        values = []
+        for value in node.values:
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                return _UNKNOWN_AST_VALUE
+            values.append(value.value)
+        return "".join(values)
+    if isinstance(node, ast.Name):
+        return constants.get(node.id, _UNKNOWN_AST_VALUE)
+    return _UNKNOWN_AST_VALUE
+
+
+def _ast_is_skipif_factory(node: ast.AST, skipif_aliases: set[str]) -> bool:
+    if isinstance(node, ast.Attribute) and node.attr == "skipif":
+        return True
+    if isinstance(node, ast.Name) and node.id in skipif_aliases:
+        return True
+    return False
+
+
+def _ast_call_is_itr_unskippable_skipif(node: ast.AST, constants: dict[str, t.Any], skipif_aliases: set[str]) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not _ast_is_skipif_factory(node.func, skipif_aliases):
+        return False
+
+    condition = node.args[0] if node.args else None
+    reason = None
+    for keyword in node.keywords:
+        if keyword.arg == "condition":
+            condition = keyword.value
+        elif keyword.arg == "reason":
+            reason = keyword.value
+
+    condition_value = _ast_resolve_constant(condition, constants)
+    reason_value = _ast_resolve_constant(reason, constants)
+
+    return reason_value == ITR_UNSKIPPABLE_REASON and (
+        condition_value is False or condition_value is _UNKNOWN_AST_VALUE
+    )
+
+
+def _ast_expr_contains_itr_unskippable_marker(
+    node: ast.AST, constants: dict[str, t.Any], skipif_aliases: set[str]
+) -> bool:
+    return any(_ast_call_is_itr_unskippable_skipif(child, constants, skipif_aliases) for child in ast.walk(node))
+
+
+def _ast_assign_name_targets(statement: t.Union[ast.Assign, ast.AnnAssign]) -> list[str]:
+    if isinstance(statement, ast.Assign):
+        return [target.id for target in statement.targets if isinstance(target, ast.Name)]
+    if isinstance(statement.target, ast.Name):
+        return [statement.target.id]
+    return []
+
+
+def _ast_update_static_bindings(
+    statement: t.Union[ast.Assign, ast.AnnAssign], constants: dict[str, t.Any], skipif_aliases: set[str]
+) -> None:
+    targets = _ast_assign_name_targets(statement)
+    value = statement.value
+
+    for target in targets:
+        if value is not None and _ast_is_skipif_factory(value, skipif_aliases):
+            skipif_aliases.add(target)
+        else:
+            skipif_aliases.discard(target)
+
+        resolved_value = _ast_resolve_constant(value, constants)
+        if resolved_value is _UNKNOWN_AST_VALUE:
+            constants.pop(target, None)
+        else:
+            constants[target] = resolved_value
+
+
+def _source_has_itr_unskippable_marker(source: str) -> bool:
+    """Return whether source contains a real pytest unskippable marker.
+
+    Collection-time suite skipping must be conservative about actual pytest markers, but comments
+    mentioning the marker reason should not force normal collection.
+    """
+    if ITR_UNSKIPPABLE_REASON not in source:
+        return False
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return True
+
+    constants: dict[str, t.Any] = {}
+    skipif_aliases: set[str] = set()
+    for statement in tree.body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if any(
+                _ast_expr_contains_itr_unskippable_marker(decorator, constants, skipif_aliases)
+                for decorator in statement.decorator_list
+            ):
+                return True
+        elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+            value = statement.value
+            if value is not None and _ast_expr_contains_itr_unskippable_marker(value, constants, skipif_aliases):
+                return True
+            _ast_update_static_bindings(statement, constants, skipif_aliases)
+
+    return False
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:

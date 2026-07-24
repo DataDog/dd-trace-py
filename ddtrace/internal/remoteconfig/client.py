@@ -179,12 +179,18 @@ class TargetFile:
     raw: str
 
 
+class ConfigStatus(enum.IntEnum):
+    OK = 0
+    EXPIRED = 1
+
+
 @dataclasses.dataclass
 class AgentPayload:
     roots: Optional[list[SignedRoot]] = None
     targets: Optional[SignedTargets] = None
     target_files: list[TargetFile] = dataclasses.field(default_factory=list)
     client_configs: set[str] = dataclasses.field(default_factory=set)
+    config_status: int = ConfigStatus.OK
 
     def __post_init__(self):
         if self.roots is not None:
@@ -196,6 +202,19 @@ class AgentPayload:
         for i in range(len(self.target_files)):
             if isinstance(self.target_files[i], dict):
                 self.target_files[i] = TargetFile(**self.target_files[i])
+
+    @classmethod
+    def from_agent_response(cls, data: Mapping[str, Any]) -> "AgentPayload":
+        """Build from the agent's raw response, ignoring fields we don't (yet) model.
+
+        The agent's response proto evolves over time; unknown fields must not
+        fail the whole poll.
+        """
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        unknown_fields = data.keys() - known_fields
+        if unknown_fields:
+            log.warning("Unhandled field(s) in agent remote config response, ignoring: %s", sorted(unknown_fields))
+        return cls(**{k: v for k, v in data.items() if k in known_fields})
 
 
 AppliedConfigType = dict[str, ConfigMetadata]
@@ -450,6 +469,10 @@ class RemoteConfigClient:
         for capability in capabilities:
             self._capabilities |= capability
 
+    def update_capabilities(self, mask: int, capabilities: int) -> None:
+        """Replace the bits within ``mask`` with ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        self._capabilities = (self._capabilities & ~mask) | (capabilities & mask)
+
     def update_product_callback(self, product_name: str, callback: RCCallback) -> bool:
         """Update the callback for a registered product."""
         if product_name in self._product_callbacks:
@@ -651,6 +674,24 @@ class RemoteConfigClient:
                 # and publish its content.
                 self._apply_config(payload_list, applied_configs, target, incoming, payload)
 
+    def _remove_expired_configurations(self) -> None:
+        """Disable every currently applied configuration.
+
+        Called when the agent reports ``ConfigStatus.EXPIRED``: it hasn't reached the backend
+        in a while and is serving configuration from a stale cache whose TUF signatures have
+        expired, so it must be treated as removed rather than left applied.
+        """
+        payload_list: list[Payload] = []
+        for target, applied in self._applied_configs.items():
+            self._remove_config(payload_list, target, applied)
+
+        with self._dispatch_lock:
+            self._publish_configuration(payload_list)
+            self._applied_configs = {}
+
+        self._add_apply_config_to_cache()
+        self._pump_subscriber()
+
     def _remove_config(self, payload_list: list[Payload], target: str, config: ConfigMetadata) -> None:
         if config.product_name not in self._product_callbacks:
             return
@@ -763,11 +804,23 @@ class RemoteConfigClient:
 
     def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
-            payload = AgentPayload(**data)
+            payload = AgentPayload.from_agent_response(data)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
             raise RemoteConfigError(msg)
+
+        if payload.config_status == ConfigStatus.EXPIRED:
+            # The agent hasn't been able to reach the backend for a while and its TUF
+            # signatures have expired: per RC backend semantics, expired configuration must
+            # be treated as removed rather than kept applied.
+            log.debug(
+                "[%s][P: %s] Agent served remote config from an expired cache, removing all applied configurations",
+                os.getpid(),
+                os.getppid(),
+            )
+            self._remove_expired_configurations()
+            return
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 

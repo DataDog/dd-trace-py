@@ -94,9 +94,9 @@ _base_env = {
     "DD_PATCH_MODULES": "unittest:false",
     "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     "CARGO_BUILD_JOBS": "12",
-    "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",  # 2-second timeout
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
     # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
@@ -562,7 +562,6 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/crashtracker/",
             pkgs={
@@ -589,11 +588,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="wrapping",
+            env={
+                # Opt into the future @tracer.wrap span-name behaviour so wrapping a
+                # method does not emit a DDTraceDeprecationWarning per test.
+                "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
+            },
+            command="pytest -v -n auto {cmdargs} tests/wrapping/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-xdist": latest,
+                "wrapt": [latest, "<2.0.0"],
+            },
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
@@ -606,6 +618,8 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # exercises the module-cloning regression test for yaml/_yaml
+                "PyYAML": latest,
                 # Ray Serve cloudpickles objects that reference the global config
                 # (which holds forksafe locks); test_forksafe.py exercises that path.
                 "cloudpickle": latest,
@@ -732,6 +746,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pytest-benchmark": latest,
                 "pytest-memray": latest,
+                "numpy": latest,
             },
             pys=select_pys(),
         ),
@@ -1301,9 +1316,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    env={
-                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                    },
                     pys=["3.9"],
                     pkgs={
                         "flask": "~=0.12.0",
@@ -2012,7 +2024,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
                 # Disable coverage report upload for this suite: these tests exercise the
                 # coverage upload functionality themselves, so having the plugin also run
@@ -2025,6 +2036,7 @@ venv = Venv(
                     pys="3.9",
                     pkgs={
                         "pytest": [
+                            "==6.2.5",
                             "~=7.2",
                             "~=8.0",
                         ],
@@ -2076,22 +2088,16 @@ venv = Venv(
                 ],
                 "asynctest": "==0.13.0",
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
             pys="3.9",
         ),
         Venv(
             name="pytest_bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -2118,7 +2124,7 @@ venv = Venv(
         Venv(
             name="pytest_benchmark",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2126,20 +2132,14 @@ venv = Venv(
                     ">=3.1.0,<=4.0.0",
                 ],
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
         ),
         Venv(
             name="pytest:flaky",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            command="pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py",
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -3017,13 +3017,36 @@ venv = Venv(
         Venv(
             name="openai_agents",
             command="pytest {cmdargs} tests/contrib/openai_agents",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": ["~=0.0.0", latest],
             },
+            venvs=[
+                # openai-agents >= 0.9.0 requires Python >= 3.10, so the 0.14+ pins run on 3.10+ only.
+                # Python 3.9 needs two shims for the agents 0.8.x row that 3.10+ does not:
+                #  - urllib3 < 2: agents 0.8.x pulls types-requests >= 2.32 (needs urllib3 >= 2), which
+                #    collides with vcrpy's "urllib3 < 2; python_version < '3.10'" marker and backtracks
+                #    vcrpy to a urllib3-2-incompatible 4.3.0, breaking `import vcr`.
+                #  - eval-type-backport: agents 0.8.x pydantic models use PEP-604 "X | None" unions,
+                #    which Python 3.9 cannot runtime-evaluate without the backport.
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "openai-agents": ["~=0.0.0", "~=0.8.0"],
+                        "urllib3": "<2",
+                        "eval-type-backport": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.0.0", "~=0.8.0"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.14.0", latest]},
+                ),
+            ],
         ),
         Venv(
             name="langchain",
@@ -3216,7 +3239,7 @@ venv = Venv(
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
-                "mistralai": latest,
+                "mistralai": ["~=2.0.0", latest],
             },
         ),
         Venv(
@@ -3275,7 +3298,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
-                "ray[default]": ["~=2.46.0", latest],
+                "ray[default]": ["~=2.46.0", "~=2.54.1"],
             },
         ),
         Venv(
@@ -3529,7 +3552,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
@@ -3544,7 +3566,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
@@ -3583,6 +3604,9 @@ venv = Venv(
                         "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
+                        # openfeature-sdk is an optional dependency (ddtrace[openfeature]) gating the
+                        # FFE prompt path; the FFE tests in test_prompts.py need it installed.
+                        "openfeature-sdk": ">=0.8,<1",
                     },
                     venvs=[
                         Venv(
@@ -4457,7 +4481,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_api",
-            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
+            command="pytest {cmdargs} tests/aiguard/api/",
             pkgs={
                 "requests": latest,
             },
@@ -4465,7 +4489,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_langchain",
-            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            command="pytest {cmdargs} tests/aiguard/langchain/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4501,7 +4525,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_openai",
-            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            command="pytest {cmdargs} tests/aiguard/openai/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4532,7 +4556,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_anthropic",
-            command="pytest {cmdargs} tests/appsec/ai_guard/anthropic/",
+            command="pytest {cmdargs} tests/aiguard/anthropic/",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4561,7 +4585,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_strands",
-            command="pytest {cmdargs} tests/appsec/ai_guard/strands_hooks/",
+            command="pytest {cmdargs} tests/aiguard/strands_hooks/",
             pkgs={
                 "strands-agents": ">=1.29.0",
             },
@@ -4569,7 +4593,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_litellm_guardrail",
-            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
             pkgs={
                 "pytest-asyncio": latest,
             },
