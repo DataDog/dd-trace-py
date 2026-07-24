@@ -1,6 +1,8 @@
 #include <string_view>
 
 #include "_memalloc_frame.h"
+
+#include "_memalloc_code_cache.h"
 #include "_memalloc_tb.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
@@ -78,6 +80,12 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         return;
     }
 
+    /* Loop-invariant: the singleton can't change during a single stack walk
+     * (single-threaded under the GIL), so capture it once. May be null if the
+     * heap tracker is torn down, in which case we fall back to interning every
+     * frame directly. */
+    Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+
     uint16_t pushed_frames = 0;
     size_t walked_frames = 0;
     for (DataDog::py_frame_t* frame = current_frame; frame != NULL; frame = DataDog::get_previous_frame(frame)) {
@@ -100,11 +108,49 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             continue;
         }
 
-        std::string_view name_sv = unicode_to_sv_no_alloc(DataDog::get_code_name(code));
-        std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
-        int line = memalloc_get_lineno(frame, code);
+        /* Identity used to validate cache hits against PyCodeObject address
+         * reuse. Cheap borrowed-reference / field reads only (no allocation). */
+        PyObject* code_name = DataDog::get_code_name(code);
+        PyObject* code_filename = code->co_filename;
+        int code_firstlineno = code->co_firstlineno;
+        int lasti = DataDog::get_lasti(frame, code);
 
-        sample.push_frame(name_sv, filename_sv, 0, line);
+        /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
+         * insert_function) Sample::push_frame would otherwise make. A hit with
+         * hit.line >= 0 also lets us skip parse_linetable for this frame. */
+        if (cache != nullptr) {
+            Datadog::CacheHit hit = cache->lookup(code, code_name, code_filename, code_firstlineno, lasti);
+            if (hit.func_id != nullptr) {
+                /* Reuse the cached line when lasti matched (line >= 0); otherwise
+                 * parse the line table once for this (now mismatched) lasti. */
+                int line = hit.line >= 0 ? hit.line : memalloc_resolve_lineno(code, lasti);
+                sample.push_frame(hit.func_id, 0, line);
+                ++pushed_frames;
+                continue;
+            }
+        }
+
+        /* Cache miss: resolve the line, then intern explicitly so we can cache
+         * the resulting function_id. Drops the frame on intern failure to match
+         * the silent-skip behavior of Sample::push_frame_impl. */
+        int line = memalloc_resolve_lineno(code, lasti);
+        std::string_view name_sv = unicode_to_sv_no_alloc(code_name);
+        std::string_view filename_sv = unicode_to_sv_no_alloc(code_filename);
+
+        std::optional<Datadog::string_id> name_id = Datadog::intern_string(name_sv);
+        std::optional<Datadog::string_id> filename_id = Datadog::intern_string(filename_sv);
+        if (!name_id || !filename_id) {
+            continue;
+        }
+        std::optional<Datadog::function_id> func_id = Datadog::intern_function(*name_id, *filename_id);
+        if (!func_id) {
+            continue;
+        }
+
+        if (cache != nullptr) {
+            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno, lasti, line);
+        }
+        sample.push_frame(*func_id, 0, line);
         ++pushed_frames;
     }
 }
