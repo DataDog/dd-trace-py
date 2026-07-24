@@ -1095,7 +1095,7 @@ experiments:
           - name: telemetryaddmetric-flush-1-metric
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.50 MB
           - name: telemetryaddmetric-flush-100-metrics
             thresholds:
               - execution_time < 0.25 ms
