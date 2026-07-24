@@ -27,6 +27,21 @@ class _SpanRef:
     trace_id: str
 
 
+@dataclass
+class _MergedAssistantMessage:
+    """A synthetic AssistantMessage that merges several chunks sharing a message_id. This prevents
+    the same usage block from being counted on more than one LLM span. Exposes the same
+    attributes the integration reads off a real ``AssistantMessage`` (``content``, ``model``, ``usage``,
+    ``error``).
+    """
+
+    content: list
+    model: str
+    usage: Optional[dict]
+    error: Any
+    message_id: Optional[str]
+
+
 class CapturingAsyncIterable(wrapt.ObjectProxy):
     """Transparently wraps an AsyncIterable to capture yielded values.
 
@@ -94,6 +109,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
+        # Buffer of consecutive AssistantMessage chunks that share a message_id.
+        # The turn is flushed (one llm span emitted) when a chunk with a different
+        # message_id arrives, or a UserMessage/ResultMessage ends the turn.
+        self._pending_chunks: list[Any] = []
+        self._pending_message_id: Optional[str] = None
         self._is_finalized = False
         # Refs are (span_id, trace_id) snapshots and are used to chain together
         # step spans as well as llm → tool → llm spans.
@@ -127,6 +147,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             return
         self._is_finalized = True
         try:
+            # Flush the last buffered model turn (its llm/step spans and any tool spans).
+            self._flush_pending_turn()
+
             # Finalize any open llm span first.
             if self.current_llm_span is not None:
                 self._finalize_llm_span(None, exception=exception)
@@ -186,7 +209,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             submit_to_llmobs=True,
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
+            activate=False,  # spans the caller starts while iterating should not nest under this span
         )
+        self._keep_step_active_in_llmobs()
         # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
         if self._step_tool_span_refs:
             for tool_ref in self._step_tool_span_refs:
@@ -210,6 +235,20 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 "output",
                 "input",
             )
+
+    def _keep_step_active_in_llmobs(self) -> None:
+        """Re-activate the step span as the active LLMObs span.
+
+        Creating the llm (or a tool) span makes that leaf the active LLMObs span, so anything
+        opened while the turn is still buffering would parent under it instead of the step.
+        Re-activating the step keeps it the parent.
+        """
+        if self.current_step_span is None or not self.integration.llmobs_enabled:
+            return
+        from ddtrace.llmobs import LLMObs
+
+        if LLMObs._instance is not None:
+            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -293,7 +332,50 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_span.finish()
 
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
-        """Snapshot step input, finalize the llm span, open tool spans, and finalize or defer the step."""
+        """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
+
+        AIDEV-NOTE: The SDK may split one model turn into several AssistantMessage
+        chunks that share a message_id and each repeat the same usage. Buffering and
+        merging same-id chunks (flushed on message_id change / UserMessage /
+        ResultMessage) keeps token counts from being double-counted. When message_id
+        is absent (older SDKs) every chunk is its own turn.
+        """
+        incoming_id = getattr(chunk, "message_id", None)
+
+        # Same turn continued: accumulate onto the buffered chunks (usage counted once).
+        if self._pending_chunks and incoming_id is not None and incoming_id == self._pending_message_id:
+            self._pending_chunks.append(chunk)
+            self._open_tool_spans(content)
+            return
+
+        # New turn: flush the previous one, then start buffering this chunk.
+        self._flush_pending_turn()
+        if self.current_step_span is None:
+            self._create_step_span()
+        self._pending_chunks = [chunk]
+        self._pending_message_id = incoming_id
+        self._open_tool_spans(content)
+
+        # Without a message_id, there is no need to buffer the turn.
+        if incoming_id is None:
+            self._flush_pending_turn()
+
+    def _open_tool_spans(self, content: Any) -> None:
+        """Open a tool span for each ToolUseBlock in a chunk's content."""
+        if not isinstance(content, list):
+            return
+        for block in content:
+            if type(block).__name__ == "ToolUseBlock":
+                self._handle_tool_use_block(block)
+
+    def _flush_pending_turn(self) -> None:
+        """Emit the llm/step spans for the buffered AssistantMessage chunks, if any."""
+        if not self._pending_chunks:
+            return
+        chunks = self._pending_chunks
+        self._pending_chunks = []
+        self._pending_message_id = None
+
         if self.current_step_span is None:
             self._create_step_span()
 
@@ -303,24 +385,47 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             )
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
-        # _finalize_llm_span must run before the ToolUseBlock loop so
-        # _last_llm_span_ref is set when _handle_tool_use_block emits the
-        # llm → tool link.
-        self._finalize_llm_span(chunk)
+        response = self._merge_assistant_chunks(chunks)
 
-        if isinstance(content, list):
-            for block in content:
-                if type(block).__name__ == "ToolUseBlock":
-                    self._handle_tool_use_block(block)
+        self._finalize_llm_span(response)
 
         # Defer or finalize the step span.
         if self._active_tool_spans:
-            self._step_response_chunk = chunk
+            self._step_response_chunk = response
         else:
-            self._finalize_step_span(chunk)
+            self._finalize_step_span(response)
+
+    def _merge_assistant_chunks(self, chunks: list) -> Any:
+        """Combine AssistantMessage chunks sharing a message_id into one response object."""
+        if len(chunks) == 1:
+            return chunks[0]
+
+        merged_content: list = []
+        usage: Optional[dict] = None
+        error: Any = None
+        model = ""
+        message_id: Optional[str] = None
+        for c in chunks:
+            merged_content.extend(getattr(c, "content", []) or [])
+            # All chunks of one message repeat the same message-level usage; keep the
+            # last non-empty one (most complete) so it is counted exactly once.
+            if getattr(c, "usage", None):
+                usage = c.usage
+            if error is None:
+                error = getattr(c, "error", None)
+            if not model:
+                model = getattr(c, "model", "") or ""
+            if message_id is None:
+                message_id = getattr(c, "message_id", None)
+        return _MergedAssistantMessage(
+            content=merged_content, model=model, usage=usage, error=error, message_id=message_id
+        )
 
     def _handle_user_message(self, chunk: Any, content: Any) -> None:
         """Finalize tool spans for any tool results and, once all are in, close the deferred step span."""
+        # A UserMessage (tool results) ends the current model turn
+        self._flush_pending_turn()
+
         if isinstance(content, list):
             for block in content:
                 if type(block).__name__ == "ToolResultBlock":
@@ -347,12 +452,18 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
+            activate=False,
         )
-        if self._last_llm_span_ref is not None:
+        # Link from the current turn's llm span, which is still open (not yet finalized) when
+        # tools are opened eagerly. Fall back to the last finalized llm span if it is gone.
+        llm_ref = (
+            self._snapshot(self.current_llm_span) if self.current_llm_span is not None else self._last_llm_span_ref
+        )
+        if llm_ref is not None:
             add_span_link(
                 tool_span,
-                self._last_llm_span_ref.span_id,
-                self._last_llm_span_ref.trace_id,
+                llm_ref.span_id,
+                llm_ref.trace_id,
                 "output",
                 "input",
             )
@@ -361,6 +472,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "tool_input": tool_input,
             "tool_id": tool_id,
         }
+        self._keep_step_active_in_llmobs()
 
     def _handle_tool_result_block(self, block: Any) -> None:
         """Finalize the matching tool span for a ToolResultBlock if one is active."""
