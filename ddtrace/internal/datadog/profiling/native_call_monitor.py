@@ -34,7 +34,11 @@ def start() -> None:
 
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
 
-    tool_id = monitoring_registry.acquire(_TOOL_NAME)
+    # uses_disable=True: the C CALL handler returns sys.monitoring.DISABLE for every call site
+    # so each fires only once. A global sys.monitoring.restart_events() (e.g. from the coverage
+    # collector) would re-arm them and destroy the zero-overhead-after-warmup behaviour, so the
+    # registry must advertise this tool as restart-sensitive.
+    tool_id = monitoring_registry.acquire(_TOOL_NAME, uses_disable=True)
     if tool_id is None:
         log.error("Failed to start native monitoring in the profiler: no sys.monitoring tool slot is available. ")
         return
