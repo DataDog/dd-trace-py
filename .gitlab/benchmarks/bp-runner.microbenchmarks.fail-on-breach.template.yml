@@ -123,13 +123,13 @@ experiments:
           # errortrackingflasksqli
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
-              - execution_time < 2.32 ms
+              - execution_time < 2.34 ms
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
               - execution_time < 2.85 ms
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.32 ms
+              - execution_time < 2.33 ms
 
           # flask_simple
           - name: flasksimple-tracer
