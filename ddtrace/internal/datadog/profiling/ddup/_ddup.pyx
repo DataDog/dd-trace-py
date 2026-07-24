@@ -81,7 +81,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
-    void ddup_push_task_id(Sample *sample, uint64_t task_id)
+    void ddup_push_task_id(Sample *sample, int64_t task_id)
     void ddup_push_task_name(Sample *sample, string_view task_name)
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
@@ -529,7 +529,7 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, clamp_to_uint64_unsigned(task_id))
+                ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:

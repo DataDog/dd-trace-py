@@ -613,12 +613,10 @@ Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, st
 }
 
 bool
-Datadog::Sample::push_task_id(uint64_t task_id)
+Datadog::Sample::push_task_id(int64_t task_id)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    const int64_t recoded_id =
-      reinterpret_cast<int64_t&>(task_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
-    if (!push_label(ExportLabelKey::task_id, recoded_id)) {
+    if (!push_label(ExportLabelKey::task_id, task_id)) {
         if (!already_warned) {
             already_warned = true;
             std::cerr << "bad push" << std::endl;
