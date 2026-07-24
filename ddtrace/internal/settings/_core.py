@@ -71,7 +71,8 @@ class DDConfig(Env):
             setattr(self.parsed, name, getattr(self, name))
 
         # Initialize the value sources
-        self._value_source = {}
+        self._value_source: dict[str, ValueSource] = {}
+        self._config_ids: dict[str, Optional[str]] = {}
 
         for name, e in type(self).items(recursive=True):
             if e.private:
@@ -103,12 +104,13 @@ class DDConfig(Env):
             self._value_source[env_name] = value_source
 
             if value_source == ValueSource.FLEET_STABLE_CONFIG:
-                self.config_id = FLEET_CONFIG_IDS.get(env_name)
-            else:
-                self.config_id = None
+                self._config_ids[env_name] = FLEET_CONFIG_IDS.get(env_name)
 
     def value_source(self, env_name: str) -> str:
         return self._value_source.get(env_name, ValueSource.UNKNOWN)
+
+    def config_id(self, env_name: str) -> Optional[str]:
+        return self._config_ids.get(env_name)
 
     def dump_settings(self) -> dict[str, Any]:
         """Return a {dotted_name: value} snapshot of this config tree,
