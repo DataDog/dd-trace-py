@@ -1,5 +1,4 @@
 from .._encoding import BufferedEncoder
-from ..encoding import MSGPACK_ENCODERS
 from ..encoding import AgentlessTraceJSONEncoder
 
 
@@ -15,30 +14,6 @@ class WriterClientBase(object):
         self.encoder = encoder
 
 
-class AgentWriterClientV5(WriterClientBase):
-    ENDPOINT = "v0.5/traces"
-
-    def __init__(self, buffer_size, max_payload_size):
-        super(AgentWriterClientV5, self).__init__(
-            MSGPACK_ENCODERS["v0.5"](
-                max_size=buffer_size,
-                max_item_size=max_payload_size,
-            )
-        )
-
-
-class AgentWriterClientV4(WriterClientBase):
-    ENDPOINT = "v0.4/traces"
-
-    def __init__(self, buffer_size, max_payload_size):
-        super(AgentWriterClientV4, self).__init__(
-            MSGPACK_ENCODERS["v0.4"](
-                max_size=buffer_size,
-                max_item_size=max_payload_size,
-            )
-        )
-
-
 class AgentlessWriterClient(WriterClientBase):
     """Client for the agentless span intake (api/v2/spans)."""
 
@@ -50,7 +25,6 @@ class AgentlessWriterClient(WriterClientBase):
         )
 
 
-WRITER_CLIENTS = {
-    "v0.4": AgentWriterClientV4,
-    "v0.5": AgentWriterClientV5,
-}
+# Trace agent API versions the native writer can encode traces for.
+SUPPORTED_API_VERSIONS = frozenset({"v0.4", "v0.5"})
+DEFAULT_API_VERSION = "v0.5"

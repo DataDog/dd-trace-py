@@ -5,7 +5,6 @@ import pytest
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import tracer as ddtracer
 from tests.integration.utils import AGENT_VERSION
@@ -20,15 +19,12 @@ def _turn_tracer_into_dummy(tracer):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
     tracer._span_aggregator.writer.spans = []
     tracer._span_aggregator.writer.traces = []
     tracer._span_aggregator.writer.json_encoder = JSONEncoder()
-    tracer._span_aggregator.writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
     tracer._span_aggregator.writer.write = monkeypatched_write.__get__(tracer._span_aggregator.writer, NativeWriter)
 
 
