@@ -2,9 +2,10 @@ import itertools
 from typing import ClassVar  # noqa:F401
 from typing import Optional  # noqa:F401
 
-import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -80,21 +81,18 @@ class RuntimeWorker(periodic.PeriodicService):
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = Lock()
 
-    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
+    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
-        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or ddtrace.internal.settings._agent.config.dogstatsd_url
-        )
-        self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
-        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in ddtrace.config._experimental_features_enabled:
+        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if ddtrace.config._runtime_metrics_runtime_id_enabled:
+        if config._runtime_metrics_runtime_id_enabled:
             # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
             self._platform_tags = self._format_tags(PlatformTagsV2())
         else:
@@ -124,13 +122,12 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def enable(
         cls,
-        tracer: Optional[ddtrace.trace.Tracer] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
-            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, tracer, dogstatsd_url)
+            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
             runtime_worker.start()
 
             atexit.register(cls.disable)
