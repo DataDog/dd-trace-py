@@ -231,16 +231,20 @@ pub(crate) type MetricsMap = Pooled<MetricsPool>;
 const ATTR_POOL_MAX: usize = 128;
 const ATTR_POOL_BUF_CAP: usize = 64;
 
+/// One recycled backing buffer: a `VecStore`'s row `Vec`, kept empty (capacity only) for reuse.
+type PoolBuf<K, V> = Vec<(K, V)>;
+/// A map's thread-local stack of recycled buffers.
+type PoolCell<K, V> = RefCell<Vec<PoolBuf<K, V>>>;
+/// `'static` handle to a thread-local recycle pool (what `Pool::local` returns, and the pool fns take).
+type PoolRef<K, V> = &'static LocalKey<PoolCell<K, V>>;
+
 thread_local! {
-    static META_POOL: RefCell<Vec<Vec<(AttrKey, Py<PyString>)>>> = const { RefCell::new(Vec::new()) };
-    static METRICS_POOL: RefCell<Vec<Vec<(AttrKey, MetricValue)>>> = const { RefCell::new(Vec::new()) };
+    static META_POOL: PoolCell<AttrKey, Py<PyString>> = const { RefCell::new(Vec::new()) };
+    static METRICS_POOL: PoolCell<AttrKey, MetricValue> = const { RefCell::new(Vec::new()) };
 }
 
 /// Take a recycled backing buffer from `pool`, or allocate one presized to `floor` on a miss.
-fn pool_acquire<K, V>(
-    pool: &'static LocalKey<RefCell<Vec<Vec<(K, V)>>>>,
-    floor: usize,
-) -> VecStore<K, V> {
+fn pool_acquire<K, V>(pool: PoolRef<K, V>, floor: usize) -> VecStore<K, V> {
     let backing = pool
         .with(|p| p.borrow_mut().pop())
         .unwrap_or_else(|| Vec::with_capacity(floor));
@@ -249,10 +253,7 @@ fn pool_acquire<K, V>(
 
 /// Clear `store`'s backing buffer and return it to `pool` for reuse. Drops it instead if the store
 /// never allocated or the pool is already at `ATTR_POOL_MAX`.
-fn pool_recycle<K, V>(
-    pool: &'static LocalKey<RefCell<Vec<Vec<(K, V)>>>>,
-    store: &mut VecStore<K, V>,
-) {
+fn pool_recycle<K, V>(pool: PoolRef<K, V>, store: &mut VecStore<K, V>) {
     // Don't reclaim a store that never allocated (the common no-metrics span -- skip the `mem::take`
     // entirely) or an outlier oversized buffer (let it free rather than hoard it). Both just let the
     // store's Vec drop normally. This runs on every span drop.
@@ -278,7 +279,7 @@ pub(crate) trait Pool {
     type V: 'static;
     /// Capacity a fresh backing buffer is presized to on a pool miss.
     const PRESIZE: usize;
-    fn local() -> &'static LocalKey<RefCell<Vec<Vec<(AttrKey, Self::V)>>>>;
+    fn local() -> PoolRef<AttrKey, Self::V>;
 }
 
 /// `meta` pool marker — meta carries most of a span's tags.
@@ -286,7 +287,7 @@ pub(crate) struct MetaPool;
 impl Pool for MetaPool {
     type V = Py<PyString>;
     const PRESIZE: usize = 8;
-    fn local() -> &'static LocalKey<RefCell<Vec<Vec<(AttrKey, Self::V)>>>> {
+    fn local() -> PoolRef<AttrKey, Self::V> {
         &META_POOL
     }
 }
@@ -296,7 +297,7 @@ pub(crate) struct MetricsPool;
 impl Pool for MetricsPool {
     type V = MetricValue;
     const PRESIZE: usize = 4;
-    fn local() -> &'static LocalKey<RefCell<Vec<Vec<(AttrKey, Self::V)>>>> {
+    fn local() -> PoolRef<AttrKey, Self::V> {
         &METRICS_POOL
     }
 }
