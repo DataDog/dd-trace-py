@@ -151,7 +151,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
     )
 
 
-def pretty_collect(color=True):
+def pretty_collect(tracer: Any, color=True):
     class bcolors:
         HEADER = "\033[95m"
         OKBLUE = "\033[94m"
@@ -171,8 +171,6 @@ def pretty_collect(color=True):
         bcolors.FAIL = ""
         bcolors.ENDC = ""
         bcolors.BOLD = ""
-
-    from ddtrace.trace import tracer
 
     info = collect(TracerDebugInfo.from_tracer(tracer))
 
