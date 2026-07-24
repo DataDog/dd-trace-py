@@ -3,6 +3,8 @@ from inspect import unwrap
 from pathlib import Path
 import typing as t
 
+import pytest
+
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._session import Session
@@ -328,3 +330,26 @@ def test_instrument_view_benchmark(benchmark):
 
     finally:
         MockSpanCodeOriginProcessorEntry.disable()
+
+
+@pytest.mark.subprocess
+def test_instrument_view_does_not_leak_ephemeral_functions_while_disabled():
+    import gc
+    import weakref
+
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
+    assert SpanCodeOriginProcessorEntry._instance is None
+
+    def make_and_instrument():
+        def ephemeral():
+            return 42
+
+        SpanCodeOriginProcessorEntry.instrument_view(ephemeral)
+        return weakref.ref(ephemeral)
+
+    refs = [make_and_instrument() for _ in range(5)]
+    gc.collect()
+
+    alive = sum(1 for r in refs if r() is not None)
+    assert alive == 0, f"{alive} ephemeral function(s) leaked via SpanCodeOriginProcessorEntry._pending"
