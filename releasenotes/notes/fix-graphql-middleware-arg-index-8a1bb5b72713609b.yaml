@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    graphql: Resolves a ``TypeError: 'int' object is not iterable`` raised for every
+    operation when resolver tracing (``DD_TRACE_GRAPHQL_RESOLVERS_ENABLED=true``) was
+    used with graphql-core 3.2.10 or later. graphql-core moved the ``middleware``
+    parameter of ``execute()``, so the integration now reads its position from the
+    function signature instead of a hardcoded index.
