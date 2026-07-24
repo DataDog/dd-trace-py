@@ -382,6 +382,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
     TIMEOUT = 10.0
+    REMOTE_EVALUATOR_TIMEOUT = 55.0
     BULK_UPLOAD_TIMEOUT = 60.0
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
@@ -402,6 +403,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         until=lambda result: isinstance(result, Response) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+        return self._request_once(method, path, body, timeout)
+
+    def _request_once(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -969,7 +973,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
         body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
 
-        resp = self.request("POST", path, body)
+        # Inference can legitimately take longer than ordinary experiment API calls. Keep this
+        # below the service's 60-second request deadline and avoid retrying this expensive call.
+        resp = self._request_once("POST", path, body, timeout=self.REMOTE_EVALUATOR_TIMEOUT)
         response_data = resp.get_json() or {}
 
         attributes = response_data.get("data", {}).get("attributes", {})
