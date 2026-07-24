@@ -4,8 +4,8 @@ from typing import Optional  # noqa:F401
 
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.agent import config as agent_config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
 
