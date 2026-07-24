@@ -8,7 +8,7 @@ from typing import Optional
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import _APM_ENABLED_METRIC_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -161,7 +161,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
             if self.apm_opt_out:
                 for span in trace:
-                    span._set_attribute(MK_APM_ENABLED, 0)
+                    span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
@@ -199,7 +199,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _: Span) -> None:
+    def on_span_start(self, span: Span) -> None:
         pass
 
     def on_span_finish(self, span: Span) -> None:
