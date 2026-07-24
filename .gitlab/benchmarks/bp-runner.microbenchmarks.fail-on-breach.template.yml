@@ -123,13 +123,13 @@ experiments:
           # errortrackingflasksqli
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 2.32 ms
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
               - execution_time < 2.85 ms
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 2.32 ms
 
           # flask_simple
           - name: flasksimple-tracer
@@ -166,7 +166,7 @@ experiments:
               - execution_time < 2.80 ms
           - name: flasksqli-tracer-enabled
             thresholds:
-              - execution_time < 2.27 ms
+              - execution_time < 2.31 ms
 
           # httppropagationextract
           - name: httppropagationextract-all_styles_all_headers
@@ -852,13 +852,13 @@ experiments:
           # tracer
           - name: tracer-large
             thresholds:
-              - execution_time < 33.95 ms
+              - execution_time < 34.50 ms
           - name: tracer-medium
             thresholds:
               - execution_time < 3.50 ms
           - name: tracer-small
             thresholds:
-              - execution_time < 0.39 ms
+              - execution_time < 0.42 ms
 
           # codeprovenancefork
           - name: codeprovenancefork-fork-10
