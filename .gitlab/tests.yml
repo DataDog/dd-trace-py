@@ -63,6 +63,15 @@ include:
           fi
         fi
 
+        echo "ITR gate debug:"
+        echo "  SUITE_NAME=${SUITE_NAME:-}"
+        echo "  PYTHON_VERSION=${PYTHON_VERSION:-}"
+        echo "  CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH:-}"
+        echo "  DD_TRACE_PY_ENABLE_ITR_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-}"
+        echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
+        echo "  _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-}"
+        echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
+
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
