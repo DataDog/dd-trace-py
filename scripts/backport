@@ -52,11 +52,18 @@ TO_BRANCHES="$@"
 # Determine the remote to use
 # DEV: If anything here fails, then default to 'origin'
 # DEV: We might have https://github.com/DataDog/dd-trace-py, or git@github.com:DataDog/dd-trace-py.
+# AIDEV-NOTE: APMLP-1185 — also accept `ddoghq/dd-trace-py` so the script keeps
+# working if/when developers add a remote pointing at the internal EMU org as
+# part of the GitHub org split. See docs/github-org-migration-audit.md.
 REMOTE=origin
 
-if git remote -v show | grep -qe "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" > /dev/null
+# Pattern matches DataDog/dd-trace-py (any case) or ddoghq/dd-trace-py, with
+# optional .git suffix, marked as the push remote.
+REMOTE_PATTERN="\([Dd]ata[Dd]og\|ddoghq\)/dd-trace-py\(\.git\)\? (push)"
+
+if git remote -v show | grep -qe "${REMOTE_PATTERN}" > /dev/null
 then
-    REMOTE=$(git remote -v show | grep -e "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" | awk '{print $1}')
+    REMOTE=$(git remote -v show | grep -e "${REMOTE_PATTERN}" | awk '{print $1}' | head -n 1)
 else
     echo "🟠 Failed to automatically determine the remote to use, falling back to 'origin'"
     REMOTE="origin"

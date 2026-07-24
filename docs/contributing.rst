@@ -102,6 +102,12 @@ Releases
 If you're managing a new release of the library, follow the instructions
 `here <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-release.rst>`_.
 
+When adding or modifying CI / release infrastructure that references an external
+Datadog organization, an internal endpoint (``*.ddbuild.io``), a Chainguard STS
+policy, or a ``dd-octo-sts`` scope, also record the change in
+`docs/github-org-migration-audit.md <https://github.com/DataDog/dd-trace-py/blob/main/docs/github-org-migration-audit.md>`_
+so the GitHub-org-split migration runbook (APMLP-1185) stays accurate.
+
 Regressions
 -----------
 

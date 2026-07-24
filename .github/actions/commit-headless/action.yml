@@ -1,0 +1,44 @@
+name: 'commit-headless'
+description: >
+  Wrapper for DataDog/commit-headless. Centralizes the upstream SHA so
+  that GitHub-org-split mitigations (APMLP-1185) can update one file when
+  the upstream action moves between Datadog organizations. See
+  docs/github-org-migration-audit.md.
+
+inputs:
+  branch:
+    description: 'Branch name to push.'
+    required: true
+  head-sha:
+    description: 'Base commit SHA the new branch points at.'
+    required: true
+  target:
+    description: 'Target repository in `owner/name` form.'
+    required: true
+  command:
+    description: 'commit-headless command (e.g. `push`).'
+    required: true
+  commits:
+    description: 'Commits to push (newline-separated SHAs).'
+    required: true
+  create-branch:
+    description: 'Whether to create the branch if it does not exist.'
+    required: false
+    default: 'false'
+  force:
+    description: 'Force push.'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: DataDog/commit-headless@05d7b7ee023e2c7d01c47832d420c2503cd416f3 # action/v2.0.3
+      with:
+        branch: ${{ inputs.branch }}
+        head-sha: ${{ inputs.head-sha }}
+        target: ${{ inputs.target }}
+        command: ${{ inputs.command }}
+        commits: ${{ inputs.commits }}
+        create-branch: ${{ inputs.create-branch }}
+        force: ${{ inputs.force }}
