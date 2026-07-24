@@ -11,10 +11,12 @@ reading frames to inject native call information.
 import sys
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.monitoring import monitoring_registry
 
 
 log = get_logger(__name__)
 
+_TOOL_NAME = "dd-profiling"
 
 # Protected by the GIL -- start() and stop() are only called from Python code
 # holding the GIL, so concurrent access is not possible.
@@ -32,22 +34,18 @@ def start() -> None:
 
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
 
-    try:
-        start_native_monitoring()
-    except RuntimeError:
-        try:
-            current_tool_name = sys.monitoring.get_tool(sys.monitoring.PROFILER_ID)
-        except Exception:
-            current_tool_name = "unknown"
+    tool_id = monitoring_registry.acquire(_TOOL_NAME)
+    if tool_id is None:
+        log.error("Failed to start native monitoring in the profiler: no sys.monitoring tool slot is available. ")
+        return
 
-        log.error(
-            (
-                "Failed to start native monitoring in the profiler: sys.monitoring already claimed by another tool. "
-                "Native frame attribution will be unavailable. Disable the conflicting profiler/coverage tool to "
-                "restore this feature. The tool currently registered is '%s'."
-            ),
-            current_tool_name,
-        )
+    # The registry already claimed the slot with use_tool_id; hand the id to the
+    # C++ extension so it only wires up the CALL event and callback.
+    try:
+        start_native_monitoring(tool_id)
+    except Exception:
+        monitoring_registry.release(_TOOL_NAME)
+        log.error("Failed to start native monitoring in the profiler", exc_info=True)
         return
 
     _started = True
@@ -64,4 +62,7 @@ def stop():
     try:
         stop_native_monitoring()
     finally:
+        # The registry owns the slot lifetime (it called use_tool_id), so it is
+        # also responsible for freeing it.
+        monitoring_registry.release(_TOOL_NAME)
         _started = False

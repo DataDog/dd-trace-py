@@ -81,14 +81,16 @@ def test_event_handler_returns_disable_for_missing_code():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_ensure_registered_claims_a_candidate_slot():
-    """Test that _ensure_registered() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
+    """Test that _ensure_registered() claims one of the available tool slots (0-5)."""
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.monitoring import _ALL_SLOTS
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Free any slot we previously acquired
-    if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-        sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+    if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+        monitoring_registry.release(m._DD_TOOL_NAME)
     m._DD_TOOL_ID = None
 
     result = m._ensure_registered()
@@ -96,15 +98,13 @@ def test_ensure_registered_claims_a_candidate_slot():
     try:
         assert result is True, "_ensure_registered() must return True on success"
         assert m._DD_TOOL_ID is not None, "_ensure_registered() must set _DD_TOOL_ID"
-        assert m._DD_TOOL_ID in m._DD_CANDIDATE_SLOTS, (
-            f"Acquired slot {m._DD_TOOL_ID} is not in candidate slots {m._DD_CANDIDATE_SLOTS}"
-        )
-        assert sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog", (
-            f"Expected 'datadog' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
+        assert m._DD_TOOL_ID in _ALL_SLOTS, f"Acquired slot {m._DD_TOOL_ID} is not a valid tool slot {_ALL_SLOTS}"
+        assert sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME, (
+            f"Expected '{m._DD_TOOL_NAME}' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
         )
     finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
 
 
@@ -114,9 +114,10 @@ def test_has_other_monitoring_tools_false_when_alone():
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -125,8 +126,8 @@ def test_has_other_monitoring_tools_false_when_alone():
             pytest.skip("requires Datadog to be the only active sys.monitoring tool")
         assert m.has_other_monitoring_tools() is False
     finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
 
 
@@ -136,9 +137,10 @@ def test_has_other_monitoring_tools_true_when_other_tool_present():
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -150,8 +152,8 @@ def test_has_other_monitoring_tools_true_when_other_tool_present():
         assert m.has_other_monitoring_tools() is True
     finally:
         sys.monitoring.free_tool_id(other_slot)
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
 
 
@@ -161,9 +163,10 @@ def test_update_disable_optimization_disables_when_other_tool_present():
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -177,8 +180,8 @@ def test_update_disable_optimization_disables_when_other_tool_present():
         assert m._use_disable_optimization is False
     finally:
         sys.monitoring.free_tool_id(other_slot)
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
         m._use_disable_optimization = True
 
@@ -189,9 +192,10 @@ def test_update_disable_optimization_enables_when_alone():
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -204,8 +208,8 @@ def test_update_disable_optimization_enables_when_alone():
         assert result is True, "Should enable optimization when no other tool is present"
         assert m._use_disable_optimization is True
     finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
         m._use_disable_optimization = True
 
@@ -220,9 +224,10 @@ def test_update_disable_optimization_rearmed_on_transition():
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -258,8 +263,8 @@ def test_update_disable_optimization_rearmed_on_transition():
         sys.monitoring.free_tool_id(other_slot)
         if code_obj in _CODE_HOOKS:
             del _CODE_HOOKS[code_obj]
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
         m._use_disable_optimization = True
 
@@ -272,9 +277,10 @@ def test_event_handler_returns_none_when_other_tool_present():
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
     from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
+    from ddtrace.internal.monitoring import monitoring_registry
 
     # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
+    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != m._DD_TOOL_NAME:
         m._DD_TOOL_ID = None
         m._ensure_registered()
 
@@ -298,7 +304,7 @@ def test_event_handler_returns_none_when_other_tool_present():
         sys.monitoring.free_tool_id(other_slot)
         if code_obj in _CODE_HOOKS:
             del _CODE_HOOKS[code_obj]
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == m._DD_TOOL_NAME:
+            monitoring_registry.release(m._DD_TOOL_NAME)
         m._DD_TOOL_ID = None
         m._use_disable_optimization = True

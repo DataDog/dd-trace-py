@@ -8,6 +8,7 @@ from typing import Callable
 from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.monitoring import monitoring_registry
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
 from ddtrace.internal.packages import is_third_party  # noqa: F401
@@ -81,8 +82,12 @@ def _install_sys_monitoring_reporting():
     if (not config._configured_modules) is False:
         MonitorHandledExceptionReportingWatchdog.install()
 
-    sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
-    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+    tool_name = config.HANDLED_EXCEPTIONS_TOOL_NAME
+    tool_id = monitoring_registry.acquire(tool_name)
+    if tool_id is None:
+        return
+
+    sys.monitoring.set_events(tool_id, sys.monitoring.events.EXCEPTION_HANDLED)
 
     def _exc_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
         span = tracer.current_span()
@@ -91,14 +96,14 @@ def _install_sys_monitoring_reporting():
         return True
 
     sys.monitoring.register_callback(
-        config.HANDLED_EXCEPTIONS_MONITORING_ID,
+        tool_id,
         sys.monitoring.events.EXCEPTION_HANDLED,
         _exc_event_handler,
     )
 
 
 def _disable_monitoring():
-    sys.monitoring.free_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID)
+    monitoring_registry.release(config.HANDLED_EXCEPTIONS_TOOL_NAME)
 
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):

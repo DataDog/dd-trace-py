@@ -51,23 +51,49 @@ def test_coverage_id_clash_does_not_affect_ddtrace():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
+@pytest.mark.subprocess
+def test_acquire_uses_any_free_slot():
+    """acquire() hands out any free slot, even conventionally reserved ones, when others are taken."""
+    import sys
+
+    from ddtrace.internal.monitoring import _ALL_SLOTS
+    from ddtrace.internal.monitoring import monitoring_registry
+
+    # Claim all slots but one with external tools; acquire() must take the last one.
+    free_slot = _ALL_SLOTS[-1]
+    for slot in _ALL_SLOTS:
+        if slot != free_slot:
+            sys.monitoring.use_tool_id(slot, "something_else")
+
+    try:
+        tool_id = monitoring_registry.acquire("datadog-test")
+        assert tool_id == free_slot
+        assert sys.monitoring.get_tool(tool_id) == "datadog-test"
+    finally:
+        monitoring_registry.release("datadog-test")
+        for slot in _ALL_SLOTS:
+            if slot != free_slot:
+                sys.monitoring.free_tool_id(slot)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
 @pytest.mark.subprocess(check_logs=False)
 def test_dd_tool_slot_clash_causes_graceful_degradation():
-    """If all candidate slots (4, 3, 1) are taken, ddtrace logs a warning and skips coverage."""
+    """If every tool slot is taken, ddtrace skips coverage instead of failing."""
     import os
     from pathlib import Path
     import sys
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_CANDIDATE_SLOTS
+    from ddtrace.internal.monitoring import _ALL_SLOTS
     from tests.coverage.utils import _get_relpath_dict
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    # Claim all candidate slots before install — ddtrace must degrade gracefully
-    for slot in _DD_CANDIDATE_SLOTS:
+    # Claim every slot before install so none is available — ddtrace must degrade gracefully.
+    for slot in _ALL_SLOTS:
         sys.monitoring.use_tool_id(slot, "something_else")
 
     install(include_paths=[include_path], collect_import_time_coverage=True)

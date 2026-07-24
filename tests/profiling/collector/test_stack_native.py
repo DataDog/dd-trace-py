@@ -13,36 +13,75 @@ from tests.profiling.collector import pprof_utils
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
-def test_start_native_monitoring_raises_runtime_error() -> None:
-    """start_native_monitoring raises RuntimeError when PROFILER_ID is already claimed."""
+def test_start_native_monitoring_requires_tool_id() -> None:
+    """start_native_monitoring requires an explicit, non-negative tool_id.
+
+    Slot allocation happens in the Python-side monitoring_registry, so the C++
+    entry point just wires up events for a tool ID the caller already owns.
+    """
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
 
-    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")  # type: ignore[attr-defined]
-    try:
-        with pytest.raises(RuntimeError, match="sys.monitoring PROFILER_ID is already claimed"):
-            start_native_monitoring()
-    finally:
-        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)  # type: ignore[attr-defined]
+    with pytest.raises(TypeError):
+        start_native_monitoring()  # type: ignore[call-arg]
+    with pytest.raises(ValueError):
+        start_native_monitoring(-1)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
-def test_start_catches_runtime_error(caplog: pytest.LogCaptureFixture) -> None:
-    """start() catches RuntimeError, logs the conflicting tool name, and does not set _started."""
-    import logging
-
+def test_start_uses_another_slot_when_profiler_id_taken() -> None:
+    """start() still starts using another free slot when PROFILER_ID is claimed by another tool."""
     from ddtrace.internal.datadog.profiling import native_call_monitor
+    from ddtrace.internal.monitoring import monitoring_registry
 
     native_call_monitor._started = False
 
     sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")  # type: ignore[attr-defined]
     try:
-        with caplog.at_level(logging.ERROR, logger="ddtrace.internal.datadog.profiling.native_call_monitor"):
+        with mock.patch(
+            "ddtrace.internal.datadog.profiling.stack._stack.start_native_monitoring",
+        ) as mock_start:
             native_call_monitor.start()
-        assert native_call_monitor._started is False
-        assert "conflict" in caplog.text
-        assert "sys.monitoring already claimed by another tool" in caplog.text
+
+        assert native_call_monitor._started is True
+        tool_id = monitoring_registry.get_tool_id(native_call_monitor._TOOL_NAME)
+        assert tool_id is not None
+        assert tool_id != sys.monitoring.PROFILER_ID  # type: ignore[attr-defined]
+        # The registry-chosen id is handed to the C++ extension.
+        mock_start.assert_called_once_with(tool_id)
     finally:
+        # stop() releases the registry slot (real stop_native_monitoring is a
+        # no-op here because start was mocked and never set the C++ tool id).
+        native_call_monitor.stop()
         sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)  # type: ignore[attr-defined]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+@pytest.mark.subprocess(err=None)
+def test_start_fails_when_no_slots_available() -> None:
+    """start() does not start (and leaves no allocation) when every sys.monitoring slot is taken.
+
+    Run as a subprocess for a clean slot namespace. err=None because start()
+    deliberately logs an error to stderr when no slot is available.
+    """
+    import sys
+
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+    from ddtrace.internal.monitoring import monitoring_registry
+
+    native_call_monitor._started = False
+
+    # Occupy all six sys.monitoring slots with external tools (clean subprocess).
+    for slot in range(6):
+        sys.monitoring.use_tool_id(slot, "conflict_%d" % slot)
+
+    try:
+        native_call_monitor.start()
+        assert native_call_monitor._started is False
+        # No slot could be acquired, so nothing is tracked for our tool.
+        assert monitoring_registry.get_tool_id(native_call_monitor._TOOL_NAME) is None
+    finally:
+        for slot in range(6):
+            sys.monitoring.free_tool_id(slot)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -58,7 +97,8 @@ def test_start_native_monitoring_success() -> None:
         native_call_monitor.start()
 
     assert native_call_monitor._started is True
-    native_call_monitor._started = False
+    # Release the slot the registry acquired during start().
+    native_call_monitor.stop()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
