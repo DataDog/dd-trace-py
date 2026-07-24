@@ -135,6 +135,16 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 # is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
+# Opt-in live-heap (Phase 2) build of the heap-gotter cdylib. When set (in
+# addition to DD_PROFILING_NATIVE_HEAP_BUILD), the cdylib is built with the
+# `live-heap` cargo feature, which emits the `ddheap:free` USDT and stamps a
+# per-allocation retain flag so the FH eBPF profiler can reconcile frees against
+# allocations for a live/retained-heap view. Off by default => allocation-only,
+# so the ddheap:free note stays out of the shipped artifact and the alloc-only
+# build is byte-for-byte unchanged. This is a build-time (ELF-note) property and
+# has no runtime equivalent.
+BUILD_NATIVE_HEAP_LIVE = os.getenv("DD_PROFILING_NATIVE_HEAP_LIVE", "0").lower() in ("1", "yes", "on", "true")
+
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
@@ -1049,7 +1059,13 @@ class CustomBuildExt(build_ext):
             "--release",
             "--manifest-path",
             str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
-        ] + DD_CARGO_ARGS
+        ]
+        # Phase 2 live-heap: enable the `live-heap` cargo feature so the built
+        # cdylib emits the `ddheap:free` USDT (verifiable via `readelf -n`) and
+        # stamps per-allocation retain flags. Alloc-only otherwise.
+        if BUILD_NATIVE_HEAP_LIVE:
+            cargo_cmd += ["--features", "live-heap"]
+        cargo_cmd += DD_CARGO_ARGS
         subprocess.run(cargo_cmd, check=True)
 
         # The wrapper crate's [lib] name is "dd_heap_gotter", so cargo emits a

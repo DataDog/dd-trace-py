@@ -30,12 +30,18 @@ def test_native_heap_gotter_smoke() -> None:
         # Wheel built without the gotter cdylib: strictly a no-op.
         assert heap_gotter.install() is False
         assert heap_gotter.is_installed() is False
+        # live_heap_enabled must be a safe False no-op when the cdylib is absent.
+        assert heap_gotter.live_heap_enabled() is False
     else:
         # Native-heap build: arming must take effect and be idempotent.
         assert heap_gotter.is_installed() is False
         assert heap_gotter.install() is True
         assert heap_gotter.is_installed() is True
         assert heap_gotter.install() is True
+
+        # live-heap is a compile-time property; the query must return a bool and
+        # never crash regardless of whether this build enabled the feature.
+        assert isinstance(heap_gotter.live_heap_enabled(), bool)
 
         # Generate allocation pressure; this must not crash with the patched GOT.
         blobs: list[tuple[str, int]] = []

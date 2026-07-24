@@ -14,10 +14,12 @@
 #     over the upstream crate's pure-Rust API, so the Python ctypes activator
 #     links against fixed, unmangled symbol names and gets a plain `bool`.
 #
-# Phase 1 is allocation-only: the `live-heap` cargo feature of the gotter is
-# intentionally NOT enabled, so the free-path USDT (`ddheap:free`) and its
-# per-free overhead stay compiled out. Enabling live-heap later just adds the
-# `live-heap` feature on the `libdd-profiling-heap-gotter` dependency below.
+# Allocation-only is the default: the `live-heap` cargo feature is OFF unless
+# explicitly selected (setup.py forwards it when DD_PROFILING_NATIVE_HEAP_LIVE
+# is set), so the free-path USDT (`ddheap:free`) and its per-free overhead stay
+# compiled out of the default wheel. Selecting `live-heap` (Phase 2) turns on
+# the free interposition's USDT + per-allocation retain flagging by forwarding
+# to `libdd-profiling-heap-gotter/live-heap` (see the [features] block below).
 [package]
 name = "ddtrace-heap-gotter"
 version = "0.1.0"
@@ -42,6 +44,21 @@ codegen-units = 1
 # assert the patched GOT hooks actually ran (hit counter) without needing a
 # live eBPF uprobe attach. Never enabled for shipped wheels.
 test-support = ["libdd-profiling-heap-gotter/test-support"]
+
+# AIDEV-NOTE: live-heap (Phase 2) is a *build-time* feature, not a runtime knob.
+# It forwards to libdd-profiling-heap-gotter/live-heap, which forwards to
+# libdd-profiling-heap-sampler/live-heap, whose build.rs turns the
+# CARGO_FEATURE_LIVE_HEAP cargo feature into the C define DD_HEAP_LIVE_TRACKING=1.
+# That define is what makes (a) dd_probe_free actually emit the `ddheap:free`
+# USDT (otherwise the note is absent from .note.stapsdt) and (b) the alloc side
+# stamp the per-allocation sample flag so the free side can reconcile it. The
+# `free` GOT hook itself is always interposed upstream; the feature only decides
+# whether the free path emits the retain-tracking USDT. Because the presence of
+# the `ddheap:free` ELF note is a property of the compiled artifact, this MUST be
+# selected at build time (setup.py, via DD_PROFILING_NATIVE_HEAP_LIVE) and cannot
+# be flipped by the Python activator at runtime. Leaving it off keeps the
+# alloc-only wheel byte-for-byte unchanged.
+live-heap = ["libdd-profiling-heap-gotter/live-heap"]
 
 [dependencies]
 # Pinned to the published crates.io release (Phase 1.5 migration off the

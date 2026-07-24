@@ -4,14 +4,24 @@ This module dlopen's the ``libdd_heap_gotter`` cdylib (built out-of-band from
 libdatadog's ``libdd-profiling-heap-gotter-ffi``; see ``src/native_heap_gotter``)
 and drives it through a tiny, stable C ABI:
 
-    bool ddtrace_heap_gotter_install(void);      # install + report success
-    bool ddtrace_heap_gotter_is_installed(void); # current install state
+    bool ddtrace_heap_gotter_install(void);           # install + report success
+    bool ddtrace_heap_gotter_is_installed(void);       # current install state
+    bool ddtrace_heap_gotter_live_heap_enabled(void);  # built with ddheap:free?
 
 Calling ``install()`` patches the process's GOT entries for heap allocation
-symbols so that Datadog's ``ddheap:alloc`` (Phase 1: allocation-only) USDT probe
-sites fire on sampled allocations. The Full Host eBPF profiler then attaches
-uprobes to those sites to collect native allocation flamegraphs. There is
-nothing to collect or upload from the Python side — this only *arms* the probes.
+symbols so that Datadog's ``ddheap:alloc`` USDT probe sites fire on sampled
+allocations. The Full Host eBPF profiler then attaches uprobes to those sites to
+collect native allocation flamegraphs. There is nothing to collect or upload
+from the Python side — this only *arms* the probes.
+
+``live_heap_enabled()`` reports whether the loaded cdylib was *built* with
+live-heap tracking (Phase 2), in which case it also emits the ``ddheap:free``
+USDT and stamps a per-allocation retain flag so the FH profiler can reconcile
+frees against allocations for a live/retained-heap view. This is a compile-time
+property of the artifact (``DD_PROFILING_NATIVE_HEAP_LIVE=1`` at build), not a
+runtime toggle; an allocation-only build reports ``False``. Older cdylibs built
+before this symbol existed also report ``False`` (the symbol is bound
+defensively).
 
 Fail-closed by design: if the cdylib is missing (the default, since it only
 ships when built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``) or anything goes
@@ -36,6 +46,11 @@ import sysconfig
 # these two attributes to decide whether the feature can run.
 is_available: bool = False
 failure_msg: str = ""
+
+# Whether the loaded cdylib was built with live-heap tracking (ddheap:free +
+# retain flagging). Compile-time property of the artifact; see module docstring.
+# Stays False when the cdylib is absent or was built allocation-only.
+_live_heap_available: bool = False
 
 _lib: ctypes.CDLL | None = None  # kept alive for process lifetime; never dlclose'd
 
@@ -69,6 +84,16 @@ try:
 
     is_available = True
 
+    # Bind the live-heap capability query defensively: it only exists on cdylibs
+    # built at/after Phase 2. A missing symbol (older alloc-only build) simply
+    # leaves live-heap reported as unavailable rather than failing the load.
+    try:
+        _lib.ddtrace_heap_gotter_live_heap_enabled.argtypes = []
+        _lib.ddtrace_heap_gotter_live_heap_enabled.restype = ctypes.c_bool
+        _live_heap_available = bool(_lib.ddtrace_heap_gotter_live_heap_enabled())
+    except AttributeError:
+        _live_heap_available = False
+
 except Exception as e:
     failure_msg = str(e)
     _lib = None
@@ -96,3 +121,15 @@ def is_installed() -> bool:
         return bool(_lib.ddtrace_heap_gotter_is_installed())
     except Exception:
         return False
+
+
+def live_heap_enabled() -> bool:
+    """Return whether the loaded cdylib was built with live-heap tracking.
+
+    True only for a Phase 2 (``DD_PROFILING_NATIVE_HEAP_LIVE=1``) build, which
+    also emits the ``ddheap:free`` USDT and stamps a per-allocation retain flag
+    so the FH profiler can reconcile frees against allocations. Allocation-only
+    builds (and a missing cdylib) return False. Compile-time property; it does
+    not change over the process lifetime.
+    """
+    return _live_heap_available
