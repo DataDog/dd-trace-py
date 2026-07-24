@@ -10,6 +10,7 @@ components:
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
     - ddtrace/contrib/internal/pytest_benchmark/*
+    - ddtrace/contrib/internal/deepeval/*
   selenium:
     - ddtrace/contrib/internal/selenium/*
   unittest:
@@ -102,6 +103,23 @@ suites:
       - '@testing'
       - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_benchmark.py
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+  deepeval:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/testing/internal/pytest/test_deepeval.py
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true

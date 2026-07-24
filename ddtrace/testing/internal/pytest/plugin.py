@@ -411,6 +411,17 @@ class TestOptPlugin:
             except Exception:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
+        if self.enable_ddtrace_trace_filter:
+            # Patch deepeval so eval-framework metrics get recorded on test spans (test.type=eval, eval.*).
+            # Done regardless of --ddtrace-patch-all since deepeval is not in PATCH_MODULES; like Selenium,
+            # it enriches the type=test root span created in trace_context().
+            try:
+                from ddtrace.contrib.internal.deepeval.patch import patch as patch_deepeval
+
+                patch_deepeval()
+            except Exception:
+                log.debug("Could not patch deepeval for test visibility", exc_info=True)
+
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
