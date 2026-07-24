@@ -434,18 +434,19 @@ class SpanAggregator(SpanProcessor):
             sampling_priority = root_span.context.sampling_priority
             sampling_mechanism = root_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
 
-            log.debug(
-                self.SPAN_FINISH_DEBUG_MESSAGE,
-                len(spans),
-                num_buffered,
-                num_finished - len(spans),
-                num_buffered - num_finished,
-                spans[0].trace_id,
-                spans[0].name,
-                sampling_priority,
-                sampling_mechanism,
-                should_partial_flush,
-            )
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(
+                    self.SPAN_FINISH_DEBUG_MESSAGE,
+                    len(spans),
+                    num_buffered,
+                    num_finished - len(spans),
+                    num_buffered - num_finished,
+                    spans[0].trace_id,
+                    spans[0].name,
+                    sampling_priority,
+                    sampling_mechanism,
+                    should_partial_flush,
+                )
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
