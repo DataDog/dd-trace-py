@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb934500000000",
+      "_dd.svc_src": "otel",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
       "runtime-id": "d5717466b04e40019cc8d63f373fc800"
@@ -37,6 +38,7 @@
          "_dd.p.dm": "-0",
          "_dd.p.tid": "69eb934500000000",
          "_dd.parent_id": "3d29b7eff613e4ae",
+         "_dd.svc_src": "otel",
          "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
          "http.flavor": "1.1",
          "http.host": "0.0.0.0:8011",
@@ -74,6 +76,9 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "otel"
+          },
           "duration": 23167,
           "start": 1777046341514982794
         }]]

@@ -35,6 +35,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -648,6 +649,16 @@ class Tracer(object):
 
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
+
+        integration_name = span._get_str_attribute(COMPONENT) or span._span_api
+        existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
+        if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+            if not existing_service_source or (
+                existing_service_source
+                and not existing_service_source.startswith("opt.")
+                and integration_name != span._span_api
+            ):
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:

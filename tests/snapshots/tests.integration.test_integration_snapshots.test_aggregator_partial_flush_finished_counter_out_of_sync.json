@@ -33,6 +33,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "datadog"
+       },
        "duration": 17083,
        "start": 1777573381950845549
      }]]

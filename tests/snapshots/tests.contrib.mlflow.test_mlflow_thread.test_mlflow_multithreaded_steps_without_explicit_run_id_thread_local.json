@@ -12,6 +12,7 @@
       "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ea222100000000",
+      "_dd.svc_src": "mlflow",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpowatv229,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "mlflow",
       "language": "python",
@@ -39,6 +40,7 @@
        "error": 0,
        "meta": {
          "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "mlflow",
          "component": "mlflow",
          "mlflow.run_id": "c1540d6da18942e6bd3945f41f361555",
          "mlflow.step": "0",
@@ -58,6 +60,7 @@
           "error": 0,
           "meta": {
             "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "mlflow",
             "component": "mlflow",
             "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
             "runtime-id": "ebb49a78222a435f9a4bb5d6e0c29a1b",
@@ -81,6 +84,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
                "mlflow.step": "1",
@@ -103,6 +107,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
                "span.kind": "internal"
@@ -121,6 +126,7 @@
           "error": 0,
           "meta": {
             "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "mlflow",
             "component": "mlflow",
             "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
             "runtime-id": "ebb49a78222a435f9a4bb5d6e0c29a1b",
@@ -144,6 +150,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
                "mlflow.step": "3",
@@ -166,6 +173,7 @@
              "error": 0,
              "meta": {
                "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "mlflow",
                "component": "mlflow",
                "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
                "span.kind": "internal"

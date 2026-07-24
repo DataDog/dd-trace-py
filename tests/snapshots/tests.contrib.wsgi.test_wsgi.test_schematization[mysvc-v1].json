@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a3eb11300000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "wsgi",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "wsgi",
       "http.method": "GET",
@@ -41,7 +41,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
        "duration": 106708,
@@ -57,7 +57,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "wsgi",
             "component": "wsgi",
             "span.kind": "server"
           },
@@ -74,7 +74,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi",
          "result_class": "list"
        },
