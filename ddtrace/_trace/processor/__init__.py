@@ -8,7 +8,7 @@ from typing import Optional
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import _APM_ENABLED_METRIC_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -161,8 +161,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
             if self.apm_opt_out:
                 for span in trace:
-                    if span._local_root_value is None:
-                        span._set_attribute(MK_APM_ENABLED, 0)
+                    span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
@@ -200,7 +199,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _: Span) -> None:
+    def on_span_start(self, span: Span) -> None:
         pass
 
     def on_span_finish(self, span: Span) -> None:
@@ -435,18 +434,19 @@ class SpanAggregator(SpanProcessor):
             sampling_priority = root_span.context.sampling_priority
             sampling_mechanism = root_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
 
-            log.debug(
-                self.SPAN_FINISH_DEBUG_MESSAGE,
-                len(spans),
-                num_buffered,
-                num_finished - len(spans),
-                num_buffered - num_finished,
-                spans[0].trace_id,
-                spans[0].name,
-                sampling_priority,
-                sampling_mechanism,
-                should_partial_flush,
-            )
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(
+                    self.SPAN_FINISH_DEBUG_MESSAGE,
+                    len(spans),
+                    num_buffered,
+                    num_finished - len(spans),
+                    num_buffered - num_finished,
+                    spans[0].trace_id,
+                    spans[0].name,
+                    sampling_priority,
+                    sampling_mechanism,
+                    should_partial_flush,
+                )
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
