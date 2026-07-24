@@ -1,4 +1,11 @@
+import pytest
+
 from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
+
+
+# These are pure-Python unit tests for prompt parsing; they load no model and
+# need no GPU, so they bypass the require_gpu autouse skip in conftest.py.
+pytestmark = pytest.mark.no_gpu
 
 
 class TestParsePromptToMessages:

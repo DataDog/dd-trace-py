@@ -299,6 +299,45 @@ def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
         )
 
 
+@pytest.mark.no_gpu
+def test_patch_resolves_renamed_processor():
+    """patch()/unpatch() must hook ``process_inputs`` on the processor class
+    regardless of the vLLM module rename.
+
+    vLLM >= 0.14.0 renamed ``vllm.v1.engine.processor.Processor`` to
+    ``vllm.v1.engine.input_processor.InputProcessor``. Before the fix patch()
+    hard-referenced the legacy module and raised ModuleNotFoundError on newer
+    vLLM. This exercises only patch()/unpatch() (no model load).
+    """
+    import importlib
+
+    from ddtrace.contrib.internal.vllm.patch import _resolve_processor_target
+    from ddtrace.contrib.internal.vllm.patch import patch
+    from ddtrace.contrib.internal.vllm.patch import unpatch
+    from ddtrace.contrib.trace_utils import iswrapped
+
+    module_name, class_name = _resolve_processor_target()
+
+    # On vLLM versions that performed the rename, we must resolve to the new
+    # location rather than silently falling back to the legacy one.
+    try:
+        importlib.import_module("vllm.v1.engine.input_processor")
+        assert (module_name, class_name) == ("vllm.v1.engine.input_processor", "InputProcessor")
+    except ImportError:
+        assert (module_name, class_name) == ("vllm.v1.engine.processor", "Processor")
+
+    processor_cls = getattr(importlib.import_module(module_name), class_name)
+
+    patch()
+    try:
+        assert iswrapped(processor_cls.process_inputs)
+    finally:
+        unpatch()
+
+    assert not iswrapped(processor_cls.process_inputs)
+
+
+@pytest.mark.no_gpu
 def test_shadow_tags_completion_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on vLLM spans when LLMObs is disabled."""
     from unittest.mock import MagicMock

@@ -19,3 +19,10 @@ ATTR_DATADOG_INTEGRATION = "_datadog_integration"
 
 ARG_POSITION_LOG_STATS = 2
 ARG_POSITION_TRACE_HEADERS = 6
+
+# vLLM >= 0.14.0 renamed the class that owns ``process_inputs``; both the new
+# and legacy locations are kept so the integration works across version ranges.
+PROCESSOR_MODULE = "vllm.v1.engine.input_processor"
+PROCESSOR_CLASS = "InputProcessor"
+LEGACY_PROCESSOR_MODULE = "vllm.v1.engine.processor"
+LEGACY_PROCESSOR_CLASS = "Processor"
