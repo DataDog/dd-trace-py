@@ -412,7 +412,7 @@ class Tracer(object):
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
-            core.dispatch("ddtrace.context_provider.activate", (active,))
+            core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
     def _recreate(
         self,
