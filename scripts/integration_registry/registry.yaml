@@ -547,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.4.7
+      max: 1.4.8
 
 - integration_name: langgraph
   is_external_package: true
@@ -656,8 +656,8 @@ integrations:
   - mistralai
   tested_versions_by_dependency:
     mistralai:
-      min: 2.0.5
-      max: 2.7.0
+      min: 2.4.9
+      max: 2.4.9
 
 - integration_name: mlflow
   is_external_package: true
@@ -875,7 +875,7 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.54.1
+      max: 2.49.2
 
 - integration_name: ray_serve
   is_external_package: true
