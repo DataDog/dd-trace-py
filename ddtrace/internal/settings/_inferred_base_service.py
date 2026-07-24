@@ -139,8 +139,6 @@ def detect_service(args: list[str]) -> Optional[str]:
 
     Args:
         args (list[str]): A list of command-line arguments.
-        detector_classes (list[Type[Detector]]): A list of detector classes to use for service detection.
-            Defaults to [PythonDetector].
 
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
