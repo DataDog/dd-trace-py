@@ -1473,6 +1473,23 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_kafka_consume_link_spans(span: "Span", links: list) -> None:
+    for link_ctx in links:
+        span.link_span(link_ctx)
+        # extract() stores secondary/conflicting propagation styles (e.g. a message
+        # carrying both Datadog and W3C tracecontext with different trace ids) as span
+        # links on the context. link_span only adds the primary context, so copy these
+        # extracted links explicitly to avoid dropping them.
+        for extracted_link in link_ctx._span_links:
+            span.set_link(
+                trace_id=extracted_link.trace_id,
+                span_id=extracted_link.span_id,
+                tracestate=extracted_link.tracestate,
+                flags=extracted_link.flags,
+                attributes=extracted_link.attributes,
+            )
+
+
 def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
     trace_headers: dict[str, str] = {}
     HTTPPropagator.inject(span.context, trace_headers)
@@ -1962,6 +1979,7 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("kafka.consume.link_spans", _on_kafka_consume_link_spans)
     core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
