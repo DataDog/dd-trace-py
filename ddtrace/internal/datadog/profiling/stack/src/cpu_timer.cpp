@@ -1,0 +1,1496 @@
+#include "cpu_timer.hpp"
+
+#include "cpu_sample_ring.hpp"
+#include "cpu_timer_tid_table.hpp"
+
+#include "echion/danger.h"
+#include "echion/frame.h"
+#include "echion/stacks.h"
+#include "echion/threads.h"
+#include "echion/vm.h"
+
+#include "sampler.hpp"
+#include "stack_renderer.hpp"
+
+#include "echion/echion_sampler.h"
+
+#include "dd_wrapper/include/profiler_state.hpp"
+#include "profiling_helpers/frame_accessors.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cerrno>
+#include <csetjmp>
+#include <csignal>
+#include <cstddef>
+#include <cstdlib>
+#include <fstream>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <new>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#if defined(__linux__)
+#include <pthread.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
+#ifndef SIGEV_THREAD_ID
+#define SIGEV_THREAD_ID 4
+#endif
+#ifndef sigev_notify_thread_id
+#define sigev_notify_thread_id _sigev_un._tid
+#endif
+#endif
+
+namespace Datadog {
+namespace CpuTimer {
+
+namespace {
+
+#if defined(__linux__) && PY_VERSION_HEX >= 0x030c0000 && !defined(Py_GIL_DISABLED)
+#define DD_CPU_TIMER_SUPPORTED 1
+#else
+#define DD_CPU_TIMER_SUPPORTED 0
+#endif
+
+#if DD_CPU_TIMER_SUPPORTED
+
+using kernel_timer_id = int;
+
+static_assert(std::atomic<bool>::is_always_lock_free, "CPU timer handler requires lock-free bool atomics");
+static_assert(std::atomic<uint64_t>::is_always_lock_free, "CPU timer handler requires lock-free uint64 atomics");
+static_assert(std::atomic<uint32_t>::is_always_lock_free, "CPU timer handler requires lock-free uint32 atomics");
+
+constexpr uint64_t kDefaultIntervalMs = 10;
+constexpr microsecond_t kDrainIntervalUs = 10'000;
+// AIDEV-NOTE: Keep the effective minimum above 1ms. Ecosystem stress with
+// AnyIO/httpcore on Trio showed that 1ms SIGPROF delivery can livelock
+// condition/event-loop handoff paths even with SA_RESTART. The setting remains
+// private, so clamp aggressively for stability while keeping the 10ms default.
+constexpr uint64_t kMinIntervalMs = 2;
+constexpr uint32_t kDefaultRingCapacity = 64;
+constexpr size_t kMinAltStackSize = size_t{ 128 } * 1024;
+constexpr size_t kAltStackSigstkszMultiplier = 4;
+constexpr uint64_t kHealthWindowEvents = 128;
+constexpr uint64_t kHealthBadRatioPercent = 90;
+constexpr uint32_t kHealthBadWindowsLimit = 3;
+
+int g_cookie;
+
+pid_t
+raw_gettid()
+{
+    return static_cast<pid_t>(syscall(SYS_gettid));
+}
+
+clockid_t
+thread_cpu_clock(pid_t tid)
+{
+    constexpr unsigned long CPUCLOCK_SCHED = 2;
+    constexpr unsigned long CPUCLOCK_PERTHREAD_MASK = 4;
+    const unsigned long encoded =
+      ((~static_cast<unsigned long>(tid)) << 3) | (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
+    return static_cast<clockid_t>(encoded);
+}
+
+uint64_t
+clock_to_ns(clockid_t clock_id)
+{
+    struct timespec ts
+    {};
+    if (clock_gettime(clock_id, &ts) != 0) {
+        return 0;
+    }
+    return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL + static_cast<uint64_t>(ts.tv_nsec);
+}
+
+uint64_t
+thread_cpu_time_ns()
+{
+    return clock_to_ns(CLOCK_THREAD_CPUTIME_ID);
+}
+
+uint64_t
+thread_cpu_time_ns(pid_t tid)
+{
+    return clock_to_ns(thread_cpu_clock(tid));
+}
+
+bool
+set_sigev_thread_id(struct sigevent& sev, pid_t tid)
+{
+#ifdef sigev_notify_thread_id
+    sev.sigev_notify_thread_id = tid;
+    return true;
+#else
+    (void)sev;
+    (void)tid;
+    return false;
+#endif
+}
+
+long
+read_pid_max()
+{
+    std::ifstream f("/proc/sys/kernel/pid_max");
+    long value = 0;
+    if (f >> value && value > 0) {
+        return value;
+    }
+    return 4'194'304;
+}
+
+bool
+is_signal_blocked(int signo)
+{
+    sigset_t mask;
+    if (pthread_sigmask(SIG_BLOCK, nullptr, &mask) != 0) {
+        return true;
+    }
+    return sigismember(&mask, signo) == 1;
+}
+
+size_t
+page_size()
+{
+    static const size_t value = [] {
+        long v = sysconf(_SC_PAGESIZE);
+        return v > 0 ? static_cast<size_t>(v) : static_cast<size_t>(4096);
+    }();
+    return value;
+}
+
+size_t
+usable_alt_stack_size()
+{
+    return std::max(kMinAltStackSize, kAltStackSigstkszMultiplier * static_cast<size_t>(SIGSTKSZ));
+}
+
+struct OwnedAltStack
+{
+    void* mapping = nullptr;
+    size_t mapping_size = 0;
+    void* stack_sp = nullptr;
+    size_t stack_size = 0;
+    stack_t previous{};
+    bool installed = false;
+    bool detached = false;
+    bool using_existing = false;
+};
+
+struct CaptureState
+{
+    uint64_t python_thread_id = 0;
+    uint64_t native_tid = 0;
+    std::string name;
+    PyThreadState* tstate = nullptr;
+    kernel_timer_id timer_id = -1;
+    std::atomic<uint64_t> last_cpu_ns{ 0 };
+    OwnedAltStack altstack;
+    CpuSampleRing ring;
+    sigjmp_buf fault_env;
+    volatile sig_atomic_t fault_armed = 0;
+    bool timer_deleted = false;
+    bool retired = false;
+
+    std::atomic<uint64_t> published_count{ 0 };
+    std::atomic<uint64_t> dropped_count{ 0 };
+    std::atomic<uint64_t> dropped_cpu_ns{ 0 };
+    std::atomic<uint64_t> capture_failed_count{ 0 };
+    std::atomic<uint64_t> capture_failed_cpu_ns{ 0 };
+    std::atomic<uint64_t> residual_cpu_ns{ 0 };
+    std::atomic<uint64_t> timer_overrun_total{ 0 };
+    std::atomic<uint64_t> coalesced_signal_count{ 0 };
+
+    uint64_t health_seen_published_count = 0;
+    uint64_t health_seen_dropped_count = 0;
+    uint64_t health_seen_capture_failed_count = 0;
+    uint64_t health_window_published_count = 0;
+    uint64_t health_window_dropped_count = 0;
+    uint64_t health_window_capture_failed_count = 0;
+    uint32_t health_bad_window_count = 0;
+
+    CaptureState(uint64_t thread_id, uint64_t tid, const char* thread_name)
+      : python_thread_id(thread_id)
+      , native_tid(tid)
+      , name(thread_name == nullptr ? "" : thread_name)
+      , ring(kDefaultRingCapacity)
+    {
+    }
+};
+
+static_assert(std::atomic<CaptureState*>::is_always_lock_free,
+              "CPU timer handler requires lock-free capture-state pointer atomics");
+
+struct EngineState
+{
+    std::atomic<bool> configured{ false };
+    bool configuration_frozen = false;
+    std::atomic<bool> active{ false };
+    std::atomic<bool> started_once{ false };
+    std::atomic<bool> stopped_once{ false };
+    std::atomic<bool> permanently_disabled{ false };
+    std::atomic<bool> fault_injection_enabled{ false };
+    std::atomic<uint64_t> interval_ms{ kDefaultIntervalMs };
+
+    std::mutex registry_lock;
+    std::unordered_map<uint64_t, std::unique_ptr<CaptureState>> live_by_thread_id;
+    std::vector<std::unique_ptr<CaptureState>> retired;
+    std::vector<std::pair<void*, size_t>> leaked_altstacks;
+
+    CpuTimerTidTable<CaptureState> tid_table;
+
+    struct sigaction previous_sigprof
+    {};
+    std::atomic<bool> has_previous_sigprof{ false };
+    bool exit_handler_registered = false;
+
+    std::atomic<uint64_t> pending_unprepared{ 0 };
+    std::atomic<uint64_t> app_altstack_present{ 0 };
+    std::atomic<uint64_t> reused_altstack_count{ 0 };
+    std::atomic<uint64_t> reused_altstack_too_small_count{ 0 };
+    std::atomic<uint64_t> blocked_signal_count{ 0 };
+    std::atomic<uint64_t> tid_out_of_bounds{ 0 };
+    std::atomic<uint64_t> tid_table_allocation_failures{ 0 };
+    std::atomic<uint64_t> timer_syscall_failures{ 0 };
+    std::atomic<uint64_t> accepted_signal_oob_tid_count{ 0 };
+    std::atomic<uint64_t> handler_hijack_disable_count{ 0 };
+    std::atomic<uint64_t> health_disable_count{ 0 };
+    std::atomic<uint64_t> stage2_invalid_frame_count{ 0 };
+};
+
+// AIDEV-NOTE: Intentionally leak EngineState. In embedders such as uWSGI with --skip-atexit,
+// process shutdown can bypass Python profiler cleanup while per-thread CPU timers are still armed.
+// A late SIGPROF may then interrupt C/C++ exit destructors. If EngineState were destructed, the
+// handler could touch freed slot/handler_active storage. Leaking keeps the signal-handler control
+// plane valid until the kernel tears the process down.
+EngineState& g_state = *new EngineState();
+
+void
+cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext);
+bool
+cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext);
+
+void
+cpu_timer_process_exit()
+{
+    // Process-exit fallback for embedders that skip Python atexit and therefore bypass Engine::shutdown.
+    // Keep this lock-free and allocation-free: late SIGPROF delivery should either be ignored by the kernel or
+    // dropped by cpu_timer_signal_handler before touching per-thread CPython state.
+    const bool was_active = g_state.active.exchange(false, std::memory_order_acq_rel);
+    if (!was_active) {
+        return;
+    }
+
+    struct sigaction ignore_action
+    {};
+    ignore_action.sa_handler = SIG_IGN;
+    sigemptyset(&ignore_action.sa_mask);
+    ignore_action.sa_flags = 0;
+    (void)sigaction(SIGPROF, &ignore_action, nullptr);
+}
+
+void
+forward_sigaction(const struct sigaction& previous, int signo, siginfo_t* si, void* ucontext, bool drop_default)
+{
+    if ((previous.sa_flags & SA_SIGINFO) != 0 && previous.sa_sigaction != nullptr) {
+        previous.sa_sigaction(signo, si, ucontext);
+        return;
+    }
+
+    if (previous.sa_handler == SIG_IGN || previous.sa_handler == nullptr) {
+        return;
+    }
+
+    if (previous.sa_handler == SIG_DFL) {
+        if (drop_default) {
+            return;
+        }
+        sigaction(signo, &previous, nullptr);
+        pthread_kill(pthread_self(), signo);
+        return;
+    }
+
+    previous.sa_handler(signo);
+}
+
+void
+forward_foreign_sigprof(int signo, siginfo_t* si, void* ucontext)
+{
+    if (!g_state.has_previous_sigprof.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    forward_sigaction(g_state.previous_sigprof, signo, si, ucontext, true);
+}
+
+bool
+sigprof_action_is_ours(const struct sigaction& action)
+{
+    constexpr int required_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    return (action.sa_flags & required_flags) == required_flags && action.sa_sigaction == cpu_timer_signal_handler;
+}
+
+bool
+install_sigprof_handler()
+{
+    struct sigaction sa
+    {};
+    sa.sa_sigaction = cpu_timer_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sigaddset(&sa.sa_mask, SIGPROF);
+    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+
+    struct sigaction current
+    {};
+    if (sigaction(SIGPROF, nullptr, &current) == 0 && (current.sa_flags & SA_SIGINFO) != 0 &&
+        current.sa_sigaction == cpu_timer_signal_handler) {
+        // AIDEV-NOTE: After fork, the child inherits our SIGPROF disposition. Do not reinstall
+        // over ourselves or previous_sigprof would point back at cpu_timer_signal_handler and
+        // foreign SIGPROF forwarding could recurse until stack overflow. If the inherited action
+        // lost hardening flags, restore them without replacing previous_sigprof.
+        if (!sigprof_action_is_ours(current) && sigaction(SIGPROF, &sa, nullptr) != 0) {
+            return false;
+        }
+        return true;
+    }
+
+    struct sigaction previous
+    {};
+    g_state.has_previous_sigprof.store(false, std::memory_order_release);
+    if (sigaction(SIGPROF, &sa, &previous) != 0) {
+        return false;
+    }
+
+    g_state.previous_sigprof = previous;
+    g_state.has_previous_sigprof.store(true, std::memory_order_release);
+    return true;
+}
+
+bool
+sigprof_handler_still_installed()
+{
+    struct sigaction current
+    {};
+    if (sigaction(SIGPROF, nullptr, &current) != 0) {
+        return false;
+    }
+    return sigprof_action_is_ours(current);
+}
+
+bool
+fault_handlers_still_installed()
+{
+    return profiling_fault_handler_still_installed();
+}
+
+void
+disable_current_thread_altstack(OwnedAltStack& altstack)
+{
+    if (!altstack.installed) {
+        return;
+    }
+    if (altstack.using_existing) {
+        altstack.installed = false;
+        return;
+    }
+    if (altstack.mapping == nullptr || altstack.detached) {
+        return;
+    }
+
+    stack_t current{};
+    if (sigaltstack(nullptr, &current) != 0) {
+        altstack.detached = true;
+        g_state.leaked_altstacks.emplace_back(altstack.mapping, altstack.mapping_size);
+        return;
+    }
+
+    const bool current_is_ours =
+      !(current.ss_flags & SS_DISABLE) && current.ss_sp == altstack.stack_sp && current.ss_size == altstack.stack_size;
+    if (current_is_ours) {
+        stack_t disable{};
+        disable.ss_flags = SS_DISABLE;
+        (void)sigaltstack(&disable, nullptr);
+        (void)sigaltstack(&altstack.previous, nullptr);
+        munmap(altstack.mapping, altstack.mapping_size);
+        altstack.mapping = nullptr;
+        altstack.installed = false;
+        return;
+    }
+
+    munmap(altstack.mapping, altstack.mapping_size);
+    altstack.mapping = nullptr;
+    altstack.installed = false;
+}
+
+bool
+install_current_thread_altstack(OwnedAltStack& altstack)
+{
+    stack_t current{};
+    if (sigaltstack(nullptr, &current) != 0) {
+        return false;
+    }
+
+    if (!(current.ss_flags & SS_DISABLE)) {
+        // AIDEV-NOTE: CPython 3.14/crashtracking can preinstall an alt stack before profiling starts.
+        // Reuse an existing stack instead of replacing it. This keeps CPU-timer mode compatible with
+        // crashtracking/faulthandler-style owners without making us responsible for their stack lifetime.
+        g_state.app_altstack_present.fetch_add(1, std::memory_order_relaxed);
+        if (current.ss_size < usable_alt_stack_size()) {
+            g_state.reused_altstack_too_small_count.fetch_add(1, std::memory_order_relaxed);
+            return false;
+        }
+        g_state.reused_altstack_count.fetch_add(1, std::memory_order_relaxed);
+        altstack.stack_sp = current.ss_sp;
+        altstack.stack_size = current.ss_size;
+        altstack.previous = current;
+        altstack.installed = true;
+        altstack.using_existing = true;
+        return true;
+    }
+
+    const size_t guard_size = page_size();
+    const size_t stack_size = usable_alt_stack_size();
+    const size_t mapping_size = guard_size + stack_size;
+    void* mapping = mmap(nullptr, mapping_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mapping == MAP_FAILED) {
+        return false;
+    }
+
+    if (mprotect(mapping, guard_size, PROT_NONE) != 0) {
+        munmap(mapping, mapping_size);
+        return false;
+    }
+
+    void* stack_sp = static_cast<char*>(mapping) + guard_size;
+    stack_t ss{};
+    ss.ss_sp = stack_sp;
+    ss.ss_size = stack_size;
+    ss.ss_flags = 0;
+    if (sigaltstack(&ss, nullptr) != 0) {
+        munmap(mapping, mapping_size);
+        return false;
+    }
+
+    altstack.mapping = mapping;
+    altstack.mapping_size = mapping_size;
+    altstack.stack_sp = stack_sp;
+    altstack.stack_size = stack_size;
+    altstack.previous = current;
+    altstack.installed = true;
+    return true;
+}
+
+void
+delete_timer(CaptureState& state)
+{
+    if (!state.timer_deleted && state.timer_id >= 0) {
+        syscall(SYS_timer_delete, state.timer_id);
+        state.timer_deleted = true;
+        state.timer_id = -1;
+    }
+}
+
+bool
+create_timer(CaptureState& state)
+{
+    struct sigevent sev
+    {};
+    sev.sigev_notify = SIGEV_THREAD_ID;
+    sev.sigev_signo = SIGPROF;
+    sev.sigev_value.sival_ptr = &g_cookie;
+    if (!set_sigev_thread_id(sev, static_cast<pid_t>(state.native_tid))) {
+        errno = ENOTSUP;
+        return false;
+    }
+
+    kernel_timer_id timer_id = -1;
+    const long rc = syscall(SYS_timer_create, thread_cpu_clock(static_cast<pid_t>(state.native_tid)), &sev, &timer_id);
+    if (rc != 0) {
+        return false;
+    }
+    state.timer_id = timer_id;
+    return true;
+}
+
+void
+set_timespec_ns(struct timespec& ts, uint64_t ns)
+{
+    ts.tv_sec = static_cast<time_t>(ns / 1'000'000'000ULL);
+    ts.tv_nsec = static_cast<long>(ns % 1'000'000'000ULL);
+}
+
+uint64_t
+initial_timer_offset_ns(const CaptureState& state, uint64_t interval_ns)
+{
+    if (interval_ns <= 1) {
+        return interval_ns;
+    }
+
+    uint64_t h = state.native_tid ^ (state.python_thread_id << 32);
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 33;
+
+    // Keep first-sample latency low for short-lived processes while still avoiding identical phase alignment.
+    const uint64_t jitter_window_ns = std::min<uint64_t>(interval_ns, 1'000'000ULL);
+    return 1 + (h % jitter_window_ns);
+}
+
+bool
+arm_timer(CaptureState& state)
+{
+    struct itimerspec its
+    {};
+    const uint64_t interval_ns = g_state.interval_ms.load(std::memory_order_relaxed) * 1'000'000ULL;
+    set_timespec_ns(its.it_value, initial_timer_offset_ns(state, interval_ns));
+    set_timespec_ns(its.it_interval, interval_ns);
+    return syscall(SYS_timer_settime, state.timer_id, 0, &its, nullptr) == 0;
+}
+
+void
+clear_slot(CaptureState& state)
+{
+    g_state.tid_table.clear(state.native_tid);
+}
+
+bool
+handler_inactive(CaptureState& state)
+{
+    return !g_state.tid_table.is_handler_active(state.native_tid);
+}
+
+void
+retire_state_locked(std::unique_ptr<CaptureState> state, bool current_thread)
+{
+    delete_timer(*state);
+    clear_slot(*state);
+    state->retired = true;
+
+    if (current_thread) {
+        const uint64_t now = thread_cpu_time_ns();
+        const uint64_t last_cpu_ns = state->last_cpu_ns.load(std::memory_order_relaxed);
+        if (now > last_cpu_ns) {
+            state->residual_cpu_ns.fetch_add(now - last_cpu_ns, std::memory_order_relaxed);
+        }
+        disable_current_thread_altstack(state->altstack);
+    } else if (state->altstack.installed && !state->altstack.using_existing && state->altstack.mapping != nullptr &&
+               !state->altstack.detached) {
+        state->altstack.detached = true;
+        g_state.leaked_altstacks.emplace_back(state->altstack.mapping, state->altstack.mapping_size);
+    }
+
+    g_state.retired.push_back(std::move(state));
+}
+
+bool
+initialize_tid_table()
+{
+    if (g_state.tid_table.max_tid() != 0) {
+        return true;
+    }
+
+    return g_state.tid_table.initialize(static_cast<size_t>(read_pid_max()));
+}
+
+bool
+validate_raw_code_object(const RawFrame& raw_frame)
+{
+    if (raw_frame.code_object == nullptr) {
+        return false;
+    }
+
+    auto* code_object = static_cast<PyCodeObject*>(raw_frame.code_object);
+    PyObject object_header{};
+    if (copy_type(reinterpret_cast<PyObject*>(code_object), object_header)) {
+        return false;
+    }
+    if (object_header.ob_type != &PyCode_Type) {
+        return false;
+    }
+
+    int first_lineno = 0;
+    if (copy_type(&code_object->co_firstlineno, first_lineno)) {
+        return false;
+    }
+    return first_lineno == raw_frame.first_lineno;
+}
+
+void
+render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& raw)
+{
+    FrameStack stack;
+    bool saw_invalid_frame = false;
+    for (uint16_t i = 0; i < raw.depth; i++) {
+        const RawFrame& raw_frame = raw.frames[i];
+        if (!validate_raw_code_object(raw_frame)) {
+            saw_invalid_frame = true;
+            g_state.stage2_invalid_frame_count.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
+        auto maybe_frame = Frame::get(echion, static_cast<PyCodeObject*>(raw_frame.code_object), raw_frame.lasti);
+        if (!maybe_frame) {
+            continue;
+        }
+        Frame& frame = maybe_frame->get();
+        if (&frame == &INVALID_FRAME || frame.first_lineno != raw_frame.first_lineno) {
+            continue;
+        }
+        stack.push_back(frame);
+    }
+
+    if (stack.empty()) {
+        if (!saw_invalid_frame) {
+            return;
+        }
+        stack.push_back(UNKNOWN_FRAME);
+    }
+
+    const microsecond_t cpu_us = static_cast<microsecond_t>(raw.cpu_delta_ns / 1000ULL);
+    if (cpu_us == 0) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
+    auto maybe_thread = echion.thread_info_map().find(raw.python_thread_id);
+    if (maybe_thread != echion.thread_info_map().end()) {
+        PyThreadState tstate{};
+        PyThreadState* tstate_arg = nullptr;
+        if (state.tstate != nullptr && !copy_type(state.tstate, tstate)) {
+            tstate_arg = &tstate;
+            maybe_thread->second->tstate_addr = reinterpret_cast<uintptr_t>(state.tstate);
+        }
+        maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us);
+        return;
+    }
+
+    auto& renderer = echion.renderer();
+    renderer.render_cpu_sample_begin(state.name, cpu_us, raw.python_thread_id, raw.native_tid);
+    stack.render(echion);
+    renderer.render_stack_end();
+}
+
+void
+drain_state(EchionSampler& echion, CaptureState& state)
+{
+    RawSample raw;
+    while (state.ring.pop_for_consumer(raw)) {
+        render_raw_sample(echion, state, raw);
+    }
+}
+
+uint64_t
+counter_delta(uint64_t current, uint64_t& seen)
+{
+    const uint64_t delta = current >= seen ? current - seen : 0;
+    seen = current;
+    return delta;
+}
+
+bool
+capture_state_health_should_disable(CaptureState& state)
+{
+    // AIDEV-NOTE: Health is evaluated on the sampler thread, never in the SIGPROF handler.
+    // The handler only increments lock-free counters. Timer deletion and state retirement stay
+    // on the normal control path so pathological capture failures cannot turn into signal-time
+    // locking or allocation.
+    const uint64_t published = state.published_count.load(std::memory_order_relaxed);
+    const uint64_t dropped = state.dropped_count.load(std::memory_order_relaxed);
+    const uint64_t failed = state.capture_failed_count.load(std::memory_order_relaxed);
+
+    state.health_window_published_count += counter_delta(published, state.health_seen_published_count);
+    state.health_window_dropped_count += counter_delta(dropped, state.health_seen_dropped_count);
+    state.health_window_capture_failed_count += counter_delta(failed, state.health_seen_capture_failed_count);
+
+    const uint64_t bad_events = state.health_window_dropped_count + state.health_window_capture_failed_count;
+    const uint64_t total_events = bad_events + state.health_window_published_count;
+    if (total_events < kHealthWindowEvents) {
+        return false;
+    }
+
+    const bool bad_window = bad_events * 100 >= total_events * kHealthBadRatioPercent;
+    state.health_window_published_count = 0;
+    state.health_window_dropped_count = 0;
+    state.health_window_capture_failed_count = 0;
+
+    if (!bad_window) {
+        state.health_bad_window_count = 0;
+        return false;
+    }
+
+    state.health_bad_window_count++;
+    return state.health_bad_window_count >= kHealthBadWindowsLimit;
+}
+
+void
+disable_all_timers_locked()
+{
+    const pid_t current_tid = raw_gettid();
+    for (auto it = g_state.live_by_thread_id.begin(); it != g_state.live_by_thread_id.end();) {
+        auto state = std::move(it->second);
+        const bool current_thread = current_tid == static_cast<pid_t>(state->native_tid);
+        it = g_state.live_by_thread_id.erase(it);
+        retire_state_locked(std::move(state), current_thread);
+    }
+}
+
+void
+disable_all_timers_for_hijack()
+{
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
+    g_state.active.store(false, std::memory_order_release);
+    g_state.permanently_disabled.store(true, std::memory_order_release);
+    disable_all_timers_locked();
+}
+
+void
+disable_all_timers_for_health_locked()
+{
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_state.health_disable_count.fetch_add(1, std::memory_order_relaxed);
+    g_state.active.store(false, std::memory_order_release);
+    g_state.permanently_disabled.store(true, std::memory_order_release);
+    disable_all_timers_locked();
+}
+
+void
+disable_all_timers_for_blocked_signal()
+{
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    g_state.active.store(false, std::memory_order_release);
+    disable_all_timers_locked();
+}
+
+template<typename T>
+bool
+guarded_read_scalar(CaptureState& state, T& out, const T* src)
+{
+    if (src == nullptr) {
+        return false;
+    }
+
+    if (sigsetjmp(state.fault_env, 0) != 0) {
+        state.fault_armed = 0;
+        __asm__ __volatile__("" ::: "memory");
+        return false;
+    }
+
+    state.fault_armed = 1;
+    __asm__ __volatile__("" ::: "memory");
+    out = *src;
+    __asm__ __volatile__("" ::: "memory");
+    state.fault_armed = 0;
+    return true;
+}
+
+// AIDEV-NOTE: These helpers mirror private CPython 3.12-3.14 frame layouts.
+// Keep every remote field access behind guarded_read_scalar(), and audit each
+// branch against the corresponding CPython source before widening support.
+bool
+read_current_frame(CaptureState& state, PyThreadState* tstate, DataDog::py_frame_t*& frame)
+{
+#if PY_VERSION_HEX >= 0x030d0000
+    return guarded_read_scalar(state, frame, &tstate->current_frame);
+#else
+    // CPython 3.12 keeps the active interpreter frame on the current C frame.
+    _PyCFrame* cframe = nullptr;
+    return guarded_read_scalar(state, cframe, &tstate->cframe) && cframe != nullptr &&
+           guarded_read_scalar(state, frame, &cframe->current_frame);
+#endif
+}
+
+bool
+read_frame_code_and_instruction(CaptureState& state,
+                                DataDog::py_frame_t* frame,
+                                PyCodeObject*& code,
+                                _Py_CODEUNIT*& instruction)
+{
+#if PY_VERSION_HEX >= 0x030e0000
+    decltype(frame->f_executable.bits) executable_bits{};
+    if (!guarded_read_scalar(state, executable_bits, &frame->f_executable.bits)) {
+        return false;
+    }
+    code = reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) & ~static_cast<uintptr_t>(7));
+#elif PY_VERSION_HEX >= 0x030d0000
+    PyObject* executable = nullptr;
+    if (!guarded_read_scalar(state, executable, &frame->f_executable)) {
+        return false;
+    }
+    code = reinterpret_cast<PyCodeObject*>(executable);
+#else
+    if (!guarded_read_scalar(state, code, &frame->f_code)) {
+        return false;
+    }
+#endif
+
+#if PY_VERSION_HEX >= 0x030d0000
+    return guarded_read_scalar(state, instruction, &frame->instr_ptr);
+#else
+    return guarded_read_scalar(state, instruction, &frame->prev_instr);
+#endif
+}
+
+bool
+compute_lasti(PyCodeObject* code, _Py_CODEUNIT* instruction, int& lasti)
+{
+    if (code == nullptr || instruction == nullptr) {
+        return false;
+    }
+
+    const uintptr_t code_address = reinterpret_cast<uintptr_t>(code);
+    constexpr uintptr_t code_offset = offsetof(PyCodeObject, co_code_adaptive);
+    if (code_address > std::numeric_limits<uintptr_t>::max() - code_offset) {
+        return false;
+    }
+
+    const uintptr_t bytecode_address = code_address + code_offset;
+    const uintptr_t instruction_address = reinterpret_cast<uintptr_t>(instruction);
+    if (instruction_address < bytecode_address) {
+#if PY_VERSION_HEX < 0x030d0000
+        // A newly initialized 3.12 frame points one code unit before the first
+        // instruction. Preserve its valid lasti=-1 representation.
+        if (bytecode_address - instruction_address == sizeof(_Py_CODEUNIT)) {
+            lasti = -1;
+            return true;
+        }
+#endif
+        return false;
+    }
+
+    const uintptr_t byte_offset = instruction_address - bytecode_address;
+    if (byte_offset % sizeof(_Py_CODEUNIT) != 0) {
+        return false;
+    }
+    const uintptr_t code_unit_offset = byte_offset / sizeof(_Py_CODEUNIT);
+    if (code_unit_offset > static_cast<uintptr_t>(std::numeric_limits<int>::max())) {
+        return false;
+    }
+
+    lasti = static_cast<int>(code_unit_offset);
+    return true;
+}
+
+bool
+cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext)
+{
+    (void)signo;
+    (void)si;
+    (void)ucontext;
+    const int saved_errno = errno;
+
+    const pid_t tid = raw_gettid();
+    if (tid > 0) {
+        CaptureState* state = g_state.tid_table.load(static_cast<uint64_t>(tid));
+        if (state != nullptr && state->fault_armed) {
+            state->fault_armed = 0;
+            errno = saved_errno;
+            siglongjmp(state->fault_env, 1);
+        }
+    }
+
+    errno = saved_errno;
+    return false;
+}
+
+void
+cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
+{
+    // AIDEV-NOTE: This handler may run on arbitrary profiled Python threads. Keep it async-signal-safe:
+    // no allocation, no locks, no GIL, and keep the seq_cst active/slot handshake paired with retire_state_locked.
+    const int saved_errno = errno;
+
+    const bool accepted = si != nullptr && si->si_code == SI_TIMER && si->si_value.sival_ptr == &g_cookie;
+    if (!accepted) {
+        forward_foreign_sigprof(signo, si, ucontext);
+        errno = saved_errno;
+        return;
+    }
+
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        errno = saved_errno;
+        return;
+    }
+
+    const pid_t tid = raw_gettid();
+    CaptureState* state = nullptr;
+    CpuTimerTidTable<CaptureState>::HandlerToken handler_token;
+    if (tid <= 0 || !g_state.tid_table.enter_handler(static_cast<uint64_t>(tid), state, handler_token)) {
+        g_state.accepted_signal_oob_tid_count.fetch_add(1, std::memory_order_relaxed);
+        errno = saved_errno;
+        return;
+    }
+
+    if (state == nullptr) {
+        g_state.tid_table.leave_handler(handler_token);
+        errno = saved_errno;
+        return;
+    }
+
+    // AIDEV-NOTE: Overrun accounting for sampling-quality diagnostics only. si_overrun is the
+    // number of additional timer expirations that coalesced into this one delivered signal. The
+    // CPU those expirations consumed is already captured by the cpu_delta_ns below (measured from
+    // the thread CPU clock), so do NOT weight the sample by si_overrun here or CPU is double-counted.
+    const long overrun = si->si_overrun;
+    if (overrun > 0) {
+        state->timer_overrun_total.fetch_add(static_cast<uint64_t>(overrun), std::memory_order_relaxed);
+        state->coalesced_signal_count.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    const uint64_t now = thread_cpu_time_ns();
+    const uint64_t last_cpu_ns = state->last_cpu_ns.exchange(now, std::memory_order_relaxed);
+    uint64_t delta = 0;
+    if (now > last_cpu_ns) {
+        delta = now - last_cpu_ns;
+    }
+
+    RawSample* sample = state->ring.reserve_for_producer();
+    if (sample == nullptr) {
+        state->dropped_count.fetch_add(1, std::memory_order_relaxed);
+        state->dropped_cpu_ns.fetch_add(delta, std::memory_order_relaxed);
+        g_state.tid_table.leave_handler(handler_token);
+        errno = saved_errno;
+        return;
+    }
+
+    sample->cpu_delta_ns = delta;
+    sample->python_thread_id = state->python_thread_id;
+    sample->native_tid = state->native_tid;
+    sample->depth = 0;
+
+    bool failed = false;
+    PyThreadState* tstate = state->tstate;
+    DataDog::py_frame_t* frame = nullptr;
+    if (tstate == nullptr || !read_current_frame(*state, tstate, frame)) {
+        failed = true;
+    }
+
+    uint16_t walked = 0;
+    while (!failed && frame != nullptr && sample->depth < kMaxCpuTimerFrames && walked < kMaxCpuTimerFrames) {
+        walked++;
+        decltype(frame->owner) owner{};
+        DataDog::py_frame_t* previous = nullptr;
+        if (!guarded_read_scalar(*state, owner, &frame->owner) ||
+            !guarded_read_scalar(*state, previous, &frame->previous)) {
+            failed = true;
+            break;
+        }
+
+        bool skip_frame = owner == FRAME_OWNED_BY_CSTACK;
+#if PY_VERSION_HEX >= 0x030e0000
+        skip_frame = skip_frame || owner == FRAME_OWNED_BY_INTERPRETER;
+#endif
+        if (skip_frame) {
+            frame = previous;
+            continue;
+        }
+        if (owner != FRAME_OWNED_BY_THREAD && owner != FRAME_OWNED_BY_GENERATOR) {
+            failed = true;
+            break;
+        }
+
+        PyCodeObject* code = nullptr;
+        _Py_CODEUNIT* instruction = nullptr;
+        int lasti = 0;
+        if (!read_frame_code_and_instruction(*state, frame, code, instruction) ||
+            !compute_lasti(code, instruction, lasti)) {
+            failed = true;
+            break;
+        }
+
+        int first_lineno = 0;
+        if (!guarded_read_scalar(*state, first_lineno, &code->co_firstlineno)) {
+            failed = true;
+            break;
+        }
+
+        RawFrame& raw_frame = sample->frames[sample->depth];
+        raw_frame.code_object = code;
+        raw_frame.lasti = lasti;
+        raw_frame.first_lineno = first_lineno;
+        sample->depth++;
+        frame = previous;
+    }
+
+    if (failed || sample->depth == 0) {
+        state->capture_failed_count.fetch_add(1, std::memory_order_relaxed);
+        state->capture_failed_cpu_ns.fetch_add(delta, std::memory_order_relaxed);
+        g_state.tid_table.leave_handler(handler_token);
+        errno = saved_errno;
+        return;
+    }
+
+    state->ring.publish_for_producer();
+    state->published_count.fetch_add(1, std::memory_order_relaxed);
+    g_state.tid_table.leave_handler(handler_token);
+    errno = saved_errno;
+}
+
+#endif // DD_CPU_TIMER_SUPPORTED
+
+} // namespace
+
+Engine&
+Engine::get()
+{
+    static Engine engine;
+    return engine;
+}
+
+void
+Engine::configure(bool enabled, uint64_t interval_ms)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (g_state.configuration_frozen) {
+        return;
+    }
+    if (interval_ms < kMinIntervalMs) {
+        interval_ms = kMinIntervalMs;
+    }
+    g_state.interval_ms.store(interval_ms, std::memory_order_release);
+    g_state.configured.store(enabled, std::memory_order_release);
+#else
+    (void)enabled;
+    (void)interval_ms;
+#endif
+}
+
+bool
+Engine::start()
+{
+#if DD_CPU_TIMER_SUPPORTED
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        // AIDEV-NOTE: The environment-selected CPU accounting mode is immutable after
+        // the first sampler start. Runtime timer failures stop timer samples, but must
+        // not make the wall sampler begin reporting CPU time with a different mechanism.
+        g_state.configuration_frozen = true;
+        if (!g_state.configured.load(std::memory_order_acquire)) {
+            return false;
+        }
+    }
+    if (g_state.permanently_disabled.load(std::memory_order_acquire) ||
+        g_state.stopped_once.load(std::memory_order_acquire) ||
+        g_state.blocked_signal_count.load(std::memory_order_acquire) > 0) {
+        return false;
+    }
+    if (g_state.active.load(std::memory_order_acquire)) {
+        return true;
+    }
+
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (g_state.active.load(std::memory_order_acquire)) {
+        return true;
+    }
+    if (g_state.blocked_signal_count.load(std::memory_order_acquire) > 0) {
+        return false;
+    }
+    if (!initialize_tid_table()) {
+        g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
+        g_state.permanently_disabled.store(true, std::memory_order_release);
+        return false;
+    }
+    register_profiling_fault_recover(cpu_timer_fault_recover);
+    if (init_profiling_fault_handler() != 0) {
+        unregister_profiling_fault_recover(cpu_timer_fault_recover);
+        g_state.permanently_disabled.store(true, std::memory_order_release);
+        return false;
+    }
+    if (!install_sigprof_handler()) {
+        unregister_profiling_fault_recover(cpu_timer_fault_recover);
+        g_state.permanently_disabled.store(true, std::memory_order_release);
+        return false;
+    }
+    if (!g_state.exit_handler_registered) {
+        std::atexit(cpu_timer_process_exit);
+        g_state.exit_handler_registered = true;
+    }
+    g_state.started_once.store(true, std::memory_order_release);
+    g_state.active.store(true, std::memory_order_release);
+    return true;
+#else
+    return false;
+#endif
+}
+
+void
+Engine::shutdown(EchionSampler& echion)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        if (!g_state.started_once.load(std::memory_order_acquire)) {
+            return;
+        }
+        g_state.active.store(false, std::memory_order_release);
+        g_state.stopped_once.store(true, std::memory_order_release);
+
+        for (auto it = g_state.live_by_thread_id.begin(); it != g_state.live_by_thread_id.end();) {
+            auto state = std::move(it->second);
+            const bool current_thread = raw_gettid() == static_cast<pid_t>(state->native_tid);
+            it = g_state.live_by_thread_id.erase(it);
+            retire_state_locked(std::move(state), current_thread);
+        }
+    }
+
+    drain(echion);
+#else
+    (void)echion;
+#endif
+}
+
+void
+Engine::disable_for_fault_handler_swap()
+{
+#if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
+    g_state.active.store(false, std::memory_order_release);
+    g_state.permanently_disabled.store(true, std::memory_order_release);
+    disable_all_timers_locked();
+#endif
+}
+
+void
+Engine::postfork_child()
+{
+#if DD_CPU_TIMER_SUPPORTED
+    new (&g_state.registry_lock) std::mutex();
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    const bool was_active = g_state.active.load(std::memory_order_acquire);
+    g_state.active.store(false, std::memory_order_release);
+
+    const pid_t current_tid = raw_gettid();
+    for (auto& item : g_state.live_by_thread_id) {
+        CaptureState& state = *item.second;
+        if (current_tid == static_cast<pid_t>(state.native_tid)) {
+            disable_current_thread_altstack(state.altstack);
+        } else if (state.altstack.installed && !state.altstack.using_existing && !state.altstack.detached &&
+                   state.altstack.mapping != nullptr) {
+            munmap(state.altstack.mapping, state.altstack.mapping_size);
+            state.altstack.mapping = nullptr;
+        }
+    }
+    for (auto& state : g_state.retired) {
+        if (state->altstack.installed && !state->altstack.using_existing && !state->altstack.detached &&
+            state->altstack.mapping != nullptr) {
+            munmap(state->altstack.mapping, state->altstack.mapping_size);
+            state->altstack.mapping = nullptr;
+        }
+    }
+    for (auto& leaked : g_state.leaked_altstacks) {
+        munmap(leaked.first, leaked.second);
+    }
+    g_state.leaked_altstacks.clear();
+    g_state.live_by_thread_id.clear();
+    g_state.retired.clear();
+    g_state.tid_table.reset();
+    if (was_active && !g_state.stopped_once.load(std::memory_order_acquire) &&
+        !g_state.permanently_disabled.load(std::memory_order_acquire)) {
+        register_profiling_fault_recover(cpu_timer_fault_recover);
+        if (init_profiling_fault_handler() == 0 && install_sigprof_handler()) {
+            // AIDEV-NOTE: Do not forward foreign SIGPROF to a handler inherited across a
+            // multi-threaded fork. The inherited handler may depend on runtime state that
+            // only existed in now-vanished parent threads. Own timer signals still carry
+            // g_cookie and are handled normally; foreign SIGPROF is dropped in the child.
+            g_state.has_previous_sigprof.store(false, std::memory_order_release);
+            g_state.active.store(true, std::memory_order_release);
+        } else {
+            unregister_profiling_fault_recover(cpu_timer_fault_recover);
+            g_state.permanently_disabled.store(true, std::memory_order_release);
+        }
+    }
+#endif
+}
+
+void
+Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const char* name, PyThreadState* tstate)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    const pid_t current_tid = raw_gettid();
+    const bool current_thread = native_id == static_cast<uint64_t>(current_tid);
+    // AIDEV-NOTE: Remote arming cannot inspect the target thread's signal mask.
+    // If current-thread registration already found SIGPROF/SIGSEGV/SIGBUS blocked,
+    // keep the CPU timer inactive rather than replacing wall-sampled CPU time unsafely.
+    if (!current_thread && g_state.blocked_signal_count.load(std::memory_order_relaxed) > 0) {
+        return;
+    }
+    if (tstate == nullptr) {
+        g_state.pending_unprepared.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    if (!g_state.tid_table.contains(native_id)) {
+        g_state.tid_out_of_bounds.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    if (!g_state.tid_table.ensure(native_id)) {
+        g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    if (current_thread && (is_signal_blocked(SIGPROF) || is_signal_blocked(SIGSEGV) || is_signal_blocked(SIGBUS))) {
+        g_state.blocked_signal_count.fetch_add(1, std::memory_order_relaxed);
+        disable_all_timers_for_blocked_signal();
+        return;
+    }
+    if (!sigprof_handler_still_installed() || !fault_handlers_still_installed()) {
+        disable_all_timers_for_hijack();
+        return;
+    }
+
+    auto state = std::make_unique<CaptureState>(python_thread_id, native_id, name);
+    // The intentionally invalid pointer exercises guarded signal-handler reads.
+    auto* fault_injection_tstate =
+      reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1)); // NOLINT(performance-no-int-to-ptr)
+    state->tstate = g_state.fault_injection_enabled.load(std::memory_order_acquire) ? fault_injection_tstate : tstate;
+
+    if (current_thread && !install_current_thread_altstack(state->altstack)) {
+        return;
+    }
+    if (!create_timer(*state)) {
+        g_state.timer_syscall_failures.fetch_add(1, std::memory_order_relaxed);
+        if (current_thread) {
+            disable_current_thread_altstack(state->altstack);
+        }
+        return;
+    }
+
+    state->last_cpu_ns.store(current_thread ? thread_cpu_time_ns() : thread_cpu_time_ns(static_cast<pid_t>(native_id)),
+                             std::memory_order_relaxed);
+    CaptureState* state_ptr = state.get();
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        if (!g_state.active.load(std::memory_order_acquire)) {
+            delete_timer(*state);
+            if (current_thread) {
+                disable_current_thread_altstack(state->altstack);
+            }
+            return;
+        }
+        auto existing = g_state.live_by_thread_id.find(python_thread_id);
+        if (existing != g_state.live_by_thread_id.end()) {
+            auto old = std::move(existing->second);
+            const bool old_current_thread = current_tid == static_cast<pid_t>(old->native_tid);
+            g_state.live_by_thread_id.erase(existing);
+            retire_state_locked(std::move(old), old_current_thread);
+        }
+        g_state.live_by_thread_id.emplace(python_thread_id, std::move(state));
+        if (!g_state.tid_table.publish(native_id, state_ptr)) {
+            auto published = g_state.live_by_thread_id.find(python_thread_id);
+            auto failed_state = std::move(published->second);
+            g_state.live_by_thread_id.erase(published);
+            retire_state_locked(std::move(failed_state), current_thread);
+            g_state.tid_table_allocation_failures.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+    }
+
+    if (!arm_timer(*state_ptr)) {
+        g_state.timer_syscall_failures.fetch_add(1, std::memory_order_relaxed);
+        unregister_thread(python_thread_id);
+        return;
+    }
+#else
+    (void)python_thread_id;
+    (void)native_id;
+    (void)name;
+    (void)tstate;
+#endif
+}
+
+void
+Engine::unregister_thread(uint64_t python_thread_id)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    auto it = g_state.live_by_thread_id.find(python_thread_id);
+    if (it == g_state.live_by_thread_id.end()) {
+        return;
+    }
+    auto state = std::move(it->second);
+    g_state.live_by_thread_id.erase(it);
+    const bool current_thread = raw_gettid() == static_cast<pid_t>(state->native_tid);
+    retire_state_locked(std::move(state), current_thread);
+#else
+    (void)python_thread_id;
+#endif
+}
+
+bool
+Engine::has_thread(uint64_t python_thread_id, uint64_t native_id) const
+{
+#if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    const auto it = g_state.live_by_thread_id.find(python_thread_id);
+    if (it == g_state.live_by_thread_id.end()) {
+        return false;
+    }
+    return it->second->native_tid == native_id;
+#else
+    (void)python_thread_id;
+    (void)native_id;
+    return false;
+#endif
+}
+
+void
+Engine::drain(EchionSampler& echion)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    if (g_state.active.load(std::memory_order_acquire) &&
+        (!sigprof_handler_still_installed() || !fault_handlers_still_installed())) {
+        disable_all_timers_for_hijack();
+    }
+
+    std::vector<CaptureState*> live;
+    std::vector<std::unique_ptr<CaptureState>> ready_to_free;
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        live.reserve(g_state.live_by_thread_id.size());
+        for (auto& item : g_state.live_by_thread_id) {
+            live.push_back(item.second.get());
+        }
+
+        auto it = g_state.retired.begin();
+        while (it != g_state.retired.end()) {
+            if (handler_inactive(**it)) {
+                ready_to_free.push_back(std::move(*it));
+                it = g_state.retired.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    for (CaptureState* state : live) {
+        drain_state(echion, *state);
+    }
+    for (auto& state : ready_to_free) {
+        drain_state(echion, *state);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        bool should_disable = false;
+        if (g_state.active.load(std::memory_order_acquire)) {
+            for (auto& item : g_state.live_by_thread_id) {
+                if (capture_state_health_should_disable(*item.second)) {
+                    should_disable = true;
+                    break;
+                }
+            }
+        }
+        if (should_disable) {
+            disable_all_timers_for_health_locked();
+        }
+    }
+#else
+    (void)echion;
+#endif
+}
+
+bool
+Engine::configured_enabled() const
+{
+#if DD_CPU_TIMER_SUPPORTED
+    return g_state.configured.load(std::memory_order_acquire);
+#else
+    return false;
+#endif
+}
+
+microsecond_t
+Engine::drain_interval_us() const
+{
+#if DD_CPU_TIMER_SUPPORTED
+    return g_state.active.load(std::memory_order_acquire) ? kDrainIntervalUs : 0;
+#else
+    return 0;
+#endif
+}
+
+DebugStats
+Engine::debug_stats() const
+{
+    DebugStats stats{};
+#if DD_CPU_TIMER_SUPPORTED
+    stats.supported = true;
+    stats.configured = g_state.configured.load(std::memory_order_acquire);
+    stats.active = g_state.active.load(std::memory_order_acquire);
+    stats.permanently_disabled = g_state.permanently_disabled.load(std::memory_order_acquire);
+    stats.interval_ms = g_state.interval_ms.load(std::memory_order_acquire);
+    stats.pending_unprepared = g_state.pending_unprepared.load(std::memory_order_relaxed);
+    stats.app_altstack_present = g_state.app_altstack_present.load(std::memory_order_relaxed);
+    stats.reused_altstack_count = g_state.reused_altstack_count.load(std::memory_order_relaxed);
+    stats.reused_altstack_too_small_count = g_state.reused_altstack_too_small_count.load(std::memory_order_relaxed);
+    stats.blocked_signal_count = g_state.blocked_signal_count.load(std::memory_order_relaxed);
+    stats.tid_out_of_bounds = g_state.tid_out_of_bounds.load(std::memory_order_relaxed);
+    stats.tid_table_directory_size = g_state.tid_table.directory_size();
+    stats.tid_table_allocated_pages = g_state.tid_table.allocated_page_count();
+    stats.tid_table_allocation_failures = g_state.tid_table_allocation_failures.load(std::memory_order_relaxed);
+    stats.timer_syscall_failures = g_state.timer_syscall_failures.load(std::memory_order_relaxed);
+    stats.accepted_signal_oob_tid_count = g_state.accepted_signal_oob_tid_count.load(std::memory_order_relaxed);
+    stats.handler_hijack_disable_count = g_state.handler_hijack_disable_count.load(std::memory_order_relaxed);
+    stats.health_disable_count = g_state.health_disable_count.load(std::memory_order_relaxed);
+    stats.stage2_invalid_frame_count = g_state.stage2_invalid_frame_count.load(std::memory_order_relaxed);
+
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    stats.live_count = g_state.live_by_thread_id.size();
+    stats.retired_count = g_state.retired.size();
+    stats.leaked_altstack_count = g_state.leaked_altstacks.size();
+    for (const auto& item : g_state.live_by_thread_id) {
+        const CaptureState& state = *item.second;
+        stats.dropped_count += state.dropped_count.load(std::memory_order_relaxed);
+        stats.dropped_cpu_ns += state.dropped_cpu_ns.load(std::memory_order_relaxed);
+        stats.capture_failed_count += state.capture_failed_count.load(std::memory_order_relaxed);
+        stats.capture_failed_cpu_ns += state.capture_failed_cpu_ns.load(std::memory_order_relaxed);
+        stats.residual_cpu_ns += state.residual_cpu_ns.load(std::memory_order_relaxed);
+        stats.timer_overrun_total += state.timer_overrun_total.load(std::memory_order_relaxed);
+        stats.coalesced_signal_count += state.coalesced_signal_count.load(std::memory_order_relaxed);
+    }
+    for (const auto& state_ptr : g_state.retired) {
+        const CaptureState& state = *state_ptr;
+        stats.dropped_count += state.dropped_count.load(std::memory_order_relaxed);
+        stats.dropped_cpu_ns += state.dropped_cpu_ns.load(std::memory_order_relaxed);
+        stats.capture_failed_count += state.capture_failed_count.load(std::memory_order_relaxed);
+        stats.capture_failed_cpu_ns += state.capture_failed_cpu_ns.load(std::memory_order_relaxed);
+        stats.residual_cpu_ns += state.residual_cpu_ns.load(std::memory_order_relaxed);
+        stats.timer_overrun_total += state.timer_overrun_total.load(std::memory_order_relaxed);
+        stats.coalesced_signal_count += state.coalesced_signal_count.load(std::memory_order_relaxed);
+    }
+#endif
+    return stats;
+}
+
+void
+Engine::debug_set_fault_injection(bool enabled)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    g_state.fault_injection_enabled.store(enabled, std::memory_order_release);
+#else
+    (void)enabled;
+#endif
+}
+
+} // namespace CpuTimer
+} // namespace Datadog

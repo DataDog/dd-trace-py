@@ -59,6 +59,11 @@ class ProfilerStats
     // Total CPU time (in microseconds) spent by the sampler thread capturing samples
     size_t sample_capture_cpu_time_us = 0;
 
+    // CPU time spent collecting wall samples and draining/rendering CPU timer samples.
+    // These components are subsets of sample_capture_cpu_time_us.
+    size_t wall_sample_capture_cpu_time_us = 0;
+    size_t cpu_timer_drain_cpu_time_us = 0;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -107,6 +112,12 @@ class ProfilerStats
 
     void add_sample_capture_cpu_time_us(size_t cpu_time_us);
     size_t get_sample_capture_cpu_time_us() const;
+
+    void add_wall_sample_capture_cpu_time_us(size_t cpu_time_us);
+    size_t get_wall_sample_capture_cpu_time_us() const;
+
+    void add_cpu_timer_drain_cpu_time_us(size_t cpu_time_us);
+    size_t get_cpu_timer_drain_cpu_time_us() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

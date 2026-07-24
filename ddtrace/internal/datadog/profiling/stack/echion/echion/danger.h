@@ -21,6 +21,20 @@
 #include <sys/types.h>
 #endif
 
+using ProfilingFaultRecover = bool (*)(int signo, siginfo_t* si, void* ucontext);
+
+int
+init_profiling_fault_handler();
+
+bool
+profiling_fault_handler_still_installed();
+
+void
+register_profiling_fault_recover(ProfilingFaultRecover recover);
+
+void
+unregister_profiling_fault_recover(ProfilingFaultRecover recover);
+
 int
 init_segv_catcher();
 

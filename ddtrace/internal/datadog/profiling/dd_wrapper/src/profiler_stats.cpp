@@ -64,6 +64,8 @@ Datadog::ProfilerStats::reset_state()
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
+    wall_sample_capture_cpu_time_us = 0;
+    cpu_timer_drain_cpu_time_us = 0;
     // fast_copy_memory_* static fields are intentionally not reset (see setters).
 }
 
@@ -232,6 +234,30 @@ Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
     return sample_capture_cpu_time_us;
 }
 
+void
+Datadog::ProfilerStats::add_wall_sample_capture_cpu_time_us(size_t cpu_time_us)
+{
+    wall_sample_capture_cpu_time_us += cpu_time_us;
+}
+
+size_t
+Datadog::ProfilerStats::get_wall_sample_capture_cpu_time_us() const
+{
+    return wall_sample_capture_cpu_time_us;
+}
+
+void
+Datadog::ProfilerStats::add_cpu_timer_drain_cpu_time_us(size_t cpu_time_us)
+{
+    cpu_timer_drain_cpu_time_us += cpu_time_us;
+}
+
+size_t
+Datadog::ProfilerStats::get_cpu_timer_drain_cpu_time_us() const
+{
+    return cpu_timer_drain_cpu_time_us;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -308,6 +334,14 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("sample_capture_cpu_time_us": )";
     append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("wall_sample_capture_cpu_time_us": )";
+    append_to_string(internal_metadata_json, wall_sample_capture_cpu_time_us);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("cpu_timer_drain_cpu_time_us": )";
+    append_to_string(internal_metadata_json, cpu_timer_drain_cpu_time_us);
 
     internal_metadata_json += "}";
 

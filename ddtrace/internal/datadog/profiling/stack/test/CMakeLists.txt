@@ -77,6 +77,8 @@ function(dd_wrapper_add_test name)
 endfunction()
 
 # Add the tests
+dd_wrapper_add_test(test_cpu_sample_ring test_cpu_sample_ring.cpp)
+dd_wrapper_add_test(test_cpu_timer_tid_table test_cpu_timer_tid_table.cpp)
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
