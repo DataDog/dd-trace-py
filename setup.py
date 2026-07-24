@@ -347,6 +347,15 @@ class ExtensionHashes(build_ext):
                 # DEV: Make sure to include the rust features since changing them changes what gets built
                 for feature in rust_features:
                     sources_hash.update(feature.encode())
+                # CMake arguments and build modes can change the resulting
+                # binary without changing any source file. Include them so a
+                # production extension can never be restored into a
+                # Debug/DD_FAST_BUILD sanitizer build (or vice versa).
+                if isinstance(ext, CMakeExtension):
+                    sources_hash.update(ext.build_type.encode())
+                    sources_hash.update(str(FAST_BUILD).encode())
+                    for cmake_arg in ext.cmake_args:
+                        sources_hash.update(cmake_arg.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
@@ -1586,6 +1595,11 @@ if not IS_PYSTON:
     ]
 
     if platform.system() not in ("Windows", ""):
+        # AIDEV-NOTE: DD_FAST_BUILD does not change CMAKE_BUILD_TYPE, so pass the
+        # sanitizer profile explicitly instead of relying on Debug detection in
+        # the IAST CMake project. Release builds keep sanitizers disabled because
+        # sanitizer runtimes are not suitable dependencies for production wheels.
+        iast_sanitizers_enabled = COMPILE_MODE.lower() == "debug" or FAST_BUILD
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._shared._stacktrace",
@@ -1605,7 +1619,15 @@ if not IS_PYSTON:
             )
         )
         ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+            CMakeExtension(
+                "ddtrace.appsec._iast._taint_tracking._native",
+                source_dir=IAST_DIR,
+                cmake_args=[
+                    "-DIAST_ENABLE_SANITIZERS={}".format("ON" if iast_sanitizers_enabled else "OFF"),
+                    "-DIAST_ENABLE_HARDENING=ON",
+                ],
+                optional=False,
+            )
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):

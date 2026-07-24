@@ -195,8 +195,10 @@ These environment variables modify aspects of the build process.
     default: False
 
     description: |
-        If set to 1, the tracer is compiled with minimal optimizations (`-g0`) and `DD_COMPILE_ABSEIL` is forced to 0. This is not recommended
-        for production due to reduced performance.
+        If set to 1, the tracer is compiled with minimal optimizations (`-O0`), `DD_COMPILE_ABSEIL` is forced to 0, and the IAST native
+        extension is instrumented with AddressSanitizer and UndefinedBehaviorSanitizer. The AddressSanitizer runtime must be loaded before
+        the Python interpreter (for example with `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`). This is not recommended for production due to
+        reduced performance.
 
     version_added:
         v3.3.0:
