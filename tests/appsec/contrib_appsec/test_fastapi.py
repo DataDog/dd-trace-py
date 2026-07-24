@@ -147,5 +147,49 @@ class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
         return path
 
 
+class Test_FastAPI_IAST_Context:
+    @pytest.mark.xfail(
+        strict=True,
+        reason="IAST returns a borrowed header value after a detached request context is released",
+    )
+    @pytest.mark.subprocess(
+        ddtrace_run=True,
+        env={"DD_IAST_ENABLED": "true", "DD_IAST_REQUEST_SAMPLING": "100"},
+        err=None,
+    )
+    def test_detached_task_reads_header_after_request(self):
+        import asyncio
+        import threading
+
+        from fastapi import FastAPI
+        from fastapi import Request
+        from fastapi.testclient import TestClient
+
+        release_background = threading.Event()
+        background_finished = threading.Event()
+        observed = []
+        app = FastAPI()
+
+        @app.get("/")
+        async def endpoint(request: Request):
+            async def background():
+                await asyncio.to_thread(release_background.wait)
+                observed.append(request.headers.get("x-customer-id"))
+                background_finished.set()
+
+            asyncio.create_task(background())
+            return {"accepted": True}
+
+        with TestClient(app) as client:
+            response = client.get("/", headers={"x-customer-id": "customer-123"})
+            assert response.status_code == 200
+
+            # AIDEV-NOTE: The response must finish before this task reads the
+            # header so its copied ContextVar points to a released native slot.
+            release_background.set()
+            assert background_finished.wait(timeout=5)
+            assert observed == ["customer-123"]
+
+
 class Test_FastAPI_RC(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats_RC):
     pass
