@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    deepeval: Introduced support for the deepeval evaluation framework in Test
+    Optimization. When deepeval tests run under ``pytest --ddtrace``, each
+    evaluation metric result (score, threshold, pass/fail status, evaluation
+    model, and cost) is attached to the test span under the ``eval.*`` namespace,
+    and the test is marked with ``test.type:eval``, so results can be queried and
+    aggregated in the Test Optimization Explorer.

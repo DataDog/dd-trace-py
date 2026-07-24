@@ -46,6 +46,7 @@ class TestStatus(Enum):
 class TestType:
     TEST = "test"
     BENCHMARK = "benchmark"
+    EVAL = "eval"
 
 
 TParentClass = t.TypeVar("TParentClass", bound="TestItem[t.Any, t.Any]")

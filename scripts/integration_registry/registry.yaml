@@ -301,6 +301,16 @@ integrations:
   is_external_package: false
   is_tested: true
 
+- integration_name: deepeval
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - deepeval
+  tested_versions_by_dependency:
+    deepeval:
+      min: 4.0.5
+      max: 4.1.3
+
 - integration_name: django
   is_external_package: true
   is_tested: true

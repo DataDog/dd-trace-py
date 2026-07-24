@@ -17,6 +17,7 @@ EXCLUDED_FROM_TESTING = {
     "dbapi",
     "dbapi_async",
     "selenium",
+    "deepeval",
 }
 
 DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
