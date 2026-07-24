@@ -65,7 +65,25 @@ use_alternative_copy_memory();
 // e.g. when init_segv_catcher fails.
 inline bool fast_copy_active = false;
 
+// User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
+inline bool fast_copy_user_disabled = false;
+
+// Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
+inline bool fast_copy_syscall_fallback = false;
+
+inline void
+mark_fast_copy_syscall_fallback()
+{
+    fast_copy_syscall_fallback = true;
+}
+
+// Set at init; survives toggling fast_copy_active.
+inline bool safe_memcpy_initialized = false;
+
 #if defined PL_LINUX
+// Whether the process_vm_readv probe succeeded at constructor time.
+inline bool process_vm_readv_available = false;
+
 // Some checks are done at static initialization, so use this to read them at runtime
 inline bool failed_safe_copy = false;
 
@@ -137,26 +155,12 @@ vmreader_safe_copy(pid_t pid,
  */
 __attribute__((constructor)) void
 init_safe_copy();
-#elif defined PL_DARWIN
-/**
- * Initialize the safe copy operation on macOS
- *
- * This occurs at static init
- */
-__attribute__((constructor)) inline void
-init_safe_copy()
-{
-    if (use_alternative_copy_memory()) {
-        if (init_segv_catcher() == 0) {
-            safe_copy = safe_memcpy_wrapper;
-            fast_copy_active = true;
-            return;
-        }
+#endif // PL_LINUX / PL_DARWIN
 
-        std::cerr << "Failed to initialize segv catcher. Using process_vm_readv instead." << std::endl;
-    }
-}
-#endif // if defined PL_DARWIN
+// Switch the active copy method at runtime. Must be called before the sampling thread starts.
+// Returns true on success, false if the requested method (and its fallback) are unavailable.
+bool
+set_fast_copy_enabled(bool enabled);
 
 /**
  * Copy a chunk of memory from a portion of the virtual memory of another

@@ -2,9 +2,21 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
+#include <cstring>
 #include <string>
 
 #include <cstdint>
+
+static bool
+fast_copy_env_disabled()
+{
+    const char* val = getenv("_DD_PROFILING_STACK_FAST_COPY");
+    if (val == nullptr) {
+        return false;
+    }
+    return strcmp(val, "0") == 0 || strcmp(val, "false") == 0 || strcmp(val, "False") == 0;
+}
 
 bool
 is_truthy(const char* s)
@@ -30,6 +42,22 @@ use_alternative_copy_memory()
 }
 
 #if defined PL_LINUX
+static bool
+probe_process_vm_readv()
+{
+    char src[128];
+    char dst[128];
+    for (size_t i = 0; i < 128; i++) {
+        src[i] = 0x41;
+        dst[i] = ~0x42;
+    }
+
+    struct iovec iov_dst = { dst, sizeof(dst) };
+    struct iovec iov_src = { src, sizeof(src) };
+    ssize_t result = process_vm_readv(getpid(), &iov_dst, 1, &iov_src, 1, 0);
+    return result == static_cast<ssize_t>(sizeof(src));
+}
+
 VmReader*
 VmReader::create(size_t sz)
 {
@@ -154,50 +182,111 @@ vmreader_safe_copy(pid_t process_id,
 __attribute__((constructor)) void
 init_safe_copy()
 {
-    if (use_alternative_copy_memory()) {
-        if (init_segv_catcher() == 0) {
-            safe_copy = safe_memcpy_wrapper;
-            fast_copy_active = true;
-            return;
-        }
+    process_vm_readv_available = probe_process_vm_readv();
 
-        std::cerr << "Failed to initialize segv catcher. Using process_vm_readv instead." << std::endl;
-    }
-
-    char src[128];
-    char dst[128];
-    for (size_t i = 0; i < 128; i++) {
-        src[i] = 0x41;
-        dst[i] = ~0x42;
-    }
-
-    // Check to see that process_vm_readv works, unless it's overridden
-    const char force_override_str[] = "ECHION_ALT_VM_READ_FORCE";
-    const char* force_override = std::getenv(force_override_str);
-    if (!force_override || !is_truthy(force_override)) {
-        struct iovec iov_dst = { dst, sizeof(dst) };
-        struct iovec iov_src = { src, sizeof(src) };
-        ssize_t result = process_vm_readv(getpid(), &iov_dst, 1, &iov_src, 1, 0);
-
-        // If we succeed, then use process_vm_readv
-        if (result == sizeof(src)) {
+    if (fast_copy_env_disabled()) {
+        fast_copy_user_disabled = true;
+        if (process_vm_readv_available) {
             safe_copy = process_vm_readv;
-            return;
+        } else if (read_process_vm_init()) {
+            safe_copy = vmreader_safe_copy;
+            mark_fast_copy_syscall_fallback();
+        } else {
+            fprintf(stderr, "Failed to initialize safe copy interface\n");
+            failed_safe_copy = true;
         }
+        return;
     }
 
-    // Else, we have to setup the writev method
+    if (init_segv_catcher() == 0) {
+        safe_copy = safe_memcpy_wrapper;
+        fast_copy_active = true;
+        safe_memcpy_initialized = true;
+        return;
+    }
+
+    fprintf(stderr, "Failed to initialize segv catcher. Trying process_vm_readv.\n");
+
+    if (process_vm_readv_available) {
+        safe_copy = process_vm_readv;
+        mark_fast_copy_syscall_fallback();
+        return;
+    }
+
     if (!read_process_vm_init()) {
-        // std::cerr might not have been fully initialized at this point, so use
-        // fprintf instead.
         fprintf(stderr, "Failed to initialize all safe copy interfaces\n");
         failed_safe_copy = true;
         return;
     }
 
     safe_copy = vmreader_safe_copy;
+    mark_fast_copy_syscall_fallback();
 }
-#endif // PL_LINUX
+#elif defined PL_DARWIN
+__attribute__((constructor)) void
+init_safe_copy()
+{
+    if (fast_copy_env_disabled()) {
+        fast_copy_user_disabled = true;
+        return;
+    }
+
+    if (init_segv_catcher() == 0) {
+        safe_copy = safe_memcpy_wrapper;
+        fast_copy_active = true;
+        safe_memcpy_initialized = true;
+        return;
+    }
+
+    fprintf(stderr, "Failed to initialize segv catcher. Using mach_vm_read_overwrite instead.\n");
+    mark_fast_copy_syscall_fallback();
+}
+#endif // PL_LINUX / PL_DARWIN
+
+bool
+set_fast_copy_enabled(bool enabled)
+{
+    if (enabled) {
+        if (safe_memcpy_initialized) {
+            safe_copy = safe_memcpy_wrapper;
+            fast_copy_active = true;
+            return true;
+        }
+        fprintf(stderr,
+                "Warning: fast copy requested but safe_memcpy was not initialized; falling back to process_vm_readv\n");
+    } else {
+        fast_copy_user_disabled = true;
+    }
+
+#if defined PL_LINUX
+    if (process_vm_readv_available) {
+        safe_copy = process_vm_readv;
+        fast_copy_active = false;
+        if (enabled) {
+            mark_fast_copy_syscall_fallback();
+        }
+        return true;
+    }
+    if (read_process_vm_init()) {
+        safe_copy = vmreader_safe_copy;
+        fast_copy_active = false;
+        mark_fast_copy_syscall_fallback();
+        return true;
+    }
+    fprintf(stderr,
+            "No safe memory copy method available (safe_memcpy and process_vm_readv both failed); disabling stack "
+            "profiling\n");
+    failed_safe_copy = true;
+    return false;
+#elif defined PL_DARWIN
+    safe_copy = mach_vm_read_overwrite;
+    fast_copy_active = false;
+    if (enabled) {
+        mark_fast_copy_syscall_fallback();
+    }
+    return true;
+#endif
+}
 
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)

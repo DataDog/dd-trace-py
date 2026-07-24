@@ -383,6 +383,20 @@ class ProfilingConfigMemory(DDConfig):
         help="",
     )
 
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
@@ -403,6 +417,19 @@ class ProfilingConfigHeap(DDConfig):
         help="Average number of bytes allocated between memory profiler samples",
     )
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
+
+    code_cache_enabled = DDConfig.v(
+        bool,
+        "code_cache_enabled",
+        default=True,
+        help_type="Boolean",
+        help=(
+            "Enable the heap profiler's internal code-object cache. "
+            "When enabled, the profiler caches the mapping from Python code objects to "
+            "Datadog function IDs, avoiding repeated string interning on hot allocation paths. "
+            "Set to false to disable the cache if it causes unexpected behavior."
+        ),
+    )
 
 
 def _validate_non_negative_int(value: int) -> None:
