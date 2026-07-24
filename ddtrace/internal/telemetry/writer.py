@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import http.client as httplib
 import itertools
 import os
 import time
@@ -12,6 +11,7 @@ import urllib.parse as parse
 from ddtrace.internal import core
 from ddtrace.internal import excepthook
 from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.http import HTTPResponse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
@@ -82,7 +82,7 @@ class _TelemetryClient:
     def url(self) -> str:
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
-    def send_event(self, request: dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
+    def send_event(self, request: dict, payload_type: str) -> Optional[HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None

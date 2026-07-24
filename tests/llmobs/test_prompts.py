@@ -12,6 +12,7 @@ from ddtrace import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
@@ -151,6 +152,18 @@ class TestPrompts:
         assert isinstance(prompt, ManagedPrompt)
         assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
         assert prompt.format(name="Alice") == "Hello Alice!"
+
+    def test_get_prompt_reattaches_base_url_path_prefix(self):
+        """A base_url with a path prefix (e.g. DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must
+        have that prefix reattached to the request path, since get_connection() strips it.
+        """
+        manager = PromptManager(
+            api_key="test-key", base_url="https://proxy.example.com/dd-proxy", file_cache_enabled=False
+        )
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            manager.get_prompt("greeting")
+
+        assert conn.requests[0]["path"] == "/dd-proxy" + PROMPTS_ENDPOINT + "/greeting"
 
     def test_fetch_and_render_chat_prompt(self):
         """Fetch a chat template and render as messages."""

@@ -547,6 +547,36 @@ def test_endpoint_discovery(site, config, param, expected):
             assert client._endpoint == expected
 
 
+def test_execute_request_preserves_port_and_query_string(ai_guard_client):
+    """_execute_request must not force a default port into the connection's Host header, and
+    must not silently drop the query string from the target URL.
+    """
+    created_connections = []
+
+    class MockHTTPConnection:
+        def __init__(self, base_url, timeout=None):
+            self.base_url = base_url
+            self.requests: list = []
+            created_connections.append(self)
+
+        def request(self, method, path, body=None, headers=None):
+            self.requests.append({"method": method, "path": path})
+
+        def getresponse(self):
+            return Mock(status=200, read=lambda: b'{"action": "ALLOW", "tags": []}')
+
+        def close(self):
+            pass
+
+    with patch("ddtrace.aiguard._api_client.HTTPConnection", MockHTTPConnection):
+        ai_guard_client._execute_request("https://example.com:9443/ai-guard/evaluate?resource=abc", {})
+
+    assert len(created_connections) == 1
+    conn = created_connections[0]
+    assert conn.base_url == "https://example.com:9443"
+    assert conn.requests[0]["path"] == "/ai-guard/evaluate?resource=abc"
+
+
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
     """Test that AI Guard event tag is set on the root span of the trace."""

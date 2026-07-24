@@ -2830,7 +2830,7 @@ def _make_mock_response(status, body):
 
 @pytest.fixture
 def mock_get_connection(llmobs):
-    with mock.patch("ddtrace.llmobs._writer.get_connection") as m:
+    with mock.patch("ddtrace.llmobs._writer.HTTPConnection") as m:
         yield m
 
 
