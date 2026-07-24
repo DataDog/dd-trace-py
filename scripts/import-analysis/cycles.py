@@ -28,7 +28,15 @@ def _build_graph(root: Path) -> dict[str, set[str]]:
 
 
 def dfs(v: str, visited: set[str], stack: list[str], cycles: _CycleMap, g: dict[str, set[str]]) -> None:
-    for i in g.get(v, set()):
+    # Iterate neighbours in a stable (sorted) order. The graph stores neighbours in
+    # `set`s, whose iteration order depends on PYTHONHASHSEED and therefore varies
+    # between processes. Because this path-based traversal enumerates simple cycles in
+    # visitation order, an unstable order makes the set of discovered cycles
+    # non-deterministic across runs. The CI job analyses the base and PR trees in two
+    # separate processes and diffs the results, so that non-determinism surfaces as
+    # phantom "new" cycles even when no Python imports changed. Sorting makes both runs
+    # enumerate the same cycles.
+    for i in sorted(g.get(v, set())):
         if i not in visited:
             dfs(i, {*visited, v}, [*stack, v], cycles, g)
         elif i in stack:
