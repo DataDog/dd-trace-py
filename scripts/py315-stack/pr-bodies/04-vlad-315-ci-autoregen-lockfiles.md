@@ -1,4 +1,4 @@
-**prev:** [#19253](https://github.com/DataDog/dd-trace-py/pull/19253) | **next:** [#19254](https://github.com/DataDog/dd-trace-py/pull/19254)
+**prev:** [#19253](https://github.com/DataDog/dd-trace-py/pull/19253) | **next:** [#19267](https://github.com/DataDog/dd-trace-py/pull/19267)
 
 ## Summary
 

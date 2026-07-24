@@ -61,14 +61,10 @@ rebuild_layer vlad/315-ci-autoregen-lockfiles vlad/315-ci-matrix vlad \
   "ci: auto-commit regenerated riot lockfiles on PR branches
 
 Part of the #17849 split (PR 4/14)."
-rebuild_layer vlad/315-official-support vlad/315-ci-autoregen-lockfiles vlad \
-  "chore(py3.15): declare official 3.15 support in packaging
-
-Part of the #17849 split (PR 5/14)."
-rebuild_layer vlad/315-peripheral-compat vlad/315-official-support vlad \
+rebuild_layer vlad/315-peripheral-compat vlad/315-ci-autoregen-lockfiles vlad \
   "fix(py3.15): peripheral compat for profiling, logging, and appsec
 
-Part of the #17849 split (PR 6/14)."
+Part of the #17849 split (PR 5/14)."
 rebuild_layer vlad/profiling-native-test-install-subdir vlad/315-peripheral-compat vlad \
   "feat(profiling): add INSTALL_SUBDIR keyword to dd_wrapper_add_test
 
@@ -120,16 +116,20 @@ Part of the post-stack follow-ups (PR 13/14)."
 rebuild_layer vlad/315-profiling-release-note vlad/315-lib-injection-ssi vlad \
   "docs(releasenotes): add profiling Python 3.15 support note
 
-Part of the post-stack follow-ups (PR 14/14)."
+Part of the post-stack follow-ups (PR 13/14)."
+rebuild_layer vlad/315-official-support vlad/315-profiling-release-note vlad \
+  "chore(py3.15): declare official 3.15 support in packaging
+
+Part of the #17849 split (PR 14/14 — stack tip)."
 
 echo ""
 echo "Stack rebuilt. Branch tips:"
 for b in gab/315-monitoring-multiplexer chore/315-wrapping-context vlad/315-ci-matrix \
-  vlad/315-ci-autoregen-lockfiles vlad/315-official-support vlad/315-peripheral-compat \
+  vlad/315-ci-autoregen-lockfiles vlad/315-peripheral-compat \
   vlad/profiling-native-test-install-subdir vlad/ddtracepy-315-profiling-native \
   vlad/ddtracepy-315-profiling-collectors vlad/ddtracepy-315-profiling-only \
   vlad/ddtracepy-315-profiling-asyncio-monitoring vlad/315-profiling-dev-tooling \
-  vlad/315-lib-injection-ssi vlad/315-profiling-release-note; do
+  vlad/315-lib-injection-ssi vlad/315-profiling-release-note vlad/315-official-support; do
   inc=$(git rev-list --count "origin/${b}^..${b}" 2>/dev/null || git rev-list --count "${b}^..${b}")
   total=$(git rev-list --count origin/main.."${b}")
   echo "  ${b}: +${inc} commit(s), ${total} total vs main"
