@@ -36,6 +36,7 @@ echo() {
 install() {
     hook_types=(
         "pre-commit"
+        "pre-push"
         "post-merge"
         "post-checkout"
     )
@@ -96,10 +97,15 @@ main() {
             done
             if [[ $hook_exit_code != 0 ]]
             then
-              if [[ $hook_type == "pre-commit" || $hook_type == "commit-msg" ]]
+              if [[ $hook_type == "pre-commit" || $hook_type == "commit-msg" || $hook_type == "pre-push" ]]
               then
+                abort_action="$hook_type"
+                case "$hook_type" in
+                    pre-commit|commit-msg) abort_action="commit" ;;
+                    pre-push) abort_action="push" ;;
+                esac
                 echo ""
-                echo "The following $hook_type hooks failed — aborting commit:"
+                echo "The following $hook_type hooks failed — aborting $abort_action:"
                 for s in "${failed_scripts[@]}"; do
                     echo "  x $s"
                 done

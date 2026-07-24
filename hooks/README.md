@@ -26,12 +26,30 @@ Individual pre-commit hooks (run in numeric order):
 | `01-format-and-lint` | Formats and lints staged Python files |
 | `02-run-mypy` | Type-checks staged Python files |
 | `03-run-codespell` | Spell-checks staged files |
-| `04-run-clang-format` | Formats staged C/C++ files with clang-format |
+| `04-run-clang-format` | Formats staged C/C++ files with clang-format and re-stages the fixes |
 | `05-run-bandit` | Security-scans staged production Python files |
 | `06-check-cython-stubs` | Validates Cython stub files |
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
+
+### pre-push (blocking)
+Runs before `git push`. A non-zero exit code **aborts the push**. Contains:
+
+| Hook | Description |
+|------|-------------|
+| `01-clang-tidy-profiling` | When the push includes changes to the profiling native extension's C/C++ sources or headers, runs the same clang-tidy analysis as the CI `clang-tidy profiling` job (`-warnings-as-errors='*'`, via `ddtrace/internal/datadog/profiling/run_clang_tidy.sh`). Catches issues plain clang-format cannot, e.g. `clang-analyzer-optin.performance.Padding` (excessive struct padding). No-op when no profiling native files changed. Requires LLVM 18+ and an existing `build/compile_commands.json` (bootstrap once with `run_clang_tidy.sh`); the hook never pip-installs or builds into your active Python env. |
+
+The clang-tidy hook is heavier than a format check (it needs `clang-tidy` 18+, `cmake`, `jq`, and cached compile commands), so it only runs on push, only when relevant files changed, and reuses the cached build dir. clang-tidy has no auto-fix for these diagnostics, so the hook only **detects** — it never edits files.
+
+Escape hatches:
+```bash
+git push --no-verify                          # skip all pre-push hooks
+SKIP_CLANG_TIDY_PROFILING=1 git push          # skip only this check
+DDTRACE_PREPUSH_CLANG_TIDY_STRICT=1 git push  # fail (not skip) if the toolchain is missing
+```
+
+When the toolchain is not installed the hook prints a note and lets the push through (relying on CI), unless strict mode is set.
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
@@ -214,6 +232,8 @@ hooks/
 ├── pre-commit/              # Pre-commit hooks
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
+├── pre-push/                # Pre-push hooks
+│   └── 01-clang-tidy-profiling # clang-tidy on profiling native changes
 ├── post-merge/              # Post-merge hooks
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
