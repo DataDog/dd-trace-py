@@ -20,6 +20,8 @@ from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
 from ddtrace.appsec._metrics import set_waf_request_metrics
+from ddtrace.appsec._rasp_sqli_cache import RaspSqliCache
+from ddtrace.appsec._rasp_sqli_cache import _CacheKey as _SqliCacheKey
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
@@ -120,6 +122,7 @@ class ASM_Environment:
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
+        self.rasp_sqli_cache: RaspSqliCache = RaspSqliCache()
         self.waf_triggers: "list[WafEvent]" = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
@@ -211,6 +214,29 @@ class _RaspSubcontextHolder:
 
     def __init__(self) -> None:
         self.subctx: Optional[Any] = None
+
+
+def check_rasp_sqli_cache(data: dict[str, Any]) -> tuple[Optional[_SqliCacheKey], bool]:
+    """Return (cache_key, is_cached) for a SQLi RASP evaluation."""
+    env = _get_asm_context()
+    if env is None:
+        return None, False
+    cache_key, is_cached = env.rasp_sqli_cache.check(data)
+    return cache_key, is_cached
+
+
+def update_rasp_sqli_cache(cache_key: _SqliCacheKey, waf_results: "DDWaf_result") -> None:
+    """Store a clean SQLi RASP result in the request-local negative cache."""
+    env = _get_asm_context()
+    if env is not None:
+        env.rasp_sqli_cache.store(cache_key, waf_results)
+
+
+def clear_rasp_sqli_cache() -> None:
+    """Invalidate the SQLi RASP cache. Called before each main-context WAF run."""
+    env = _get_asm_context()
+    if env is not None:
+        env.rasp_sqli_cache.clear()
 
 
 def open_rasp_subcontext_scope() -> None:
