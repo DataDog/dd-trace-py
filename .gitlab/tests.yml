@@ -68,10 +68,10 @@ include:
   timeout: 40m
   parallel: 2
   variables:
-    KUBERNETES_MEMORY_REQUEST: "12Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
-    KUBERNETES_CPU_REQUEST: "2"
-    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_POD_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_POD_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_POD_CPU_REQUEST: "2"
+    KUBERNETES_POD_CPU_LIMIT: "2"
   before_script:
     - !reference [.testrunner_gpu, before_script]
     - !reference [.test_base_riot, before_script]
