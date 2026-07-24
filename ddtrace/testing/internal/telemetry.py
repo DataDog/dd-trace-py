@@ -149,6 +149,15 @@ class TelemetryAPI:
     def record_known_tests_count(self, count: int) -> None:
         self.add_distribution_metric("known_tests.response_tests", count)
 
+    def record_known_tests_pages_fetched(self, pages: int) -> None:
+        self.add_distribution_metric("known_tests.pages_fetched", pages)
+
+    def record_known_tests_total_fetch_ms(self, total_ms: float) -> None:
+        self.add_distribution_metric("known_tests.total_fetch_ms", total_ms)
+
+    def record_known_tests_total_request_ms(self, total_ms: float) -> None:
+        self.add_distribution_metric("known_tests.total_request_ms", total_ms)
+
     def record_skippable_count(self, count: int, level: ITRSkippingLevel) -> None:
         skippable_count_metric = (
             "itr_skippable_tests.response_suites"
