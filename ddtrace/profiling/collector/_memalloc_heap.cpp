@@ -1,6 +1,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <random>
 #include <vector>
@@ -111,8 +113,9 @@ class heap_tracker_t
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
+     * is deleted internally. ``domain`` is recorded only for the track/untrack
+     * balance instrumentation. */
+    void add_sample_no_cpython(void* ptr, PyMemAllocatorDomain domain, std::unique_ptr<traceback_t> tb);
 
     void export_heap_no_cpython();
 
@@ -134,8 +137,10 @@ class heap_tracker_t
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
-    /* This function is called from heap_tracker_t::postfork_child() as part of
-       the fork handler to reset the sampling state. */
+    /* Reset the byte accumulator and draw the next sampling target. Called after a
+       sample is taken, when a candidate sample is dropped at the cap (so the bytes
+       allocated while saturated are not carried into the next sample's weight), and
+       from heap_tracker_t::postfork_child() as part of the fork handler. */
     void reset_sampling_state_no_cpython();
 
     /* Heap profiler sampling interval */
@@ -155,10 +160,20 @@ class heap_tracker_t
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
-    /* Number of samples silently dropped because allocs_m hit the cap.
-     * Accumulated across the lifetime of this tracker instance and surfaced
-     * via ProfilerStats so the backend / user can detect data loss. */
+    /* Number of candidate samples dropped because allocs_m was at capacity.
+     * Surfaced via ProfilerStats (heap_tracker_cap_drops) so the backend / user can
+     * detect that the live set is saturated (heap-space under-reports past this
+     * point, since we can no longer track additional live allocations). */
     size_t cap_drops{ 0 };
+
+    /* Track/untrack balance instrumentation. A persistently growing
+     * (track_count_obj + track_count_mem - untrack_count) with the map pinned near
+     * the cap pinpoints which domain's frees are bypassing the untrack hook (the
+     * ghost-accumulation root cause). Logged from export when
+     * _DD_MEMALLOC_HEAP_DEBUG_STATS is set. */
+    size_t track_count_obj{ 0 };
+    size_t track_count_mem{ 0 };
+    size_t untrack_count{ 0 };
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -241,6 +256,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
+        ++untrack_count;
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
@@ -257,9 +273,21 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    /* This cap bounds memory use but creates blind spots: once allocs_m is full,
-     * new allocations are not sampled. cap_drops tracks how often this happens
-     * so we can observe whether the limit is ever reached in practice. */
+    /* At capacity: we cannot track another live allocation, so drop this
+     * candidate sample. Crucially, we must ALSO reset the sampling state here.
+     *
+     * `allocated_memory` doubles as the weight assigned to the next sample (it is
+     * the count of bytes allocated since the last sample). It is only reset when a
+     * sample is actually taken (add_sample) or dropped here. If we returned false
+     * WITHOUT resetting, `allocated_memory` would keep accumulating every
+     * allocation for the entire time the map stays saturated; the first sample
+     * taken once a slot frees up would then inherit that enormous accumulated
+     * weight. That is the phantom heap-live-size inflation: a handful of
+     * post-saturation samples each weighted with GiB/TiB of dropped-allocation
+     * bytes, decoupling heap-space from real memory (see
+     * mem_domain_heap_live_size_bug.md). Resetting bounds every sample's weight to
+     * ~one sampling interval, so at worst heap-space *under*-reports while
+     * saturated (a safe failure mode) instead of exploding. */
     if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
         ++cap_drops;
         reset_sampling_state_no_cpython();
@@ -270,9 +298,20 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, PyMemAllocatorDomain domain, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
+
+#ifdef _PY312_AND_LATER
+    if (domain == PYMEM_DOMAIN_MEM) {
+        ++track_count_mem;
+    } else {
+        ++track_count_obj;
+    }
+#else
+    (void)domain;
+    ++track_count_obj;
+#endif
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
     (void)it; // Unused, but needed for structured binding
@@ -298,6 +337,21 @@ heap_tracker_t::export_heap_no_cpython()
     auto& stats = Datadog::Sample::profile_borrow().stats();
     stats.set_heap_tracker_size(allocs_m.size());
     stats.set_heap_tracker_cap_drops(cap_drops);
+
+    /* Diagnostic surfaced only when _DD_MEMALLOC_HEAP_DEBUG_STATS is set (silent in
+     * production). track/untrack must stay balanced (track_obj + track_mem -
+     * untrack == live); a large `drops` with `live` pinned at the cap means the
+     * live set is saturated and heap-space is under-reporting. */
+    static const bool debug_stats = (std::getenv("_DD_MEMALLOC_HEAP_DEBUG_STATS") != nullptr);
+    if (debug_stats) {
+        std::fprintf(stderr,
+                     "[memalloc-heap] live=%zu track_obj=%zu track_mem=%zu untrack=%zu drops=%zu\n",
+                     allocs_m.size(),
+                     track_count_obj,
+                     track_count_mem,
+                     untrack_count,
+                     cap_drops);
+    }
 }
 
 void
@@ -326,6 +380,9 @@ heap_tracker_t::postfork_child()
     allocs_m.clear();
 
     cap_drops = 0;
+    track_count_obj = 0;
+    track_count_mem = 0;
+    untrack_count = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
@@ -369,7 +426,6 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
         return;
     }
@@ -447,7 +503,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, domain, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }

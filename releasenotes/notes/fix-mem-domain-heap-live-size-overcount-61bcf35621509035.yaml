@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: fixed a bug where the reported heap live size (``heap-space``)
+    could be inflated by orders of magnitude once the heap profiler's
+    live-sample map reached its internal cap, producing a phantom "growing"
+    live heap while real memory usage stayed flat. Sample weights are now
+    reset when a sample is dropped at the cap.
