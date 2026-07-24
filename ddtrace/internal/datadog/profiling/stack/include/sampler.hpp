@@ -74,6 +74,9 @@ class Sampler
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
+
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
@@ -121,6 +124,8 @@ class Sampler
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
 
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
+
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
 
@@ -133,5 +138,8 @@ class Sampler
     // Restart the sampler after fork if it was running
     void restart_after_fork();
 };
+
+void
+seed_fast_copy_profiler_stats();
 
 } // namespace Datadog
