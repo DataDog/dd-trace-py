@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import inspect
 import json
 from typing import Any
@@ -26,12 +27,11 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 
 _HTTP_MCP_SCHEMES = frozenset({"http", "https"})
-# AIDEV-NOTE: size caps -- the manifest rides every agent span and ``_truncate_span_event`` does not
-# drop it, so an oversized field would evict the user's real ``meta.input``/``meta.output`` under the
-# span size cap.
-_OUTPUT_SCHEMA_MAX_BYTES = 8192
-_METADATA_MAX_BYTES = 8192
-_PROMPT_SOURCE_MAX_BYTES = 8192
+# AIDEV-NOTE: the manifest rides every agent span and ``_truncate_span_event`` does NOT drop it (it drops
+# only ``meta.input``/``meta.output``). There are deliberately no per-field size caps here; bounding an
+# oversized manifest belongs in the shared writer/backend truncation path, not per-field SDK logic. In
+# practice the fields that can grow (``instructions``/``system_prompts``, ``metadata``) are far below the
+# event size limit; a writer-level manifest bound is the tracked follow-up.
 
 
 def _redact_mcp_uri(raw: Any) -> Optional[str]:
@@ -58,7 +58,7 @@ def _redact_mcp_uri(raw: Any) -> Optional[str]:
         return None
     if not host:
         return None
-    if ":" in host:  # IPv6 literal -- re-bracket so the rebuilt authority stays parseable
+    if ":" in host:  # IPv6 literal: re-bracket so the rebuilt authority stays parseable
         host = "[{}]".format(host)
     if port is not None:
         host = "{}:{}".format(host, port)
@@ -96,11 +96,8 @@ def _iter_agent_tools(agent: Any):
         # (they are captured separately as ``custom`` capabilities) and crashes the whole manifest build on
         # ``.items()``. Gate user toolsets on FunctionToolset; the agent's own ``_function_toolset`` is always
         # one. The ``isinstance(dict)`` guard is belt-and-suspenders so a non-dict can never raise.
-        try:
-            from pydantic_ai.toolsets import FunctionToolset
-        except Exception:  # noqa: BLE001 - toolset module layout varies by version
-            FunctionToolset = None
-        toolsets = [t for t in user_toolsets if FunctionToolset is None or isinstance(t, FunctionToolset)]
+        fn_cls = PydanticAIIntegration._function_toolset_cls()
+        toolsets = [t for t in user_toolsets if fn_cls is None or isinstance(t, fn_cls)]
         if function_toolset is not None:
             toolsets.append(function_toolset)
         for toolset in toolsets:
@@ -118,38 +115,20 @@ def _iter_agent_tools(agent: Any):
             yield name, tool, fn
 
 
-def _dedupe_by_id(fns: list[Any]) -> list[Any]:
-    """Return ``fns`` with duplicate objects (same ``id``) collapsed, preserving first-seen order."""
+def _dedupe_by_id(items: list[Any], key=lambda item: id(item)) -> list[Any]:
+    """Collapse duplicates by ``key`` (default object ``id``), preserving first-seen order.
+
+    Pair call sites pass ``key=lambda p: id(p[0])`` to dedupe ``(fn, flag)`` on the function id.
+    """
     seen: set[int] = set()
     unique: list[Any] = []
-    for fn in fns:
-        if id(fn) in seen:
+    for item in items:
+        k = key(item)
+        if k in seen:
             continue
-        seen.add(id(fn))
-        unique.append(fn)
+        seen.add(k)
+        unique.append(item)
     return unique
-
-
-def _dedupe_pairs(pairs: list[tuple[Any, bool]]) -> list[tuple[Any, bool]]:
-    """Dedupe ``(fn, flag)`` pairs by function ``id`` (first-seen wins), preserving order."""
-    seen: set[int] = set()
-    unique: list[tuple[Any, bool]] = []
-    for fn, flag in pairs:
-        if id(fn) in seen:
-            continue
-        seen.add(id(fn))
-        unique.append((fn, flag))
-    return unique
-
-
-def _sorted_definition_list(items: list[dict[str, Any]], keys: tuple[str, ...]) -> list[dict[str, Any]]:
-    """Sort an order-incidental definition list into a total, deterministic (reversal-invariant) order.
-
-    Sorts by the field(s) in ``keys``, ties broken by the full serialized entry -- so entries sharing the
-    primary key but differing in content (e.g. two MCP servers, same name, different URL) still order
-    deterministically. Order-SEMANTIC lists (prompt functions, history processors) must NOT use this.
-    """
-    return sorted(items, key=lambda item: (tuple(item.get(k) or "" for k in keys), safe_json(item) or ""))
 
 
 def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
@@ -178,25 +157,20 @@ def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
         fn = getattr(runner, "function", runner)
         if callable(fn):
             dynamic.append((fn, True))
-    return static_texts, _dedupe_pairs(dynamic)
+    return static_texts, _dedupe_by_id(dynamic, key=lambda p: id(p[0]))
 
 
-def _collect_system_prompts(agent: Any) -> tuple[list[str], list[Any]]:
-    """Gather ``(static_texts, dynamic_fns)`` from an agent's system prompts.
-
-    ``agent._system_prompts`` is a ``tuple[str]`` and ``agent._system_prompt_functions`` a list of
-    ``SystemPromptRunner`` wrappers (unwrap ``.function``) on every supported version.
+def _collect_dynamic_system_prompts(agent: Any) -> list[tuple[Any, bool]]:
+    """Gather ``(fn, reevaluated)`` dynamic system-prompt resolvers (``SystemPromptRunner`` wrappers,
+    unwrap ``.function``); present on every supported version. Static prompts ship verbatim in
+    ``agent._system_prompts`` (read directly by the builder), so only resolvers are collected here.
     """
-    static_texts: list[str] = []
     dynamic: list[tuple[Any, bool]] = []  # (fn, reevaluated); dynamic=True system prompts re-run each step
-    for entry in getattr(agent, "_system_prompts", None) or ():
-        if isinstance(entry, str):
-            static_texts.append(entry)
     for runner in getattr(agent, "_system_prompt_functions", None) or []:
         fn = getattr(runner, "function", runner)
         if callable(fn):
             dynamic.append((fn, bool(getattr(runner, "dynamic", False))))
-    return static_texts, _dedupe_pairs(dynamic)
+    return _dedupe_by_id(dynamic, key=lambda p: id(p[0]))
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
@@ -280,7 +254,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             output_value=result,
         )
         # Build the manifest LAST: it does closure walks / ``inspect.getsource`` / ``model_json_schema``, so
-        # if it raises, the name/input/output above are already annotated -- a manifest failure degrades to
+        # if it raises, the name/input/output above are already annotated, so a manifest failure degrades to
         # no-manifest instead of blanking the whole agent span (``llmobs_set_tags`` logs and bails on raise).
         self._tag_agent_manifest(span, kwargs, agent_instance)
 
@@ -361,11 +335,14 @@ class PydanticAIIntegration(BaseLLMIntegration):
         ADDITIVE over the shipped manifest. Shipped keys keep their name + type: ``framework`` / ``name`` /
         ``model`` / ``model_settings`` / ``instructions`` (str|None) / ``system_prompts`` (list) / ``tools``
         (flat list, kept for backward compatibility). New additive keys: ``model_provider``;
-        ``extra_instructions`` (ordered typed DYNAMIC resolvers -- dynamic instructions + dynamic system
+        ``extra_instructions`` (ordered typed DYNAMIC resolvers: dynamic instructions + dynamic system
         prompts); ``capabilities`` (unified typed superset of tools / sub-agents / builtins / MCP servers /
-        custom toolsets, each ``{name, type, description?, content}`` -- function tools appear here AND in the
+        custom toolsets, each ``{name, type, description?, content}``; function tools appear here AND in the
         flat ``tools``, an accepted duplication); ``handoffs``; ``guardrails``; ``output_type``;
-        ``memory_policies``; ``tool_transforms``; ``settings``; ``metadata``.
+        ``memory_policies``; ``tool_transforms``; ``agent_settings``; ``metadata``. Function-bearing fields
+        (``extra_instructions`` resolvers / ``guardrails`` / ``memory_policies`` / ``tool_transforms``) carry
+        ``{name, source_hash?}`` (source hashed, never emitted) plus per-field extras: ``extra_instructions``
+        adds ``reevaluated``, ``tool_transforms`` adds ``scope``.
 
         pydantic-only: fields the framework does not expose (``max_turns``, ``parallel_tool_calls``,
         ``tool_use_behavior``, input/tool guardrails, ...) are OMITTED, never faked. Empty additive keys are
@@ -388,7 +365,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # Instructions: shipped ``instructions`` (string) + shipped ``system_prompts`` (list); the runtime
         # resolvers go in the additive ``extra_instructions`` bucket (dynamics only).
         static_instructions, dynamic_instructions = _collect_instructions(agent)
-        _, dynamic_system_prompts = _collect_system_prompts(agent)
+        dynamic_system_prompts = _collect_dynamic_system_prompts(agent)
         instructions_text = " ".join(t for t in static_instructions if t)
         manifest["instructions"] = instructions_text or None
         if hasattr(agent, "_system_prompts"):
@@ -404,11 +381,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["capabilities"] = capabilities
 
         # Other additive sections (flat; pydantic-real fields only).
-        handoffs = _sorted_definition_list(self._get_agent_handoffs(agent), ("name",))
+        # Handoffs preserve registration order (semantic; openai_agents is also unsorted); any display
+        # reordering is a backend concern, not the SDK's.
+        handoffs = self._get_agent_handoffs(agent)
         if handoffs:
             manifest["handoffs"] = handoffs
         # Output validators run as a chained pipeline (each receives the previous validator's output), so
-        # their order is semantic -- preserve registration order, do NOT sort.
+        # their order is semantic, so preserve registration order; do NOT sort.
         guardrails = self._get_guardrails(agent)
         if guardrails:
             manifest["guardrails"] = guardrails
@@ -421,17 +400,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_transforms = self._get_tool_transforms(agent)
         if tool_transforms:
             manifest["tool_transforms"] = tool_transforms
-        settings = self._get_agent_settings(agent)
-        if settings:
-            manifest["settings"] = settings
+        agent_settings = self._get_agent_settings(agent)
+        if agent_settings:
+            manifest["agent_settings"] = agent_settings
 
-        # Display-only metadata (deep-copied via json round-trip, size-bounded).
+        # Display-only metadata, deep-copied via a json round-trip; unserializable metadata is skipped.
         agent_metadata = getattr(agent, "_metadata", None)
         if isinstance(agent_metadata, dict) and agent_metadata:
             serialized = safe_json(agent_metadata)
-            if serialized is None or len(serialized) > _METADATA_MAX_BYTES:
-                manifest["metadata_truncated"] = True
-            else:
+            if serialized is not None:
                 manifest["metadata"] = json.loads(serialized)
 
         return manifest
@@ -439,8 +416,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _build_extra_instructions(
         self, dynamic_instructions: list[Any], dynamic_system_prompts: list[Any]
     ) -> list[dict[str, Any]]:
-        """Additive ordered bucket of DYNAMIC prompt resolvers only -- ``dynamic_instructions`` then
-        ``dynamic_system_prompt`` -- each ``{type, content:{name, signature?, doc?, source?, reevaluated}}``.
+        """Additive ordered bucket of DYNAMIC prompt resolvers only: ``dynamic_instructions`` then
+        ``dynamic_system_prompt``; each ``{type, content:{name, source_hash?, reevaluated}}``.
 
         The static instruction text stays in the shipped ``instructions`` (string) and static system prompts
         in the shipped ``system_prompts`` (list); this bucket carries the resolvers only. Order preserved.
@@ -451,14 +428,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ("dynamic_system_prompt", dynamic_system_prompts),
         ):
             for fn, reevaluated in pairs:
-                for described in self._describe_prompt_functions([fn]):
+                for described in self._describe_functions([fn]):
                     described["reevaluated"] = reevaluated
                     entries.append({"type": kind, "content": described})
         return entries
 
     def _build_capabilities(self, agent: Any) -> list[dict[str, Any]]:
-        """Unified capability list -- function tools / sub-agents (delegating tools) / builtins / MCP servers /
-        custom toolsets, each ``{name, type, description?, content}``. Order-incidental -> sorted.
+        """Unified capability list: function tools / sub-agents (delegating tools) / builtins / MCP servers /
+        custom toolsets, each ``{name, type, description?, content}``. Emitted in assembly order (function
+        tools in registration order, then builtins / MCP / custom); canonical ordering is a backend concern.
         """
         capabilities: list[dict[str, Any]] = []
         for name, tool_instance, fn in _iter_agent_tools(agent):
@@ -469,7 +447,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # plain tool, not a delegation (see ``_fn_delegates``).
             if agent_name is not None and self._fn_delegates(fn):
                 if agent_name:
-                    content["agent"] = agent_name
+                    content["agent_name"] = agent_name
                 entry: dict[str, Any] = {"name": name, "type": "sub_agent", "content": content}
             else:
                 entry = {"name": name, "type": "tool", "content": content}
@@ -485,10 +463,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
             capabilities.append({"name": server["name"], "type": "mcp", "content": content})
         for toolset in self._get_custom_toolsets(agent):
             capabilities.append({"name": toolset["name"], "type": "custom", "content": {}})
-        return _sorted_definition_list(capabilities, ("type", "name"))
+        return capabilities
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """The shipped flat ``tools`` list -- ``{name, description?, parameters}`` in registration order
+        """The shipped flat ``tools`` list: ``{name, description?, parameters}`` in registration order
         (semantic, NOT sorted). Kept for backward compatibility alongside the unified ``capabilities``; a
         function tool therefore appears in both (accepted duplication). Delegating tools stay here too.
         """
@@ -502,60 +480,35 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return tools
 
     @staticmethod
-    def _describe_prompt_functions(fns: list[Any]) -> list[dict[str, Any]]:
-        """Describe each prompt/history-processor function as ``{name, signature?, doc?, source?, source_truncated?}``.
+    def _describe_functions(fns: list[Any]) -> list[dict[str, Any]]:
+        """Describe each function as ``{name, source_hash?}``, the single descriptor shape shared by every
+        function-bearing field (dynamic prompt resolvers, guardrails, memory policies, tool transforms).
 
-        ``inspect.getsource`` returns the full definition including the decorator line (e.g.
-        ``@agent.instructions``) -- intended, since it shows how the function is wired.
-
-        AIDEV-NOTE: the captured ``source`` is byte-capped (``_PROMPT_SOURCE_MAX_BYTES``) but NOT
-        content-redacted -- a function body is arbitrary code with no allowlistable structure, so there is
-        nothing to scrub the way ``_redact_mcp_uri`` scrubs a URL. Conscious tradeoff; a redaction hook
-        attaches here.
+        AIDEV-NOTE: we hash ``inspect.getsource`` instead of shipping it. The hash is change-detection for
+        versioning WITHOUT putting the function body on the span, an IP/secret exposure that cannot be
+        scrubbed the way ``_redact_mcp_uri`` scrubs a URL. ``signature`` and ``doc`` are both carved out of
+        that same source, so emitting them would re-expose slices of exactly what the hash protects; they
+        are intentionally dropped. ``source_hash`` is fixed-size, so this field needs no byte cap. NOTE for
+        consumers: ``getsource`` includes the decorator line + leading indentation, so the hash changes on
+        cosmetic reformatting (a conservative "did the text change" signal) and is NOT comparable across
+        call sites; do not treat it as a semantic fingerprint.
         """
         described: list[dict[str, Any]] = []
         for fn in fns:
-            entry: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "prompt_function"}
-            signature: Optional[str] = None
-            try:
-                sig = inspect.signature(fn)
-                # Drop default VALUES -- their repr can leak a secret, be huge, or raise a custom
-                # ``__repr__``; keep parameter names + annotations.
-                sig = sig.replace(
-                    parameters=[p.replace(default=inspect.Parameter.empty) for p in sig.parameters.values()]
-                )
-                signature = str(sig)
-            except Exception:  # noqa: BLE001 - signature rendering must degrade, not drop the manifest
-                signature = None
-            # Cap the rendered signature like source (an annotation's repr could be large).
-            if signature is not None and len(signature) <= _PROMPT_SOURCE_MAX_BYTES:
-                entry["signature"] = signature
-            try:
-                doc = inspect.getdoc(fn)
-            except Exception:  # noqa: BLE001 - a raising __doc__ descriptor must degrade, not drop the manifest
-                doc = None
-            if doc:
-                # ``doc`` rides every agent span; cap it like source so a large docstring can't push the
-                # event over the size limit and evict the user's real I/O.
-                if len(doc) > _PROMPT_SOURCE_MAX_BYTES:
-                    entry["doc_truncated"] = True
-                else:
-                    entry["doc"] = doc
+            entry: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "function"}
             try:
                 source: Optional[str] = inspect.getsource(fn)
             except (OSError, TypeError):
+                # No retrievable source (lambda, REPL-defined, C-implemented) -> name-only, no hash.
                 source = None
-            if source is None or len(source) > _PROMPT_SOURCE_MAX_BYTES:
-                # No retrievable source (lambda, REPL-defined, C-implemented) or over the byte budget.
-                entry["source_truncated"] = True
-            else:
-                entry["source"] = source
+            if source is not None:
+                entry["source_hash"] = hashlib.sha256(source.encode("utf-8")).hexdigest()
             described.append(entry)
         return described
 
     @classmethod
     def _get_history_processors(cls, agent: Any) -> list[dict[str, Any]]:
-        """Describe the agent's message-history processors -- its memory / history policy.
+        """Describe the agent's message-history processors: its memory / history policy.
 
         ``agent.history_processors`` is a public list of bare callables (verified 0.8.1 / 1.0.0 / 1.63.0),
         so no ``.function`` unwrap is needed. Order is preserved (semantic): ``[trim, summarize]`` differs
@@ -563,7 +516,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         processors = getattr(agent, "history_processors", None) or []
         fns = _dedupe_by_id([fn for fn in processors if callable(fn)])
-        return cls._describe_prompt_functions(fns)
+        return cls._describe_functions(fns)
 
     @staticmethod
     def _tool_parameters(tool_instance: Any) -> dict[str, dict[str, Any]]:
@@ -582,7 +535,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return parameters
 
     def _get_agent_settings(self, agent: Any) -> dict[str, Any]:
-        """Build the agent's ``settings`` (a flat additive key); only fields present.
+        """Build the agent's ``agent_settings`` (a flat additive key); only fields present.
 
         ``retries`` is the output-validation retry budget (``_max_result_retries``/``_max_output_retries``);
         ``tool_retries`` is the distinct per-tool retry budget (``_max_tool_retries``).
@@ -602,7 +555,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if isinstance(end_strategy, str):
             settings["end_strategy"] = end_strategy
         deps_type = getattr(agent, "_deps_type", None)
-        # Omit the "no deps" default -- ``NoneType`` (<2.x) or ``object`` (>=2.x) -- so it isn't noise.
+        # Omit the "no deps" default, ``NoneType`` (<2.x) or ``object`` (>=2.x), so it isn't noise.
         if isinstance(deps_type, type) and deps_type not in (type(None), object):
             settings["deps_type"] = deps_type.__name__
         return settings
@@ -612,7 +565,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         A multi-output union (e.g. ``output_type=[Fruit, Vehicle]`` or ``NativeOutput([Fruit, Vehicle])``) is
         captured in full: ``name`` joins the member names and ``schema`` is the union's JSON schema
-        (``anyOf``), so a change to any alternative -- or adding/removing one -- is reflected instead of
+        (``anyOf``), so a change to any alternative (or adding/removing one) is reflected instead of
         collapsing to the first. Member order is preserved.
         """
         if not hasattr(agent, "output_type"):
@@ -621,67 +574,45 @@ class PydanticAIIntegration(BaseLLMIntegration):
         candidates = [c for c in self._unwrap_output_markers(agent.output_type) if not self._is_output_function(c)]
         if not candidates:
             return {}
-        if len(candidates) == 1:
-            return self._describe_single_output(candidates[0])
         output_type: dict[str, Any] = {"name": " | ".join(getattr(c, "__name__", None) or str(c) for c in candidates)}
         # Emit a schema when any alternative is a pydantic model (a union of bare scalars has none worth capturing).
         if any(isinstance(c, type) and self._is_pydantic_model(c) for c in candidates):
-            schema = self._bounded_union_schema(candidates)
+            schema = self._output_schema(candidates)
             if schema is not None:
                 output_type["schema"] = schema
-            else:
-                output_type["schema_truncated"] = True
-        return output_type
-
-    def _describe_single_output(self, chosen: Any) -> dict[str, Any]:
-        """``{name, schema?}`` for a single output type -- ``schema`` only for a pydantic model."""
-        output_type: dict[str, Any] = {"name": getattr(chosen, "__name__", None) or str(chosen)}
-        if isinstance(chosen, type) and self._is_pydantic_model(chosen):
-            schema = self._bounded_output_schema(chosen)
-            if schema is not None:
-                output_type["schema"] = schema
-            else:
-                output_type["schema_truncated"] = True
         return output_type
 
     @staticmethod
-    def _bounded_output_schema(model: Any) -> Optional[dict[str, Any]]:
-        """Return ``model``'s JSON schema within ``_OUTPUT_SCHEMA_MAX_BYTES``, else ``None`` (name-only fallback)."""
+    def _output_schema(candidates: list[Any]) -> Optional[dict[str, Any]]:
+        """JSON schema for a single pydantic model or a union of >1 members; ``None`` on generation
+        failure (name-only fallback).
+
+        A single model MUST use ``model_json_schema`` (inline ``properties``); the ``TypeAdapter`` union
+        form wraps members in ``$ref``/``$defs``, so it is used ONLY for genuine multi-member unions.
+        """
         try:
-            schema: dict[str, Any] = model.model_json_schema()
-        except Exception:  # noqa: BLE001 - schema generation can raise on exotic models
-            return None
-        serialized = safe_json(schema)
-        if serialized is None or len(serialized) > _OUTPUT_SCHEMA_MAX_BYTES:
-            return None
-        return schema
+            if len(candidates) == 1:
+                schema: dict[str, Any] = candidates[0].model_json_schema()
+            else:
+                from typing import Union
 
-    @staticmethod
-    def _bounded_union_schema(candidates: list[Any]) -> Optional[dict[str, Any]]:
-        """Return the union of ``candidates``' JSON schema within ``_OUTPUT_SCHEMA_MAX_BYTES``, else ``None``."""
-        from typing import Union
+                from pydantic import TypeAdapter
 
-        from pydantic import TypeAdapter
-
-        try:
-            schema: dict[str, Any] = TypeAdapter(Union[tuple(candidates)]).json_schema()
-        except Exception:  # noqa: BLE001 - union schema generation can raise on exotic members
-            return None
-        serialized = safe_json(schema)
-        if serialized is None or len(serialized) > _OUTPUT_SCHEMA_MAX_BYTES:
+                schema = TypeAdapter(Union[tuple(candidates)]).json_schema()
+        except Exception:  # noqa: BLE001 - schema/union generation can raise on exotic models
             return None
         return schema
 
     def _get_guardrails(self, agent: Any) -> list[dict[str, Any]]:
         """Describe the agent's output guardrails (``@agent.output_validator`` -> ``agent._output_validators``).
 
-        Each ``OutputValidator`` wraps the user function in ``.function``; describe it like a prompt function
-        (name/signature/doc/size-bounded source -- see the AIDEV-NOTE on ``_describe_prompt_functions`` re:
-        source is byte-capped but not content-redacted). Order-incidental -> the caller sorts by name.
+        Each ``OutputValidator`` wraps the user function in ``.function``; describe it as ``{name, source_hash?}``
+        (see the AIDEV-NOTE on ``_describe_functions`` re: hashing the source rather than shipping it).
+        Output validators run as a chained pipeline, so registration order is semantic and is preserved (NOT sorted).
         """
         validators = getattr(agent, "_output_validators", None) or []
         fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
-        return self._describe_prompt_functions([fn for fn in fns if callable(fn)])
+        return self._describe_functions([fn for fn in fns if callable(fn)])
 
     def _get_tool_transforms(self, agent: Any) -> list[dict[str, Any]]:
         """Describe per-run tool-set rewriters (``prepare_tools`` / ``prepare_output_tools``).
@@ -693,7 +624,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         for attr, scope in (("_prepare_tools", "tools"), ("_prepare_output_tools", "output_tools")):
             fn = getattr(agent, attr, None)
             if callable(fn):
-                for described in self._describe_prompt_functions([fn]):
+                for described in self._describe_functions([fn]):
                     described["scope"] = scope
                     transforms.append(described)
         return transforms
@@ -722,7 +653,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset/MCP-server name: the user-set ``id`` else the class name.
 
-        AIDEV-NOTE: never read ``label`` -- ``MCPServer.label`` falls back to ``repr(self)``, which embeds
+        AIDEV-NOTE: never read ``label``; ``MCPServer.label`` falls back to ``repr(self)``, which embeds
         the connection config (URL userinfo/query secrets, stdio ``command``/``args``), bypassing ``_redact_mcp_uri``.
         """
         return getattr(toolset, "id", None) or type(toolset).__name__
@@ -762,25 +693,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _get_agent_handoffs(self, agent: Any) -> list[dict[str, Any]]:
         """List every output-function callable in ``agent.output_type`` as a handoff.
 
-        Entry ``{name, description?, agent?}`` -- ``name`` is the output function, ``agent`` the target it
-        delegates to (when statically resolvable).
+        Entry ``{tool_name, handoff_description?, agent_name?}`` matches the openai_agents manifest shape:
+        ``tool_name`` is the output function, ``agent_name`` the target it delegates to (when statically
+        resolvable), ``handoff_description`` the routing text.
         """
         if not hasattr(agent, "output_type"):
             return []
         handoffs: list[dict[str, Any]] = []
         for marker, fn in self._iter_output_functions(agent.output_type):
-            handoff: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "output_function"}
+            handoff: dict[str, Any] = {"tool_name": getattr(fn, "__name__", None) or "output_function"}
             description = getattr(marker, "description", None) or getattr(fn, "__doc__", None)
             if description:
-                # ``description`` rides every agent span; cap it like prompt ``doc`` so a large docstring or
-                # marker description can't push the event over the size limit and evict the user's real I/O.
-                if len(description) > _PROMPT_SOURCE_MAX_BYTES:
-                    handoff["description_truncated"] = True
-                else:
-                    handoff["description"] = description
+                # Routing text, not code, emitted as-is (short by nature; the 5MB event cap is the backstop).
+                handoff["handoff_description"] = description
             agent_name = self._referenced_agent_name(fn)
             if agent_name:
-                handoff["agent"] = agent_name
+                handoff["agent_name"] = agent_name
             handoffs.append(handoff)
         return handoffs
 
@@ -838,7 +766,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _fn_delegates(cls, fn: Any) -> bool:
         """True if ``fn``'s code calls an Agent delegation method (``run`` / ``run_sync`` / ``run_stream`` / ``iter``).
 
-        Name-based heuristic over ``co_names`` -- narrows the ``sub_agent`` classification so a tool that
+        Name-based heuristic over ``co_names``; narrows the ``sub_agent`` classification so a tool that
         merely references an ``Agent`` (reads ``.name``, logging) is not mislabeled. Not operand-precise: a
         tool that references an Agent AND calls a same-named method on another object can still match, which
         is acceptable for a best-effort capability label.
@@ -873,7 +801,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         for name in list(code.co_names) + list(code.co_freevars):
             obj = cellmap[name] if name in cellmap else glbls.get(name)
             if isinstance(obj, Agent):
-                # AIDEV-NOTE: emit ONLY the name string, never ``obj`` -- the Agent holds its model client,
+                # AIDEV-NOTE: emit ONLY the name string, never ``obj``; the Agent holds its model client,
                 # deps, prompts, and tool closures, so serializing it onto the span would leak credentials/PII.
                 return getattr(obj, "name", None) or ""
         return None

@@ -1,7 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: the ``pydantic_ai`` integration now captures a richer agent manifest on each
-    ``kind="agent"`` span, additionally recording the agent's model provider, dynamic instruction and
-    system-prompt resolvers, capabilities (sub-agents, builtin tools, MCP servers, and custom toolsets),
-    handoffs, guardrails, output type, memory policies, tool transforms, and settings.
+    LLM Observability: the ``pydantic_ai`` integration now captures a richer agent manifest (capabilities,
+    handoffs, guardrails, output type, memory policies, and more) on each ``kind="agent"`` span.
