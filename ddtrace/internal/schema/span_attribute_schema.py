@@ -1,9 +1,4 @@
 from enum import Enum
-import sys
-from typing import Optional
-
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.settings._inferred_base_service import detect_service
 
 
 class SpanDirection(Enum):
@@ -17,7 +12,7 @@ def service_name_v0(v0_service_name):
 
 
 def service_name_v1(*_, **__):
-    from ddtrace import config as dd_config
+    from ddtrace.internal.settings._config import config as dd_config
 
     return dd_config.service
 
@@ -112,11 +107,4 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
         "service_name": service_name_v1,
         "url_operation": url_operation_v1,
     },
-}
-
-_inferred_base_service: Optional[str] = detect_service(sys.argv)
-
-_DEFAULT_SPAN_SERVICE_NAMES: dict[str, Optional[str]] = {
-    "v0": _inferred_base_service or None,
-    "v1": _inferred_base_service or DEFAULT_SERVICE_NAME,
 }
