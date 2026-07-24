@@ -170,10 +170,6 @@ def test_file_level_path_fast_path_preserves_nested_dynamic_import_dependencies(
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.xfail(
-    reason="file-level mode currently publishes all bytecode import dependencies for a code object on PY_START",
-    strict=True,
-)
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
 def test_file_level_import_dependencies_do_not_include_unexecuted_branches():
     """File-level import dependency expansion should only include imports from the branch that ran.
@@ -212,10 +208,6 @@ def test_file_level_import_dependencies_do_not_include_unexecuted_branches():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.xfail(
-    reason="file-level import dependency tracking currently only scans IMPORT_NAME/IMPORT_FROM bytecode",
-    strict=True,
-)
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
 def test_file_level_importlib_import_module_dependency_is_included():
     """File-level dependency expansion should include modules loaded via importlib.import_module.
