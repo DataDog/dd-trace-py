@@ -833,7 +833,7 @@ integrations:
 
 - integration_name: pytest
   is_external_package: true
-  is_tested: true
+  is_tested: false
   dependency_names:
   - pytest
   tested_versions_by_dependency:
