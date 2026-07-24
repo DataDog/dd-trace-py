@@ -66,6 +66,7 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
@@ -85,6 +86,7 @@ except TypeError:
 _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
     "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
 )
+_STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
 
 
 if t.TYPE_CHECKING:
@@ -326,6 +328,8 @@ class TestOptPlugin:
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
+        self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
@@ -541,6 +545,10 @@ class TestOptPlugin:
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        async_flush_events = _get_async_flush_events(len(session.items))
+        self.manager.writer.set_async_flush_events(async_flush_events)
+        self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
@@ -1057,8 +1065,34 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        self.reports_by_nodeid[item.nodeid][call.when] = report
-        self.excinfo_by_report[report] = call.excinfo
+
+        if self._store_passing_reports:
+            # Opt-out for the outcome aggregation optimization. This keeps the previous behavior: retain every pytest
+            # phase report and derive the final Datadog outcome later in _get_test_outcome(). It is slower because the
+            # common pass path stores a report object and exception-info entry for every setup/call/teardown phase, but
+            # it is useful as a private safety valve if a third-party plugin relies on report storage in an unexpected
+            # way.
+            self.reports_by_nodeid[item.nodeid][call.when] = report
+            self.excinfo_by_report[report] = call.excinfo
+        elif (
+            report.passed
+            and not getattr(report, "wasxfail", None)
+            and call.when == TestPhase.CALL
+            and item.nodeid in self.outcomes_by_nodeid
+        ):
+            # Fast path: a normal passing report carries no status metadata we need to preserve, so we do not store it.
+            # The implicit outcome is PASS when _get_test_outcome() finds no aggregate outcome for the item.
+            #
+            # The one important exception is external retry plugins (for example pytest-flaky or pytest-rerunfailures):
+            # they may emit a failed call report followed by a passing call report for the same pytest item. Since the
+            # later pass is no longer stored and cannot overwrite the earlier failure in reports_by_nodeid, clear the
+            # aggregate failure here. A later teardown failure, if any, will still be recorded by the non-passing path.
+            self.outcomes_by_nodeid.pop(item.nodeid, None)
+        elif not report.passed or getattr(report, "wasxfail", None):
+            # Non-passing and xfail/xpass reports carry status, error, skip, or xfail metadata. Aggregate just that
+            # final outcome data instead of retaining all phase reports. This keeps the frequent PASS path allocation
+            # free while preserving the information needed to tag the Datadog test run.
+            self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
@@ -1078,40 +1112,56 @@ class TestOptPlugin:
 
         return None
 
+    def _update_test_outcome(
+        self,
+        nodeid: str,
+        report: pytest.TestReport,
+        excinfo: t.Optional[pytest.ExceptionInfo[t.Any]],
+    ) -> None:
+        status, tags = self.outcomes_by_nodeid.get(nodeid, (TestStatus.PASS, {}))
+
+        if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
+            tags[TestTag.XFAIL_REASON] = str(wasxfail)
+            tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
+        # Preserve a failure once recorded. A later teardown failure may still override a skip, matching pytest's
+        # session outcome semantics for fixture finalizer errors.
+        if status == TestStatus.FAIL:
+            self.outcomes_by_nodeid[nodeid] = (status, tags)
+            return
+
+        if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif report.skipped:
+            status = TestStatus.SKIP
+            reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+            tags[TestTag.SKIP_REASON] = reason
+
+        self.outcomes_by_nodeid[nodeid] = (status, tags)
+
     def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
-
-        This methods consumes the test reports and exception information for the specified test, and removes them from
-        the dictionaries.
         """
-        status = TestStatus.PASS
-        tags = {}
+        if outcome := self.outcomes_by_nodeid.pop(nodeid, None):
+            return outcome
 
+        # Compatibility fallback for callers/tests that still populate the old report dictionaries directly.
+        status = TestStatus.PASS
+        tags: dict[str, str] = {}
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
-
-            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
-                tags[TestTag.XFAIL_REASON] = str(wasxfail)
-                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
-
-            excinfo = self.excinfo_by_report.pop(report, None)
-
-            if report.failed:
-                status = TestStatus.FAIL
-                tags.update(_get_exception_tags(excinfo))
+            self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
+            status, tags = self.outcomes_by_nodeid[nodeid]
+            if status == TestStatus.FAIL:
                 break
 
-            if report.skipped:
-                status = TestStatus.SKIP
-                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
-                tags[TestTag.SKIP_REASON] = reason
-                break
-
+        self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
