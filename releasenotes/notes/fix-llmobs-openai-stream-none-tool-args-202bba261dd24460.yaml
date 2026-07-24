@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves a ``TypeError`` raised during streamed tool-call reconstruction
+    when an OpenAI-compatible backend (e.g. DashScope/Qwen) emits a tool-call delta with
+    ``function.arguments`` or ``custom.input`` set to ``None`` instead of ``""``.
