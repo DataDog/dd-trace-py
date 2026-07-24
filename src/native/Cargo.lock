@@ -568,6 +568,7 @@ dependencies = [
  "libdd-http-client",
  "libdd-library-config",
  "libdd-log",
+ "libdd-otel-thread-ctx",
  "libdd-profiling-ffi",
  "libdd-remote-config",
  "libdd-shared-runtime",
@@ -1700,6 +1701,15 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "libdd-otel-thread-ctx"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "build_common",
+ "cc",
 ]
 
 [[package]]
