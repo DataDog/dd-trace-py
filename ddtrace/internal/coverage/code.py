@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from collections import defaultdict
 from contextvars import ContextVar
 from copy import deepcopy
@@ -37,6 +38,7 @@ _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 _PY_GE_312 = sys.version_info >= (3, 12)
 _PY_GE_313 = sys.version_info >= (3, 13)
 _PY_GE_314 = sys.version_info >= (3, 14)
+_FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
@@ -110,7 +112,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
         self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
-        self._file_level_covered_paths_cache: dict[frozenset[str], frozenset[str]] = {}
+        self._file_level_covered_paths_cache: OrderedDict[frozenset[str], frozenset[str]] = OrderedDict()
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -344,6 +346,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cache_key = frozenset(covered_file_paths)
         cached_paths = self._file_level_covered_paths_cache.get(cache_key)
         if cached_paths is not None:
+            self._file_level_covered_paths_cache.move_to_end(cache_key)
             return cached_paths
 
         paths = set(covered_file_paths)
@@ -353,6 +356,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                 paths.update(self._get_import_time_dependency_paths(root_path))
 
         self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
+        if len(self._file_level_covered_paths_cache) > _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE:
+            self._file_level_covered_paths_cache.popitem(last=False)
         return paths
 
     class CollectInContext:

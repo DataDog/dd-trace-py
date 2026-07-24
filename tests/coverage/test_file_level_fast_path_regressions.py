@@ -3,6 +3,26 @@ import sys
 import pytest
 
 
+def test_file_level_covered_paths_cache_is_bounded(monkeypatch):
+    from collections import OrderedDict
+
+    import ddtrace.internal.coverage.code as coverage_code
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = object.__new__(ModuleCodeCollector)
+    collector._file_level_covered_paths_cache = OrderedDict()
+    collector._import_time_covered = {}
+
+    monkeypatch.setattr(coverage_code, "_FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE", 2)
+
+    collector._get_covered_file_paths_with_imports({"/repo/one.py"})
+    collector._get_covered_file_paths_with_imports({"/repo/two.py"})
+    collector._get_covered_file_paths_with_imports({"/repo/three.py"})
+
+    assert len(collector._file_level_covered_paths_cache) == 2
+    assert frozenset({"/repo/one.py"}) not in collector._file_level_covered_paths_cache
+
+
 def test_file_level_paths_include_line_only_context_coverage():
     """File-level path snapshots must preserve files only present in the line coverage context.
 
@@ -13,19 +33,11 @@ def test_file_level_paths_include_line_only_context_coverage():
     from ddtrace.internal.coverage.code import _get_ctx_covered_files
     from ddtrace.internal.coverage.code import _get_ctx_covered_lines
 
-    old_instance = ModuleCodeCollector._instance
-    collector = ModuleCodeCollector()
-    collector._file_level_coverage = True
-    ModuleCodeCollector._instance = collector
+    with ModuleCodeCollector.CollectInContext() as context_collector:
+        _get_ctx_covered_files().add("/repo/parent.py")
+        _get_ctx_covered_lines()["/repo/child.py"].add(0)
 
-    try:
-        with ModuleCodeCollector.CollectInContext() as context_collector:
-            _get_ctx_covered_files().add("/repo/parent.py")
-            _get_ctx_covered_lines()["/repo/child.py"].add(0)
-
-            assert context_collector.get_covered_file_paths() == {"/repo/parent.py", "/repo/child.py"}
-    finally:
-        ModuleCodeCollector._instance = old_instance
+        assert context_collector.get_covered_file_paths() == {"/repo/parent.py", "/repo/child.py"}
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
