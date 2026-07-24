@@ -45,6 +45,7 @@ def collect() -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
+    from ddtrace.internal import agent
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -57,12 +58,11 @@ def collect() -> dict[str, Any]:
         writer = tracer._span_aggregator.writer
         agent_url = writer.intake_url
         try:
-            writer.write([])
-            writer.flush_queue(raise_exc=True)
+            agent_info = agent.info(agent_url)  # type: ignore[no-untyped-call]
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
-            agent_error = None
+            agent_error = None if agent_info is not None else "Agent not reachable at %s" % agent_url
     else:
         agent_url = "CUSTOM"
         agent_error = None

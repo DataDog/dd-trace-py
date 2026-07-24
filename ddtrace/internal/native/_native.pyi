@@ -7,6 +7,7 @@ from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar
 from typing import Union
 
@@ -224,6 +225,28 @@ class TraceExporter:
         :param data: The msgpack encoded trace payload to send.
         """
         ...
+    def put_trace(
+        self,
+        spans: Sequence["SpanData"],
+        dd_origin: Optional[str] = None,
+    ) -> "PutOutcome":
+        """
+        Buffer one trace chunk for the next flush (incref-and-stash only; conversion to
+        libdatadog v0.4 spans is deferred to flush, on the background writer thread).
+        :param spans: The spans of one trace chunk (each a SpanData / Span).
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span at flush.
+        :return: whether the chunk was buffered (Accepted) or had no encodable spans.
+        """
+        ...
+    def flush(self) -> tuple[int, Optional[str]]:
+        """
+        Send all buffered trace chunks directly to the Agent via send_trace_chunks.
+        :return: (number of trace chunks sent, agent response body or None).
+        """
+        ...
+    def buffered_traces(self) -> int:
+        """Number of trace chunks currently buffered."""
+        ...
     def shutdown(self, timeout_ns: int) -> None:
         """
         Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.
@@ -435,11 +458,17 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
+    def build(
+        self, shared_runtime: SharedRuntime, encode_links_as_json: bool, encode_events_as_json: bool
+    ) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
+        :param encode_links_as_json: Fixed for the output format (True for v0.5); applied to every
+            span at flush time.
+        :param encode_events_as_json: True for v0.5, or on v0.4 when the agent hasn't opted into
+            native span events; applied to every span at flush time.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -450,6 +479,10 @@ class TraceExporterBuilder:
         Should only be used for debugging.
         """
         ...
+
+class PutOutcome(Enum):
+    Accepted = ...
+    NoEncodableSpans = ...
 
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
