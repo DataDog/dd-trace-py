@@ -3,9 +3,8 @@ stages:
   - tests
   - system-tests
   - fuzz
-  - shared-pipeline
   - benchmarks
-  - release
+  - shared-pipeline
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -150,7 +149,6 @@ serverless lambda tests:
   extends: .testrunner
   stage: tests
   needs: []
-  script:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
@@ -398,7 +396,6 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
-
 "summarize failures":
   stage: .post
   extends: .testrunner
@@ -448,46 +445,16 @@ package-oci:
     - job: "download_dependency_wheels"
       artifacts: true
 
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
+publishing-gate:
   needs:
+    - job: system_tests
+    - job: lib_injection_tests
+    - job: macrobenchmarks
+    - job: microbenchmarks
+    - job: serverless lambda tests
+    - job: run-tests-trigger
     - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
+      optional: true
 
 configure_system_tests:
   needs: []

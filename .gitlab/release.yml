@@ -2,12 +2,11 @@ variables:
   PYPI_PUBLISH_IMAGE: registry.ddbuild.io/images/mirror/python:3.12.0
 
 .release_base:
-  stage: release
+  stage: shared-pipeline
   rules:
     - if: !reference [.is_release]
       when: on_success
     - when: never
-  dependencies: [ "ddtrace package" ]
 
 .release_pypi:
   extends: .release_base
@@ -31,6 +30,9 @@ variables:
     paths:
       - pywheels/*.whl
       - pywheels/*.tar.gz
+  needs:
+    - job: "ddtrace package"
+      artifacts: true
 
 # Can be used to validate uploading of artifacts
 # release_pypi_test:
@@ -42,6 +44,18 @@ release_pypi_prod:
   extends: .release_pypi
   variables:
     PYPI_REPOSITORY: pypi
+  needs:
+    - job: "ddtrace package"
+      artifacts: true
+    - job: system_tests
+    - job: lib_injection_tests
+    - job: macrobenchmarks
+    - job: microbenchmarks
+    - job: serverless lambda tests
+    - job: run-tests-trigger
+    - job: requirements_json_test
+    - job: generate-lib-init-pinned-tag-values
+    - job: deploy_to_reliability_env
 
 notify_datadog_release:
   extends: .release_base
