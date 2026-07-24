@@ -15,6 +15,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -86,7 +87,7 @@ def _track_user_login_common(
 ) -> Optional[Span]:
     if span is None:
         span = _asm_request_context.get_entry_span()
-    if not span and (current_span := core.get_span()):
+    if not span and (current_span := span_bus.get_span()):
         span = current_span._service_entry_span
     if span:
         success_str = "success" if success else "failure"

@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_MODULE_NAME
 import ddtrace.contrib.internal.ray.patch  # noqa: F401 — triggers config._add("ray", ...) registration
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ def test_submission_span_carries_actor_metadata_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) == "MyActor"
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) == "my.module"
@@ -115,7 +116,7 @@ def test_submission_span_omits_none_actor_metadata_tags():
     event = _make_actor_submission_event()  # all actor fields default to None
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
@@ -138,7 +139,7 @@ def test_task_submission_does_not_get_actor_metadata_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate actor tags on is_actor_method
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
@@ -160,7 +161,7 @@ def test_execution_span_carries_actor_metadata_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) == "MyActor"
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) == "my.module"
@@ -172,7 +173,7 @@ def test_execution_span_omits_none_actor_metadata_tags():
     event = _make_actor_execution_event()  # all actor fields default to None
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None
         assert span.get_tag(RAY_ACTOR_MODULE_NAME) is None
@@ -197,7 +198,7 @@ def test_remote_task_execution_does_not_get_actor_metadata_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate actor tags on is_actor_method
         assert span.get_tag(RAY_ACTOR_CLASS_NAME) is None

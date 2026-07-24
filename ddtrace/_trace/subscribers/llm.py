@@ -7,6 +7,7 @@ from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 
 
 # Duplicated from ddtrace.llmobs._constants to avoid importing
@@ -30,7 +31,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
         event: LlmRequestEvent = ctx.event
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # Remove component/span.kind tags set by _start_span — the old
         # BaseLLMIntegration.trace() never set these, so existing snapshot
@@ -65,7 +66,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         """
         event: LlmRequestEvent = ctx.event
         event.llmobs_integration.llmobs_set_tags(
-            ctx.span,
+            span_from_context(ctx),
             args=[],
             kwargs=event.request_kwargs,
             response=event.response,

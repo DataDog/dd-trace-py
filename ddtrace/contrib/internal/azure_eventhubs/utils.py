@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
@@ -136,7 +137,7 @@ def dispatch_message_modifier(
     message_id, batch_count = handle_event_data_attributes(event_data_arg_value)
 
     if config.azure_eventhubs.distributed_tracing:
-        handle_event_hubs_event_data_context(ctx.span, event_data_arg_value)
+        handle_event_hubs_event_data_context(span_from_context(ctx), event_data_arg_value)
 
     core.dispatch(
         "azure.eventhubs.message_modifier",

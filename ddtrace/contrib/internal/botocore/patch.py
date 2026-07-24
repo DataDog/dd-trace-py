@@ -35,6 +35,7 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
@@ -288,7 +289,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
             pin=pin,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return original_func(*args, **kwargs)
 
@@ -413,7 +414,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
@@ -428,7 +429,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx.span.resource].is_error_code,
+                    config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                 ),
             )
             raise

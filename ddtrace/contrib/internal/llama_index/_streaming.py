@@ -6,6 +6,7 @@ from typing import Union
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
@@ -69,7 +70,7 @@ def handle_streamed_response(
     """Wrap a sync or async LlamaIndex stream for tracing."""
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
     if inspect.isasyncgen(resp):
-        handler = LlamaIndexAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
+        handler = LlamaIndexAsyncStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx)
     else:
-        handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
+        handler = LlamaIndexStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx)
     return make_traced_stream(resp, handler)

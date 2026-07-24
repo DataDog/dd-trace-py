@@ -13,6 +13,7 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
 
@@ -240,7 +241,7 @@ def test_span_context_event_with_custom_fields(test_spans):
 
         @classmethod
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
-            span = ctx.span
+            span = span_from_context(ctx)
             span._set_attribute("http.status_code", ctx.event.status_code)
 
     with core.context_with_event(
@@ -273,7 +274,7 @@ def test_span_context_event_inheritance(test_spans):
 
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-            span = ctx.span
+            span = span_from_context(ctx)
             span._set_attribute("http.url", ctx.event.url)
 
     @dataclass
@@ -287,7 +288,7 @@ def test_span_context_event_inheritance(test_spans):
 
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-            span = ctx.span
+            span = span_from_context(ctx)
             span._set_attribute("http.method", ctx.event.method)
 
     with core.context_with_event(
