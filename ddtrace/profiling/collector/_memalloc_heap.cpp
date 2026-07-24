@@ -342,7 +342,7 @@ heap_tracker_t::export_heap_no_cpython()
      * production). track/untrack must stay balanced (track_obj + track_mem -
      * untrack == live); a large `drops` with `live` pinned at the cap means the
      * live set is saturated and heap-space is under-reporting. */
-    static const bool debug_stats = (std::getenv("_DD_MEMALLOC_HEAP_DEBUG_STATS") != nullptr);
+    const bool debug_stats = (std::getenv("_DD_MEMALLOC_HEAP_DEBUG_STATS") != nullptr);
     if (debug_stats) {
         std::fprintf(stderr,
                      "[memalloc-heap] live=%zu track_obj=%zu track_mem=%zu untrack=%zu drops=%zu\n",
