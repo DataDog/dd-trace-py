@@ -268,7 +268,7 @@ struct TraceBuffer {
 }
 
 /// Outcome of [`TraceExporterPy::put_trace`]: the trace was buffered, or it had no encodable
-/// spans. Size/count-based drops were removed — buffering limits belong to libdatadog now.
+/// spans.
 #[pyclass(name = "PutOutcome", eq, eq_int, skip_from_py_object)]
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum PutOutcome {
@@ -330,9 +330,8 @@ impl TraceExporterPy {
     /// truncation, `VecMap` construction, the `meta_struct` `packb` and v0.5 links/events
     /// `json.dumps` Python calls) runs right here, under the GIL, bounded by the size of *this*
     /// trace chunk. This spreads the cost across every request instead of paying it as one
-    /// periodic burst at flush — the same tail-latency property the old Cython encoder relied on
-    /// — and lets `flush` be a pure `mem::take` + off-GIL send. Returns an outcome rather than
-    /// raising.
+    /// periodic burst at flush, and lets `flush` be a pure `mem::take` + off-GIL send. Returns an
+    /// outcome rather than raising.
     #[pyo3(signature = (spans, dd_origin=None))]
     fn put_trace(
         &self,

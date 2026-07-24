@@ -982,8 +982,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         ctx = spans[0].context
         dd_origin = ctx.dd_origin if ctx is not None else None
 
-        # put_trace only incref-and-stashes the spans; conversion happens on the flush thread.
-        # (v0.5-vs-v0.4 link/event encoding is fixed at build time on the exporter.)
+        # put_trace builds each span into its libdatadog v0.4 wire form now, on this thread;
+        # flush only sends the already-built chunks. (v0.5-vs-v0.4 link/event encoding is fixed
+        # at build time on the exporter.)
         outcome = self._exporter.put_trace(spans, dd_origin)
         if outcome == native.PutOutcome.NoEncodableSpans:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])

@@ -146,19 +146,15 @@ impl SpanData {
     /// Build the libdatadog v0.4 wire span directly from this span's live `meta`/`metrics`
     /// (and links/events/meta_struct), materializing the `PyBackedString` wire views here.
     ///
-    /// This replaces the old two-stage `snapshot` → `build_span_from_snapshot` path, which
-    /// clone_ref'd every attribute under the GIL *and then* re-materialized it into VecMaps: the
-    /// per-attribute GIL cost was paid regardless, so the intermediate `SpanSnapshot` saved
-    /// nothing while adding a full extra `Vec` + pass. Here the wire span is produced in one
-    /// pass, under the GIL.
+    /// The wire span is produced in a single pass under the GIL.
     ///
     /// This is a **read**, not a drain: `self` is left fully intact (keys are `clone_ref`'d,
     /// links/events are cloned) so `get_tag`/`get_metric`/`has_attribute` still work after the
     /// finished span has been handed to the writer.
     ///
     /// `dd_origin` (`trace[0].context.dd_origin`) is injected as `_dd.origin` into every span's
-    /// meta — the native attribute store only carries it on the chunk-root span; not truncated,
-    /// matching historical behavior.
+    /// meta — the native attribute store only carries it on the chunk-root span. Not truncated:
+    /// `_dd.origin` is an internal reserved tag, exempt from the user-tag length cap.
     ///
     /// `encode_links_as_json`/`encode_events_as_json`: true for v0.5 output, which has no wire
     /// fields for span links/events, so they're JSON-encoded into
@@ -169,8 +165,8 @@ impl SpanData {
     // AIDEV-NOTE: json.dumps (links/events) and packb (meta_struct) are Python calls that run
     // here, under the GIL and under the caller's `PyRef<SpanData>` borrow. A concurrent
     // `&mut self` on the *same* finished span during a GIL-yield in one of those calls would
-    // panic pyo3's borrow flag — acceptable because the old `snapshot` already held the borrow
-    // across json.dumps, and spans handed to the writer are finished (not concurrently mutated).
+    // panic pyo3's borrow flag — but spans handed to the writer are finished and never
+    // concurrently mutated, so nothing can take `&mut self` while these calls run.
     pub(crate) fn build_v04_span(
         &self,
         py: Python<'_>,
@@ -210,7 +206,7 @@ impl SpanData {
         // `PyBackedString` wire value, truncating both.
         for (key, value) in self.meta.iter() {
             // A stored str carrying lone surrogates has no valid UTF-8 wire representation;
-            // skip it (matches the historical drop-on-encode behavior).
+            // skip it rather than emit bytes the msgpack payload can't legally carry.
             let Ok(value) = PyBackedString::try_from(value.bind(py).clone()) else {
                 continue;
             };
@@ -265,8 +261,8 @@ impl SpanData {
                 .collect();
         }
 
-        // Inject the trace-level `_dd.origin` into every span's meta. Not truncated — matches
-        // historical behavior.
+        // Inject the trace-level `_dd.origin` into every span's meta. Not truncated: it's an
+        // internal reserved tag, exempt from the user-tag length cap.
         if let Some(origin) = dd_origin {
             out.meta.insert(
                 PyBackedString::from_static_str(ORIGIN_KEY),
@@ -596,13 +592,9 @@ impl SpanData {
             span_api: span_api
                 .map(|obj| extract_backed_string_or_default(obj))
                 .unwrap_or_else(|| PyBackedString::from_static_str("datadog")),
-            // Pre-size the attribute stores so set_tag/set_metric push into an allocated Vec instead
-            // of reallocating from an empty one (the top per-span native allocator under memray).
-            // Small PyDict-MINSIZE-like caps (meta 8 / metrics 4) skip the early realloc chain for the
-            // common case without over-allocating the many small child spans; measured net win of
-            // ~-7% bytes and ~-19% allocations on the attribute-store bucket vs lazy growth.
-            meta: MetaMap::with_capacity(8),
-            metrics: MetricsMap::with_capacity(4),
+            // meta/metrics stay at their empty Default: a span that sets no meta (or no metrics)
+            // never allocates that Vec; the first set_tag/set_metric acquires a backing buffer from
+            // the thread-local recycle pool (see insert_meta/insert_metric).
             ..Default::default()
         };
         span.set_name(name);
@@ -1385,8 +1377,8 @@ impl SpanData {
         // Reset to Default to drop every owned Python reference so CPython can break
         // cycles. Assigning the whole struct is correct-by-construction: it cannot drift
         // out of sync with __traverse__ when fields are added. `Default` is a valid state
-        // (duration -> None = "not finished"); the object is garbage being collected, so
-        // resetting scalars and freeing collection buffers here is harmless.
+        // (duration -> None = "not finished"); the object is garbage being collected, so resetting
+        // scalars and recycling collection buffers (via each field's Drop) here is harmless.
         *self = Self::default();
     }
 }
