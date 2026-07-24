@@ -1,40 +1,49 @@
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 
+from .utils import SearchRequest
+from .utils import configure_search_span
+from .utils import extract_legacy_search_request
+from .utils import extract_search_request
+from .utils import extract_search_single_index_request
+from .utils import tag_search_request
+from .utils import tag_search_result
+
 
 DD_PATCH_ATTR = "_datadog_patch"
 
 SERVICE_NAME = schematize_service_name("algoliasearch")
-APP_NAME = "algoliasearch"
 V0 = parse_version("0.0")
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
-V3 = parse_version("3.0")
+V4 = parse_version("4.0")
 
 try:
     import algoliasearch
-    from algoliasearch.version import VERSION
+
+    try:
+        from algoliasearch.version import VERSION
+    except ImportError:
+        VERSION = getattr(algoliasearch, "__version__", "0.0")
 
     algoliasearch_version = parse_version(VERSION)
 
-    # Default configuration
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
-    algoliasearch_version = VERSION = V0
+    VERSION = "0.0"
+    algoliasearch_version = V0
 
 
 def get_version() -> str:
@@ -45,7 +54,7 @@ def _supported_versions() -> dict[str, str]:
     return {"algoliasearch": ">=2.6.3"}
 
 
-def patch():
+def patch() -> None:
     if algoliasearch_version == V0:
         return
 
@@ -55,122 +64,166 @@ def patch():
     algoliasearch._datadog_patch = True
 
     pin = Pin()
-
-    if algoliasearch_version < V2 and algoliasearch_version >= V1:
-        _w(algoliasearch.index, "Index.search", _patched_search)
+    if _uses_v1_index_client():
+        _w(algoliasearch.index.Index, "search", _traced_legacy_search)
         pin.onto(algoliasearch.index.Index)
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+    elif _uses_search_index_client():
         from algoliasearch import search_index
 
-        _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
+        _w(search_index.SearchIndex, "search", _traced_legacy_search)
         pin.onto(search_index.SearchIndex)
-    else:
-        return
+    elif _uses_modern_search_client():
+        _patch_modern_search_client(pin)
 
 
-def unpatch():
+def unpatch() -> None:
     if algoliasearch_version == V0:
         return
 
-    if getattr(algoliasearch, DD_PATCH_ATTR, False):
-        setattr(algoliasearch, DD_PATCH_ATTR, False)
+    if not getattr(algoliasearch, DD_PATCH_ATTR, False):
+        return
 
-        if algoliasearch_version < V2 and algoliasearch_version >= V1:
-            _u(algoliasearch.index.Index, "search")
-        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
-            from algoliasearch import search_index
+    setattr(algoliasearch, DD_PATCH_ATTR, False)
+    if _uses_v1_index_client():
+        _u(algoliasearch.index.Index, "search")
+    elif _uses_search_index_client():
+        from algoliasearch import search_index
 
-            _u(search_index.SearchIndex, "search")
-        else:
-            return
-
-
-# DEV: this maps serves the dual purpose of enumerating the algoliasearch.search() query_args that
-# will be sent along as tags, as well as converting arguments names into tag names compliant with
-# tag naming recommendations set out here: https://docs.datadoghq.com/tagging/
-QUERY_ARGS_DD_TAG_MAP = {
-    "page": "page",
-    "hitsPerPage": "hits_per_page",
-    "attributesToRetrieve": "attributes_to_retrieve",
-    "attributesToHighlight": "attributes_to_highlight",
-    "attributesToSnippet": "attributes_to_snippet",
-    "minWordSizefor1Typo": "min_word_size_for_1_typo",
-    "minWordSizefor2Typos": "min_word_size_for_2_typos",
-    "getRankingInfo": "get_ranking_info",
-    "aroundLatLng": "around_lat_lng",
-    "numericFilters": "numeric_filters",
-    "tagFilters": "tag_filters",
-    "queryType": "query_type",
-    "optionalWords": "optional_words",
-    "distinct": "distinct",
-}
+        _u(search_index.SearchIndex, "search")
+    elif _uses_modern_search_client():
+        _unpatch_modern_search_client()
 
 
-def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
-    """
-    wrapt_args is called the way it is to distinguish it from the 'args'
-    argument to the algoliasearch.index.Index.search() method.
-    """
+def _uses_v1_index_client() -> bool:
+    return V1 <= algoliasearch_version < V2
 
-    if algoliasearch_version < V2 and algoliasearch_version >= V1:
-        function_query_arg_name = "args"
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
-        function_query_arg_name = "request_options"
-    else:
-        return func(*wrapt_args, **wrapt_kwargs)
 
+def _uses_search_index_client() -> bool:
+    return V2 <= algoliasearch_version < V4
+
+
+def _uses_modern_search_client() -> bool:
+    return algoliasearch_version >= V4
+
+
+def _patch_modern_search_client(pin: Pin) -> None:
+    from algoliasearch.search.client import SearchClient
+    from algoliasearch.search.client import SearchClientSync
+
+    _w(SearchClientSync, "search_single_index", _traced_sync_search_single_index)
+    _w(SearchClientSync, "search", _traced_sync_search)
+    _w(SearchClient, "search_single_index", _traced_async_search_single_index)
+    _w(SearchClient, "search", _traced_async_search)
+    pin.onto(SearchClientSync)
+    pin.onto(SearchClient)
+
+
+def _unpatch_modern_search_client() -> None:
+    from algoliasearch.search.client import SearchClient
+    from algoliasearch.search.client import SearchClientSync
+
+    _u(SearchClientSync, "search_single_index")
+    _u(SearchClientSync, "search")
+    _u(SearchClient, "search_single_index")
+    _u(SearchClient, "search")
+
+
+def _traced_legacy_search(
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    query_args_name = "args" if _uses_v1_index_client() else "request_options"
+    request = extract_legacy_search_request(args, kwargs, query_args_name)
+    return _trace_search(wrapped, instance, args, kwargs, request)
+
+
+def _traced_sync_search_single_index(
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    request = extract_search_single_index_request(args, kwargs)
+    return _trace_search(wrapped, instance, args, kwargs, request)
+
+
+def _traced_sync_search(
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    request = extract_search_request(args, kwargs)
+    return _trace_search(wrapped, instance, args, kwargs, request)
+
+
+async def _traced_async_search_single_index(
+    wrapped: Callable[..., Awaitable[Any]],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    request = extract_search_single_index_request(args, kwargs)
+    return await _trace_search_async(wrapped, instance, args, kwargs, request)
+
+
+async def _traced_async_search(
+    wrapped: Callable[..., Awaitable[Any]],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    request = extract_search_request(args, kwargs)
+    return await _trace_search_async(wrapped, instance, args, kwargs, request)
+
+
+def _trace_search(
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    request: SearchRequest,
+) -> Any:
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        return func(*wrapt_args, **wrapt_kwargs)
+        return wrapped(*args, **kwargs)
 
-    with tracer.trace(
-        schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
-        span_type=SpanTypes.HTTP,
-    ) as span:
-        set_service_and_source(span, trace_utils.ext_service(pin, config.algoliasearch), config.algoliasearch)
-        span._set_attribute(COMPONENT, config.algoliasearch.integration_name)
-
-        # set span.kind to the type of request being performed
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    with tracer.trace(_operation_name(), span_type=SpanTypes.HTTP) as span:
+        configure_search_span(span, pin)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
-            return func(*wrapt_args, **wrapt_kwargs)
+            return wrapped(*args, **kwargs)
 
-        if config.algoliasearch.collect_query_text:
-            span._set_attribute("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
-
-        query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
-
-        if query_args and isinstance(query_args, dict):
-            for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
-                value = query_args.get(query_arg)
-                if value is not None:
-                    span.set_tag("query.args.{}".format(tag_name), value)
-
-        # Result would look like this
-        # {
-        #   'hits': [
-        #     {
-        #       .... your search results ...
-        #     }
-        #   ],
-        #   'processingTimeMS': 1,
-        #   'nbHits': 1,
-        #   'hitsPerPage': 20,
-        #   'exhaustiveNbHits': true,
-        #   'params': 'query=xxx',
-        #   'nbPages': 1,
-        #   'query': 'xxx',
-        #   'page': 0
-        # }
-        result = func(*wrapt_args, **wrapt_kwargs)
-
-        if isinstance(result, dict):
-            if result.get("processingTimeMS", None) is not None:
-                span._set_attribute("processing_time_ms", int(result["processingTimeMS"]))
-
-            if result.get("nbHits", None) is not None:
-                span._set_attribute("number_of_hits", int(result["nbHits"]))
-
+        tag_search_request(span, request)
+        result = wrapped(*args, **kwargs)
+        tag_search_result(span, result, request)
         return result
+
+
+async def _trace_search_async(
+    wrapped: Callable[..., Awaitable[Any]],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    request: SearchRequest,
+) -> Any:
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await wrapped(*args, **kwargs)
+
+    with tracer.trace(_operation_name(), span_type=SpanTypes.HTTP) as span:
+        configure_search_span(span, pin)
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+            return await wrapped(*args, **kwargs)
+
+        tag_search_request(span, request)
+        result = await wrapped(*args, **kwargs)
+        tag_search_result(span, result, request)
+        return result
+
+
+def _operation_name() -> str:
+    return schematize_cloud_api_operation(
+        "algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"
+    )
