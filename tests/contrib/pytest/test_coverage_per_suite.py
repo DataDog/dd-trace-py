@@ -1,4 +1,5 @@
 import os
+import sys
 from unittest import mock
 
 import pytest
@@ -17,8 +18,16 @@ from tests.contrib.pytest.utils import _get_span_coverage_data
 
 
 _USE_PLUGIN_V2 = True
+_USE_FILE_LEVEL_COVERAGE_DEFAULT = sys.version_info >= (3, 12)
 
 pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
+
+
+def _assert_file_level_coverage(coverage_data, expected_files):
+    assert sorted(coverage_data.keys()) == expected_files
+    for file_name in expected_files:
+        assert coverage_data[file_name]
+        assert coverage_data[file_name][0][0] == 0
 
 
 class PytestTestCase(PytestTestCaseBase):
@@ -96,7 +105,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with (
-            _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}),
+            _ci_override_env(
+                {
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
+                }
+            ),
             mock.patch(
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
                 return_value=TestVisibilityAPISettings(True, False, False, True),
@@ -118,21 +132,24 @@ class PytestTestCase(PytestTestCaseBase):
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
         assert len(first_suite_coverage) == 3
         if _USE_PLUGIN_V2:
-            assert first_suite_coverage["/test_cov.py"] == [
-                (1, 2),
-                (4, 5),
-                (7, 9),
-                (11, 13),
-                (16, 17),
-                (20, 22),
-                (24, 25),
-                (28, 31),
-                (33, 36),
-                (39, 42),
-                (44, 45),
-            ]
-            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
-            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+            if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+                _assert_file_level_coverage(first_suite_coverage, ["/lib_fn.py", "/ret_false.py", "/test_cov.py"])
+            else:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 17),
+                    (20, 22),
+                    (24, 25),
+                    (28, 31),
+                    (33, 36),
+                    (39, 42),
+                    (44, 45),
+                ]
+                assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+                assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
 
         else:
             assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9), (12, 13), (21, 22), (35, 36)]
@@ -144,8 +161,11 @@ class PytestTestCase(PytestTestCaseBase):
         second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
         assert len(second_suite_coverage) == 2
         if _USE_PLUGIN_V2:
-            assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
-            assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
+            if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+                _assert_file_level_coverage(second_suite_coverage, ["/ret_false.py", "/test_cov_second.py"])
+            else:
+                assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
+                assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
         else:
             assert second_suite_coverage["test_cov_second.py"] == [(4, 5)]
             assert second_suite_coverage["ret_false.py"] == [(2, 2)]
@@ -232,9 +252,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         if _USE_PLUGIN_V2:
             assert len(first_suite_coverage) == 3
-            assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
-            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
-            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+            if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+                _assert_file_level_coverage(first_suite_coverage, ["/lib_fn.py", "/ret_false.py", "/test_cov.py"])
+            else:
+                assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
+                assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+                assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
             assert second_suite_span._get_struct_tag(COVERAGE_TAG_NAME) is None
         else:
             assert len(first_suite_coverage) == 3

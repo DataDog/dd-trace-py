@@ -5769,9 +5769,9 @@
     ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
