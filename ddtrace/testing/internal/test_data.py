@@ -392,6 +392,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def __init__(self, name: str):
         super().__init__(name=name, parent=None)  # type: ignore
         self.tests_skipped_by_itr = 0
+        self.itr_correlation_id: t.Optional[str] = None
         self.itr_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST

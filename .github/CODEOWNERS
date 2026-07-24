@@ -152,6 +152,7 @@ ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
+ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
 # tests files
 tests/aiguard/                      @DataDog/asm-python
@@ -163,14 +164,16 @@ scripts/iast/*                      @DataDog/asm-python
 
 
 # Profiling
-ddtrace/profiling                            @DataDog/profiling-python
-ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
-ddtrace/internal/settings/profiling.pyi      @DataDog/profiling-python
-ddtrace/internal/datadog/profiling           @DataDog/profiling-python
-tests/profiling                              @DataDog/profiling-python
-.github/workflows/profiling-native.yml       @DataDog/profiling-python
-.gitlab/tests/profiling.yml                  @DataDog/profiling-python
-.github/workflows/pytorch_gpu_tests.yml      @DataDog/profiling-python
+ddtrace/profiling                                 @DataDog/profiling-python
+ddtrace/internal/settings/profiling.py            @DataDog/profiling-python
+ddtrace/internal/settings/profiling.pyi           @DataDog/profiling-python
+ddtrace/internal/datadog/profiling                @DataDog/profiling-python
+tests/profiling                                   @DataDog/profiling-python
+.github/workflows/profiling-native.yml            @DataDog/profiling-python
+.gitlab/tests/profiling.yml                       @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
+.github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
+
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
@@ -340,3 +343,6 @@ docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-
 supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python
+
+# Benchmarks CI setup
+/.gitlab/benchmarks             @DataDog/python-guild @DataDog/apm-core-python @DataDog/apm-ecosystems-performance
