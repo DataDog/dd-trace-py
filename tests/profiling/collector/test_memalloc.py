@@ -1733,22 +1733,19 @@ def test_mem_domain_mem_overhead() -> None:
         objs = [_make_mem_domain_object(size) for _ in range(200)]
         del objs
 
-    def time_obj_only() -> float:
+    def time_churn(mem_domain_enabled: bool) -> float:
+        # Run the *same* MEM-domain churn in both cases so the only difference is
+        # whether the MEM-domain hooks are installed. This isolates the overhead of
+        # enabling ``mem_domain_enabled`` rather than conflating it with a different
+        # workload.
         t0 = time.perf_counter()
         for _ in range(rounds):
-            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=False):
-                _allocate_1k()
-        return time.perf_counter() - t0
-
-    def time_mem_on() -> float:
-        t0 = time.perf_counter()
-        for _ in range(rounds):
-            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True):
+            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=mem_domain_enabled):
                 churn_mem_domain()
         return time.perf_counter() - t0
 
-    obj_elapsed = time_obj_only()
-    mem_elapsed = time_mem_on()
+    obj_elapsed = time_churn(mem_domain_enabled=False)
+    mem_elapsed = time_churn(mem_domain_enabled=True)
 
     # Generous ceiling: MEM hooks should not exceed 10× OBJ-only on this micro-bench.
     assert mem_elapsed < 10 * max(obj_elapsed, 1e-9), (
