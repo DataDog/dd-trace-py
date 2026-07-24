@@ -60,6 +60,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 |-------|---------|
 | `run-tests` | Running any tests or validating code changes. **Never run pytest directly.** |
 | `lint` | Formatting, style/type/security checks, or before committing. **Never skip before commits.** |
+| `type-annotate` | Adding type hints to new or modified Python code; run before commit with `lint typing`. |
 | `releasenote` | Creating or updating release notes for the current branch. |
 | `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
 | `compare-cpython-versions` | Comparing CPython source between two Python versions. |
