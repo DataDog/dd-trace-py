@@ -1,0 +1,7 @@
+features:
+  - |
+    profiling: Add experimental, opt-in native (C/C++) heap allocation profiling that
+    integrates with the Datadog eBPF profiler, enabled via
+    ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``. Profile collection and processing run
+    outside the application process. Allocation-only in this release, with live heap
+    tracking planned for the future. It is a no-op when disabled.
