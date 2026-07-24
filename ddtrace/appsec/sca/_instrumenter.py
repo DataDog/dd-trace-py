@@ -43,27 +43,34 @@ _lazy_hooks_lock = Lock()
 
 
 def _first_instr_line(code: types.CodeType) -> int:
-    """Return the line number of the first real bytecode instruction.
+    """Return the line number of the first instrumentable body instruction.
 
-    On Python <3.11, co_firstlineno is the ``def`` line, which has no
-    bytecode instructions.  inject_hook needs the first *instruction*
-    line, which is the first line of the function body.
+    inject_hook needs the first line of the function *body*, not the ``def``
+    line. The ``def`` line (``co_firstlineno``) carries the function prologue
+    (e.g. ``RESUME`` on 3.11+, which is attributed to that line on 3.13+), which
+    is not an instrumentable line: ``linenos()`` -- used by ``inject_hook`` to
+    validate the target line -- explicitly excludes ``co_firstlineno``. We must
+    therefore skip any leading instruction attributed to the ``def`` line and
+    return the first body line, keeping this consistent with what
+    ``inject_hook`` accepts.
 
-    In CPython, ``dis.Instruction.starts_line`` is typically the absolute
-    line number (or ``None``).  We also defensively handle instruction
-    objects that expose a ``line_number`` attribute and prefer it when
-    present before falling back to ``starts_line``.
+    In CPython, ``dis.Instruction.line_number`` (3.13+) is the absolute line
+    number (or ``None``). On older versions we fall back to ``starts_line``,
+    which is the absolute line number as an ``int`` (on 3.15+ it is instead a
+    ``bool`` flag, so we ignore it there and rely on ``line_number``).
     """
     import dis
 
     for instr in dis.get_instructions(code):
         # Prefer explicit line_number when provided by the instruction object.
-        line = getattr(instr, "line_number", None)
-        if line is not None:
-            return line
-        # Otherwise use starts_line when it carries the absolute line number.
-        if instr.starts_line is not None and isinstance(instr.starts_line, int):
-            return instr.starts_line
+        line: Optional[int] = getattr(instr, "line_number", None)
+        if line is None:
+            starts_line: bool | int | None = instr.starts_line
+            if isinstance(starts_line, int) and not isinstance(starts_line, bool):
+                line = starts_line
+        if line is None or line == code.co_firstlineno:
+            continue
+        return line
     return code.co_firstlineno
 
 

@@ -6,18 +6,28 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import bootstrap
-from ddtrace.profiling import profiler
 
 
 LOG = get_logger(__name__)
 
 
 def start_profiler() -> None:
+    try:
+        from ddtrace.profiling import profiler
+    except ImportError as e:
+        LOG.warning(
+            "The Datadog Profiler could not be started because native extensions are not "
+            "available on this Python version: %s",
+            e,
+        )
+        return
+
     if hasattr(bootstrap, "profiler"):
         bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
 
     # Export the profiler so we can introspect it if needed
-    bootstrap.profiler = profiler.Profiler()  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+    profiler_instance = profiler.Profiler()
+    bootstrap.profiler = profiler_instance  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     bootstrap.profiler.start()  # type: ignore[attr-defined]  # pyright: ignore[reportCallIssue]
 
 
