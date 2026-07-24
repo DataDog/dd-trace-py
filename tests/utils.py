@@ -30,7 +30,6 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
@@ -598,13 +597,11 @@ class DummyWriterMixin:
         self.spans: list[Span] = []
         self.traces: list[list[Span]] = []
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
-            # with both encoders
             traces = [spans]
             self.spans += spans
             self.traces += traces
@@ -645,8 +642,6 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             if self.trace_flush_enabled:
                 self._inner_writer.write(spans)
 

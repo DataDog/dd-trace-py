@@ -50,7 +50,8 @@ from ..utils.formats import parse_tags_str
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
-from .writer_client import WRITER_CLIENTS
+from .writer_client import DEFAULT_API_VERSION
+from .writer_client import SUPPORTED_API_VERSIONS
 from .writer_client import AgentlessWriterClient
 from .writer_client import WriterClientBase
 
@@ -773,13 +774,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
-        if self._api_version not in WRITER_CLIENTS:
+        if self._api_version not in SUPPORTED_API_VERSIONS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",
                 self._api_version,
-                ", ".join(sorted(WRITER_CLIENTS.keys())),
+                ", ".join(sorted(SUPPORTED_API_VERSIONS)),
             )
-            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
+            self._api_version = DEFAULT_API_VERSION
 
         super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
