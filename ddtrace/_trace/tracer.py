@@ -412,7 +412,7 @@ class Tracer(object):
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
-            core.dispatch("ddtrace.context_provider.activate", (active,))
+            core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
     def _recreate(
         self,
@@ -635,11 +635,16 @@ class Tracer(object):
         return span
 
     def _on_span_finish(self, span: Span) -> None:
-        active = self.current_span()
-        # Debug check: if the finishing span has a parent and its parent
-        # is not the next active span then this is an error in synchronous tracing.
-        if span._parent is not None and active is not span._parent:
-            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
+        # PERF: active() pops finished spans off the active context (via _update_active), so it must
+        # run unconditionally. Skip current_span()'s extra isinstance check when debug logging is off.
+        active = self.context_provider.active()
+        if log.isEnabledFor(logging.DEBUG):
+            # Debug check: if the finishing span has a parent and its parent
+            # is not the next active span then this is an error in synchronous tracing.
+            if span._parent is not None and active is not span._parent:
+                log.debug(
+                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                )
 
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
