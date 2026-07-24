@@ -1,5 +1,7 @@
 #include "profiler_stats.hpp"
 
+#include "profiler_state.hpp"
+
 #include <charconv>
 
 namespace {
@@ -12,16 +14,37 @@ append_to_string(std::string& s, size_t value)
     s.append(buf, ptr);
 }
 
-void
-append_optional_bool(std::string& s, const char* key, const std::optional<bool>& value)
+std::optional<bool>
+resolve_fast_copy_bool(const std::optional<bool>& stat_value, bool snapshot_value, bool snapshot_initialized)
 {
-    if (!value.has_value()) {
-        return;
+    if (stat_value.has_value()) {
+        return stat_value;
     }
+    if (snapshot_initialized) {
+        return snapshot_value;
+    }
+    return std::nullopt;
+}
+
+bool
+resolve_fast_copy_bool_or_default(const std::optional<bool>& stat_value,
+                                  bool snapshot_value,
+                                  bool snapshot_initialized,
+                                  bool default_value)
+{
+    if (const auto resolved = resolve_fast_copy_bool(stat_value, snapshot_value, snapshot_initialized)) {
+        return *resolved;
+    }
+    return default_value;
+}
+
+void
+append_bool(std::string& s, const char* key, bool value)
+{
     s += '"';
     s += key;
     s += "\": ";
-    s += *value ? "true" : "false";
+    s += value ? "true" : "false";
     s += ',';
 }
 
@@ -116,6 +139,30 @@ Datadog::ProfilerStats::get_fast_copy_memory_syscall_fallback() const
 }
 
 void
+Datadog::ProfilerStats::set_fast_copy_memory_desired(bool desired)
+{
+    fast_copy_memory_desired = desired;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_desired() const
+{
+    return fast_copy_memory_desired;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_foreign_takeover(bool takeover)
+{
+    fast_copy_memory_foreign_takeover = takeover;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_foreign_takeover() const
+{
+    return fast_copy_memory_foreign_takeover;
+}
+
+void
 Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
 {
     if (auto value = other.get_fast_copy_memory_user_disabled()) {
@@ -126,6 +173,12 @@ Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
     }
     if (auto value = other.get_fast_copy_memory_syscall_fallback()) {
         set_fast_copy_memory_syscall_fallback(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_desired()) {
+        set_fast_copy_memory_desired(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_foreign_takeover()) {
+        set_fast_copy_memory_foreign_takeover(*value);
     }
     if (auto value = other.get_fast_copy_memory_enabled()) {
         set_fast_copy_memory_enabled(*value);
@@ -262,17 +315,40 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     append_to_string(internal_metadata_json, sampling_event_count);
     internal_metadata_json += ",";
 
-    auto maybe_fast_copy_enabled = get_fast_copy_memory_enabled();
-    if (maybe_fast_copy_enabled) {
-        internal_metadata_json += R"("fast_copy_memory_enabled": )";
-        internal_metadata_json += *maybe_fast_copy_enabled ? "true" : "false";
-        internal_metadata_json += ",";
-    }
-
-    append_optional_bool(internal_metadata_json, "fast_copy_memory_user_disabled", fast_copy_memory_user_disabled);
-    append_optional_bool(internal_metadata_json, "fast_copy_memory_capable", fast_copy_memory_capable);
-    append_optional_bool(
-      internal_metadata_json, "fast_copy_memory_syscall_fallback", fast_copy_memory_syscall_fallback);
+    const auto& fast_copy_snapshot = ProfilerState::get().fast_copy_metadata;
+    append_bool(
+      internal_metadata_json,
+      "fast_copy_memory_enabled",
+      resolve_fast_copy_bool_or_default(
+        fast_copy_memory_enabled, fast_copy_snapshot.enabled, fast_copy_snapshot.snapshot_initialized, false));
+    append_bool(internal_metadata_json,
+                "fast_copy_memory_user_disabled",
+                resolve_fast_copy_bool_or_default(fast_copy_memory_user_disabled,
+                                                  fast_copy_snapshot.user_disabled,
+                                                  fast_copy_snapshot.snapshot_initialized,
+                                                  false));
+    append_bool(
+      internal_metadata_json,
+      "fast_copy_memory_capable",
+      resolve_fast_copy_bool_or_default(
+        fast_copy_memory_capable, fast_copy_snapshot.capable, fast_copy_snapshot.snapshot_initialized, false));
+    append_bool(internal_metadata_json,
+                "fast_copy_memory_syscall_fallback",
+                resolve_fast_copy_bool_or_default(fast_copy_memory_syscall_fallback,
+                                                  fast_copy_snapshot.syscall_fallback,
+                                                  fast_copy_snapshot.snapshot_initialized,
+                                                  false));
+    append_bool(
+      internal_metadata_json,
+      "fast_copy_memory_desired",
+      resolve_fast_copy_bool_or_default(
+        fast_copy_memory_desired, fast_copy_snapshot.desired, fast_copy_snapshot.snapshot_initialized, false));
+    append_bool(internal_metadata_json,
+                "fast_copy_memory_foreign_takeover",
+                resolve_fast_copy_bool_or_default(fast_copy_memory_foreign_takeover,
+                                                  fast_copy_snapshot.foreign_takeover,
+                                                  fast_copy_snapshot.snapshot_initialized,
+                                                  false));
 
     auto maybe_heap_tracker_count = get_heap_tracker_size();
     if (maybe_heap_tracker_count) {

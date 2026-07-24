@@ -53,6 +53,37 @@ def uvloop_available() -> bool:
         return False
 
 
+def wait_for_fast_copy_upgrade(stack: Any, timeout: float = 10.0, *, require_warmup: bool = True) -> tuple[bool, bool]:
+    """Wait until warmup (syscall copy) then upgrade to safe_memcpy.
+
+    Returns (saw_warmup, saw_upgrade). When process_vm_readv is unavailable the
+    sampler may skip warmup and stay on safe_memcpy (saw_warmup=False).
+    """
+    import time
+
+    saw_warmup = False
+    saw_upgrade = False
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        active = stack.fast_copy_memory_active()
+        if not saw_warmup:
+            if active is False:
+                saw_warmup = True
+        elif active is True:
+            saw_upgrade = True
+            break
+        time.sleep(0.05)
+
+    # When process_vm_readv is unavailable the sampler skips warmup and stays on safe_memcpy.
+    if not saw_upgrade and stack.fast_copy_memory_active():
+        saw_upgrade = True
+
+    if require_warmup:
+        assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
+    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
+    return saw_warmup, saw_upgrade
+
+
 class ProfilerContextManager:
     def __init__(self) -> None:
         self.profiler = profiler.Profiler()

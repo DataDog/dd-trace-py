@@ -814,7 +814,10 @@ ThreadInfo::update_cpu_time()
 }
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
+for_each_thread(EchionSampler& echion,
+                InterpreterInfo& interp,
+                const PyThreadStateCallback& callback,
+                const std::function<bool()>& continue_sampling)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -823,6 +826,10 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
     threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
 
     while (!threads.empty()) {
+        if (!continue_sampling()) {
+            break;
+        }
+
         // Pop the next thread
         PyThreadState* tstate_addr = *threads.begin();
         threads.erase(threads.begin());

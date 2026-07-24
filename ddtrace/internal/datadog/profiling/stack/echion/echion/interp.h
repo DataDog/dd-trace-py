@@ -30,4 +30,7 @@ class InterpreterInfo
 };
 
 void
-for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback);
+for_each_interp(
+  _PyRuntimeState* runtime,
+  const std::function<void(InterpreterInfo& interp)>& callback,
+  const std::function<bool()>& continue_sampling = []() { return true; });
