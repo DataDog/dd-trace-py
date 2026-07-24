@@ -455,7 +455,6 @@ stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args)
         set_debug_stat(dict, "configured", stats.configured) != 0 ||
         set_debug_stat(dict, "active", stats.active) != 0 ||
         set_debug_stat(dict, "permanently_disabled", stats.permanently_disabled) != 0 ||
-        set_debug_stat(dict, "replacing_wall_cpu", stats.replacing_wall_cpu) != 0 ||
         set_debug_stat(dict, "interval_ms", stats.interval_ms) != 0 ||
         set_debug_stat(dict, "live_count", stats.live_count) != 0 ||
         set_debug_stat(dict, "retired_count", stats.retired_count) != 0 ||

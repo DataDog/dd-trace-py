@@ -231,11 +231,11 @@ static_assert(std::atomic<CaptureState*>::is_always_lock_free,
 struct EngineState
 {
     std::atomic<bool> configured{ false };
+    bool configuration_frozen = false;
     std::atomic<bool> active{ false };
     std::atomic<bool> started_once{ false };
     std::atomic<bool> stopped_once{ false };
     std::atomic<bool> permanently_disabled{ false };
-    std::atomic<bool> replacing_wall_cpu{ false };
     std::atomic<bool> fault_injection_enabled{ false };
     std::atomic<uint64_t> interval_ms{ kDefaultIntervalMs };
 
@@ -284,7 +284,6 @@ cpu_timer_process_exit()
     // Keep this lock-free and allocation-free: late SIGPROF delivery should either be ignored by the kernel or
     // dropped by cpu_timer_signal_handler before touching per-thread CPython state.
     const bool was_active = g_state.active.exchange(false, std::memory_order_acq_rel);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     if (!was_active) {
         return;
     }
@@ -752,7 +751,6 @@ disable_all_timers_for_hijack()
     }
     g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
     g_state.active.store(false, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     g_state.permanently_disabled.store(true, std::memory_order_release);
     disable_all_timers_locked();
 }
@@ -765,7 +763,6 @@ disable_all_timers_for_health_locked()
     }
     g_state.health_disable_count.fetch_add(1, std::memory_order_relaxed);
     g_state.active.store(false, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     g_state.permanently_disabled.store(true, std::memory_order_release);
     disable_all_timers_locked();
 }
@@ -775,7 +772,6 @@ disable_all_timers_for_blocked_signal()
 {
     std::lock_guard<std::mutex> lock(g_state.registry_lock);
     g_state.active.store(false, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     disable_all_timers_locked();
 }
 
@@ -1058,6 +1054,10 @@ void
 Engine::configure(bool enabled, uint64_t interval_ms)
 {
 #if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (g_state.configuration_frozen) {
+        return;
+    }
     if (interval_ms < kMinIntervalMs) {
         interval_ms = kMinIntervalMs;
     }
@@ -1073,8 +1073,15 @@ bool
 Engine::start()
 {
 #if DD_CPU_TIMER_SUPPORTED
-    if (!g_state.configured.load(std::memory_order_acquire)) {
-        return false;
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        // AIDEV-NOTE: The environment-selected CPU accounting mode is immutable after
+        // the first sampler start. Runtime timer failures stop timer samples, but must
+        // not make the wall sampler begin reporting CPU time with a different mechanism.
+        g_state.configuration_frozen = true;
+        if (!g_state.configured.load(std::memory_order_acquire)) {
+            return false;
+        }
     }
     if (g_state.permanently_disabled.load(std::memory_order_acquire) ||
         g_state.stopped_once.load(std::memory_order_acquire) ||
@@ -1114,7 +1121,6 @@ Engine::start()
     }
     g_state.started_once.store(true, std::memory_order_release);
     g_state.active.store(true, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     return true;
 #else
     return false;
@@ -1131,7 +1137,6 @@ Engine::shutdown(EchionSampler& echion)
             return;
         }
         g_state.active.store(false, std::memory_order_release);
-        g_state.replacing_wall_cpu.store(false, std::memory_order_release);
         g_state.stopped_once.store(true, std::memory_order_release);
 
         for (auto it = g_state.live_by_thread_id.begin(); it != g_state.live_by_thread_id.end();) {
@@ -1158,7 +1163,6 @@ Engine::disable_for_fault_handler_swap()
     }
     g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
     g_state.active.store(false, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     g_state.permanently_disabled.store(true, std::memory_order_release);
     disable_all_timers_locked();
 #endif
@@ -1172,7 +1176,6 @@ Engine::postfork_child()
     std::lock_guard<std::mutex> lock(g_state.registry_lock);
     const bool was_active = g_state.active.load(std::memory_order_acquire);
     g_state.active.store(false, std::memory_order_release);
-    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
 
     const pid_t current_tid = raw_gettid();
     for (auto& item : g_state.live_by_thread_id) {
@@ -1209,7 +1212,6 @@ Engine::postfork_child()
             // g_cookie and are handled normally; foreign SIGPROF is dropped in the child.
             g_state.has_previous_sigprof.store(false, std::memory_order_release);
             g_state.active.store(true, std::memory_order_release);
-            g_state.replacing_wall_cpu.store(false, std::memory_order_release);
         } else {
             unregister_profiling_fault_recover(cpu_timer_fault_recover);
             g_state.permanently_disabled.store(true, std::memory_order_release);
@@ -1308,7 +1310,6 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         unregister_thread(python_thread_id);
         return;
     }
-    g_state.replacing_wall_cpu.store(true, std::memory_order_release);
 #else
     (void)python_thread_id;
     (void)native_id;
@@ -1330,9 +1331,6 @@ Engine::unregister_thread(uint64_t python_thread_id)
     g_state.live_by_thread_id.erase(it);
     const bool current_thread = raw_gettid() == static_cast<pid_t>(state->native_tid);
     retire_state_locked(std::move(state), current_thread);
-    if (g_state.live_by_thread_id.empty()) {
-        g_state.replacing_wall_cpu.store(false, std::memory_order_release);
-    }
 #else
     (void)python_thread_id;
 #endif
@@ -1412,16 +1410,6 @@ Engine::drain(EchionSampler& echion)
 }
 
 bool
-Engine::replaces_wall_sampler_cpu_time() const
-{
-#if DD_CPU_TIMER_SUPPORTED
-    return g_state.replacing_wall_cpu.load(std::memory_order_acquire);
-#else
-    return false;
-#endif
-}
-
-bool
 Engine::configured_enabled() const
 {
 #if DD_CPU_TIMER_SUPPORTED
@@ -1450,7 +1438,6 @@ Engine::debug_stats() const
     stats.configured = g_state.configured.load(std::memory_order_acquire);
     stats.active = g_state.active.load(std::memory_order_acquire);
     stats.permanently_disabled = g_state.permanently_disabled.load(std::memory_order_acquire);
-    stats.replacing_wall_cpu = g_state.replacing_wall_cpu.load(std::memory_order_acquire);
     stats.interval_ms = g_state.interval_ms.load(std::memory_order_acquire);
     stats.pending_unprepared = g_state.pending_unprepared.load(std::memory_order_relaxed);
     stats.app_altstack_present = g_state.app_altstack_present.load(std::memory_order_relaxed);

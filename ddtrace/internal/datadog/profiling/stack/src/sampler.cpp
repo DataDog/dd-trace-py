@@ -358,6 +358,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Mark thread as running
     thread_running.store(true);
 
+    // The configured CPU accounting mode is frozen before this thread starts. If
+    // the CPU timer engine later degrades, wall sampling continues to report only
+    // wall time instead of switching CPU accounting mechanisms during the run.
+    const bool include_wall_sampler_cpu_time = !CpuTimer::Engine::get().configured_enabled();
+
     seed_fast_copy_profiler_stats();
 
     // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
@@ -503,7 +508,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // Reset per-cycle asyncio task accumulator before iterating sampled threads.
                 echion->reset_asyncio_task_count();
 
-                const bool include_wall_sampler_cpu_time = !CpuTimer::Engine::get().replaces_wall_sampler_cpu_time();
                 capture_samples(wall_time_us, include_wall_sampler_cpu_time);
 
                 // Collect greenlet count before acquiring the profile lock to avoid

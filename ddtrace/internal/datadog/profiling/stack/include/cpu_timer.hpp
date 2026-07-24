@@ -17,7 +17,6 @@ struct DebugStats
     bool configured = false;
     bool active = false;
     bool permanently_disabled = false;
-    bool replacing_wall_cpu = false;
     uint64_t interval_ms = 0;
     uint64_t live_count = 0;
     uint64_t retired_count = 0;
@@ -65,7 +64,6 @@ class Engine
     bool has_thread(uint64_t python_thread_id, uint64_t native_id) const;
     void drain(EchionSampler& echion);
 
-    bool replaces_wall_sampler_cpu_time() const;
     bool configured_enabled() const;
     microsecond_t drain_interval_us() const;
 

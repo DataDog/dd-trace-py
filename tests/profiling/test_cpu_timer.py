@@ -512,8 +512,60 @@ def test_cpu_timer_stop_then_restart_does_not_rearm_same_process():
     assert first_stats["live_count"] >= 1, first_stats
     assert restart_stats["configured"] is True, restart_stats
     assert restart_stats["active"] is False, restart_stats
-    assert restart_stats["replacing_wall_cpu"] is False, restart_stats
     assert restart_stats["live_count"] == 0, restart_stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_immutable_configuration",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "2",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_configuration_is_immutable_after_sampler_start():
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    initial_stats = stack._cpu_timer_debug_stats()
+
+    stack.set_cpu_timer(False, 100)
+    changed_stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert initial_stats["configured"] is True, initial_stats
+    assert changed_stats["configured"] is True, changed_stats
+    assert changed_stats["interval_ms"] == initial_stats["interval_ms"], changed_stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_immutable_disabled_configuration",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "0",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_disabled_cpu_timer_configuration_cannot_be_enabled_after_sampler_start():
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    initial_stats = stack._cpu_timer_debug_stats()
+
+    stack.set_cpu_timer(True, 2)
+    changed_stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert initial_stats["configured"] is False, initial_stats
+    assert changed_stats["configured"] is False, changed_stats
+    assert changed_stats["active"] is False, changed_stats
 
 
 @pytest.mark.subprocess(
@@ -545,7 +597,6 @@ def test_cpu_timer_does_not_arm_when_fault_signal_is_blocked():
 
     assert stats["blocked_signal_count"] > 0, stats
     assert stats["live_count"] == 0, stats
-    assert stats["replacing_wall_cpu"] is False, stats
 
 
 @pytest.mark.subprocess(
@@ -704,12 +755,14 @@ def test_cpu_timer_forwards_foreign_sigprof_to_previous_handler():
     err=None,
 )
 @pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
-def test_cpu_timer_disables_when_sigprof_handler_is_replaced():
+def test_cpu_timer_disables_when_sigprof_handler_is_replaced_without_wall_cpu_fallback():
+    import os
     import signal
     import time
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
 
     def burn_cpu(duration_ns):
         deadline = time.thread_time_ns() + duration_ns
@@ -718,19 +771,42 @@ def test_cpu_timer_disables_when_sigprof_handler_is_replaced():
             value += 1
         return value
 
+    def burn_cpu_after_timer_disable():
+        return burn_cpu(300_000_000)
+
     p = profiler.Profiler()
     p.start()
     assert burn_cpu(100_000_000) > 0
 
     signal.signal(signal.SIGPROF, lambda signum, frame: None)
-    time.sleep(0.2)
+    deadline = time.monotonic() + 2.0
     stats = stack._cpu_timer_debug_stats()
+    while stats["active"] and time.monotonic() < deadline:
+        time.sleep(0.01)
+        stats = stack._cpu_timer_debug_stats()
+    assert burn_cpu_after_timer_disable() > 0
     p.stop()
 
     assert stats["handler_hijack_disable_count"] > 0, stats
     assert stats["permanently_disabled"] is True, stats
     assert stats["active"] is False, stats
-    assert stats["replacing_wall_cpu"] is False, stats
+
+    # Timer CPU mode is fixed for this profiler run. Once the timer engine is
+    # disabled, wall sampling continues but must not start reporting CPU time.
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    cpu_time_after_timer_disable = 0
+    for sample in profile.sample:
+        if sample.value[cpu_time_index] <= 0:
+            continue
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[function.name] == "burn_cpu_after_timer_disable":
+                cpu_time_after_timer_disable += sample.value[cpu_time_index]
+                break
+
+    assert cpu_time_after_timer_disable == 0
 
 
 @pytest.mark.subprocess(
@@ -763,4 +839,3 @@ def test_cpu_timer_disables_when_fault_handler_is_replaced():
     assert stats["handler_hijack_disable_count"] > 0, stats
     assert stats["permanently_disabled"] is True, stats
     assert stats["active"] is False, stats
-    assert stats["replacing_wall_cpu"] is False, stats

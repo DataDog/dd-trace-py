@@ -50,6 +50,15 @@ experiment. Adaptive sampling controls only wall-stack collection, so it can
 reduce wall sampling frequency to compensate for CPU timer drain and rendering
 cost.
 
+The configured CPU accounting mode is immutable after the sampler first starts.
+When CPU timer mode is configured, periodic wall samples report wall time only,
+and successfully armed per-thread timers report CPU time. A thread-specific
+timer registration failure leaves a CPU coverage gap but does not affect timers
+for other threads. If the timer engine later disables itself for safety, wall
+sampling continues without CPU time instead of switching CPU accounting
+mechanisms during the profiler run. When CPU timer mode is not configured, wall
+samples report both wall and CPU time as before.
+
 
 5. Core implementation details
 ------------------------------
@@ -197,9 +206,11 @@ Current mitigations:
   blocks off-CPU where the per-thread CPU timer does not advance. They pass
   (no `EINTR`), which is the recorded result for the current Linux targets.
 - Run native-heavy ecosystem workloads before enabling this more broadly.
-- Permanently disable CPU-timer mode if health windows show a sustained high
-  rate of capture failures or ring overflows. This keeps pathological
-  environments from emitting failure-only timer traffic indefinitely.
+- Permanently disable the CPU timer engine if health windows show a sustained
+  high rate of capture failures or ring overflows. This keeps pathological
+  environments from emitting failure-only timer traffic indefinitely. The
+  configured accounting mode remains unchanged, so this does not enable
+  wall-sampled CPU time during the same profiler run.
 
 Required hardening before considering broader rollout:
 
@@ -237,6 +248,20 @@ Required hardening before considering broader rollout:
 
 9. Compatibility and fallback behavior
 --------------------------------------
+
+CPU accounting mode is selected from configuration before the sampling thread
+starts and remains fixed for the process lifetime. CPU timer mode uses
+best-effort per-thread registration: one thread's `timer_create` or
+`timer_settime` failure does not disable successfully armed timers, and the
+failed thread does not fall back to wall-sampled CPU time. Registration can be
+retried during later thread reconciliation.
+
+Process-wide safety failures, such as losing the profiler's signal handlers,
+can permanently stop the timer engine. Wall-stack collection continues, but it
+does not begin reporting CPU time. This avoids mixing accounting mechanisms and
+prevents stale wall-CPU baselines from overlapping previously emitted timer CPU
+samples. Debug counters must make timer registration failures and permanent
+engine disablement observable during the private experiment.
 
 
 10. Validation
