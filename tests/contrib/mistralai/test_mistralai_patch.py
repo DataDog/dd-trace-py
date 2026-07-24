@@ -17,17 +17,23 @@ class TestMistralAIPatch(PatchTestCase.Base):
     def assert_module_patched(self, mistralai):
         self.assert_wrapped(mistralai.chat.Chat.complete)
         self.assert_wrapped(mistralai.chat.Chat.complete_async)
+        self.assert_wrapped(mistralai.chat.Chat.stream)
+        self.assert_wrapped(mistralai.chat.Chat.stream_async)
         self.assert_wrapped(mistralai.embeddings.Embeddings.create)
         self.assert_wrapped(mistralai.embeddings.Embeddings.create_async)
 
     def assert_not_module_patched(self, mistralai):
         self.assert_not_wrapped(mistralai.chat.Chat.complete)
         self.assert_not_wrapped(mistralai.chat.Chat.complete_async)
+        self.assert_not_wrapped(mistralai.chat.Chat.stream)
+        self.assert_not_wrapped(mistralai.chat.Chat.stream_async)
         self.assert_not_wrapped(mistralai.embeddings.Embeddings.create)
         self.assert_not_wrapped(mistralai.embeddings.Embeddings.create_async)
 
     def assert_not_module_double_patched(self, mistralai):
         self.assert_not_double_wrapped(mistralai.chat.Chat.complete)
         self.assert_not_double_wrapped(mistralai.chat.Chat.complete_async)
+        self.assert_not_double_wrapped(mistralai.chat.Chat.stream)
+        self.assert_not_double_wrapped(mistralai.chat.Chat.stream_async)
         self.assert_not_double_wrapped(mistralai.embeddings.Embeddings.create)
         self.assert_not_double_wrapped(mistralai.embeddings.Embeddings.create_async)

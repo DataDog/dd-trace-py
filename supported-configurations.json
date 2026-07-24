@@ -1481,6 +1481,13 @@
         ]
       }
     ],
+    "DD_DYNAMIC_INSTRUMENTATION_CAPTURE_TIMEOUT_MS": [
+      {
+        "implementation": "C",
+        "type": "int",
+        "default": "150"
+      }
+    ],
     "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL": [
       {
         "implementation": "A",
@@ -1493,6 +1500,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_DYNAMIC_INSTRUMENTATION_EVALUATION_TIMEOUT_MS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50"
       }
     ],
     "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE": [
@@ -5694,6 +5708,14 @@
         "implementation": "A",
         "type": "int",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

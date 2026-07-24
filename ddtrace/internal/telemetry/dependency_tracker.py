@@ -18,7 +18,8 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
-from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 from . import modules
 from .dependency import DependencyEntry
@@ -46,10 +47,8 @@ class DependencyTracker:
 
     All mutable access is protected by an internal lock.
 
-    SCA-enabled state is read from ``tracer_config._sca_enabled`` so
-    it reacts dynamically to Remote Configuration changes instead of
-    relying on a one-time snapshot.  The DependencyEntry.metadata field
-    state drives the wire format:
+    SCA-enabled state is read from the AppSec telemetry configuration.
+    The DependencyEntry.metadata field state drives the wire format:
     - metadata is None  -> entry serialized without "metadata" key
     - metadata is not None -> entry serialized with "metadata" key
     SCA product is responsible for setting metadata to [] on existing
@@ -67,7 +66,7 @@ class DependencyTracker:
         When a dependency has unsent metadata (attached by the SCA hook),
         it is re-reported with ALL metadata (sent + unsent) per the RFC.
         """
-        if not config.DEPENDENCY_COLLECTION:
+        if not telemetry_config.DEPENDENCY_COLLECTION:
             return None
 
         with self._lock:
@@ -83,9 +82,7 @@ class DependencyTracker:
             # scan over all _imported_dependencies is pure overhead (~887us
             # at 10K deps).  Only entries created by the SCA hook or with
             # metadata attached can trigger needs_report() after initial send.
-            from ddtrace.internal.settings._config import config as tracer_config
-
-            if not tracer_config._sca_enabled:
+            if not appsec_telemetry_config.SCA_ENABLED:
                 return new_deps if new_deps else None
 
             re_report_deps = self._collect_rereports(new_keys)
@@ -140,10 +137,8 @@ class DependencyTracker:
 
         Caller must hold self._lock.
         """
-        from ddtrace.internal.settings._config import config as tracer_config
-
         key = _normalize_dep_name(package_name)
-        if key not in self._imported_dependencies and tracer_config._sca_enabled:
+        if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
             try:
                 from importlib.metadata import version as importlib_metadata_version
 
@@ -198,7 +193,7 @@ class DependencyTracker:
 
         Called by the SCA product on start.  Sets metadata from None to []
         on all existing entries so the wire format includes the "metadata"
-        key.  Future entries pick up the flag from tracer_config._sca_enabled.
+        key. Future entries pick up the flag from AppSec telemetry configuration.
         """
         with self._lock:
             for entry in self._imported_dependencies.values():
@@ -222,24 +217,20 @@ def update_imported_dependencies(
     newly discovered package.  Returns the list of serialized dependency
     dicts ready for the ``app-dependencies-loaded`` telemetry payload.
 
-    SCA-enabled state is read from ``tracer_config._sca_enabled`` so it
-    reacts dynamically to Remote Configuration changes.
+    SCA-enabled state is read from ``appsec_telemetry_config.SCA_ENABLED``.
 
     NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
     DependencyTracker instead.
 
     Defensive: on interpreter shutdown or partial teardown, ``importlib.metadata``
-    and ``sys.path`` resolution can fail, and even the ``tracer_config`` import
-    itself may raise once ``sys.modules`` starts being torn down.  Any exception
-    is swallowed so the telemetry path never propagates to ``sys.excepthook``.
+    and ``sys.path`` resolution can fail. Any exception is swallowed so the
+    telemetry path never propagates to ``sys.excepthook``.
     """
     try:
-        from ddtrace.internal.settings._config import config as tracer_config
-
-        sca_enabled = tracer_config._sca_enabled
+        sca_enabled = appsec_telemetry_config.SCA_ENABLED
     except Exception:
-        log.debug("update_imported_dependencies: failed to read tracer config", exc_info=True)
+        log.debug("update_imported_dependencies: failed to read AppSec telemetry config", exc_info=True)
         return []
 
     deps: list[dict] = []
