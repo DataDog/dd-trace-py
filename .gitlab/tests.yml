@@ -40,6 +40,31 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
+
+        case "${SUITE_NAME:-}" in
+          tests/internal|tests/telemetry|tests/tracer)
+            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=true
+            ;;
+          *)
+            export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false
+            ;;
+        esac
+
+        if [[ "${DD_TRACE_PY_ENABLE_ITR_FOR_JOB}" == "true" ]] \
+          && [[ "${PYTHON_VERSION:-}" =~ ^3\.(12|13|14|15)($|-) ]]; then
+          export DD_CIVISIBILITY_ITR_ENABLED=true
+          export _DD_COVERAGE_FILE_LEVEL=true
+
+          if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
+            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
+          else
+            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=false
+          fi
+        else
+          export DD_CIVISIBILITY_ITR_ENABLED=false
+          export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
+        fi
+
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
