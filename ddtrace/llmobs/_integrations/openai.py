@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -21,6 +22,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
@@ -210,6 +212,42 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
         except Exception:
             log.debug("Error applying shadow metrics for realtime span %s", span, exc_info=True)
+
+    def _llmobs_set_tags_from_realtime_tool(
+        self,
+        span: Span,
+        parent_span: Optional[Span],
+        name: str,
+        call_id: str,
+        arguments: Any,
+        result: Any,
+        session_id: Optional[str] = None,
+        error: bool = False,
+    ) -> None:
+        """Tag a tool-kind child span for a single Realtime function/MCP call.
+
+        The span is nested under its emitting turn's span via an explicit LLMObs ``parent_id`` /
+        ``trace_id`` (stamped here rather than relying on the active context, which has already moved
+        on by the time a client tool result lands). Input is the call arguments, output the result.
+        """
+        if error:
+            span.error = 1
+        parent_id = str(parent_span.span_id) if parent_span is not None else None
+        trace_id = None
+        if parent_span is not None:
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
+        _annotate_llmobs_span_data(
+            span,
+            name=name or "tool",
+            kind="tool",
+            parent_id=parent_id,
+            trace_id=trace_id,
+            session_id=session_id,
+            # Pass raw values; _annotate_llmobs_span_data serializes them (avoid double-encoding).
+            input_value=arguments if arguments is not None else "",
+            output_value=result if result is not None else "",
+            metadata={"tool_id": call_id} if call_id else None,
+        )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
