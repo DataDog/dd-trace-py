@@ -34,13 +34,13 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
 
     def on_context_started(ctx: core.ExecutionContext):
         event: TracingEvent = ctx.event
-        event.tags[COMPONENT] = event.component
+        event.attributes[COMPONENT] = event.component
 
         ctx.set_item("span_name", event.operation_name)
         ctx.set_item("span_type", event.span_type)
         ctx.set_item("resource", event.resource)
         ctx.set_item("service", event.service)
-        ctx.set_item("tags", event.tags)
+        ctx.set_item("tags", event.attributes)
 
         _start_span(ctx)
 
@@ -81,7 +81,7 @@ def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
         span_kind="client",
         service="svc",
         resource="test.resource",
-        tags={"my-tag": "my-value"},
+        attributes={"my-tag": "my-value", "my-metric": 1.5},
     )
 
     with core.context_with_event(event):
@@ -96,3 +96,4 @@ def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
     assert span._get_str_attribute(COMPONENT) == "comp"
     assert span._get_str_attribute("span.kind") == "client"
     assert span._get_str_attribute("my-tag") == "my-value"
+    assert span.get_metric("my-metric") == 1.5

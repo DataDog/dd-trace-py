@@ -6198,6 +6198,40 @@
         "type": "boolean",
         "default": "false"
       }
+    ],
+    "DD_TRACE_AIO_PIKA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_AIO_PIKA_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_AIO_PIKA_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AIO_PIKA_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_AIO_PIKA_SERVICE_NAME": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AIO_PIKA_SERVICE"
+        ]
+      }
     ]
   }
 }

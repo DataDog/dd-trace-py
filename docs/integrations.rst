@@ -10,6 +10,13 @@ aiobotocore
 .. automodule:: ddtrace.contrib.internal.aiobotocore
 
 
+.. _aio-pika:
+
+aio-pika
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aio_pika
+
+
 .. _aiopg:
 
 aiopg

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import ClassVar
 from typing import Mapping
 from typing import Optional
@@ -39,7 +40,7 @@ class TracingEvent(Event):
     # while still enforcing the value
     operation_name: str = field(init=False)
 
-    tags: dict[str, str] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
     _end_span: bool = field(default=True, init=False)
 
@@ -60,7 +61,7 @@ class TracingEvent(Event):
         operation_name: str,
         span_type: str,
         span_kind: str,
-        tags: Optional[Mapping[str, str]] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
         activate: bool = True,
         use_active_context: bool = True,
         service: Optional[str] = None,
@@ -79,7 +80,7 @@ class TracingEvent(Event):
         event = cls(
             component=component,
             integration_config=integration_config,
-            tags=dict(tags or {}),
+            attributes=dict(attributes or {}),
             activate=activate,
             use_active_context=use_active_context,
             service=service,
