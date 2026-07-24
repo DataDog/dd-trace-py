@@ -1,4 +1,5 @@
 import copy
+import ctypes
 import os
 import platform
 import subprocess
@@ -74,6 +75,13 @@ if __name__ == "__main__":
     else:
         # Skip the test for 32-bit Linux systems
         print("Skipping test, 32-bit DDWAF not ready yet")
+
+    if platform.system() == "Linux":
+        from ddtrace.internal.native import _native
+
+        print("Running OTel thread context symbol smoke test...")
+        ctypes.c_void_p.in_dll(ctypes.CDLL(_native.__file__), "otel_thread_ctx_v1")
+        print("OTel thread context symbol smoke test completed successfully")
 
     # Profiling smoke test
     if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32):

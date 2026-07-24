@@ -1324,7 +1324,10 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    with mock.patch.object(logging.Logger, "debug") as mock_logger:
+    with (
+        mock.patch.object(logging.Logger, "debug") as mock_logger,
+        mock.patch.object(logging.Logger, "isEnabledFor", return_value=True),
+    ):
         s1.finish()
         s2.finish()
 
