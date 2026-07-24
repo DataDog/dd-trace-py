@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    opentelemetry: Adds ``add_span_processor()`` and ``force_flush()`` to ``ddtrace.opentelemetry.TracerProvider``,
+    mirroring the ``opentelemetry.sdk.trace.TracerProvider`` interface. Span processors registered via
+    ``add_span_processor()`` receive ``on_start`` and ``on_end`` callbacks for every span created through
+    the provider. Multiple processors are called synchronously in registration order.
+    Also introduces ``ddtrace.opentelemetry.SpanProcessor`` (a compatible base class) and
+    ``ddtrace.opentelemetry.SynchronousMultiSpanProcessor`` as public API.
