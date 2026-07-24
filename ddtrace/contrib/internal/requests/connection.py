@@ -5,6 +5,12 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
+
+# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# urllib3-layer subscriber to skip its own injection while requests calls into
+# the real Session.send; _wrap_send is one of its permitted setters. See the
+# ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -146,9 +152,16 @@ def _wrap_send(func, instance, args, kwargs):
         ),
     ) as ctx:
         response = None
+        # Suppress the nested urllib3 wrapper's injection: on_started above already
+        # injected propagation headers into this same `request.headers` dict, and
+        # urllib3.urlopen (called internally by Session.send) receives it by
+        # reference, so a second injection would overwrite the parent-id/traceparent
+        # to point at the inner, unmeasured urllib3 span instead of this span.
+        token = _http_propagation_suppressed.set(True)
         try:
             response = func(*args, **kwargs)
             return response
         finally:
+            _http_propagation_suppressed.reset(token)
             if response is not None:
                 ctx.event.set_response(response)
