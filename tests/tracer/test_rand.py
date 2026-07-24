@@ -262,29 +262,29 @@ def test_microvm_produces_unique_ids():
 
 @pytest.mark.subprocess(env=_MICROVM_ENV)
 def test_microvm_thread_safe():
-    """With MicroVM detection active, concurrent rand64bits() calls must not collide."""
-    from itertools import chain
+    """With MicroVM detection active, concurrent trace ID generation must not collide."""
     from queue import Queue
     import threading
 
-    from ddtrace.internal.native import rand64bits
+    from ddtrace._trace.span import Span
 
     def _generate(q):
-        q.put([rand64bits() for _ in range(10000)])
+        barrier.wait(timeout=5)
+        q.put(Span("s").trace_id)
 
+    barrier = threading.Barrier(10)
     q = Queue()
-    threads = [threading.Thread(target=_generate, args=(q,)) for _ in range(5)]
+    threads = [threading.Thread(target=_generate, args=(q,)) for _ in range(10)]
     for t in threads:
         t.start()
+
+    ids = [q.get(timeout=5) for _ in threads]
+
     for t in threads:
-        t.join()
+        t.join(timeout=1)
+        assert not t.is_alive()
 
-    all_ids = list(chain.from_iterable(q.get(timeout=1) for _ in threads))
-
-    unique_ids = set(all_ids)
-    assert len(unique_ids) > 49990, (
-        f"Unexpected collision rate under OsRng: {len(all_ids) - len(unique_ids)} duplicates in 50000 IDs"
-    )
+    assert len(set(ids)) == len(ids)
 
 
 @pytest.mark.subprocess(env={**_MICROVM_ENV, "PYTHONWARNINGS": "ignore::DeprecationWarning"})

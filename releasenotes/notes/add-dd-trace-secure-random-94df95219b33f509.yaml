@@ -1,10 +1,5 @@
 ---
 features:
   - |
-    tracing: Trace and span ID generation now automatically uses the operating system's
-    cryptographic random number generator (``getrandom(2)``) when running inside an AWS Lambda
-    MicroVM environment (detected via the ``AWS_LAMBDA_MICROVM_IMAGE_ARN`` environment variable).
-    This prevents deterministic ID duplication across Firecracker-based environments where process
-    memory is cloned from a snapshot, and the existing fork-safety reseed hook cannot detect the
-    duplication. No configuration is required; the behavior activates automatically when
-    ``AWS_LAMBDA_MICROVM_IMAGE_ARN`` is set and non-empty. #18017
+    tracing: Trace and span IDs are now generated more safely in AWS Lambda MicroVM environments,
+    reducing the risk of duplicate IDs. No configuration is required. #18017
