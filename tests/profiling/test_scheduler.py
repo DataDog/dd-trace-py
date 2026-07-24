@@ -3,6 +3,8 @@ import logging
 import time
 from unittest import mock
 
+import pytest
+
 from ddtrace.profiling import scheduler
 
 
@@ -30,12 +32,15 @@ def test_before_flush():
     assert x["OK"]
 
 
-def test_before_flush_failure(caplog):
-    def call_me():
+def test_before_flush_failure(caplog: pytest.LogCaptureFixture) -> None:
+    def call_me() -> None:
         raise Exception("LOL")
 
     s = scheduler.Scheduler(before_flush=call_me)
-    s.flush()
+    # Patch ddup.upload so the test only checks scheduler logging behaviour and
+    # doesn't attempt a real upload (which would log a writer error and pollute caplog).
+    with mock.patch("ddtrace.profiling.scheduler.ddup.upload"):
+        s.flush()
     assert caplog.record_tuples == [
         (("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed"))
     ]
