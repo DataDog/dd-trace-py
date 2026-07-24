@@ -7,10 +7,10 @@ from typing import Any  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace import _monkey
-from ddtrace.internal import _config_facts
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
@@ -88,9 +88,9 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             # This also doesn't load work in all cases since we don't always
             # name the configuration entry the same as the integration module
             # name :/
-            config = _config_facts.remote_config(module, "N/A")
+            module_config = config._config.get(module, "N/A")
         else:
-            config = None
+            module_config = None
 
         if module_available:
             integration_configs[module] = dict(
@@ -98,7 +98,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
                 instrumented=module_instrumented,
                 module_version=packages_available[module],
                 module_imported=module_imported,
-                config=config,
+                config=module_config,
             )
 
     pip_version = packages_available.get("pip", "N/A")
@@ -122,17 +122,17 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         agent_url=agent_url,
         agent_error=agent_error,
         statsd_url=agent_config.dogstatsd_url,
-        env=_config_facts.env() or "",
-        ddtrace_enabled=_config_facts.tracing_enabled(),
+        env=config.env or "",
+        ddtrace_enabled=config.tracing_enabled,
         sampling_rules=sampling_rules,
-        service=_config_facts.service() or "",
+        service=config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in env.get("PYTHONPATH", ""),
-        log_injection_enabled=_config_facts.logs_injection(),
-        health_metrics_enabled=_config_facts.health_metrics_enabled(),
+        log_injection_enabled=config.logs_injection,
+        health_metrics_enabled=config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
-        dd_version=_config_facts.version() or "",
-        global_tags=tags_to_str(_config_facts.tags()),
+        dd_version=config.version or "",
+        global_tags=tags_to_str(config.tags),
         tracer_tags=tags_to_str(tracer_info.tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer_info.partial_flush_enabled,
@@ -140,8 +140,8 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,
-        remote_config_enabled=_config_facts.remote_config_enabled(),
-        config_endpoint=_config_facts.from_endpoint(),
+        remote_config_enabled=config.remote_config_enabled,
+        config_endpoint=config.from_endpoint,
         crashtracking_enabled=crashtracker_config.enabled,
         gitmetadata_enabled=gitmetadata.config.enabled,
         git_repository_url=git_repository_url,
