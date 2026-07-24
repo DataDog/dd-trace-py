@@ -290,6 +290,18 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
+  tracer-uwsgi:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/uwsgi-app.py
+      - tests/contrib/uwsgi/__init__.py
+    pattern: tracer-uwsgi
+    retry: 2
   vendor:
     parallelism: 1
     paths:
