@@ -173,10 +173,10 @@ class ExecutionContext(Generic[EventType]):
         **kwargs,
     ) -> None:
         self.identifier: str = identifier
-        self._data: dict[str, Any] = {}
+        self._data: dict[str, Any] = kwargs
         self._event: Optional["EventType"] = event
-        self._suppress_exceptions: list[type] = []
-        self._data.update(kwargs)
+        # PERF: most contexts never suppress exceptions; allocate the list lazily.
+        self._suppress_exceptions: Optional[list[type]] = None
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
@@ -187,7 +187,7 @@ class ExecutionContext(Generic[EventType]):
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         try:
-            dispatch("context.started.%s" % self.identifier, (self,))
+            dispatch("context.started." + self.identifier, (self,))
         except BaseException:
             # If dispatch raises, __exit__ won't be called — reset the context ourselves
             # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
@@ -215,6 +215,11 @@ class ExecutionContext(Generic[EventType]):
             raise ValueError("Cannot overwrite ExecutionContext parent")
         self._parent = value
 
+    def add_suppress_exception(self, exc_type: type) -> None:
+        if self._suppress_exceptions is None:
+            self._suppress_exceptions = []
+        self._suppress_exceptions.append(exc_type)
+
     def __exit__(
         self,
         exc_type: Optional[type],
@@ -223,7 +228,7 @@ class ExecutionContext(Generic[EventType]):
     ) -> bool:
         if self._dispatch_end_event and not self._end_event_dispatched:
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
-            dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
         try:
             if self._token is not None:
@@ -239,7 +244,7 @@ class ExecutionContext(Generic[EventType]):
         return (
             True
             if exc_type is None
-            else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
+            else bool(self._suppress_exceptions and any(issubclass(exc_type, t) for t in self._suppress_exceptions))
         )
 
     def dispatch_ended_event(
@@ -254,7 +259,7 @@ class ExecutionContext(Generic[EventType]):
         """
         if self._end_event_dispatched:
             return
-        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
@@ -381,7 +386,7 @@ def context_with_event(
 
 
 def add_suppress_exception(exc_type: type) -> None:
-    _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
+    _CURRENT_CONTEXT.get().add_suppress_exception(exc_type)
 
 
 def find_item(data_key: str, default: Optional[Any] = None) -> Any:
