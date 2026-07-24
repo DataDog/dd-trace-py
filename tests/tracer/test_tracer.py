@@ -7,6 +7,7 @@ import contextlib
 import gc
 import logging
 from os import getpid
+import sys
 import threading
 import time
 from unittest.case import SkipTest
@@ -889,6 +890,24 @@ def test_tracer_with_version(tracer):
     with override_global_config(dict(version="config.version")):
         with tracer.trace("test.span") as span:
             assert span.get_tag(VERSION_KEY) == "config.version"
+
+
+def test_tracer_with_version_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, the tracer must NOT set the "version" tag
+    # even if config.version is set
+    with override_global_config(dict(version="1.2.3")):
+        with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+            with tracer.trace("test.span") as span:
+                assert span.get_tag(VERSION_KEY) is None
+
+
+def test_tracer_with_env_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, the tracer must NOT set the "env" tag
+    # even if config.env is set
+    with override_global_config(dict(env="prod")):
+        with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+            with tracer.trace("test.span") as span:
+                assert span.get_tag(ENV_KEY) is None
 
 
 def test_tracer_with_env(tracer):
@@ -1871,6 +1890,44 @@ def test_fork_pid():
         os._exit(12)
 
     root.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="tracer metadata is stored in a memfd on Linux only")
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_fork_republishes_tracer_metadata_linux():
+    import os
+
+    import msgpack
+
+    import ddtrace.auto  # noqa
+    from ddtrace.internal.runtime import get_runtime_id
+
+    pid = os.fork()
+
+    if pid == 0:
+        metadata = []
+        for fd in os.listdir("/proc/self/fd"):
+            path = "/proc/self/fd/" + fd
+            try:
+                if not os.readlink(path).startswith("/memfd:datadog-tracer-info-"):
+                    continue
+                with open(path, "rb") as file:
+                    metadata.append(msgpack.unpackb(file.read(), raw=False))
+            except FileNotFoundError:
+                continue
+
+        runtime_id = None
+        for entry in metadata:
+            if "runtime_id" in entry:
+                runtime_id = entry["runtime_id"]
+                break
+
+        assert runtime_id == get_runtime_id()
+        os._exit(12)
+
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12

@@ -12,9 +12,11 @@ from types import FrameType
 from types import FunctionType
 from types import MethodType
 from types import MethodWrapperType
+from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Iterable
 from typing import Optional
 
@@ -29,7 +31,9 @@ from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
+from ddtrace.debugging._safety import safe_getattr
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
 
 
@@ -58,6 +62,71 @@ CALLABLE_TYPES = (
 )
 
 
+SIMPLE_TYPES: frozenset[type] = BUILTIN_SIMPLE_TYPES
+CONTAINER_TYPES: frozenset[type] = BUILTIN_CONTAINER_TYPES
+# Types the serializer renders with list-style ("[]") brackets.
+ARRAY_TYPES: frozenset[type] = frozenset((list, deque))
+
+NUMPY_SIMPLE_TYPES: frozenset[type] = frozenset()
+NDARRAY_TYPE: Optional[type] = None
+
+_NUMPY_SCALAR_TYPE_NAMES = (
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "float16",
+    "float32",
+    "float64",
+    "float96",
+    "float128",
+    # longdouble/clongdouble are always present, unlike the platform-dependent
+    # float128/complex256 aliases above.
+    "longdouble",
+    "clongdouble",
+    "complex64",
+    "complex128",
+    "complex192",
+    "complex256",
+)
+
+
+@ModuleWatchdog.after_module_imported("numpy")
+def _(numpy: ModuleType) -> None:
+    global SIMPLE_TYPES, CONTAINER_TYPES, ARRAY_TYPES, NUMPY_SIMPLE_TYPES, NDARRAY_TYPE
+
+    NUMPY_SIMPLE_TYPES = frozenset(getattr(numpy, n) for n in _NUMPY_SCALAR_TYPE_NAMES if hasattr(numpy, n))
+    NDARRAY_TYPE = getattr(numpy, "ndarray", None)
+    ndarray_set: frozenset[type] = frozenset() if NDARRAY_TYPE is None else frozenset((NDARRAY_TYPE,))
+
+    SIMPLE_TYPES = BUILTIN_SIMPLE_TYPES | NUMPY_SIMPLE_TYPES
+    CONTAINER_TYPES = BUILTIN_CONTAINER_TYPES | ndarray_set
+    ARRAY_TYPES = frozenset((list, deque)) | ndarray_set
+
+
+def _is_namedtuple_type(cls: type) -> bool:
+    mro = safe_getattr(cls, "__mro__", None)
+    if type(mro) is not tuple or len(mro) < 3:
+        return False
+
+    if not (mro[-2] is tuple or (mro[-2] is Generic and mro[-3] is tuple)):
+        return False
+
+    fields = safe_getattr(cls, "_fields", None)
+    return type(fields) is tuple and all(type(f) is str for f in fields)
+
+
+def _fields_of(value: Any) -> dict[str, Any]:
+    if _is_namedtuple_type(type(value)):
+        return dict(zip(value._fields, value))
+
+    return get_fields(value)
+
+
 def _serialize_collection(
     value: Collection[Any], brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
 ) -> str:
@@ -80,12 +149,16 @@ def serialize(
     if _isinstance(value, CALLABLE_TYPES):
         return object.__repr__(value)
 
-    if type(value) in BUILTIN_SIMPLE_TYPES:
+    if type(value) in SIMPLE_TYPES:
         r = repr(value)
         return "".join((r[:maxlen], "..." + ("'" if r[0] == "'" else "") if len(r) > maxlen else ""))
 
     if not level:
         return repr(type(value))
+
+    if type(value) is NDARRAY_TYPE and value.ndim == 0:
+        # A 0-dimensional array is a scalar; serialize its scalar item instead.
+        return serialize(value[()], level, maxsize, maxlen, maxfields)
 
     if type(value) in BUILTIN_MAPPING_TYPES:
         return "{%s}" % ", ".join(
@@ -99,7 +172,7 @@ def serialize(
                 for k, v in islice(value.items(), maxsize)
             )
         )
-    elif type(value) in {list, deque}:
+    elif type(value) in ARRAY_TYPES:
         return _serialize_collection(value, "[]", level, maxsize, maxlen, maxfields)
     elif type(value) is tuple:
         return _serialize_collection(value, "()", level, maxsize, maxlen, maxfields)
@@ -111,7 +184,7 @@ def serialize(
         ", ".join(
             (
                 "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                for k, v in islice(get_fields(value).items(), maxfields)
+                for k, v in islice(_fields_of(value).items(), maxfields)
                 if not redact(k)
             )
         ),
@@ -201,7 +274,10 @@ def capture_value(
 
     _type = type(value)
 
-    if _type in BUILTIN_SIMPLE_TYPES:
+    if redact_type(_type.__qualname__):
+        return redacted_type(_type)
+
+    if _type in SIMPLE_TYPES:
         if _type is NoneType:
             return {"type": "NoneType", "isNull": True}
 
@@ -227,7 +303,11 @@ def capture_value(
             }
         )
 
-    if _type in BUILTIN_CONTAINER_TYPES:
+    if _type in CONTAINER_TYPES:
+        if _type is NDARRAY_TYPE and value.ndim == 0:
+            # A 0-dimensional array is a scalar; capture its scalar item instead.
+            return capture_value(value[()], level, maxlen, maxsize, maxfields, stopping_cond)
+
         if level < 0:
             return {
                 "type": _type.__qualname__,
@@ -290,8 +370,13 @@ def capture_value(
             # the small path. For large collections only snapshot up to maxsize
             # to avoid materializing the whole collection when most of it would
             # be discarded anyway.
-            if size <= maxsize:
-                value_snapshot: Any = value if _type in {tuple, frozenset} else value.copy()
+            if _type is NDARRAY_TYPE:
+                # Slicing an ndarray returns a cheap view that shares the backing
+                # buffer, so we avoid deep-copying potentially huge arrays just to
+                # snapshot up to maxsize top-level elements.
+                value_snapshot: Any = value[:maxsize]
+            elif size <= maxsize:
+                value_snapshot = value if _type in {tuple, frozenset} else value.copy()
             else:
                 value_snapshot = islice(value, maxsize)
             try:
@@ -331,16 +416,13 @@ def capture_value(
             "notCapturedReason": "depth",
         }
 
-    if redact_type(_type.__qualname__):
-        return redacted_type(_type)
-
     if cond(value):
         return {
             "type": _type.__qualname__,
             "notCapturedReason": cond.__name__,
         }
 
-    fields = get_fields(value)
+    fields = _fields_of(value)
 
     # Capture exception chain for exceptions
     if _isinstance(value, BaseException):
