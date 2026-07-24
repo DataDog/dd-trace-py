@@ -3375,6 +3375,45 @@ def test_experiment_with_remote_evaluator(llmobs, test_dataset_one_record):
         assert result["assessment"] == "pass"
 
 
+def test_remote_evaluator_inference_uses_extended_timeout_without_retry():
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    client = LLMObsExperimentsClient(
+        interval=1.0,
+        timeout=5.0,
+        is_agentless=True,
+        _site="datadoghq.com",
+        _api_key="api-key",
+        _app_key="app-key",
+    )
+    response = Response(
+        status=200,
+        body=b'{"data":{"attributes":{"status":"OK","value":true,"assessment":"pass"}}}',
+    )
+
+    with (
+        mock.patch.object(client, "_request_once", return_value=response) as request_once,
+        mock.patch.object(client, "_request_with_retry") as request_with_retry,
+    ):
+        result = client.evaluator_infer("my-eval", {"span_input": "question", "span_output": "answer"})
+
+    request_once.assert_called_once_with(
+        "POST",
+        "/api/unstable/llm-obs/v1/evaluators/my-eval/infer",
+        {
+            "data": {
+                "type": "evaluator_inference",
+                "attributes": {"context": {"span_input": "question", "span_output": "answer"}},
+            }
+        },
+        timeout=client.REMOTE_EVALUATOR_TIMEOUT,
+    )
+    request_with_retry.assert_not_called()
+    assert result["value"] is True
+    assert result["assessment"] == "pass"
+
+
 def test_experiment_remote_evaluator_error_handling(llmobs, test_dataset_one_record):
     """Test that RemoteEvaluator errors are properly captured."""
     with mock.patch.object(

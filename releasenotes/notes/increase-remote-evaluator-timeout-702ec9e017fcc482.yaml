@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes remote evaluators timing out after 10 seconds when an inference
+    takes longer to complete.
