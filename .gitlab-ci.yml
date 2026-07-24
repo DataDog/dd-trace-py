@@ -422,6 +422,34 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+check_added_file_size:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
+
 
 "summarize failures":
   stage: .post

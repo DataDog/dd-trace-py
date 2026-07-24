@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from ddtrace.internal.datadog.profiling import stack as _stack_ext
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
@@ -245,5 +246,42 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     # This can cause segfaults if we do module clean up with later versions of
     # protobuf. This is a regression test.
     from google.protobuf import empty_pb2  # noqa:F401
+
+    print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
+    out="OK\n",
+    err=None,
+)
+def test_stack_profiler_foreign_segv_handler_detection() -> None:
+    # Regression test for PROF-14568: safe_memcpy's fault recovery needs us to own
+    # BOTH SIGSEGV and SIGBUS. segv_handler_installed() drives the sampler's
+    # detect-and-fallback decision; assert it flips when either signal is taken over.
+    import signal
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Our handler is installed by the extension's constructor on import.
+    assert stack.segv_handler_installed() is True
+
+    # A foreign component overwrites the SIGSEGV disposition: ownership must flip.
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
+
+    # Reclaiming the handler is detected too.
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
+
+    # Losing only SIGBUS is just as unsafe as losing SIGSEGV: the predicate must
+    # report we no longer own the handler even though SIGSEGV is still ours.
+    signal.signal(signal.SIGBUS, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
+
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
 
     print("OK")
