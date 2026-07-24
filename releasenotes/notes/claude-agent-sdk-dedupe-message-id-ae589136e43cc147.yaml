@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves a token double-counting issue in the Claude Agent SDK integration.
+    When the Claude Agent SDK split a single model turn into multiple ``AssistantMessage`` chunks that share a ``message_id``, the integration emitted one ``llm`` span per chunk and counted
+    the turn's token usage multiple times. Chunks sharing a ``message_id`` are now merged into a single ``llm``
+    span with the usage counted once. This applies to ``claude-agent-sdk`` 0.1.51 and later, which expose
+    ``message_id``; earlier versions retain the previous behavior.
