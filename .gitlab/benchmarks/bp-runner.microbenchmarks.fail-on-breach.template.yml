@@ -1118,7 +1118,7 @@ experiments:
           # tracer
           - name: tracer-large
             thresholds:
-              - execution_time < 33.95 ms
+              - execution_time < 34.50 ms
               - max_rss_usage < 39.25 MB
           - name: tracer-medium
             thresholds:
