@@ -63,9 +63,8 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         }
 
         if ctx.get_item(APPSEC_SSRF_ANALYZE_BODY_KEY):
-            if event.response is not None:
-                with contextlib.suppress(Exception):
-                    addresses["DOWN_RES_BODY"] = event.response.json()
+            if event.response_body is not None:
+                addresses["DOWN_RES_BODY"] = event.response_body
 
         call_waf_callback(
             addresses,

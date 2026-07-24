@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
+import inspect
+import json
 from typing import Callable
 from typing import Optional
 from typing import Union
@@ -7,6 +9,7 @@ from typing import Union
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
+from ddtrace.contrib._events.http import JsonType
 from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -38,7 +41,7 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     target_host: Optional[str] = event_field(default=None)
     retries_remain: Optional[Union[int, str]] = event_field(default=None)
     server_address: Optional[str] = event_field(default=None)
-    response: Optional[_HttpResponse] = event_field(default=None)
+    response_body: Optional[JsonType] = event_field(default=None)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
@@ -47,7 +50,20 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     def set_response(self, response: _HttpResponse) -> None:
         super().set_response(response)
-        self.response = response
+
+        # Capture only the parsed JSON body, never the response object itself.
+        # We explicitly skip response types where calling
+        # .json() would be unsafe: urllib3's raw HTTPResponse exposes `.data` (not `.content`) and
+        # reads a live stream a caller may still need, while aiohttp's ClientResponse.json() is
+        # async and can't be awaited from this synchronous hook.
+        if not getattr(response, "content", None):
+            return
+        if inspect.iscoroutinefunction(getattr(response, "json", None)):
+            return
+        try:
+            self.response_body = response.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self.response_body = None
 
 
 @dataclass
