@@ -167,3 +167,83 @@ def test_file_level_path_fast_path_preserves_nested_dynamic_import_dependencies(
     assert "tests/coverage/included_path/layer3_toplevel.py" in dynamic_files
     assert "tests/coverage/included_path/layer3_dynamic.py" in dynamic_files
     assert "tests/coverage/included_path/constants_dynamic.py" in dynamic_files
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.xfail(
+    reason="file-level mode currently publishes all bytecode import dependencies for a code object on PY_START",
+    strict=True,
+)
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
+def test_file_level_import_dependencies_do_not_include_unexecuted_branches():
+    """File-level import dependency expansion should only include imports from the branch that ran.
+
+    PY_START fires once for the whole function code object. If file-level mode publishes every import opcode found in
+    that code object, the unexecuted branch's pre-imported dependency is incorrectly attributed to this test.
+    """
+    import os
+    from pathlib import Path
+
+    def relpath_set(rootpath, paths):
+        root = Path(rootpath)
+        return {str(Path(path).relative_to(root)) for path in paths}
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Pre-import both dependencies so they are available as import-time coverage. The test context below only executes
+    # the branch that imports branch_dep_a, so branch_dep_b must not be attributed to it.
+    from tests.coverage.included_path import branch_dep_a  # noqa:F401
+    from tests.coverage.included_path import branch_dep_b  # noqa:F401
+    from tests.coverage.included_path.branch_import_dependencies import choose_dependency
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        assert choose_dependency(True) == "a"
+        covered_files = relpath_set(cwd_path, context.get_covered_file_paths())
+
+    assert "tests/coverage/included_path/branch_import_dependencies.py" in covered_files
+    assert "tests/coverage/included_path/branch_dep_a.py" in covered_files
+    assert "tests/coverage/included_path/branch_dep_b.py" not in covered_files
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.xfail(
+    reason="file-level import dependency tracking currently only scans IMPORT_NAME/IMPORT_FROM bytecode",
+    strict=True,
+)
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
+def test_file_level_importlib_import_module_dependency_is_included():
+    """File-level dependency expansion should include modules loaded via importlib.import_module.
+
+    Bytecode scanning only sees the importlib import itself, not the target module name string passed at runtime. If the
+    target dependency was pre-imported before the context, it is only reported when runtime import calls are tracked.
+    """
+    import os
+    from pathlib import Path
+
+    def relpath_set(rootpath, paths):
+        root = Path(rootpath)
+        return {str(Path(path).relative_to(root)) for path in paths}
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path import importlib_dep  # noqa:F401
+    from tests.coverage.included_path.importlib_dynamic_dependency import load_dependency
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        assert load_dependency() == "dynamic"
+        covered_files = relpath_set(cwd_path, context.get_covered_file_paths())
+
+    assert "tests/coverage/included_path/importlib_dynamic_dependency.py" in covered_files
+    assert "tests/coverage/included_path/importlib_dep.py" in covered_files
