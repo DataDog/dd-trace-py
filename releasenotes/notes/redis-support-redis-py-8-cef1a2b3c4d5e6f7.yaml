@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    redis: fixes cluster pipeline command extraction for ``redis-py`` versions that
+    store queued commands on ``instance._execution_strategy._command_queue`` instead
+    of the legacy ``command_stack`` attribute. This restores ``redis.pipeline_length``
+    and joined command string tags for cluster pipelines, with test coverage updated
+    through ``redis-py`` 8.0.1.

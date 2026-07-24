@@ -3,6 +3,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _get_cluster_pipeline_commands
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import determine_row_count
@@ -136,10 +137,7 @@ def instrumented_execute_command(integration_config):
 def instrumented_execute_pipeline(integration_config, is_cluster=False):
     def _instrumented_execute_pipeline(func, instance, args, kwargs):
         if is_cluster:
-            cmds = [
-                stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
-                for c in instance.command_stack
-            ]
+            cmds = _get_cluster_pipeline_commands(instance, integration_config.cmd_max_length)
         else:
             cmds = [
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)

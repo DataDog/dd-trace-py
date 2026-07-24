@@ -97,7 +97,7 @@ REDIS_CONFIG = {
 }
 
 REDISCLUSTER_CONFIG = {
-    "host": "127.0.0.1",
+    "host": os.getenv("TEST_REDISCLUSTER_HOST", "127.0.0.1"),
     "ports": os.getenv("TEST_REDISCLUSTER_PORTS", "7000,7001,7002,7003,7004,7005"),
 }
 
