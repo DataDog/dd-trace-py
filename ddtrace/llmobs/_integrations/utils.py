@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
@@ -388,16 +389,96 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
-    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
+# AIDEV-NOTE: Inline base64 counts toward the 5 MB per-event limit; one oversized image makes the
+# writer drop the whole span input+output (see _writer._truncate_span_event). Stopgap: skip capturing
+# an image whose base64 alone (~4.5 MB, leaving headroom) would risk that. Real fix: client-side
+# offload / image-aware truncation (follow-ups).
+_MAX_INLINE_IMAGE_B64_BYTES = 4_500_000
+
+
+def _estimate_b64_bytes(data: Union[bytes, str]) -> int:
+    """Approximate the serialized byte cost of a base64 image payload (raw bytes expand ~4/3)."""
+    return len(data) if isinstance(data, str) else (len(data) * 4) // 3
+
+
+class _InlineImageBudget:
+    """Cumulative budget for inline image bytes within a single request/span.
+
+    A per-image check alone misses several images that each fit but together exceed the 5 MB
+    per-event limit; this tracks the running total so their sum can't blow the cap either. Share one
+    instance across all messages/blocks of a request.
+
+    AIDEV-NOTE: This budget is image-only and approximate -- it counts inline image base64, not the
+    text, model output, tool schemas, or metadata that all share the same 5 MB event budget, and it
+    uses a length proxy for the serialized size. Applying the idea more broadly means one size-aware
+    budget over ALL span elements, enforced where the real sizes are known -- the writer
+    (``_writer._truncate_span_event``), which today blanks the whole input+output. There it could rank
+    fields by serialized size and shed only the largest (image OR text), preserving the rest. This
+    image-only guard is the stopgap until that lands. See MLOB-6408 follow-ups.
+    """
+
+    def __init__(self, limit: int = _MAX_INLINE_IMAGE_B64_BYTES) -> None:
+        self._remaining = limit
+
+    def take(self, data: Union[bytes, str]) -> bool:
+        """True (consuming budget) if this inline image fits the remaining budget; else False (skip it)."""
+        size = _estimate_b64_bytes(data)
+        if size <= self._remaining:
+            self._remaining -= size
+            return True
+        return False
+
+
+def _parse_base64_image_data_url(url: str) -> Optional[tuple[str, str]]:
+    """Parse a ``data:<mime>;base64,<payload>`` image URL into ``(mime_type, base64_payload)``.
+
+    Returns ``None`` for anything we do not inline: non-``data:`` URLs (remote http(s) images and
+    ``file_id`` references are not fetched -- capture is bytes-only), non-base64 data URLs, non-image
+    MIME types, or an empty payload.
+    """
+    if not isinstance(url, str) or not url.startswith("data:"):
+        return None
+    header, _, payload = url[len("data:") :].partition(",")
+    if not payload or ";base64" not in header:
+        return None
+    mime_type = header.split(";", 1)[0].strip().lower()
+    if not mime_type.startswith("image/"):
+        return None
+    return mime_type, payload
+
+
+def _extract_content_parts(
+    parts: list, image_budget: Optional["_InlineImageBudget"] = None
+) -> tuple[str, list[AudioPart], list[ImagePart]]:
+    """Extract readable text, audio, and image segments from multimodal content parts (text + image + audio).
+
+    ``image_budget`` bounds cumulative inline-image bytes; pass one shared instance across a request's
+    messages. A fresh per-call budget is used when omitted.
+    """
+    if image_budget is None:
+        image_budget = _InlineImageBudget()
     extracted = []
     audio_parts: list[AudioPart] = []
+    image_parts: list[ImagePart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append(IMAGE_FALLBACK_MARKER)
+            image_url = _get_attr(part, "image_url", {}) or {}
+            parsed = _parse_base64_image_data_url(_get_attr(image_url, "url", "") or "")
+            if parsed is not None:
+                mime_type, encoded = parsed
+                if image_budget.take(encoded):
+                    # Captured as a structured image_part; no text marker needed.
+                    image_parts.append(format_image_part(encoded, mime_type))
+                else:
+                    # Over the inline-image budget (individually or cumulatively): keep a distinct
+                    # marker so the text/response survive the size limit and the omission is greppable.
+                    extracted.append(IMAGE_TOO_LARGE_MARKER)
+            else:
+                # Remote URL / file_id: not fetched (bytes-only), so keep the "[image]" marker.
+                extracted.append(IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
             input_audio = _get_attr(part, "input_audio", {}) or {}
             data = _get_attr(input_audio, "data", "")
@@ -411,7 +492,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
                 extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted), audio_parts
+    return "\n".join(extracted), audio_parts, image_parts
 
 
 def openai_set_meta_tags_from_chat(
@@ -419,11 +500,14 @@ def openai_set_meta_tags_from_chat(
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
+    # One budget shared across all messages so cumulative inline-image bytes can't blow the event cap.
+    image_budget = _InlineImageBudget()
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
         audio_parts: list[AudioPart] = []
+        image_parts: list[ImagePart] = []
         if isinstance(raw_content, list):
-            content, audio_parts = _extract_content_parts(raw_content)
+            content, audio_parts, image_parts = _extract_content_parts(raw_content, image_budget)
         elif raw_content is None:
             content = ""
         else:
@@ -432,6 +516,8 @@ def openai_set_meta_tags_from_chat(
         processed_message: Message = Message(content=content, role=role)
         if audio_parts:
             processed_message["audio_parts"] = audio_parts
+        if image_parts:
+            processed_message["image_parts"] = image_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))

@@ -108,9 +108,11 @@ class AudioPart(TypedDict, total=False):
 
 class ImagePart(TypedDict, total=False):
     """An image on a Message: inline base64 ``content`` or an offloaded ``attachment_key``.
-     Note: inline ``content`` counts toward the 5 MB per-event size limit. When an event
-    exceeds that limit its entire input/output is replaced with a dropped-value placeholder) — there is no image-aware
-    truncation yet.
+
+    Note: inline ``content`` counts toward the 5 MB per-event size limit; when an event exceeds it the
+    whole input/output is replaced with a dropped-value placeholder. To avoid that, the integrations
+    skip capturing an inline image too large to fit the budget (individually or cumulatively) and keep
+    a text marker instead; there is no image-aware truncation in the writer yet.
     """
 
     mime_type: str
