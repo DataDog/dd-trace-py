@@ -127,6 +127,69 @@ def test_dbm_propagation_full_mode():
 
 @pytest.mark.subprocess(
     env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
+    # A local db span started under a remote (distributed) 128-bit context must carry the
+    # remote trace id in its full-mode DBM traceparent. The child span's context is a lazy
+    # copy of the remote parent-context that shares _meta (which holds the extracted W3C
+    # traceparent) by reference, so the remote 128-bit trace id is preserved even though the
+    # child's own context is local (not remote).
+    from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import tracer
+
+    remote_trace_id_hex = "deadbeefdeadbeef1234567890abcdef"  # 128-bit remote trace id
+    remote_ctx = HTTPPropagator.extract(
+        {
+            "traceparent": "00-%s-000000000000000a-01" % remote_trace_id_hex,
+            "tracestate": "dd=s:1;p:000000000000000a",
+        }
+    )
+    assert remote_ctx._is_remote is True
+
+    tracer.context_provider.activate(remote_ctx)
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        # since inject() below will call the sampler we just call the sampler here
+        # so sampling priority will align in the traceparent
+        tracer.sample(dbspan._local_root)
+
+        # the local child adopts the remote 128-bit trace id, but its own context is local
+        assert dbspan.trace_id == int(remote_trace_id_hex, 16)
+        assert dbspan.context._is_remote is False
+
+        # MECHANISM: the local child's context shares the remote context's _meta (which holds
+        # the extracted W3C traceparent) by reference — this is what carries the remote trace
+        # id through to DBM. A copy() that stopped sharing _meta would fail these directly.
+        assert dbspan.context._meta is remote_ctx._meta
+        assert W3C_TRACEPARENT_KEY in dbspan.context._meta
+
+        # full-mode DBM comment carries the remote 128-bit trace id via the traceparent.
+        # Build the expected traceparent from the LITERAL remote id (not read back from
+        # dbspan.context._traceparent, which would make the assertion self-referential).
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
+        expected_traceparent = "00-%s-%016x-%s" % (remote_trace_id_hex, dbspan.span_id, dbspan.context._traceflags)
+        assert (
+            sqlcomment
+            == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+            % (expected_traceparent,)
+        )
+
+        # the injected SQL comment carries the remote 128-bit trace id too
+        new_args, _ = dbm_propagator.inject(dbspan, ("SELECT 1;",), {})
+        injected_sql = new_args[0]
+        assert remote_trace_id_hex in injected_sql
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+
+
+@pytest.mark.subprocess(
+    env=dict(
         DD_DBM_PROPAGATION_MODE="service",
         DD_DBM_INJECT_SQL_BASEHASH="False",
         DD_SERVICE="orders-app",

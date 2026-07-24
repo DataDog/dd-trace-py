@@ -505,14 +505,17 @@ class Tracer(object):
         parent_id: Optional[int] = None
 
         if child_of is not None:
+            # Both Context and Span expose trace_id/span_id; reading them off the
+            # parent span (native) avoids materializing its Context here.
+            trace_id = child_of.trace_id
+            parent_id = child_of.span_id
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of.context
                 parent = child_of
-
-            trace_id = context.trace_id
-            parent_id = context.span_id
+                # PERF: reuse an existing context that already holds the shared
+                # trace-level state instead of building one Context per span.
+                context = child_of._context_for_child()
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name

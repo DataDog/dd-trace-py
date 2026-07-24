@@ -75,6 +75,28 @@ def test_inject(tracer):  # noqa: F811
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
 
+def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
+    """Injecting a deep child's context carries the trace-level _dd.p.* tags, origin,
+    and sampling priority (all shared trace state), with the child's OWN span_id as
+    the parent id — even though the child's context is materialized lazily.
+    """
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("root"):
+        with tracer.trace("child"):
+            with tracer.trace("grandchild") as grandchild:
+                headers = {}
+                HTTPPropagator.inject(grandchild.context, headers)
+
+                assert int(headers[HTTP_HEADER_PARENT_ID]) == grandchild.span_id
+                assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == 2
+                assert headers[HTTP_HEADER_ORIGIN] == "synthetics"
+                tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+                assert "_dd.p.test=value" in tags
+                assert "_dd.p.other=value" in tags
+
+
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")

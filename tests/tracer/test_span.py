@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
@@ -806,3 +807,96 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
     assert len(result) < 410  # Value is 377 for Python 3.10
+
+
+def test_root_span_context_built_eagerly():
+    """Root spans materialize their Context in ``__init__``; child spans stay lazy.
+
+    Correctness guard, not just perf: a root owns fresh, unshared trace-level
+    state, so building it lazily on first access would let two threads that first
+    read ``root.context`` concurrently create divergent Contexts with independent
+    ``_meta``/``_metrics``/``_baggage``, silently dropping sampling priority/
+    baggage/origin. Building eagerly in the creating thread — before the span is
+    published — makes that race impossible without a lock. A child's context is a
+    shared copy of its parent's, so a concurrent child build cannot lose state and
+    stays lazy.
+    """
+    root = Span("root")
+    assert root._context is not None, "root span must build its context eagerly (thread-safe, no race)"
+
+    child = Span("child", context=root.context)
+    assert child._context is None, "child span context must stay lazy"
+
+
+def test_context_for_child_reuses_own_built_context():
+    """A span whose context is already built hands that same context to a child."""
+    root = Span("root")
+    assert root._context_for_child() is root.context
+
+
+def test_context_for_child_reuses_local_parent_context_without_building():
+    """A child reuses its (local) parent-context directly, without materializing
+    its own context (the shared trace state is identical either way).
+    """
+    parent_ctx = Context(trace_id=1, span_id=2, is_remote=False)
+    child = Span("child", context=parent_ctx)
+    assert child._context is None
+    assert child._context_for_child() is parent_ctx
+    assert child._context is None, "reusing the parent-context must not build the child's own context"
+
+
+def test_context_for_child_never_hands_down_remote_context():
+    """A remote parent-context must not be handed to a local child; a fresh local
+    context is materialized instead so _is_remote/reactivation keep their meaning.
+    """
+    remote_ctx = Context(trace_id=1, span_id=2, is_remote=True)
+    entry = Span("entry", context=remote_ctx)
+    donor = entry._context_for_child()
+    assert donor is not remote_ctx
+    assert donor._is_remote is False
+    assert donor is entry.context
+
+
+def test_context_setter_hands_down_remote_context_unguarded():
+    """Characterizes the public ``context`` setter: it is NOT guarded against remote contexts.
+
+    ``_context_for_child()`` only refuses to hand down a remote *parent-context* supplied
+    through the constructor ``context=`` path; a context assigned through the public
+    ``context`` setter is returned to children as-is, remote flag and all. This matches the
+    pre-change behavior, where the parent's context was handed down unchanged. It is a known
+    sharp edge, not a supported pattern — documented here and deliberately NOT "fixed" in
+    production code.
+    """
+    s = Span("s")
+    s.context = Context(trace_id=1, span_id=2, is_remote=True)
+    donor = s._context_for_child()
+    assert donor is s.context
+    assert donor.trace_id == 1
+    assert donor._is_remote is True
+
+
+def test_child_context_id_capture_is_lazy_root_is_eager():
+    """Characterizes the current lazy-vs-eager id-capture timing for a span's Context.
+
+    A child span builds its context lazily on first ``.context`` read, so it captures
+    whatever ``span_id`` the span carries at that moment — a post-construction id mutation
+    is reflected. A root span builds its context eagerly in ``__init__``, so its context is
+    frozen at construction and a later id mutation is NOT reflected.
+
+    This is a tripwire for that timing difference, NOT an endorsement of mutating span ids
+    after construction (which is not a supported pattern).
+    """
+    # (a) lazy child: reflects a span_id set after construction, before first .context read
+    c = Span("c", context=Context(trace_id=1, span_id=2))
+    c.span_id = 555
+    assert c.context.span_id == 555
+
+    # (b) eager root: its context is built in __init__, so a span_id mutation AFTER
+    # construction is NOT reflected. Read the NATIVE id (not .context) for the baseline
+    # so we don't materialize the context early — on a (regressed) lazy root the context
+    # would be built at the .context read below and reflect 555, failing these asserts.
+    r = Span("r")
+    orig = r.span_id
+    r.span_id = 555
+    assert r.context.span_id == orig
+    assert r.context.span_id != 555
