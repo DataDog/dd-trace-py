@@ -84,9 +84,7 @@ class RuntimeWorker(periodic.PeriodicService):
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
-        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or agent_config.dogstatsd_url
-        )
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)

@@ -1,7 +1,6 @@
 from typing import Optional  # noqa:F401
 
-import ddtrace
-import ddtrace.internal.runtime.runtime_metrics
+from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
 
 
@@ -13,7 +12,7 @@ class _RuntimeMetricsStatus(type):
     def _enabled(_):
         # type: () -> bool
         """Runtime metrics enabled status."""
-        return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
+        return runtime_metrics.RuntimeWorker.enabled
 
 
 class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
@@ -41,7 +40,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         :param tracer: The tracer instance to correlate with.
         """
         telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(dogstatsd_url=dogstatsd_url)
+        runtime_metrics.RuntimeWorker.enable(dogstatsd_url=dogstatsd_url)
 
     @staticmethod
     def disable() -> None:
@@ -52,7 +51,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         again.
         """
         telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="code")
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
+        runtime_metrics.RuntimeWorker.disable()
 
 
 __all__ = ["RuntimeMetrics"]
