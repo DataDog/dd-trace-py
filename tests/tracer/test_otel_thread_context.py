@@ -96,7 +96,11 @@ def test_span_context_tracks_asyncio_task_switches(tracer: Tracer):
         await asyncio.gather(first(), second())
 
     try:
-        asyncio.run(run_tasks())
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(run_tasks())
+        finally:
+            loop.close()
     finally:
         if not was_patched:
             unpatch_asyncio()
@@ -121,7 +125,11 @@ def test_span_context_skips_finished_span_captured_by_asyncio_handle(tracer: Tra
             assert await callback_finished == parent.span_id
 
     try:
-        asyncio.run(run_callback())
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(run_callback())
+        finally:
+            loop.close()
     finally:
         if not was_patched:
             unpatch_asyncio()
