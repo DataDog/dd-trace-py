@@ -381,11 +381,18 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP/JSON endpoint for trace export.
+        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
+        """
+        Select the OTLP export protocol: "http/json" or "http/protobuf".
+        Any other value raises ValueError.
+        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
