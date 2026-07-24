@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Ensure that OpenTelemetry thread context is republished on asyncio task switches

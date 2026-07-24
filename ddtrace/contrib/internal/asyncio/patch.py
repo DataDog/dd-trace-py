@@ -1,5 +1,8 @@
 import asyncio
+from contextvars import Context
 from typing import Any
+from typing import Callable
+from typing import NoReturn
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
@@ -27,6 +30,7 @@ def patch():
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    wrap(asyncio.Handle._run, _wrapped_run_handle)
 
 
 def unpatch():
@@ -36,6 +40,25 @@ def unpatch():
         return
     asyncio._datadog_patch = False
     unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    unwrap(asyncio.Handle._run, _wrapped_run_handle)
+
+
+def _activate_context() -> None:
+    core.dispatch(
+        "ddtrace.context_provider.activate",
+        (tracer.context_provider, tracer.context_provider.active()),
+    )
+
+
+def _wrapped_run_handle(
+    wrapped: Callable[[asyncio.Handle], None], args: tuple[asyncio.Handle], kwargs: dict[str, NoReturn]
+) -> None:
+    ctx: Context = args[0]._context  # type: ignore[attr-defined]
+    ctx.run(_activate_context)
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        ctx.run(_activate_context)
 
 
 def _wrapped_create_task(wrapped, args, kwargs):
