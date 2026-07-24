@@ -1236,6 +1236,54 @@ def test_wrapping_context_lazy_unwrap_before_call():
     assert wc.count == 0
 
 
+def test_wrapping_context_lazy_no_memory_leak_uncalled():
+    import gc
+    import weakref as wr
+
+    dead_refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        DummyLazyWrappingContext(ephemeral).wrap()
+        return wr.ref(ephemeral)
+
+    for _ in range(5):
+        dead_refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive = sum(1 for r in dead_refs if r() is not None)
+    assert alive == 0, f"{alive} lazily-wrapped, never-invoked ephemeral function(s) were not garbage collected"
+
+
+def test_wrapping_context_lazy_no_memory_leak_invoked():
+    """Ephemeral functions lazily wrapped and then invoked (promoted to universal
+    wrapping) must still be garbage-collected once all external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    dead_refs = []
+
+    def make_wrap_and_call():
+        def ephemeral():
+            return 42
+
+        DummyLazyWrappingContext(ephemeral).wrap()
+        assert ephemeral() == 42
+        return wr.ref(ephemeral)
+
+    for _ in range(5):
+        dead_refs.append(make_wrap_and_call())
+
+    gc.collect()
+
+    alive = sum(1 for r in dead_refs if r() is not None)
+    assert alive == 0, f"{alive} lazily-wrapped, invoked ephemeral function(s) were not garbage collected"
+
+
 @pytest.mark.asyncio
 async def test_async_wrapper_frames_have_valid_linenos():
     """Regression test: async wrapping must not inject instructions with lineno=None.
