@@ -60,9 +60,6 @@ include:
           else
             export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=false
           fi
-        else
-          export DD_CIVISIBILITY_ITR_ENABLED=false
-          export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
         fi
 
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
