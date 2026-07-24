@@ -40,13 +40,33 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[dict[str, t.Any]] = None):
+# Golden ratio: consecutive Fibonacci numbers converge to this, so
+# `initial_wait * PHI**i` is the closed-form equivalent of scaling by the
+# i-th Fibonacci number. Mirrors ddtrace.internal.utils.retry.fibonacci_backoff_with_jitter
+# (not importable here: this venv skips the ddtrace dev install), minus the jitter,
+# which isn't needed for a local test-service health check.
+PHI = 1.618
+
+
+def try_until_timeout(
+    exception,
+    tries: int = 100,
+    timeout: float = 0.2,
+    max_timeout: t.Optional[float] = None,
+    args: t.Optional[dict[str, t.Any]] = None,
+):
     """Utility decorator that tries to call a check until there is a
-    timeout.  The default timeout is about 20 seconds.
+    timeout.  The wait between attempts grows following a Fibonacci
+    backoff (capped at ``max_timeout``, defaults to ``timeout * 3`` so
+    that callers relying on the old fixed-interval budget don't see it
+    balloon by default), so that repeated failures back off instead of
+    hammering the service at a fixed rate.
 
     """
     if not args:
         args = {}
+    if max_timeout is None:
+        max_timeout = timeout * 3
 
     def wrap(fn):
         def wrapper(**kwargs):
@@ -61,7 +81,10 @@ def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t
                     fn(**_kwargs)
                 except exception as e:
                     err = e
-                    time.sleep(timeout)
+                    if i < tries - 1:
+                        sleep_for = min(timeout * (PHI**i), max_timeout)
+                        log.info("Failed: %s. Retrying in %.1fs", e, sleep_for)
+                        time.sleep(sleep_for)
                 else:
                     break
             else:
@@ -177,8 +200,9 @@ def check_azurecosmosemulator(url):
 
 @try_until_timeout(
     Exception,
-    tries=120,
-    timeout=1,
+    tries=16,
+    timeout=2,
+    max_timeout=20,
     args={"url": "http://{host}:{port}/health".format(**AZURE_EVENT_HUBS_EMULATOR_CONFIG)},
 )
 def check_azureeventhubsemulator(url):
@@ -187,8 +211,9 @@ def check_azureeventhubsemulator(url):
 
 @try_until_timeout(
     Exception,
-    tries=120,
-    timeout=1,
+    tries=16,
+    timeout=2,
+    max_timeout=20,
     args={"url": "http://{host}:{port}/health".format(**AZURE_SERVICE_BUS_EMULATOR_CONFIG)},
 )
 def check_azureservicebusemulator(url):
