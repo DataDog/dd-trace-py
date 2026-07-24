@@ -67,6 +67,36 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
+  - project: 'DataDog/system-tests'
+    ref: main
+    file: 'utils/ci/gitlab/main.yml'
+    inputs:
+      stage: "tests"
+      ref: main
+      # condition: '$NIGHTLY_BUILD == "true"'
+
+system_tests_param:
+  extends: .system_tests_param_base
+  stage: tests
+  needs:
+    - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build lambda layer"
+      artifacts: false
+  variables:
+    LIBRARIES: "python python_lambda"
+    SCENARIO_GROUPS: tracer_release
+    EXCLUDED_SCENARIOS: DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E
+    SYSTEM_TESTS_SKIP_EMPTY_SCENARIO: "true"
+    SYSTEM_TESTS_PUSH_TO_TEST_OPTIMIZATION: "true"
+    BINARIES_ARTIFACT_PATH: pywheels
+    BINARIES_ARTIFACTS: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64];build lambda layer"
 
 "pipeline variables":
   stage: .pre

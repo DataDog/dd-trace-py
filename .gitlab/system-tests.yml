@@ -90,3 +90,31 @@ system-tests parametric:
     when: always
     paths:
       - system-tests/logs*
+
+"build lambda layer":
+  image: registry.ddbuild.io/images/docker:27.3.1
+  tags: ["docker-in-docker:amd64"]
+  stage: package
+  needs:
+    - job: "build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: true
+  script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:checkout_lambda\r\e[0KChecking out datadog-lambda-python"
+      git clone --depth 1 https://github.com/DataDog/datadog-lambda-python.git ${CI_PROJECT_DIR}/datadog-lambda-python
+      echo -e "\e[0Ksection_end:`date +%s`:checkout_lambda\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:build_layer\r\e[0KBuilding datadog_lambda layer"
+      wheel_path=$(find ${CI_PROJECT_DIR}/pywheels -name "*cp313*manylinux*.whl" | head -n 1)
+      cd ${CI_PROJECT_DIR}/datadog-lambda-python
+      ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL="${wheel_path}" ./scripts/build_layers.sh
+      echo -e "\e[0Ksection_end:`date +%s`:build_layer\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:copy_layer\r\e[0KCopying layer into pywheels/"
+      mkdir -p ${CI_PROJECT_DIR}/pywheels
+      cp ${CI_PROJECT_DIR}/datadog-lambda-python/.layers/datadog_lambda_py-amd64-3.13.zip ${CI_PROJECT_DIR}/pywheels/
+      ls -la ${CI_PROJECT_DIR}/pywheels/
+      echo -e "\e[0Ksection_end:`date +%s`:copy_layer\r\e[0K"
+  artifacts:
+    paths:
+      - pywheels/*.zip
