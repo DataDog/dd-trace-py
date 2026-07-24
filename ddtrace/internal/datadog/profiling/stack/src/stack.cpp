@@ -1,5 +1,6 @@
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/sample.hpp"
 #include "origin_task_links.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
@@ -33,7 +34,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
-        seed_fast_copy_profiler_stats();
+        publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -855,8 +856,13 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     const bool want = static_cast<bool>(enabled);
     if (!want) {
         fast_copy_user_disabled = true;
+        fast_copy_requested = false;
+    } else {
+        fast_copy_requested = true;
     }
+    fast_copy_desired.store(want && safe_memcpy_initialized, std::memory_order_relaxed);
     set_fast_copy_enabled(want);
+    publish_fast_copy_profiler_metadata();
 
     Py_RETURN_NONE;
 }
@@ -869,7 +875,8 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    // Gate on intent (not active path); skip after foreign takeover (vm.h).
+    if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -882,7 +889,7 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // This is used to reclaim the handler after another component (e.g., Python's
     // faulthandler module) overwrites it. Our handler chains to the previous one
     // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
@@ -912,7 +919,34 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    if (fast_copy_active) {
+    if (fast_copy_active.load(std::memory_order_relaxed)) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_sampler_running(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().is_running()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_sampling_paused(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().is_sampling_paused()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_take_prefork_pause_observation(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().take_prefork_pause_observation()) {
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -1010,10 +1044,16 @@ static PyMethodDef stack_methods[] = {
       stack_fast_copy_memory_active,
       METH_NOARGS,
       "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_sampler_running", stack_sampler_running, METH_NOARGS, "Test-only: sampler thread running" },
+    { "_sampling_paused", stack_sampling_paused, METH_NOARGS, "Test-only: sampler at pause point" },
+    { "_take_prefork_pause_observation",
+      stack_take_prefork_pause_observation,
+      METH_NOARGS,
+      "Test-only: prefork paused sampler" },
     { "_set_fast_copy_warmup_seconds",
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
-      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+      "Test-only: fast-copy warmup seconds (before start)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,

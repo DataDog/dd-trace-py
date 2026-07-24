@@ -86,6 +86,21 @@ class ProfilerState
     // every upload in UploaderBuilder::build, which would drop the value.
     std::string profiler_settings_info_json;
 
+    // Process-static fast-copy configuration snapshot. ProfilerStats is swapped on
+    // every upload, so metadata serialization falls back to this when per-window
+    // stats have not been seeded yet (e.g. heap upload before a sampling cycle).
+    struct FastCopyProfilerMetadata
+    {
+        bool snapshot_initialized = false;
+        bool user_disabled = false;
+        bool capable = false;
+        bool syscall_fallback = false;
+        bool enabled = false;
+        bool desired = false;
+        bool foreign_takeover = false;
+    };
+    FastCopyProfilerMetadata fast_copy_metadata{};
+
     // ========================================================================
     // Native call tracking state
     // ========================================================================
