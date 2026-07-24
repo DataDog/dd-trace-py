@@ -40,7 +40,15 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
+        riot_info="$(riot list "${hash}")"
+        echo "${riot_info}"
 
+        riot_python_version="$(
+          echo "${riot_info}" |
+            sed -nE "s/.*Interpreter\\(_hint='([0-9]+\\.[0-9]+).*'.*/\\1/p" |
+            head -n1
+        )"
+        
         case "${SUITE_NAME:-}" in
           *iast*|*testing*|*ci_visibility*|*pytest*|*asynctest*|*profile*|*crashtracker*)
             export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false
@@ -52,7 +60,7 @@ include:
         esac
 
         if [[ "${DD_TRACE_PY_ENABLE_ITR_FOR_JOB}" == "true" ]] \
-          && [[ "${PYTHON_VERSION:-}" =~ ^3\.(12|13|14|15)($|-) ]]; then
+          && [[ "${riot_python_version:-}" =~ ^3\.(12|13|14|15)$ ]]; then
           export DD_CIVISIBILITY_ITR_ENABLED=true
           export _DD_COVERAGE_FILE_LEVEL=true
 
@@ -65,7 +73,6 @@ include:
 
         echo "ITR gate debug:"
         echo "  SUITE_NAME=${SUITE_NAME:-}"
-        echo "  PYTHON_VERSION=${PYTHON_VERSION:-}"
         echo "  CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH:-}"
         echo "  DD_TRACE_PY_ENABLE_ITR_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-}"
         echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
