@@ -146,6 +146,9 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     @staticmethod
     def _convert_response_messages(choices: list[Choices]) -> list[Message]:
         result: list[Message] = []
+        # Monotonic counter for synthetic legacy function_call ids; deterministic and
+        # collision-free within a response, unlike id() (which CPython reuses after GC).
+        fc_counter = 0
 
         for choice in choices:
             message = choice.message
@@ -166,7 +169,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
                         )
                     )
             if message.function_call:
-                synthetic_id = f"fc_{id(message.function_call):x}"
+                synthetic_id = f"fc_{fc_counter}"
+                fc_counter += 1
                 tool_calls.append(
                     ToolCall(
                         id=synthetic_id,

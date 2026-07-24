@@ -234,7 +234,10 @@ class AIGuardClient:
         if not remote_enabled:
             return False
         if not options:
-            return True
+            # No per-call override: fall back to the DD_AI_GUARD_BLOCK env var so the
+            # public SDK ``evaluate(messages)`` honors the documented blocking hierarchy
+            # instead of always blocking. Auto-instrumentation always passes explicit options.
+            return bool(ai_guard_config._ai_guard_block)
         return options.get("block", True)
 
     def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
@@ -366,6 +369,7 @@ class AIGuardClient:
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
+        conn = None
         try:
             conn = get_connection(url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
@@ -373,7 +377,10 @@ class AIGuardClient:
             resp = conn.getresponse()
             return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
         finally:
-            conn.close()
+            # ``conn`` stays None if get_connection() itself raised (e.g. bad URL); guard
+            # the close so the finally doesn't mask the original error with UnboundLocalError.
+            if conn is not None:
+                conn.close()
 
 
 def new_ai_guard_client(
