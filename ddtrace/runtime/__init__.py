@@ -2,6 +2,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import Tracer
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
@@ -30,6 +31,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
 
     @staticmethod
     def enable(
+        tracer: Optional[Tracer] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         """
