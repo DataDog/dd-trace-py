@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    botocore: Adds ``DD_BOTOCORE_{SERVICE}_DISTRIBUTED_TRACING`` environment variables to
+    disable distributed tracing injection for individual AWS services while still generating spans.
