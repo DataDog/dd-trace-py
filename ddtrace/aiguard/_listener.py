@@ -9,6 +9,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
 from ddtrace.aiguard._streaming import _is_async_plain_stream
@@ -29,12 +30,11 @@ from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_af
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
-from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -58,6 +58,13 @@ def ai_guard_listen() -> None:
 
 
 def _langchain_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_LANGCHAIN_ENABLED, true by default). When set
+    # to false, skip registering LangChain listeners so AI Guard never evaluates
+    # LangChain calls, without affecting other providers or requiring a tracer rollback.
+    if not aiguard_config._ai_guard_langchain_enabled:
+        logger.debug("AI Guard LangChain auto-instrumentation disabled via DD_AI_GUARD_LANGCHAIN_ENABLED=false")
+        return
+
     core.on("langchain.patch", partial(_langchain_patch, client))
     core.on("langchain.unpatch", _langchain_unpatch)
 
@@ -97,7 +104,7 @@ def _openai_listen(client: AIGuardClient) -> None:
     # Per-LLM kill switch (DD_AI_GUARD_OPENAI_ENABLED, true by default). When set
     # to false, skip registering OpenAI listeners so AI Guard never evaluates
     # OpenAI calls, without affecting other providers or requiring a tracer rollback.
-    if not ai_guard_config._ai_guard_openai_enabled:
+    if not aiguard_config._ai_guard_openai_enabled:
         logger.debug("AI Guard OpenAI auto-instrumentation disabled via DD_AI_GUARD_OPENAI_ENABLED=false")
         return
     core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
@@ -147,7 +154,7 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
     """Install outermost streaming buffer wrappers on Chat/Responses ``create`` (raw helpers go to
     ``_install_openai_raw_wrappers``). Fires on ``openai.patch``; only when the flag is on.
     """
-    if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         return
 
     import openai
@@ -319,6 +326,13 @@ def _uninstall_openai_wrappers() -> None:
 
 
 def _anthropic_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_ANTHROPIC_ENABLED, true by default). When set
+    # to false, skip registering Anthropic listeners so AI Guard never evaluates
+    # Anthropic calls, without affecting other providers or requiring a tracer rollback.
+    if not aiguard_config._ai_guard_anthropic_enabled:
+        logger.debug("AI Guard Anthropic auto-instrumentation disabled via DD_AI_GUARD_ANTHROPIC_ENABLED=false")
+        return
+
     core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
@@ -338,7 +352,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` so there is zero
     overhead on the default (flag-off) code path.
     """
-    if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         return
 
     import anthropic
@@ -444,7 +458,7 @@ def _on_set_http_meta_for_ai_guard(
     # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
     # the key with forwarded-IP headers from downstream calls.
     # https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
-    if not ai_guard_config._ai_guard_enabled:
+    if not aiguard_config._ai_guard_enabled:
         return
     if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return

@@ -1057,7 +1057,7 @@ def test_create_sync_block_is_anthropic_compatible_exception(mock_execute_reques
 
 def _find_anthropic_llm_span(test_spans):
     """Return the anthropic LLM span (the only non-AI-Guard span)."""
-    from ddtrace.appsec._constants import AI_GUARD
+    from ddtrace.aiguard._constants import AI_GUARD
 
     spans = test_spans.spans
     llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
@@ -1847,3 +1847,28 @@ def test_output_suppressed_on_plain_error():
         span.error = 1
         integration._llmobs_set_tags(span, [], kwargs, None, "")
         assert _anthropic_output_contents(span) == [""]
+
+
+def test_anthropic_kill_switch_enabled_registers_listeners():
+    """DD_AI_GUARD_ANTHROPIC_ENABLED defaults to true: Anthropic listeners register."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_anthropic_enabled=True)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._anthropic_listen(Mock())
+            # before + after evaluation listeners plus patch/unpatch (streaming buffers).
+            assert mock_on.call_count == 4
+
+
+def test_anthropic_kill_switch_disabled_skips_listeners():
+    """DD_AI_GUARD_ANTHROPIC_ENABLED=false: no Anthropic listeners are registered."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_anthropic_enabled=False)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._anthropic_listen(Mock())
+            mock_on.assert_not_called()

@@ -311,6 +311,25 @@ class TestLLMJudgePublish:
         else:
             assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
 
+    def test_publish_agent_service_preferred_name(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="quality_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
+            result = llmobs.publish_evaluator(judge, ml_app="legacy-ml-app", agent_service="test-agent-service")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-agent-service"
+        )
+        payload = mock_publish.call_args.args[0]
+        assert payload["applications"][0]["application_name"] == "test-agent-service"
+
     def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch, llmobs):
         mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
@@ -481,8 +500,18 @@ class TestLLMJudgePublish:
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
         )
-        with pytest.raises(ValueError, match="ml_app"):
+        with pytest.raises(ValueError, match="agent_service"):
             llmobs.publish_evaluator(judge, ml_app="   ")
+
+    def test_publish_requires_explicit_agent_service_or_ml_app(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="agent_service"):
+            llmobs.publish_evaluator(judge)
 
     def test_publish_requires_structured_output(self, llmobs):
         judge = LLMJudge(
