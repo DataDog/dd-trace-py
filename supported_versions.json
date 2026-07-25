@@ -1409,44 +1409,44 @@
             },
             "3.10": {
                 "minimum_package_version": "3.2.25",
-                "maximum_package_version": "5.2.15",
+                "maximum_package_version": "5.2.16",
                 "tested_versions": [
                     "3.2.25",
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.15"
+                    "5.2.16"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "4.2.20",
-                "maximum_package_version": "5.2.15",
+                "maximum_package_version": "5.2.16",
                 "tested_versions": [
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.15"
+                    "5.2.16"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "4.2.20",
-                "maximum_package_version": "5.2.15",
+                "maximum_package_version": "5.2.16",
                 "tested_versions": [
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
                     "5.2",
-                    "5.2.15"
+                    "5.2.16"
                 ]
             },
             "3.13": {
                 "minimum_package_version": "4.2.20",
-                "maximum_package_version": "5.2.15",
+                "maximum_package_version": "5.2.16",
                 "tested_versions": [
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.15"
+                    "5.2.16"
                 ]
             }
         }
