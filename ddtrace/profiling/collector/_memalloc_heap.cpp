@@ -290,7 +290,6 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
      * saturated (a safe failure mode) instead of exploding. */
     if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
         ++cap_drops;
-        reset_sampling_state_no_cpython();
         return false;
     }
 
