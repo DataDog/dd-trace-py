@@ -1,5 +1,7 @@
 #[cfg(feature = "crashtracker")]
 mod crashtracker;
+#[cfg(feature = "crashtracker")]
+pub use libdd_crashtracker_ffi::*;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
