@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    bootstrap: keep ``yaml``/``_yaml`` loaded during  module cleanup, fixing an
+    issue that broke PyYAML consumers such as Airflow.

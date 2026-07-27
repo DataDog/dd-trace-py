@@ -219,6 +219,12 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
+impl From<String> for PyBackedString {
+    fn from(_s: String) -> Self {
+        todo!()
+    }
+}
+
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {

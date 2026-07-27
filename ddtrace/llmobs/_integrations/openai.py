@@ -4,6 +4,7 @@ from typing import Optional
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -14,6 +15,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
@@ -230,6 +232,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
+            if cache_write_tokens is not None:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
             # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
             reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
                 token_usage, "output_tokens_details", {}
@@ -237,6 +242,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
+            metrics.update(get_openrouter_cost_metrics(token_usage))
             return metrics
         elif kwargs.get("stream") and resp is not None:
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
