@@ -6,6 +6,7 @@ import typing as t
 import pytest
 
 import ddtrace
+from ddtrace.debugging._origin.span import EntrySpanWrappingContext
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
@@ -289,6 +290,44 @@ class SpanProbeTestCase(TracerTestCase):
         # also did not tag itself because the root already carries an entry.
         assert inner_span.get_tag("_dd.code_origin.type") is None
         assert inner_span.get_tag("_dd.code_origin.frames.0.file") is None
+
+    def test_span_origin_tracer_wrap_ephemeral_no_leak(self):
+        """
+        Regression: ephemeral functions decorated with @tracer.wrap() on every
+        call (e.g. a connection/cursor factory pattern) must not leak the
+        function, its EntrySpanWrappingContext, or its EntrySpanProbe once
+        code origin for spans is enabled and the function goes out of scope.
+        """
+        import gc
+        import weakref
+
+        def make_and_call():
+            @self.tracer.wrap("entry")
+            def entry_call():
+                pass
+
+            original = unwrap(entry_call)
+
+            with self.tracer.trace("root"):
+                entry_call()
+
+            context = t.cast(EntrySpanWrappingContext, EntrySpanWrappingContext.extract(original))
+            return (
+                weakref.ref(original),
+                weakref.ref(context),
+                weakref.ref(context.location.probe),
+            )
+
+        refs = [make_and_call() for _ in range(5)]
+        gc.collect()
+
+        alive_functions = sum(1 for f_ref, _, _ in refs if f_ref() is not None)
+        alive_contexts = sum(1 for _, c_ref, _ in refs if c_ref() is not None)
+        alive_probes = sum(1 for _, _, p_ref in refs if p_ref() is not None)
+
+        assert alive_functions == 0, f"{alive_functions} ephemeral function(s) leaked"
+        assert alive_contexts == 0, f"{alive_contexts} EntrySpanWrappingContext(s) leaked"
+        assert alive_probes == 0, f"{alive_probes} EntrySpanProbe(s) leaked"
 
 
 def test_instrument_view_benchmark(benchmark):
