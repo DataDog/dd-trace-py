@@ -1035,15 +1035,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if raise_exc:
                 raise
             self._log_send_failure(n_traces, e)
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.traces", n_traces)
             return
         except Exception as e:
             if raise_exc:
                 raise
             self._log_send_failure(n_traces, e)
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.traces", n_traces)
             return
-        finally:
-            # The buffer is drained regardless of send success, so count it as sent either way.
-            self._metrics["sent_traces"] += n_traces
+
+        # Count as sent only on success: failed/downgraded flushes already dropped their drained
+        # chunks, so _set_drop_rate counts those as dropped rather than sent.
+        self._metrics["sent_traces"] += n_traces
 
         if self._response_cb and response_body:
             response = Response(body=response_body)

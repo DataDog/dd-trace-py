@@ -231,10 +231,12 @@ class TraceExporter:
         dd_origin: Optional[str] = None,
     ) -> "PutOutcome":
         """
-        Buffer one trace chunk for the next flush (incref-and-stash only; conversion to
-        libdatadog v0.4 spans is deferred to flush, on the background writer thread).
+        Build one trace chunk into its libdatadog v0.4 wire form and buffer it for the next flush.
+        The full conversion (truncation, meta/metrics, meta_struct packb, v0.5 links/events
+        json.dumps) runs synchronously here, on the calling thread under the GIL; flush then only
+        sends the already-built chunks.
         :param spans: The spans of one trace chunk (each a SpanData / Span).
-        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span at flush.
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span at build time.
         :return: whether the chunk was buffered (Accepted) or had no encodable spans.
         """
         ...
@@ -466,9 +468,9 @@ class TraceExporterBuilder:
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
         :param encode_links_as_json: Fixed for the output format (True for v0.5); applied to every
-            span at flush time.
+            span at put_trace (build) time.
         :param encode_events_as_json: True for v0.5, or on v0.4 when the agent hasn't opted into
-            native span events; applied to every span at flush time.
+            native span events; applied to every span at put_trace (build) time.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """

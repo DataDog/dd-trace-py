@@ -3,60 +3,8 @@ use pyo3::types::PyString;
 use pyo3::{Bound, IntoPyObject as _, Py, PyAny, Python};
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::thread::LocalKey;
-
-/// Map key for span attributes — a GIL-free-readable Python str (see
-/// [`PyBackedString`]). `Hash`, `Eq`, and `Borrow<str>` dispatch straight to the
-/// backing `&str` via `Deref`, no GIL required and no raw FFI calls.
-pub(crate) struct AttrKey(PyBackedString);
-
-impl AttrKey {
-    pub(crate) fn new(s: PyBackedString) -> Self {
-        Self(s)
-    }
-
-    pub(crate) fn as_bound<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        self.0.as_py(py)
-    }
-
-    /// Borrow the key's UTF-8 content (GIL-free — reads through `PyBackedString`'s raw pointer).
-    /// Used to evict the key from the sibling map to preserve meta/metrics mutual exclusion.
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Cheap refcount bump producing a GIL-free-readable key for the wire span
-    /// (see `SpanData::build_v04_span`).
-    pub(crate) fn clone_ref(&self, py: Python<'_>) -> PyBackedString {
-        self.0.clone_ref(py)
-    }
-
-    pub(crate) fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
-        self.0.traverse(visit)
-    }
-}
-
-impl Hash for AttrKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl PartialEq for AttrKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for AttrKey {}
-
-impl Borrow<str> for AttrKey {
-    fn borrow(&self) -> &str {
-        self.0.borrow()
-    }
-}
 
 /// Typed storage for a single numeric span attribute (a `metrics` entry).
 ///
@@ -90,12 +38,14 @@ impl MetricValue {
     }
 }
 
-/// A tiny Vec-backed associative map with **last-wins** insert semantics, used for a span's
-/// `meta`/`metrics` stores.
+/// A tiny Vec-backed associative map with **overwrite-in-place** insert semantics, used for a
+/// span's `meta`/`metrics` stores.
 ///
 /// A span holds ~20 tags or fewer, so a linear scan beats a hash map and avoids per-span
-/// hashing/rehashing allocation. Last-wins is why libdatadog's `VecMap` won't do here: its
-/// `insert` appends duplicates and its `get` returns the first match, which breaks `set_tag`.
+/// hashing/rehashing allocation. libdatadog's `VecMap` won't do: its `insert` appends, so a re-set
+/// tag leaves a duplicate row — but `build_v04_span` relies on unique keys to call `mark_deduped`
+/// and skip the exporter's dedup pass. `VecStore::insert` overwrites in place to keep keys unique,
+/// and exposes its backing `Vec` (`capacity`/`take_backing`/`from_backing`) for the recycle pool.
 ///
 /// # Invariant
 ///
@@ -225,9 +175,10 @@ pub(crate) type MetricsMap = Pooled<MetricsPool>;
 // ATTR_POOL_MAX bounds retained buffers per map per thread; ATTR_POOL_BUF_CAP bounds each buffer's
 // capacity so a rare outlier span with hundreds of tags can't park an oversized Vec in the pool for
 // the thread's life. A trace frees its spans in a burst at finish (tens of buffers); 128 covers
-// several concurrent traces' worth with headroom, and with both caps the retained memory is bounded
-// at ~128 * 64 * entry-size (tens of KB per thread). The caps only bind under bursty/outlier load;
-// in steady state the pool hovers around the working set.
+// several concurrent traces' worth with headroom. Worst-case retained memory is ~128 * 64 *
+// entry-size per map: ~256 KB (meta, 32-byte entries) + ~320 KB (metrics, 40-byte entries) ≈ 0.5 MB
+// per thread. The caps only bind under bursty/outlier load; in steady state the pool hovers around
+// the working set.
 const ATTR_POOL_MAX: usize = 128;
 const ATTR_POOL_BUF_CAP: usize = 64;
 
@@ -239,8 +190,8 @@ type PoolCell<K, V> = RefCell<Vec<PoolBuf<K, V>>>;
 type PoolRef<K, V> = &'static LocalKey<PoolCell<K, V>>;
 
 thread_local! {
-    static META_POOL: PoolCell<AttrKey, Py<PyString>> = const { RefCell::new(Vec::new()) };
-    static METRICS_POOL: PoolCell<AttrKey, MetricValue> = const { RefCell::new(Vec::new()) };
+    static META_POOL: PoolCell<PyBackedString, Py<PyString>> = const { RefCell::new(Vec::new()) };
+    static METRICS_POOL: PoolCell<PyBackedString, MetricValue> = const { RefCell::new(Vec::new()) };
 }
 
 /// Take a recycled backing buffer from `pool`, or allocate one presized to `floor` on a miss.
@@ -279,7 +230,7 @@ pub(crate) trait Pool {
     type V: 'static;
     /// Capacity a fresh backing buffer is presized to on a pool miss.
     const PRESIZE: usize;
-    fn local() -> PoolRef<AttrKey, Self::V>;
+    fn local() -> PoolRef<PyBackedString, Self::V>;
 }
 
 /// `meta` pool marker — meta carries most of a span's tags.
@@ -287,7 +238,7 @@ pub(crate) struct MetaPool;
 impl Pool for MetaPool {
     type V = Py<PyString>;
     const PRESIZE: usize = 8;
-    fn local() -> PoolRef<AttrKey, Self::V> {
+    fn local() -> PoolRef<PyBackedString, Self::V> {
         &META_POOL
     }
 }
@@ -297,7 +248,7 @@ pub(crate) struct MetricsPool;
 impl Pool for MetricsPool {
     type V = MetricValue;
     const PRESIZE: usize = 4;
-    fn local() -> PoolRef<AttrKey, Self::V> {
+    fn local() -> PoolRef<PyBackedString, Self::V> {
         &METRICS_POOL
     }
 }
@@ -305,7 +256,7 @@ impl Pool for MetricsPool {
 /// A [`VecStore`] whose backing buffer is drawn from and returned to a thread-local recycle pool.
 /// Starts empty (no allocation until the first insert); its `Drop` returns the buffer to the pool.
 /// Read/scan methods reach the inner `VecStore` through `Deref`/`DerefMut`.
-pub(crate) struct Pooled<P: Pool>(VecStore<AttrKey, P::V>);
+pub(crate) struct Pooled<P: Pool>(VecStore<PyBackedString, P::V>);
 
 impl<P: Pool> Default for Pooled<P> {
     fn default() -> Self {
@@ -314,7 +265,7 @@ impl<P: Pool> Default for Pooled<P> {
 }
 
 impl<P: Pool> Deref for Pooled<P> {
-    type Target = VecStore<AttrKey, P::V>;
+    type Target = VecStore<PyBackedString, P::V>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -340,7 +291,7 @@ impl<P: Pool> Pooled<P> {
     /// presized buffer from the pool; a store never inserted into never allocates. Shadows the
     /// inner `VecStore::insert` (reachable only via `Deref`), so a plain `.insert(..)` on a span's
     /// `meta`/`metrics` always goes through the pool.
-    pub(crate) fn insert(&mut self, key: AttrKey, value: P::V) {
+    pub(crate) fn insert(&mut self, key: PyBackedString, value: P::V) {
         if self.0.capacity() == 0 {
             self.0 = pool_acquire(P::local(), P::PRESIZE);
         }
