@@ -10,20 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6428d00000000",
+      "_dd.p.tid": "6a3ec25c00000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
+      "runtime-id": "7700e6ebfafe4178aa4dc076821a34a9"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 507.0
+      "process_id": 30712.0
     },
-    "duration": 130635541,
-    "start": 1776697997364371506
+    "duration": 75007251,
+    "start": 1782497884913171252
   },
      {
        "name": "crewai.request",
@@ -34,11 +35,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "m"
+       },
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 13951834,
-       "start": 1776697997369121297
+       "duration": 7442083,
+       "start": 1782497884919944836
      },
         {
           "name": "Task Execution Planner",
@@ -49,11 +53,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 13671292,
-          "start": 1776697997369260297
+          "duration": 6958042,
+          "start": 1782497884920190294
         },
      {
        "name": "Calculate participants' average ages",
@@ -64,11 +71,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "m"
+       },
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 38743375,
-       "start": 1776697997385854381
+       "duration": 30443959,
+       "start": 1782497884930646627
      },
         {
           "name": "Crew Manager",
@@ -79,11 +89,14 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 38247541,
-          "start": 1776697997386296881
+          "duration": 29810625,
+          "start": 1782497884931162419
         },
            {
              "name": "Ask question to coworker",
@@ -94,11 +107,14 @@
              "parent_id": 6,
              "type": "",
              "error": 0,
+             "meta": {
+               "_dd.svc_src": "m"
+             },
              "metrics": {
                "_dd.measured": 1.0
              },
-             "duration": 18522416,
-             "start": 1776697997397131631
+             "duration": 14867625,
+             "start": 1782497884938838419
            },
               {
                 "name": "Python Data Analyst",
@@ -109,11 +125,14 @@
                 "parent_id": 8,
                 "type": "",
                 "error": 0,
+                "meta": {
+                  "_dd.svc_src": "m"
+                },
                 "metrics": {
                   "_dd.measured": 1.0
                 },
-                "duration": 17906333,
-                "start": 1776697997397716756
+                "duration": 13686208,
+                "start": 1782497884939974044
               },
                  {
                    "name": "Average Calculator",
@@ -124,11 +143,14 @@
                    "parent_id": 10,
                    "type": "",
                    "error": 0,
+                   "meta": {
+                     "_dd.svc_src": "m"
+                   },
                    "metrics": {
                      "_dd.measured": 1.0
                    },
-                   "duration": 71291,
-                   "start": 1776697997406858756
+                   "duration": 80375,
+                   "start": 1782497884946215086
                  },
      {
        "name": "Recommend fun activities",
@@ -139,11 +161,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "m"
+       },
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 65164541,
-       "start": 1776697997428124131
+       "duration": 21628126,
+       "start": 1782497884964191127
      },
         {
           "name": "Crew Manager",
@@ -154,11 +179,14 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 64871166,
-          "start": 1776697997428354506
+          "duration": 21003125,
+          "start": 1782497884964698461
         },
            {
              "name": "Ask question to coworker",
@@ -169,11 +197,14 @@
              "parent_id": 7,
              "type": "",
              "error": 0,
+             "meta": {
+               "_dd.svc_src": "m"
+             },
              "metrics": {
                "_dd.measured": 1.0
              },
-             "duration": 37839500,
-             "start": 1776697997439749714
+             "duration": 6765375,
+             "start": 1782497884971553127
            },
               {
                 "name": "Tour Guide",
@@ -184,9 +215,12 @@
                 "parent_id": 9,
                 "type": "",
                 "error": 0,
+                "meta": {
+                  "_dd.svc_src": "m"
+                },
                 "metrics": {
                   "_dd.measured": 1.0
                 },
-                "duration": 37150667,
-                "start": 1776697997440397339
+                "duration": 5712917,
+                "start": 1782497884972569044
               }]]

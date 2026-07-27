@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    flask: fix span ``resource`` remaining as the raw URL path when a worker is
+    killed before ``start_response`` runs (e.g. gunicorn ``--timeout``). The route
+    pattern is now populated from ``request.url_rule`` during ``preprocess_request``.

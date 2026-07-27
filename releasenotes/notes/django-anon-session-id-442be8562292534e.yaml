@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where the Django session id collected by automatic user
+    activity tracking was not hashed in ``anonymization`` mode. It is now hashed, consistently
+    with the user id and login.

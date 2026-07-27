@@ -111,6 +111,12 @@ class SensitiveHandler:
                 result.append({"start": range_to_remove["end"], "end": range_to_remove["end"] + offset})
             return result
 
+    @staticmethod
+    def _requeue_sensitive(sensitive, entries):
+        for extra in entries:
+            idx = next((k for k, s in enumerate(sensitive) if s["start"] > extra["start"]), len(sensitive))
+            sensitive.insert(idx, extra)
+
     def is_sensible_name(self, name):
         """
         Checks if a name is sensible based on the name pattern.
@@ -264,6 +270,7 @@ class SensitiveHandler:
 
                     entries = self._remove(next_sensitive, next_tainted)
                     next_sensitive = entries[0] if entries else None
+                    self._requeue_sensitive(sensitive, entries[1:])
 
                 if source_index < len(sources):
                     if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
@@ -314,6 +321,7 @@ class SensitiveHandler:
 
                     entries = self._remove(next_sensitive, next_tainted)
                     next_sensitive = entries[0] if entries else None
+                    self._requeue_sensitive(sensitive, entries[1:])
 
                 length = next_sensitive["end"] - next_sensitive["start"]
                 self.write_redacted_value_part(value_parts, length)

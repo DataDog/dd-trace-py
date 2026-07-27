@@ -83,7 +83,7 @@ elif PY >= (3, 14):
         try                                 @genexit lasti
             yield_value                     0
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -208,7 +208,7 @@ elif PY >= (3, 13):
         try                                 @genexit lasti
             yield_value                     0
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -332,7 +332,7 @@ elif PY >= (3, 12):
         try                                 @genexit lasti
             yield_value                     3
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -456,7 +456,7 @@ elif PY >= (3, 11):
         try                                 @genexit lasti
             yield_value
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
 
         yield:

@@ -40,6 +40,12 @@ else()
     set(_absl_src_dir "${FETCHCONTENT_BASE_DIR}/absl-src")
     set(_absl_bin_dir "${FETCHCONTENT_BASE_DIR}/absl-build")
 
+    # Immutable commit SHA backing tag 20250127.1. We clone by tag (shallow clones by tag are resilient to GitHub
+    # transient failures) but then verify the checked-out commit matches this SHA, so a retagged or compromised upstream
+    # tag fails the build instead of injecting code.
+    set(_absl_tag "20250127.1")
+    set(_absl_expected_sha "d9e4955c65cd4367dd6bf46f4ccb8cd3d100540b")
+
     # Only clone if the source directory is not already present (disconnected / cached build support — equivalent to
     # FETCHCONTENT_UPDATES_DISCONNECTED).
     if(NOT EXISTS "${_absl_src_dir}/.git")
@@ -50,7 +56,7 @@ else()
             math(EXPR _absl_attempt "${_absl_attempt} + 1")
             message(STATUS "Cloning abseil (attempt ${_absl_attempt}/${_absl_max_attempts})...")
             execute_process(
-                COMMAND git clone --depth 1 --branch 20250127.1 --progress https://github.com/abseil/abseil-cpp.git
+                COMMAND git clone --depth 1 --branch ${_absl_tag} --progress https://github.com/abseil/abseil-cpp.git
                         "${_absl_src_dir}" RESULT_VARIABLE _absl_result)
             if(_absl_result EQUAL 0)
                 set(_absl_success TRUE)
@@ -63,6 +69,21 @@ else()
         endwhile()
     else()
         message(STATUS "Using cached abseil source at ${_absl_src_dir}")
+    endif()
+
+    # Verify the resolved source matches the expected immutable commit (covers both a fresh clone by tag and a
+    # cached/tampered source tree) before building it.
+    execute_process(
+        COMMAND git -C "${_absl_src_dir}" rev-parse HEAD
+        OUTPUT_VARIABLE _absl_actual_sha
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _absl_revparse_result)
+    if(NOT _absl_revparse_result EQUAL 0)
+        message(FATAL_ERROR "Unable to determine abseil commit at ${_absl_src_dir} for integrity verification.")
+    endif()
+    if(NOT _absl_actual_sha STREQUAL _absl_expected_sha)
+        message(FATAL_ERROR "Abseil integrity check failed: expected commit ${_absl_expected_sha} (tag ${_absl_tag}) "
+                            "but found ${_absl_actual_sha}. Refusing to build a potentially tampered dependency.")
     endif()
 
     add_subdirectory("${_absl_src_dir}" "${_absl_bin_dir}" EXCLUDE_FROM_ALL)

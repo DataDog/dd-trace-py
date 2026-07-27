@@ -9,6 +9,8 @@ from typing import Union
 from urllib.parse import parse_qs
 
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -41,26 +43,15 @@ def parse_http_body(
             return None
 
     try:
-        content_type = normalized_headers.get("content-type")
-        if not content_type:
-            return None
-
-        # Content-Type legally carries parameters (charset, boundary, ...),
-        # e.g. application/json; charset=utf-8 — many HTTP clients always
-        # add a charset. Match against the bare media type so a charset
-        # suffix doesn't silently skip body inspection.
-        base_content_type = content_type.split(";", 1)[0].strip()
-
-        if base_content_type in ("application/json", "application/vnd.api+json", "text/json"):
+        category = classify_media_type(normalized_headers.get("content-type"))
+        if category is MediaType.JSON:
             return json.loads(body)
-        elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+        elif category is MediaType.FORM_URLENCODED:
             return parse_qs(body)
-        elif base_content_type in ("application/xml", "text/xml"):
+        elif category is MediaType.XML:
             return xmltodict.parse(body)
-        elif base_content_type == "multipart/form-data":
+        elif category is MediaType.MULTIPART:
             return http_utils.parse_form_multipart(body, normalized_headers)
-        elif base_content_type == "text/plain":
-            return None
         else:
             return None
 

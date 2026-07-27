@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes a ``TypeError: cannot pickle '_thread.lock'`` raised when
+    serializing ddtrace-instrumented objects with ``cloudpickle``.
+    Fork-safe locks and events (``ddtrace.internal.forksafe.Lock`` / ``Event``) are now pickle-safe, and
+    unpickling reconstructs a fresh instance.

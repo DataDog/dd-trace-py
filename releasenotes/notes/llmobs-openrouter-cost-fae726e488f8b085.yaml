@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the OpenAI and LiteLLM integrations were missing cost data when using OpenRouter as a provider.

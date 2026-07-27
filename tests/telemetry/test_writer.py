@@ -10,7 +10,8 @@ import httpretty
 import pytest
 
 from ddtrace import config
-from ddtrace.internal.settings._agent import get_agent_hostname
+import ddtrace.internal.settings._core as settings_core
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -20,36 +21,28 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
 
 
-@pytest.mark.parametrize(
-    "env_var,value,expected_value",
-    [
-        ("DD_APPSEC_SCA_ENABLED", "true", True),
-        ("DD_APPSEC_SCA_ENABLED", "True", True),
-        ("DD_APPSEC_SCA_ENABLED", "1", True),
-        ("DD_APPSEC_SCA_ENABLED", "false", False),
-        ("DD_APPSEC_SCA_ENABLED", "False", False),
-        ("DD_APPSEC_SCA_ENABLED", "0", False),
-    ],
-)
-def test_app_started_event_configuration_override_asm(
-    test_agent_session, run_python_code_in_subprocess, env_var, value, expected_value
-):
-    """asserts that asm configuration value is changed and queues a valid telemetry request"""
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "true"
-    env[env_var] = value
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
-    assert status == 0, stderr
+class _SyntheticDDConfig(DDConfig):
+    """
+    A minimal DDConfig used to exercise report_configuration()'s own walking logic
+    (public/private/sensitive filtering, source + config_id resolution) without any
+    knowledge of real product settings.
+    """
 
-    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
-    assert len(configuration) == 1, configuration
-    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
+    __prefix__ = "dd.test.synthetic"
+
+    public_setting = DDConfig.v(str, "public_setting", default="pub_default")
+    _private_setting = DDConfig.v(str, "private_setting", default="priv_default", private=True)
+    sensitive_setting = DDConfig.v(str, "sensitive_setting", default="sens_default")
+    bool_setting = DDConfig.v(bool, "bool_setting", default=False)
+    float_setting = DDConfig.v(float, "float_setting", default=0.0)
+    # NOTE: DDConfig.config_id is a single instance attribute overwritten during __init__'s
+    # field-iteration loop, not a per-field map, so it only reflects whichever fleet-sourced
+    # field was processed last. Keep this field last so the config_id assertion below is stable.
+    fleet_setting = DDConfig.v(str, "fleet_setting", default="fleet_default")
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
@@ -67,478 +60,17 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert app_started_events[0]["payload"].get("configuration")
         assert app_started_events[0]["payload"].get("products")
 
-
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
-    """
-    asserts that default configuration value
-    is changed and queues a valid telemetry request
-    which is then sent by periodic()
-    """
-    code = """
-# most configurations are reported when ddtrace.auto is imported
-import ddtrace.auto
-# report configurations not used by ddtrace.auto
-import ddtrace.internal.settings.symbol_db
-import ddtrace.internal.settings.dynamic_instrumentation
-import ddtrace.internal.settings.exception_replay
-import opentelemetry
-    """
-
-    env = os.environ.copy()
-    # Change configuration default values
-    env["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
-    env["DD_TRACE_STARTUP_LOGS"] = "True"
-    env["DD_LOGS_INJECTION"] = "True"
-    env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "False"
-    env["DD_RUNTIME_METRICS_ENABLED"] = "True"
-    env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
-    env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
-    env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
-    env["DD_TRACE_COMPUTE_STATS"] = "True"
-    env["DD_TRACE_DEBUG"] = "True"
-    env["DD_TRACE_ENABLED"] = "False"
-    env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
-    env["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
-    env["DD_TRACE_OTEL_ENABLED"] = "True"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
-    env["DD_TRACE_RATE_LIMIT"] = "50"
-    env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
-    env["DD_PROFILING_ENABLED"] = "True"
-    env["DD_PROFILING_STACK_ENABLED"] = "False"
-    env["DD_PROFILING_MEMORY_ENABLED"] = "False"
-    env["DD_PROFILING_HEAP_ENABLED"] = "False"
-    env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
-    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
-    env["DD_PROFILING_MAX_FRAMES"] = "512"
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
-    env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
-    env["DD_TRACE_API_VERSION"] = "v0.5"
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
-    env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
-    env["DD_TAGS"] = "team:apm,component:web"
-    env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
-    env["DD_LOGS_OTEL_ENABLED"] = "True"
-    env["DD_METRICS_OTEL_ENABLED"] = "True"
-    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
-
-    file = tmpdir.join("moon_ears.json")
-    file.write('[{"service":"xy?","name":"a*c"}]')
-    env["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
-    env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
-    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
-    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
-    env["DD_SITE"] = "datadoghq.com"
-    env["DD_APPSEC_RASP_ENABLED"] = "False"
-    env["DD_API_SECURITY_ENABLED"] = "False"
-    env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
-    env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
-    env["DD_INJECT_FORCE"] = "true"
-    env["DD_INJECTION_ENABLED"] = "tracer"
-
-    # Ensures app-started event is queued immediately after ddtrace is imported
-    # instead of waiting for 10 seconds.
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, stderr
-
-    # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
-    # skip validating this config
-    configurations = test_agent_session.get_configurations(
-        ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
-    )
-    assert configurations
-    configurations.sort(key=lambda x: x["name"])
-
-    expected = [
-        {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
-        {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
-        {"name": "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", "origin": "default", "value": 1},
-        {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
-        {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
-        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
-        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
-        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
-        {
-            "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
-            "origin": "default",
-            "value": "(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer"
-            "[_-]?(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\\"
-            ".net[_-]sessionid|sid|jwt",
-        },
-        {
-            "name": "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
-            "origin": "default",
-            "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
-            r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|"
-            r"consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
-            r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|'
-            r"token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})"
-            r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-            r"{5}END[a-z\s]+PRIVATE\sKEY|"
-            r"ssh-rsa\s*([a-z0-9\/\.+]{100,})",
-        },
-        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
-        {
-            "name": "DD_APPSEC_SCA_ENABLED",
-            "origin": "default",
-            "value": None,
-        },
-        {"name": "DD_APPSEC_STACK_TRACE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": 5.0},
-        {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_CIVISIBILITY_AGENTLESS_URL", "origin": "default", "value": ""},
-        {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_CRASHTRACKING_COLLECT_ALL_THREADS", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
-        {
-            "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
-            "origin": "default",
-            "value": "safe" if sys.platform == "linux" else "full",
-        },
-        {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
-        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
-        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
-        {"name": "DD_DOGSTATSD_HOST", "origin": "default", "value": None},
-        {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
-        {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": 1048576},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_PROBE_FILE", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
-        {"name": "DD_ENV", "origin": "default", "value": None},
-        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS", "origin": "default", "value": ""},
-        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
-        {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
-        {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
-        {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
-        {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
-        {
-            "name": "DD_IAST_REDACTION_NAME_PATTERN",
-            "origin": "default",
-            "value": "(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?"
-            "|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id|key|secret)|sign("
-            "?:ed|ature)?|auth(?:entication|orization)?)",
-        },
-        {
-            "name": "DD_IAST_REDACTION_VALUE_NUMERAL",
-            "origin": "default",
-            "value": "^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\\d+\\.?\\d*(?:[Ee][+-]?\\d+)?|\\.\\d+(?:[Ee][+-]?"
-            "\\d+)?)|(X\\'[0-9A-Fa-f]+\\')|(B\\'[01]+\\'))$",
-        },
-        {
-            "name": "DD_IAST_REDACTION_VALUE_PATTERN",
-            "origin": "default",
-            "value": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey"
-            "[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
-            "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
-        },
-        {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
-        {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
-        {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
-        {"name": "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", "origin": "default", "value": 250},
-        {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
-        {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
-        {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
-        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_EVALUATOR_SAMPLING_RULES", "origin": "env_var", "value": None},
-        {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
-        {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_PAYLOAD_SIZE_BYTES", "origin": "default", "value": 5242880},
-        {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
-        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
-        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_MODEL_LAB_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
-        {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
-        {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
-        {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
-        {
-            "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
-            "origin": "default",
-            "value": ",".join(
-                sorted(
-                    [
-                        "anyio",
-                        "asyncio",
-                        "bytecode",
-                        "concurrent",
-                        "datadog",
-                        "ddsketch",
-                        "ddtrace",
-                        "envier",
-                        "gunicorn",
-                        "h11",
-                        "http",
-                        "logging",
-                        "threading",
-                        "uvicorn",
-                        "werkzeug",
-                        "wrapt",
-                    ]
-                )
-            ),
-        },
-        {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
-        {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
-        {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
-        {"name": "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
-        {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
-        {"name": "DD_PROFILING_PYTORCH_MAX_FRAMES", "origin": "default", "value": 128},
-        {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
-        {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_NATIVE_FRAMES", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_STACK_UVLOOP", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
-        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
-        {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
-        {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
-        {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
-        {
-            "name": "DD_SPAN_SAMPLING_RULES_FILE",
-            "origin": "env_var",
-            "value": str(file),
-        },
-        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": ""},
-        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
-        {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
-        {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
-        {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
-        {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
-        {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
-        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
-        {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
-        {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", "origin": "default", "value": 120.0},
-        {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", "origin": "default", "value": 10.0},
-        {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
-        {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
-        {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
-        {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
-        {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
-        {"name": "DD_TRACE_LOG_LEVEL", "origin": "default", "value": None},
-        {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
-        {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
-        {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
-        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
-        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
-        {
-            "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {
-            "name": "DD_TRACE_PEER_SERVICE_MAPPING",
-            "origin": "env_var",
-            "value": "default_service:remapped_service",
-        },
-        {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
-        {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "env_var", "value": "tracecontext"},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
-        {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
-        {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
-        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
-        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
-        {
-            "name": "DD_TRACE_SAMPLING_RULES",
-            "origin": "env_var",
-            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-        },
-        {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
-        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_STATS_COMPUTATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "origin": "default", "value": False},
-        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
-        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
-        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "env_var", "value": 9999},
-        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", "origin": "default", "value": 512},
-        {"name": "DD_USER_MODEL_EMAIL_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_VERSION", "origin": "default", "value": None},
-        {
-            "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
-        },
-        # OTEL_EXPORTER_OTLP_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            "origin": "default",
-            "value": f"http://{get_agent_hostname()}:4317",
-        },
-        # OTEL_EXPORTER_OTLP_LOGS_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            "origin": "default",
-            "value": f"http://{get_agent_hostname()}:4317",
-        },
-        # OTEL_EXPORTER_OTLP_METRICS_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
-            "origin": "default",
-            "value": "delta",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        # OTEL_EXPORTER_OTLP_TRACES_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_METRIC_EXPORT_INTERVAL",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_METRIC_EXPORT_TIMEOUT",
-            "origin": "default",
-            "value": 7500,
-        },
-        {
-            "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
-        {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
-        {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
-        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
-        {
-            "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "instrumentation_source", "origin": "code", "value": "manual"},
-        {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
-        {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
-        {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
-        {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-    ]
-    assert configurations == expected, configurations
+        # app-started always reports the interpreter's build info, sourced from sysconfig
+        # rather than from any product configuration, so it's telemetry's own data, not a
+        # dependency on another component's settings.
+        configs_by_name = {c["name"]: c for c in app_started_events[0]["payload"]["configuration"]}
+        for name, sysconfig_key in (
+            ("python_soabi", "SOABI"),
+            ("python_host_gnu_type", "HOST_GNU_TYPE"),
+            ("python_build_gnu_type", "BUILD_GNU_TYPE"),
+        ):
+            assert configs_by_name[name]["origin"] == "unknown"
+            assert configs_by_name[name]["value"] == sysconfig.get_config_var(sysconfig_key)
 
 
 def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -1332,6 +864,108 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     assert sorted_configs[5]["value"] == "baboon"
     assert sorted_configs[5]["origin"] == "fleet_stable_config"
     assert sorted_configs[5]["seq_id"] == 6
+
+
+def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_session, monkeypatch):
+    """report_configuration() reports every public, non-sensitive item of a DDConfig with its
+    resolved value, source and config_id, and skips private and sensitive items entirely.
+    """
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_PUBLIC_SETTING", "from_env")
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_BOOL_SETTING", "true")
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_FLOAT_SETTING", "1.5")
+
+    with (
+        mock.patch.dict(settings_core.FLEET_CONFIG, {"DD_TEST_SYNTHETIC_FLEET_SETTING": "from_fleet"}),
+        mock.patch.dict(settings_core.FLEET_CONFIG_IDS, {"DD_TEST_SYNTHETIC_FLEET_SETTING": "config-id-123"}),
+    ):
+        synthetic_config = _SyntheticDDConfig()
+
+    with mock.patch.object(
+        ddtrace.internal.telemetry,
+        "SENSITIVE_CONFIGURATIONS",
+        frozenset({"DD_TEST_SYNTHETIC_SENSITIVE_SETTING"}),
+    ):
+        ddtrace.internal.telemetry.report_configuration(synthetic_config)
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+
+    assert reported["DD_TEST_SYNTHETIC_PUBLIC_SETTING"]["origin"] == "env_var"
+    assert reported["DD_TEST_SYNTHETIC_PUBLIC_SETTING"]["value"] == "from_env"
+
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["origin"] == "fleet_stable_config"
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["value"] == "from_fleet"
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["config_id"] == "config-id-123"
+
+    assert "DD_TEST_SYNTHETIC_PRIVATE_SETTING" not in reported
+    assert "DD_TEST_SYNTHETIC_SENSITIVE_SETTING" not in reported
+
+    # Values are reported using the DDConfig item's declared type, not as raw strings.
+    assert reported["DD_TEST_SYNTHETIC_BOOL_SETTING"]["value"] is True
+    assert reported["DD_TEST_SYNTHETIC_FLOAT_SETTING"]["value"] == 1.5
+
+
+def test_get_config_reports_all_sources_by_precedence(telemetry_writer, test_agent_session, monkeypatch):
+    """get_config() reports telemetry for every source that supplies a value and returns the
+    value from the highest-precedence source: fleet stable config > env var > local stable
+    config > default.
+    """
+    name = "DD_TEST_SYNTHETIC_GET_CONFIG_SETTING"
+
+    assert ddtrace.internal.telemetry.get_config(name, "default_value") == "default_value"
+
+    with mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "local_value"
+
+    monkeypatch.setenv(name, "env_value")
+    with mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "env_value"
+
+    with (
+        mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}),
+        mock.patch.dict(ddtrace.internal.telemetry.FLEET_CONFIG, {name: "fleet_value"}),
+        mock.patch.dict(ddtrace.internal.telemetry.FLEET_CONFIG_IDS, {name: "config-id-456"}),
+    ):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "fleet_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = test_agent_session.get_configurations(name=name, remove_seq_id=False, effective=False)
+    origins = {c["origin"] for c in reported}
+    assert origins == {"default", "local_stable_config", "env_var", "fleet_stable_config"}
+
+    fleet_entry = next(c for c in reported if c["origin"] == "fleet_stable_config")
+    assert fleet_entry["value"] == "fleet_value"
+    assert fleet_entry["config_id"] == "config-id-456"
+
+
+def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writer, test_agent_session, monkeypatch):
+    """get_config() honors registered aliases of the canonical env var name and never reports
+    telemetry for configurations marked sensitive, regardless of which source supplies them.
+    """
+    canonical = "DD_TEST_SYNTHETIC_CANONICAL_SETTING"
+    alias = "DD_TEST_SYNTHETIC_LEGACY_ALIAS"
+    monkeypatch.setenv(alias, "aliased_value")
+
+    with mock.patch.dict(ddtrace.internal.telemetry.CONFIGURATION_ALIASES, {canonical: [alias]}):
+        assert ddtrace.internal.telemetry.get_config(canonical, "default_value") == "aliased_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    assert reported[canonical]["origin"] == "env_var"
+    assert reported[canonical]["value"] == "aliased_value"
+
+    sensitive_name = "DD_TEST_SYNTHETIC_SENSITIVE_GET_CONFIG_SETTING"
+    monkeypatch.setenv(sensitive_name, "leaked_value")
+    with mock.patch.object(
+        ddtrace.internal.telemetry,
+        "SENSITIVE_CONFIGURATIONS",
+        frozenset({sensitive_name}),
+    ):
+        assert ddtrace.internal.telemetry.get_config(sensitive_name, "default_value") == "leaked_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    assert sensitive_name not in reported
 
 
 @pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"})

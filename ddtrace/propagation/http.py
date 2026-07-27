@@ -10,7 +10,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -42,6 +41,7 @@ from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
@@ -242,7 +242,7 @@ class _DatadogMultiHeader:
 
         # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+        if not asm_config._apm_tracing_enabled and (TRACE_SOURCE_PROPAGATION_KEY not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
@@ -357,10 +357,10 @@ class _DatadogMultiHeader:
                 # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.
-                if not meta or APPSEC.PROPAGATION_HEADER not in meta:
+                if not meta or TRACE_SOURCE_PROPAGATION_KEY not in meta:
                     sampling_priority = None
                 # If the trace has appsec propagation tag, the default priority is user keep
-                elif meta and APPSEC.PROPAGATION_HEADER in meta:
+                elif meta and TRACE_SOURCE_PROPAGATION_KEY in meta:
                     sampling_priority = 2  # type: ignore[assignment]
 
             return Context(
@@ -1132,13 +1132,14 @@ class HTTPPropagator(object):
         If sampling_priority is already set, returns immediately. Otherwise, finds the
         appropriate span and triggers sampling before returning the injection context.
         """
+        core_tracer = core.root.get_item("tracer")
         # Extract context for header injection (non_active_span takes precedence)
         injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
 
         # Find root span for sampling decisions
         if injection_context.sampling_priority is not None:
             return injection_context
-        elif core.tracer is None:
+        elif core_tracer is None:
             # This should never happen, tracer should be initialized before headers can be injected.
             log.error(
                 "No tracer found and injection context %s has no sampling priority, skipping sampling",
@@ -1153,13 +1154,13 @@ class HTTPPropagator(object):
         elif isinstance(trace_info, Span):
             # Use span's root for sampling
             sampling_span = trace_info._local_root
-        elif (current_root := core.tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
+        elif (current_root := core_tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
             # Get the local root span for the current trace (if it is active, otherwise we can't sample)
             sampling_span = current_root
 
         # Sample the local root span before injecting headers.
         if sampling_span:
-            core.tracer.sample(sampling_span)
+            core_tracer.sample(sampling_span)
             log.debug("%s sampled before propagating trace: span_context=%s", sampling_span, injection_context)
 
         return injection_context

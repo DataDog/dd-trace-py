@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where user blocking could be bypassed when calling
+    ``ddtrace.contrib.trace_utils.set_user`` if neither ``ddtrace.appsec.trace_utils`` nor the
+    user tracking SDK had been imported. The user blocking decision is now always enforced when
+    AppSec is enabled.

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes the stack profiler tearing down an alternate signal stack it did not allocate
+    (for example one installed by the application or the crash tracker), which could disable that
+    component's fault handling.

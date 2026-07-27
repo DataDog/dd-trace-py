@@ -2,7 +2,6 @@ import _io
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
-import itertools
 import json
 import os
 from re import Match
@@ -1119,6 +1118,16 @@ def re_findall_aspect(
     return result
 
 
+def _taint_finditer_lazily(matches: Iterator, ranges: Any) -> Iterator:
+    # Taint each Match object as it is yielded, keeping the underlying finditer iterator lazy.
+    for match in matches:
+        try:
+            taint_pyobject_with_ranges(match, ranges)
+        except Exception as e:
+            iast_propagation_error_log("IAST propagation error. re_finditer_aspect", e)
+        yield match
+
+
 def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Iterator:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1148,9 +1157,10 @@ def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, 
             string = args[0]
             if is_pyobject_tainted(string):
                 ranges = get_ranges(string)
-                result, result_backup = itertools.tee(result)
-                for elem in result_backup:
-                    taint_pyobject_with_ranges(elem, ranges)
+                # Wrap the iterator in a lazy generator so each Match is tainted as the
+                # application consumes it, preserving finditer's laziness and avoiding
+                # buffering every match in memory (memory DoS on request-controlled input).
+                return _taint_finditer_lazily(result, ranges)
     except Exception as e:
         iast_propagation_error_log("IAST propagation error. re_finditer_aspect", e)
     return result

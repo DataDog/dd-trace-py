@@ -1,0 +1,48 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.mistral.ai/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "User-Agent": "mistral-client-python/2.0.5",
+      "Content-Type": "application/json",
+      "Content-Length": "220"
+    },
+    "body": "{\"model\":\"mistral-large-latest\",\"messages\":[{\"content\":\"Why is the sky blue?\",\"role\":\"user\"}],\"temperature\":0.7,\"top_p\":0.9,\"max_tokens\":100,\"stream\":false,\"random_seed\":42,\"presence_penalty\":0.0,\"frequency_penalty\":0.0}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Mon, 20 Jul 2026 16:58:31 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "set-cookie": "__cf_bm=wPwNrZM_JVgB9hxJaQq1xN7llD.8AouVRCfHZkDeeJs-1784566709.5234303-1.0.1.1-jZrFfESYpBx6kxrs8rDrKYG22F_Y0W3XF_2gMhc9JO.JpOc.S4nbHNJuQvr7hknkkQY4fKoWGvuFh_LN_z.VZLniHaIqo13foC9J05q46VWKlGK4LanvEgeF1OB6V4uo; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Mon, 20 Jul 2026 17:28:31 GMT",
+      "mistral-correlation-id": "019f8076-fd49-71cb-b710-42e6ac161d45",
+      "x-kong-request-id": "019f8076-fd49-71cb-b710-42e6ac161d45",
+      "x-max-retry-attempts-reached": "false",
+      "x-ratelimit-limit-tokens-minute": "250000",
+      "x-ratelimit-remaining-tokens-minute": "249891",
+      "x-ratelimit-tokens-query-cost": "109",
+      "x-ratelimit-limit-req-minute": "4",
+      "x-ratelimit-remaining-req-minute": "3",
+      "x-envoy-upstream-service-time": "1680",
+      "Server": "cloudflare",
+      "access-control-allow-origin": "*",
+      "x-kong-upstream-latency": "1681",
+      "x-kong-proxy-latency": "14",
+      "X-Content-Type-Options": "nosniff",
+      "cf-cache-status": "DYNAMIC",
+      "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a1e382ce8965d52d-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"id\":\"b6fb3feaa0154b08bad5a1ea48f56374\",\"created\":1784566709,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":9,\"total_tokens\":109,\"completion_tokens\":100,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"length\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":\"The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes how light interacts with molecules and tiny particles in Earth's atmosphere. Here\u2019s a step-by-step explanation:\\n\\n### 1. **Sunlight is White Light**\\n   - Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, blue, indigo, and violet.\\n\\n### 2. **Scattering by Air Molecules**\\n\"}}]}"
+  }
+}

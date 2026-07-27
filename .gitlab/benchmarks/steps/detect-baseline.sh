@@ -44,9 +44,9 @@ elif [[ "${UPSTREAM_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
   BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/${BASELINE_BRANCH}" || echo "")
 
-# If this is a build on a feature branch, then try to detemine the base branch to compare against, default to `main`
+# If this is a build on a feature branch, then try to determine the base branch to compare against, default to `main`
 else
-  BASELINE_BRANCH=$(gh pr view --json "baseRefName" --jq ".baseRefName" "${UPSTREAM_BRANCH}" || echo "main")
+  BASELINE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh "${UPSTREAM_BRANCH}")
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
   BASELINE_TAG=""
 fi

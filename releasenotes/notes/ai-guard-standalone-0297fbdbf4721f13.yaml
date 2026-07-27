@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ai_guard: This introduces AI Guard standalone mode. When APM tracing is disabled
+    (``DD_APM_TRACING_ENABLED=false``), traces produced by AI Guard are still sent to
+    Datadog, kept with ``USER_KEEP`` sampling priority and the AI Guard decision maker
+    so that they can be attributed to AI Guard, while APM host billing is not triggered.

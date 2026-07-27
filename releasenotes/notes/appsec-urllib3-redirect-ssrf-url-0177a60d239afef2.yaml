@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the target URL of a redirect followed
+    internally by ``urllib3`` was not inspected for SSRF and API Security (API10).

@@ -323,6 +323,34 @@ def redirect_httpx_async(route: str, port: int):
     return payload
 
 
+@app.route("/redirect_urllib3/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect_urllib3(route: str, port: int):
+    import urllib3
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.data.decode()
+    body = body_str if body_str else None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        http = urllib3.PoolManager()
+        response = http.request(
+            method,
+            full_url,
+            body=body.encode() if body is not None else None,
+            headers=headers,
+            timeout=DOWNSTREAM_HTTP_TIMEOUT,
+        )
+        payload = {"payload": response.data.decode(errors="ignore")}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
 # Auto user event manual instrumentation
 
 

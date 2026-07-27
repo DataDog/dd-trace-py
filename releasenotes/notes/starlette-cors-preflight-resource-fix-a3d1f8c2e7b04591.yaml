@@ -1,0 +1,8 @@
+fixes:
+  - |
+    starlette: Fix high-cardinality span resources for CORS preflight requests. When
+    ``CORSMiddleware`` handled an ``OPTIONS`` request, the span resource was set to the
+    raw URL path (e.g. ``OPTIONS /users/123``) instead of the route template
+    (e.g. ``OPTIONS /users/{user_id}``). The route pattern is now resolved via the
+    app's route tree when ``CORSMiddleware`` short-circuits before the Starlette router
+    runs. Fixes #14321.

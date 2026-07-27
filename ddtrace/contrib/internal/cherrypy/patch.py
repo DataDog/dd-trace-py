@@ -19,6 +19,7 @@ from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
@@ -82,7 +83,7 @@ class TraceTool(cherrypy.Tool):
             activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
             set_service_and_source(
                 req_span,
                 trace_utils.int_service(None, config.cherrypy, default="cherrypy"),

@@ -3,6 +3,7 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
@@ -13,6 +14,8 @@ mod ffe;
 mod http_client;
 mod library_config;
 mod log;
+#[cfg(target_os = "linux")]
+mod otel_thread_ctx;
 mod py_string;
 mod rand;
 mod shared_runtime;
@@ -45,16 +48,31 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            crashtracker::crashtracker_report_unhandled_exception_py,
+            m
+        )?)?;
     }
 
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
+
+    #[cfg(target_os = "linux")]
+    {
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::update_otel_thread_context
+        ))?;
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::detach_otel_thread_context
+        ))?;
+    }
     shared_runtime::register_shared_runtime(m)?;
     data_pipeline::register_data_pipeline(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
+    contextvar::register_contextvar(m)?;
     rand::register_rand(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;

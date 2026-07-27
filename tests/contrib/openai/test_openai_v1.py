@@ -218,7 +218,9 @@ def test_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
-        client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -230,7 +232,9 @@ async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
-        await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        async for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -345,7 +349,7 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.OpenAI()
-        client.chat.completions.with_raw_response.create(
+        resp = client.chat.completions.with_raw_response.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Who won the world series in 2020?"},
@@ -354,6 +358,8 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, test_spans):
             user="ddtrace-test",
             n=None,
         )
+        for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -365,7 +371,7 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spa
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.AsyncOpenAI()
-        await client.chat.completions.with_raw_response.create(
+        resp = await client.chat.completions.with_raw_response.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Who won the world series in 2020?"},
@@ -374,6 +380,8 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spa
             user="ddtrace-test",
             n=None,
         )
+        async for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 

@@ -15,6 +15,7 @@ import uuid
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
@@ -178,12 +179,18 @@ class TargetFile:
     raw: str
 
 
+class ConfigStatus(enum.IntEnum):
+    OK = 0
+    EXPIRED = 1
+
+
 @dataclasses.dataclass
 class AgentPayload:
     roots: Optional[list[SignedRoot]] = None
     targets: Optional[SignedTargets] = None
     target_files: list[TargetFile] = dataclasses.field(default_factory=list)
     client_configs: set[str] = dataclasses.field(default_factory=set)
+    config_status: int = ConfigStatus.OK
 
     def __post_init__(self):
         if self.roots is not None:
@@ -195,6 +202,19 @@ class AgentPayload:
         for i in range(len(self.target_files)):
             if isinstance(self.target_files[i], dict):
                 self.target_files[i] = TargetFile(**self.target_files[i])
+
+    @classmethod
+    def from_agent_response(cls, data: Mapping[str, Any]) -> "AgentPayload":
+        """Build from the agent's raw response, ignoring fields we don't (yet) model.
+
+        The agent's response proto evolves over time; unknown fields must not
+        fail the whole poll.
+        """
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        unknown_fields = data.keys() - known_fields
+        if unknown_fields:
+            log.warning("Unhandled field(s) in agent remote config response, ignoring: %s", sorted(unknown_fields))
+        return cls(**{k: v for k, v in data.items() if k in known_fields})
 
 
 AppliedConfigType = dict[str, ConfigMetadata]
@@ -252,10 +272,14 @@ class RemoteConfigClient:
         # Track which products are enabled
         self._enabled_products: set[str] = set()
 
+        # Serializes connector read + dispatch between the subscriber thread and the
+        # synchronous pump (forksafe: reset on fork). Product callbacks must not re-enter.
+        self._dispatch_lock = forksafe.Lock()
+
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
         self._global_subscriber = RemoteConfigSubscriber(
-            self._global_connector, self._dispatch_to_products, "GlobalSubscriber"
+            self._global_connector, self._dispatch_to_products, "GlobalSubscriber", self._dispatch_lock
         )
 
         self._applied_configs: AppliedConfigType = {}
@@ -306,6 +330,20 @@ class RemoteConfigClient:
                     exc_info=True,
                 )
 
+        self._dispatch_payloads(payloads, product_callbacks)
+
+    def _pump_subscriber(self) -> None:
+        """Apply just-published configs synchronously, so apply_state is promoted before
+        the next poll reports it. The lock serializes with the background subscriber thread
+        (kept for forked children); failures are contained like that thread's periodic().
+        """
+        try:
+            with self._dispatch_lock:
+                self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
+        except Exception:
+            log.error("[%s][P: %s] Error pumping remote config to products", os.getpid(), os.getppid(), exc_info=True)
+
+    def _dispatch_payloads(self, payloads: Sequence[Payload], product_callbacks: dict[str, RCCallback]) -> None:
         if not payloads:
             return
 
@@ -344,6 +382,7 @@ class RemoteConfigClient:
                             },
                         )
                 except Exception:
+                    # Product-side failure: logged here, surfaced via the product's telemetry
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
@@ -352,6 +391,30 @@ class RemoteConfigClient:
                         product_payload_list,
                         exc_info=True,
                     )
+            # Delivered (or no product to apply it): acknowledge so it isn't stuck pending
+            self._set_apply_state_for_payloads(product_payload_list, 2)
+
+    def _set_apply_state_for_payloads(
+        self, payloads: Sequence[Payload], apply_state: int, apply_error: Optional[str] = None
+    ) -> None:
+        """Promote apply_state after the product callback ran.
+
+        Match by path + sha256_hash + tuf_version so a late callback can't
+        overwrite a newer config; skip removals (content is None).
+        """
+        for payload in payloads:
+            if payload.content is None:
+                continue
+            # Written from the subscriber thread or the poller (pump); read by _build_state
+            applied = self._applied_configs.get(payload.path)
+            if (
+                applied is None
+                or applied.sha256_hash != payload.metadata.sha256_hash
+                or applied.tuf_version != payload.metadata.tuf_version
+            ):
+                continue
+            applied.apply_state = apply_state
+            applied.apply_error = apply_error
 
     def renew_id(self):
         # called after the process is forked to declare a new id
@@ -405,6 +468,10 @@ class RemoteConfigClient:
     def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
         for capability in capabilities:
             self._capabilities |= capability
+
+    def update_capabilities(self, mask: int, capabilities: int) -> None:
+        """Replace the bits within ``mask`` with ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        self._capabilities = (self._capabilities & ~mask) | (capabilities & mask)
 
     def update_product_callback(self, product_name: str, callback: RCCallback) -> bool:
         """Update the callback for a registered product."""
@@ -489,7 +556,10 @@ class RemoteConfigClient:
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[dict[str, Any]]:
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[bytes]:
+        """Return the raw (base64-decoded, hash-verified) target bytes. Integrity failures
+        raise RemoteConfigError (fails the whole poll); JSON parsing is left to the caller.
+        """
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -508,10 +578,7 @@ class RemoteConfigClient:
                 "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
             )
 
-        try:
-            return json.loads(raw)
-        except Exception:
-            raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+        return raw
 
     def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
@@ -607,6 +674,24 @@ class RemoteConfigClient:
                 # and publish its content.
                 self._apply_config(payload_list, applied_configs, target, incoming, payload)
 
+    def _remove_expired_configurations(self) -> None:
+        """Disable every currently applied configuration.
+
+        Called when the agent reports ``ConfigStatus.EXPIRED``: it hasn't reached the backend
+        in a while and is serving configuration from a stale cache whose TUF signatures have
+        expired, so it must be treated as removed rather than left applied.
+        """
+        payload_list: list[Payload] = []
+        for target, applied in self._applied_configs.items():
+            self._remove_config(payload_list, target, applied)
+
+        with self._dispatch_lock:
+            self._publish_configuration(payload_list)
+            self._applied_configs = {}
+
+        self._add_apply_config_to_cache()
+        self._pump_subscriber()
+
     def _remove_config(self, payload_list: list[Payload], target: str, config: ConfigMetadata) -> None:
         if config.product_name not in self._product_callbacks:
             return
@@ -627,27 +712,25 @@ class RemoteConfigClient:
         if config.product_name not in self._product_callbacks:
             return
 
-        config_content = self._extract_target_file(payload, target, config)
-        if config_content is None:
+        # Integrity failures (base64/hash) raise here and fail the whole poll (retryable)
+        raw = self._extract_target_file(payload, target, config)
+        if raw is None:
             return
 
         try:
-            log.debug(
-                "[%s][P: %s] Load new configuration: %s. content: %s",
-                os.getpid(),
-                os.getppid(),
-                target,
-                config_content,
-            )
+            config_content = json.loads(raw)
+            log.debug("[%s][P: %s] Load new configuration: %s", os.getpid(), os.getppid(), target)
             self._accumulate_payload(payload_list, config_content, target, config)
         except Exception:
-            error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
+            # Malformed payload that can't be deserialized: the only case reported as errored
+            error_message = "Failed to deserialize configuration %s for product %r" % (config, config.product_name)
             log.debug(error_message, exc_info=True)
             config.apply_state = 3  # Error state
             config.apply_error = error_message
             applied_configs[target] = config
         else:
-            config.apply_state = 2  # Acknowledged (applied)
+            # Promoted to 2 once the subscriber runs the callback (_dispatch_to_products)
+            config.apply_state = 1  # Unacknowledged (apply pending)
             applied_configs[target] = config
 
     def _add_apply_config_to_cache(self):
@@ -721,11 +804,23 @@ class RemoteConfigClient:
 
     def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
-            payload = AgentPayload(**data)
+            payload = AgentPayload.from_agent_response(data)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
             raise RemoteConfigError(msg)
+
+        if payload.config_status == ConfigStatus.EXPIRED:
+            # The agent hasn't been able to reach the backend for a while and its TUF
+            # signatures have expired: per RC backend semantics, expired configuration must
+            # be treated as removed rather than kept applied.
+            log.debug(
+                "[%s][P: %s] Agent served remote config from an expired cache, removing all applied configurations",
+                os.getpid(),
+                os.getppid(),
+            )
+            self._remove_expired_configurations()
+            return
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
@@ -747,14 +842,18 @@ class RemoteConfigClient:
         payload_list: list[Payload] = []
         self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
 
-        # 3. Publish all payloads to the global connector
-        self._publish_configuration(payload_list)
-
-        self._last_targets_version = last_targets_version
-        self._applied_configs = applied_configs
-        self._backend_state = backend_state
+        # 3. Publish, then snapshot, atomically: a failed publish leaves the previous state
+        #    intact (poll is retried), and no consumer sees a payload before _applied_configs.
+        with self._dispatch_lock:
+            self._publish_configuration(payload_list)
+            self._last_targets_version = last_targets_version
+            self._applied_configs = applied_configs
+            self._backend_state = backend_state
 
         self._add_apply_config_to_cache()
+
+        # 4. Apply synchronously so apply_state is promoted before the next poll reports it
+        self._pump_subscriber()
 
     def request(self) -> bool:
         try:

@@ -41,6 +41,14 @@ class TestPytestBenchmark:
 
         assert result.ret == 0
 
+        events = list(event_capture.events())
+        assert sorted(event["type"] for event in events) == [
+            "test",
+            "test_module_end",
+            "test_session_end",
+            "test_suite_end",
+        ]
+
         test_event = event_capture.event_by_test_name("test_sum_longer")
 
         assert test_event["content"]["meta"].get("test.type") == "benchmark"
@@ -64,3 +72,68 @@ class TestPytestBenchmark:
         assert test_event["content"]["metrics"].get("benchmark.duration.statistics.std_dev") is not None
         assert test_event["content"]["metrics"].get("benchmark.duration.statistics.std_dev_outliers") is not None
         assert test_event["content"]["metrics"].get("benchmark.duration.statistics.total") > 0.0002
+        assert test_event["content"]["metrics"].get("benchmark.duration.runs") == test_event["content"]["metrics"].get(
+            "benchmark.duration.statistics.n"
+        )
+        assert test_event["content"]["metrics"].get("benchmark.duration.mean") == test_event["content"]["metrics"].get(
+            "benchmark.duration.statistics.mean"
+        )
+
+    def test_pytest_no_benchmark(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_foo="""
+            import time
+
+            def sum_longer(value):
+                time.sleep(0.0002)
+                return value
+            def test_sum_longer():
+                assert sum_longer(5) == 5
+        """
+        )
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        events = list(event_capture.events())
+        assert sorted(event["type"] for event in events) == [
+            "test",
+            "test_module_end",
+            "test_session_end",
+            "test_suite_end",
+        ]
+
+        test_event = event_capture.event_by_test_name("test_sum_longer")
+        assert test_event["content"]["meta"].get("test.type") == "test"
+        assert test_event["content"]["meta"].get("benchmark.duration.info") is None
+        assert test_event["content"]["meta"].get("benchmark.duration.statistics.outliers") is None
+
+        assert test_event["content"]["metrics"].get("benchmark.duration.mean") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.runs") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.hd15iqr") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.iqr") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.iqr_outliers") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.ld15iqr") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.max") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.mean") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.median") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.min") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.ops") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.q1") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.q3") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.n") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.std_dev") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.std_dev_outliers") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.statistics.total") is None
+        assert test_event["content"]["metrics"].get("benchmark.duration.runs") == test_event["content"]["metrics"].get(
+            "benchmark.duration.statistics.n"
+        )
+        assert test_event["content"]["metrics"].get("benchmark.duration.mean") == test_event["content"]["metrics"].get(
+            "benchmark.duration.statistics.mean"
+        )

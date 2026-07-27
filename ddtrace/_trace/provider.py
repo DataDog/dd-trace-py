@@ -1,5 +1,6 @@
 import abc
 import contextvars
+import sys
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -19,6 +20,21 @@ _DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]] = contextvars.Cont
 )
 
 
+# PyContextVar_Set is not atomic before CPython 3.12: an allocation during
+# the HAMT rebuild can trigger a cyclic GC pass that frees a node still in use,
+# crashing with SEGV_MAPERR. On affected versions we route the set through a
+# native helper that secures the context's storage during the call.
+# CPython 3.12+ is unaffected, so use the plain (and faster) set there.
+if sys.version_info < (3, 12):
+    from ddtrace.internal.native._native import safe_contextvar_set
+
+    def _activate_contextvar(ctx: Optional[ActiveTrace]) -> None:
+        safe_contextvar_set(_DD_CONTEXTVAR, ctx)
+
+else:
+    _activate_contextvar = _DD_CONTEXTVAR.set  # type: ignore[assignment]
+
+
 class BaseContextProvider(metaclass=abc.ABCMeta):
     """
     A ``ContextProvider`` is an interface that provides the blueprint
@@ -35,7 +51,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        core.dispatch("ddtrace.context_provider.activate", (ctx,))
+        core.dispatch("ddtrace.context_provider.activate", (self, ctx))
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:
@@ -65,7 +81,7 @@ class DefaultContextProvider(BaseContextProvider):
 
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
         """Makes the given context active in the current execution."""
-        _DD_CONTEXTVAR.set(ctx)
+        _activate_contextvar(ctx)
         super(DefaultContextProvider, self).activate(ctx)
 
     def active(self) -> Optional[ActiveTrace]:

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where the OpenAI and Anthropic
+    integrations did not record the model output on the LLM Observability span
+    when AI Guard blocked the request after the model call completed. The model
+    response is now captured even though the span is marked as errored by the
+    block.

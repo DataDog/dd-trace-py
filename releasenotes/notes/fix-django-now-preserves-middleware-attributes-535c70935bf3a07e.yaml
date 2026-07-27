@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Django: This fix resolves an issue where async function-based middleware attributes,
+    such as ``process_exception``, were not preserved, causing Django to skip
+    exception handlers under ASGI.

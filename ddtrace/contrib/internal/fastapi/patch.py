@@ -9,6 +9,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.starlette.patch import _set_route_resource_resolver
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
@@ -97,7 +98,11 @@ def _supported_versions() -> dict[str, str]:
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):
-    return TraceMiddleware(app=wrapped(*args, **kwargs), integration_config=config.fastapi)
+    return TraceMiddleware(
+        app=wrapped(*args, **kwargs),
+        integration_config=config.fastapi,
+        span_modifier=_set_route_resource_resolver,
+    )
 
 
 async def traced_serialize_response(wrapped, instance, args, kwargs):

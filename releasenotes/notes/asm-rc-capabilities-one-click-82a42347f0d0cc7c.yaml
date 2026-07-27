@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: Fix an issue which could make the Threat Protection panel wrongly report
+    that a library update was required.

@@ -20,6 +20,7 @@ from tests.appsec.contrib_appsec.flask_app.app import redirect
 from tests.appsec.contrib_appsec.flask_app.app import redirect_httpx
 from tests.appsec.contrib_appsec.flask_app.app import redirect_httpx_async
 from tests.appsec.contrib_appsec.flask_app.app import redirect_requests
+from tests.appsec.contrib_appsec.flask_app.app import redirect_urllib3
 from tests.appsec.contrib_appsec.flask_app.app import service_renaming
 
 
@@ -86,6 +87,7 @@ redirect_subapp = _make_redirect_subapp(redirect, "redirect_sub")
 redirect_requests_subapp = _make_redirect_subapp(redirect_requests, "redirect_requests_sub")
 redirect_httpx_subapp = _make_redirect_subapp(redirect_httpx, "redirect_httpx_sub")
 redirect_httpx_async_subapp = _make_redirect_subapp(redirect_httpx_async, "redirect_httpx_async_sub")
+redirect_urllib3_subapp = _make_redirect_subapp(redirect_urllib3, "redirect_urllib3_sub")
 
 
 # Assign DM back onto root.wsgi_app so root.test_client() still drives the dispatcher.
@@ -99,6 +101,7 @@ root.wsgi_app = DispatcherMiddleware(
         "/redirect_requests": redirect_requests_subapp,
         "/redirect_httpx": redirect_httpx_subapp,
         "/redirect_httpx_async": redirect_httpx_async_subapp,
+        "/redirect_urllib3": redirect_urllib3_subapp,
     },
 )
 

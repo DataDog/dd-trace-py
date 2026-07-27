@@ -11,6 +11,7 @@ from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -30,6 +31,10 @@ log = get_logger(__name__)
 
 MODEL = "anthropic.request.model"
 
+_ANTHROPIC_MODEL_PROVIDER = "anthropic"
+_BEDROCK_MODEL_PROVIDER = "amazon"
+_VERTEX_MODEL_PROVIDER = "google"
+
 
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
@@ -42,7 +47,11 @@ class AnthropicIntegration(BaseLLMIntegration):
         **kwargs: dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
-        self._base_url = self._get_base_url(**kwargs)
+        # Store base_url per-span rather than on the singleton integration so a streaming
+        # span that finalizes after concurrent requests still resolves the right provider.
+        base_url = self._get_base_url(**kwargs)
+        if base_url is not None:
+            span._set_ctx_item(REQUEST_BASE_URL, base_url)
         if model is not None:
             span._set_attribute(MODEL, model)
 
@@ -68,7 +77,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        # Record output whenever a response exists, independent of span.error: a
+        # genuine model error leaves no response, while an AI Guard block after
+        # the model call errors the span but keeps a valid response (APPSEC-68147).
+        if response is not None:
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
@@ -79,7 +91,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             span,
             kind=span_kind,
             model_name=span.get_tag("anthropic.request.model") or "",
-            model_provider=self._get_model_provider(),
+            model_provider=self._get_model_provider(span),
             input_messages=input_messages,
             metadata=parameters,
             output_messages=output_messages,
@@ -97,7 +109,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics,
             span_kind,
             model_name=model_name,
-            model_provider=self._get_model_provider(),
+            model_provider=self._get_model_provider(span),
         )
 
     def _extract_input_message(
@@ -263,13 +275,23 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
 
-    def _get_model_provider(self) -> str:
-        """Return the model provider based on the base_url.
-        Returns "anthropic" for default clients or when the base_url contains "anthropic".
-        Returns "unknown" when a custom base_url is set that doesn't contain "anthropic".
+    def _get_model_provider(self, span: Span) -> str:
+        """Resolve the model provider from the request base_url captured on the span.
+
+        Returns "amazon" if the base_url contains "bedrock".
+        Returns "google" if the base_url contains "google".
+        Returns "anthropic" if the base_url contains "anthropic".
+        Returns "unknown" when the base_url is missing or unrecognized.
         """
-        if not self._base_url or "anthropic" in self._base_url.lower():
-            return "anthropic"
+        base_url = (span._get_ctx_item(REQUEST_BASE_URL) or "").lower()
+        if not base_url:
+            return UNKNOWN_MODEL_PROVIDER
+        if "bedrock" in base_url:
+            return _BEDROCK_MODEL_PROVIDER
+        if "google" in base_url:
+            return _VERTEX_MODEL_PROVIDER
+        if "anthropic" in base_url:
+            return _ANTHROPIC_MODEL_PROVIDER
         return UNKNOWN_MODEL_PROVIDER
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:

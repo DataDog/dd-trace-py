@@ -60,6 +60,9 @@ _ALL_ASM_BLOCKING = (
 _ALL_RASP = Flags.ASM_RASP_SQLI | Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF | Flags.ASM_RASP_SHI | Flags.ASM_RASP_CMDI
 _FEATURE_REQUIRED = Flags.ASM_ACTIVATION | Flags.ASM_AUTO_USER
 
+# Mask of every bit _rc_capabilities() may set, so re-advertising replaces only ASM-owned bits.
+_ALL_ASM_CAPABILITIES = Flags.ASM_ACTIVATION | Flags.ASM_AUTO_USER | _ALL_ASM_BLOCKING | _ALL_RASP
+
 
 def _asm_feature_is_required() -> bool:
     flags = _rc_capabilities()

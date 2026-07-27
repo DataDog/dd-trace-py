@@ -1,5 +1,6 @@
 import json
 import random
+import sys
 
 import pytest
 
@@ -316,6 +317,32 @@ class TestLangGraphLLMObs:
         b_output = get_llmobs_output(b_span) or {}
         assert a_output.get("value") is not None
         assert b_output.get("value") is not None
+
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21) or sys.version_info < (3, 11),
+        reason="real interrupt() over astream() needs LangGraph 0.3.21+ and Python 3.11+ (async runnable context)",
+    )
+    async def test_astream_break_on_interrupt_emits_llmobs_span(
+        self, langgraph_llmobs, async_interrupt_graph, test_spans
+    ):
+        """The graph's LLMObs span must be emitted even when the consumer abandons the stream on
+        ``__interrupt__`` (human-in-the-loop) instead of draining it.
+        """
+        stream = async_interrupt_graph.astream(
+            {"a_list": [], "which": "a"}, config={"configurable": {"thread_id": "llmobs"}}
+        )
+        saw_interrupt = False
+        async for chunk in stream:
+            if isinstance(chunk, dict) and "__interrupt__" in chunk:
+                saw_interrupt = True
+                break
+        assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+        await stream.aclose()
+
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        assert graph_span is not None
+        assert graph_span.error == 0
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_simple_graph(

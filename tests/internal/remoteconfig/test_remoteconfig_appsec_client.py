@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import json
+
 import mock
 from mock.mock import MagicMock
 import pytest
@@ -18,7 +20,8 @@ def test_reconcile_applies_new_configuration(mock_extract_target_file):
     """
     with override_global_config(dict(_remote_config_enabled=True)):
         mock_config_content = {"test": "content"}
-        mock_extract_target_file.return_value = mock_config_content
+        # _extract_target_file returns the raw bytes; _apply_config deserializes them
+        mock_extract_target_file.return_value = json.dumps(mock_config_content).encode()
         mock_callback = MagicMock()
         mock_config = ConfigMetadata(
             id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
@@ -52,7 +55,7 @@ def test_reconcile_multiple_products_same_callback(mock_extract_target_file):
         mock_callback = MagicMock()
 
         def mock_extract(payload, target, config):
-            return {"product": config.product_name, "target": target}
+            return json.dumps({"product": config.product_name, "target": target}).encode()
 
         mock_extract_target_file.side_effect = mock_extract
 
@@ -172,7 +175,7 @@ def test_reconcile_emits_disables_before_applies(mock_extract_target_file):
     product callbacks observe removals first.
     """
     with override_global_config(dict(_remote_config_enabled=True)):
-        mock_extract_target_file.return_value = {"ok": True}
+        mock_extract_target_file.return_value = json.dumps({"ok": True}).encode()
         mock_callback = MagicMock()
 
         old_cfg = ConfigMetadata(id="old", product_name="ASM_FEATURES", sha256_hash="h0", length=1, tuf_version=1)

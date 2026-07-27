@@ -31,8 +31,10 @@ _soft = True
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
 
-# Flag to determine if the current process is a fork child
-_fork_child = False
+# Fork generation counter. This is incremented every time a fork occurs, and is
+# used to determine if the current process is a child of a fork, and if so, how
+# many generations of forks have occurred since the original process.
+_fork_generation = 0
 
 
 def set_forked():
@@ -46,13 +48,17 @@ def has_forked() -> bool:
 
 
 def set_fork_child() -> None:
-    global _fork_child
+    global _fork_generation
 
-    _fork_child = True
+    _fork_generation += 1
 
 
 def is_fork_child() -> bool:
-    return _fork_child
+    return _fork_generation > 0
+
+
+def get_generation() -> int:
+    return _fork_generation
 
 
 def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
@@ -133,6 +139,19 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
     def _reset_object(self) -> None:
         self.__wrapped__ = self._self_wrapped_class()
+
+    def __reduce__(self) -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
+        # A lock/event is process-local, and so it cannot be carried across a process
+        # boundary (e.g. by cloudpickle in Ray Serve).
+        # The `_thread.lock` primitive is itself unpicklable, so
+        # we reconstruct a fresh, unlocked ResetObject, rather than serializing it
+        # in the destination process.
+        return (ResetObject, (self._self_wrapped_class,))
+
+    # wrapt's ObjectProxy routes __reduce_ex__ to the wrapped object, which is
+    # unpicklable for locks; override it so the picklers use __reduce__ above.
+    def __reduce_ex__(self, protocol: "typing.SupportsIndex") -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
+        return self.__reduce__()
 
 
 _resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()

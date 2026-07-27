@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    anthropic: Fixes LLM Observability spans reporting ``model_provider`` as ``unknown``
+    for the ``AnthropicVertex`` and ``AnthropicBedrock`` clients. The provider is now resolved to ``google`` and ``amazon`` respectively.

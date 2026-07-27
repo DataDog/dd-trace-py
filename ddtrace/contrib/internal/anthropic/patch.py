@@ -62,12 +62,15 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        # Attach the response to the event before the after-hook so that an AI
+        # Guard block raised by that hook still records the model output in
+        # LLMObs, even though the block errors the span (APPSEC-68147).
+        event.response = resp
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        event.response = resp
         ctx.dispatch_ended_event()
         return resp
 
@@ -96,12 +99,15 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        # Attach the response to the event before the after-hook so that an AI
+        # Guard block raised by that hook still records the model output in
+        # LLMObs, even though the block errors the span (APPSEC-68147).
+        event.response = resp
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        event.response = resp
         ctx.dispatch_ended_event()
         return resp
 

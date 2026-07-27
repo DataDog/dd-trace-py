@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AI Guard: This fix resolves an issue where the LiteLLM proxy guardrail allowed a
+    per-request ``block`` dynamic parameter, supplied in the incoming request body, to
+    disable the operator-configured blocking policy and let a denied request proceed in
+    monitor mode. Request-supplied parameters can now only strengthen blocking (turning
+    monitor mode into blocking); they can no longer weaken an enabled blocking policy.

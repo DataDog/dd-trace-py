@@ -116,6 +116,7 @@ def patched_connect_factory(psycopg_module):
                     db.SYSTEM: pin._config.dbms_name,
                 },
                 measured=True,
+                integration_config=config.psycopg,
             ):
                 conn = connect_func(*args, **kwargs)
 

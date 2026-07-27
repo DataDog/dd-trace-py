@@ -7,6 +7,7 @@ from openai import version
 
 from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
+from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -141,7 +142,13 @@ def patch():
             if deep_getattr(openai, async_method) is not None:
                 wrap(openai, async_method, _patched_endpoint_async(endpoint_hook))
 
+    _realtime.patch_realtime()
+
     openai.__datadog_patch = True
+
+    # Notify AI Guard (and any other plugin) that wrapping is complete so they
+    # can install their own outermost wrappers on the same targets.
+    core.dispatch("openai.patch", tuple())
 
 
 def unpatch():
@@ -153,6 +160,10 @@ def unpatch():
         return
 
     openai.__datadog_patch = False
+
+    # Notify AI Guard first so it can peel its outermost wrappers before the
+    # contrib's own unwrap calls restore the layer below.
+    core.dispatch("openai.unpatch", tuple())
 
     if OPENAI_VERSION >= (1, 8, 0):
         unwrap(openai._base_client.SyncAPIClient, "_process_response")
@@ -178,6 +189,8 @@ def unpatch():
                 unwrap(sync_resource, method_name)
             if async_resource is not None and hasattr(async_resource, method_name):
                 unwrap(async_resource, method_name)
+
+    _realtime.unpatch_realtime()
 
     delattr(openai, "_datadog_integration")
 

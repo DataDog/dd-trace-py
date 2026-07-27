@@ -70,6 +70,7 @@ def traced_cache(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, An
         service=get_service_name(config_django.cache_service_name),
         resource=resource,
         tags=tags,
+        integration_config=config_django,
     ) as ctx:
         result = func(*args, **kwargs)
 

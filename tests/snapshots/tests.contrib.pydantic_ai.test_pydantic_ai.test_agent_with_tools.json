@@ -10,22 +10,23 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6445c00000000",
+      "_dd.p.tid": "6a39984900000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.pydantic_ai",
       "language": "python",
       "pydantic_ai.request.model": "gpt-4o",
       "pydantic_ai.request.provider": "openai",
-      "runtime-id": "d03ffc1aa5f8407883b4b65ffac89b01"
+      "runtime-id": "ff0dedc1e5954a1482c609bb16e4be17"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 436.0
+      "process_id": 73019.0
     },
-    "duration": 8663208,
-    "start": 1776698460779545137
+    "duration": 13934334,
+    "start": 1782159433724131596
   },
      {
        "name": "pydantic_ai.tool",
@@ -36,9 +37,12 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "m"
+       },
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 742500,
-       "start": 1776698460784224387
+       "duration": 1496667,
+       "start": 1782159433730891346
      }]]

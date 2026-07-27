@@ -21,6 +21,7 @@ from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
@@ -684,6 +685,108 @@ def test_callback_error_isolation():
     # Verify each received the correct payload
     assert callback_calls["PRODUCT_A"][0][0].metadata.product_name == "PRODUCT_A"
     assert callback_calls["PRODUCT_B"][0][0].metadata.product_name == "PRODUCT_B"
+
+
+def test_config_metadata_equality():
+    """
+    A tuf_version-only difference must not make two ConfigMetadata compare
+    unequal.
+    """
+    base = dict(id="cfg1", product_name="LIVE_DEBUGGING_SYMBOL_DB", sha256_hash="abc123", length=10)
+    assert ConfigMetadata(**base, tuf_version=1) == ConfigMetadata(**base, tuf_version=2)
+    assert ConfigMetadata(**base, tuf_version=1) != ConfigMetadata(
+        **{**base, "sha256_hash": "different"}, tuf_version=1
+    )
+
+
+def test_agent_payload_from_agent_response_ignores_unknown_fields():
+    """Regression test: the agent's response proto gains fields over time (e.g.
+    config_status). AgentPayload(**data) used to raise TypeError on any such addition,
+    failing the whole poll with "invalid agent payload received".
+    """
+    data = {
+        "target_files": [],
+        "client_configs": [],
+        "config_status": 1,
+        "some_future_field": "unrecognized",
+    }
+    with mock.patch("ddtrace.internal.remoteconfig.client.log") as mock_log:
+        payload = AgentPayload.from_agent_response(data)
+    assert payload.config_status == 1
+    assert not hasattr(payload, "some_future_field")
+    mock_log.warning.assert_called_once()
+    assert "some_future_field" in str(mock_log.warning.call_args)
+
+
+def test_process_response_expired_config_status_removes_applied_configurations():
+    """When the agent reports ConfigStatus.EXPIRED (stale cache, expired TUF signatures since
+    it hasn't reached the backend in a while), the client must treat all currently applied
+    configurations as removed rather than leave them applied.
+    """
+    client = RemoteConfigClient()
+    received = []
+    client.register_callback("LIVE_DEBUGGING_SYMBOL_DB", lambda payloads: received.extend(payloads))
+
+    target = "datadog/2/LIVE_DEBUGGING_SYMBOL_DB/symDb/config"
+    applied = ConfigMetadata(
+        id="symDb",
+        product_name="LIVE_DEBUGGING_SYMBOL_DB",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=1,
+    )
+    client._applied_configs[target] = applied
+
+    client._process_response({"target_files": [], "client_configs": [], "config_status": 1})
+
+    assert client._applied_configs == {}
+    assert client.cached_target_files == []
+    assert len(received) == 1
+    assert received[0].path == target
+    assert received[0].content is None
+
+
+def test_reconcile_configurations_version_only_bump_is_not_reapplied():
+    """A tuf_version bump with unchanged hash must not trigger a re-fetch attempt.
+
+    Regression test for a bug where a target's config_states version incrementing
+    (with content hash unchanged) was misclassified as "changed", requiring a
+    target_files entry the agent had omitted for the unchanged content, producing a
+    repeating "invalid target_files" log with no functional impact.
+    """
+    client = RemoteConfigClient()
+    client.register_callback("LIVE_DEBUGGING_SYMBOL_DB", lambda payloads: None)
+
+    target = "datadog/2/LIVE_DEBUGGING_SYMBOL_DB/symDb/config"
+    applied = ConfigMetadata(
+        id="symDb",
+        product_name="LIVE_DEBUGGING_SYMBOL_DB",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=1,
+    )
+    client._applied_configs[target] = applied
+
+    # Same content hash, only the tuf version increments; the agent omits target_files
+    # for this path since the content is unchanged.
+    incoming = ConfigMetadata(
+        id="symDb",
+        product_name="LIVE_DEBUGGING_SYMBOL_DB",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=2,
+    )
+    client_configs = {target: incoming}
+    agent_payload = AgentPayload(target_files=[])
+
+    payload_list = []
+    applied_configs = {}
+    with mock.patch.object(RemoteConfigClient, "_extract_target_file") as mock_extract:
+        client._reconcile_configurations(payload_list, applied_configs, client_configs, agent_payload)
+        mock_extract.assert_not_called()
+
+    assert payload_list == []
+    assert applied_configs[target] is applied
 
 
 def test_apm_config_precedence():

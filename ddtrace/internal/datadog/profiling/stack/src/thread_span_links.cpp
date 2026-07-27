@@ -52,9 +52,19 @@ ThreadSpanLinks::reset()
 void
 ThreadSpanLinks::postfork_child()
 {
+    auto& instance = get_instance();
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&get_instance().mtx) std::mutex();
-    get_instance().reset();
+    new (&instance.mtx) std::mutex();
+    // thread_id_to_span may be in a mid-mutation state if fork raced with
+    // link_span/unlink_span. Its inherited pointers may be inconsistent,
+    // so calling clear (or letting the destructor run) would traverse the same
+    // corrupted linked-list state, which is UB. Instead, reconstruct the map in
+    // place with placement-new without inspecting its contents. This intentionally
+    // leaks the old map's heap allocations (nodes/buckets), but that memory belonged
+    // to the parent's address space snapshot and is a bounded, one-time leak per
+    // fork in the child; freeing it safely is impossible given the possible
+    // corruption, so leaking is the correct trade-off.
+    new (&instance.thread_id_to_span) std::unordered_map<uint64_t, std::unique_ptr<Span>>();
 }
 
 } // namespace Datadog

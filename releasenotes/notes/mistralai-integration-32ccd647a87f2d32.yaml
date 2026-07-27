@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    mistralai: Adds tracing support for the ``mistralai`` client chat and embedding calls.
+  - |
+    LLM Observability: Adds support for submitting LLM Observability spans for ``mistralai`` client chat and embedding calls.

@@ -1,23 +1,25 @@
+import importlib
+
 from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka", "google.cloud.pubsub_v1"]
+required_module_to_integration = {
+    "confluent_kafka": "kafka",
+    "botocore": "botocore",
+    "kombu": "kombu",
+    "aiokafka": "aiokafka",
+    "google.cloud.pubsub_v1": "google_cloud_pubsub",
+}
 _processor = None
 
 if config._data_streams_enabled:
-    with require_modules(required_modules) as missing_modules:
-        if "confluent_kafka" not in missing_modules:
-            from . import kafka  # noqa:F401
-        if "aiokafka" not in missing_modules:
-            from . import aiokafka  # noqa:F401
-        if "botocore" not in missing_modules:
-            from . import botocore  # noqa:F401
-        if "kombu" not in missing_modules:
-            from . import kombu  # noqa:F401
-        if "google.cloud.pubsub_v1" not in missing_modules:
-            from . import google_cloud_pubsub  # noqa:F401
+    with require_modules(list(required_module_to_integration.keys())) as missing_modules:
+        path_f = "ddtrace.internal.datastreams.%s"
+        for integrated_library, integration_module in required_module_to_integration.items():
+            if integrated_library not in missing_modules:
+                importlib.import_module(path_f % (integration_module,))
 
 
 def data_streams_processor(reset=False):

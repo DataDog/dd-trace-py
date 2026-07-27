@@ -101,7 +101,7 @@ suites:
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
-      - tests/contrib/pytest_benchmark/*
+      - tests/testing/internal/pytest/test_pytest_benchmark.py
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
@@ -118,7 +118,7 @@ suites:
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
-      - tests/contrib/pytest_bdd/*
+      - tests/testing/internal/pytest/test_pytest_bdd.py
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
@@ -135,7 +135,7 @@ suites:
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
-      - tests/contrib/pytest_flaky/*
+      - tests/testing/internal/pytest/test_pytest_flaky.py
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true

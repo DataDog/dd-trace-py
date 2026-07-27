@@ -1,3 +1,5 @@
+from dis import findlinestarts
+from functools import lru_cache
 from functools import wraps
 import inspect
 import logging
@@ -5,6 +7,7 @@ import os
 import random
 import re
 from time import sleep
+import types
 import typing as t
 
 import ddtrace
@@ -17,6 +20,10 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+# co_lines() is available from Python 3.10+; check once at import time.
+# TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
+_CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
 
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
@@ -40,15 +47,61 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
     return get_relative_or_absolute_path_for_path(file_object, repo_directory)
 
 
+def _max_line_in_code(code: types.CodeType) -> int:
+    """Return the maximum line number in a code object, recursing into nested code objects.
+
+    Nested classes and functions at the tail of a function body have their lines stored only
+    in child code objects inside co_consts, so without recursion we would under-report the end
+    line for such functions.
+    """
+    max_line = code.co_firstlineno
+    if _CO_LINES_SUPPORTED:
+        for _, _, line in code.co_lines():
+            if line is not None and line > max_line:
+                max_line = line
+    else:
+        for _, line in findlinestarts(code):
+            if line is not None and line > max_line:
+                max_line = line
+    for const in code.co_consts:
+        if isinstance(const, types.CodeType):
+            nested = _max_line_in_code(const)
+            if nested > max_line:
+                max_line = nested
+    return max_line
+
+
+@lru_cache(maxsize=512)
 def get_source_lines_for_test_method(
     test_method_object,
 ) -> t.Union[tuple[int, int], tuple[None, None]]:
     """
     Get the start and end line numbers for a test method.
 
+    Cached by test method object: parametrized tests and ATF retries reuse the same
+    function object across variants/attempts, so only the first call pays the cost.
+
     Returns:
         Tuple of (start_line, end_line), with None indicating unavailable information
     """
+    # Fast path: derive line numbers from the bytecode rather than tokenizing source.
+    # Unwrap functools.wraps-based decorators (e.g. @patch, @mock.patch) first so that
+    # we read the original test function's code object, not the decorator wrapper's.
+    # co_firstlineno gives the start; _max_line_in_code recurses into nested code objects
+    # so that tests ending with a nested class/def report the correct end line.
+    # TODO: drop the findlinestarts branch once Python 3.9 support is removed.
+    try:
+        func = inspect.unwrap(test_method_object)
+        code = func.__code__
+        start_line = code.co_firstlineno
+        end_line = _max_line_in_code(code)
+        return start_line, end_line + 1
+    except AttributeError:
+        pass  # not a plain function; fall through to inspect
+    except Exception:
+        return None, None
+
+    # Fallback for class-based callables and other non-function objects
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
     except (TypeError, OSError):

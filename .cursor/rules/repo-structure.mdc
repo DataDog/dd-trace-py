@@ -1,6 +1,6 @@
 ---
 description: dd-trace-py repository structure
-globs:
+globs: ddtrace/internal/**,ddtrace/internal/periodic.py,ddtrace/internal/threads.py,ddtrace/internal/forksafe.py,ddtrace/internal/_threads.cpp
 alwaysApply: false
 ---
 # Repository Structure
@@ -46,6 +46,9 @@ dd-trace-py/
 │   │   └── trace_utils.py    # AppSec trace enrichment
 │   │
 │   ├── internal/             # Core implementation utilities (private)
+│   │   │                     # ⚠ Read ddtrace/internal/README.md before modifying
+│   │   │                     #   anything here — covers fork safety, PeriodicThread
+│   │   │                     #   protocol, forksafe hook constraints, and lock ordering.
 │   │   ├── ci_visibility/    # Continuous Integration visibility
 │   │   ├── datastreams/      # Data Streams Monitoring
 │   │   ├── telemetry/        # Internal telemetry collection

@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where the ``google_adk`` integration dropped an
+    agent span (logging ``missing span kind in span context``) and orphaned its child spans when a
+    Gemini response part could not be parsed. The span kind is now set before input/output
+    extraction, so a parsing failure degrades to empty input/output instead of dropping the span.
+  - |
+    LLM Observability: This fix resolves an issue where the Google GenAI and ``google_adk``
+    integrations rendered unhandled Gemini response parts (such as ``inline_data``, ``file_data``,
+    empty parts, or thought-signature parts) as a confusing ``Unsupported file type`` placeholder.
+    These parts now produce a concise summary or empty content.

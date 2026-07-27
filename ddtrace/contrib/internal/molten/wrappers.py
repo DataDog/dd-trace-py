@@ -24,6 +24,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
         allow_default_resource=True,
         pin=pin,
         tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
+        integration_config=config.molten,
     ):
         return wrapped(*args, **kwargs)
 

@@ -25,6 +25,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -66,6 +67,7 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
+_DD_ROUTE_RESOURCE_RESOLVER = "route_resource_resolver"
 
 
 def get_version() -> str:
@@ -124,6 +126,16 @@ def _cleanup_previous_receive(scope: Mapping[str, Any]):
     if current_receive_span:
         current_receive_span.finish()
         scope["datadog"].pop("current_receive_span", None)
+
+
+def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
+    route_resource_resolver = scope.get("datadog", {}).get(_DD_ROUTE_RESOURCE_RESOLVER)
+    if route_resource_resolver is None:
+        return
+    try:
+        route_resource_resolver(scope, span)
+    except Exception:
+        log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
 class TraceMiddleware:
@@ -241,7 +253,7 @@ class TraceMiddleware:
                 integration_config=self.integration_config,
                 is_subapp=is_subapp,
             ) as ctx,
-            ctx.span as span,
+            span_from_context(ctx) as span,
         ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
@@ -364,7 +376,7 @@ class TraceMiddleware:
                         current_receive_span.finish()
                         scope["datadog"].pop("current_receive_span", None)
 
-                    recv_span = ctx.span
+                    recv_span = span_from_context(ctx)
                     try:
                         message = await receive()
 
@@ -452,6 +464,11 @@ class TraceMiddleware:
                         and not message.get("more_body", False)
                         and span.error == 0
                     ):
+                        # Resolve fallback route resource before finishing so span processors
+                        # see the correct value (e.g. CORSMiddleware short-circuits before
+                        # traced_handler populates resource_paths).
+                        if not scope.get("datadog", {}).get("resource_paths"):
+                            _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
                         span.finish()
@@ -505,6 +522,11 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
+                # If resource_paths was never populated (e.g. CORSMiddleware short-circuited
+                # before traced_handler ran), let framework integrations resolve a route
+                # template so the span does not keep a raw path resource.
+                if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
+                    _call_route_resource_resolver(scope, span)
                 # missing datadog scope should not crash request teardown.
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:
