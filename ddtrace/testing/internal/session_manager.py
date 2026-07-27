@@ -812,7 +812,7 @@ class SessionManager:
             log.debug("Test Impact Analysis is disabled by environment variable")
             self.settings.itr_enabled = False
         elif self.service == "dd-trace-py" and asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "false")):
-            log.debug("Test Impact Analysis is ENABLED by environment variable")
+            log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
 
         if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
