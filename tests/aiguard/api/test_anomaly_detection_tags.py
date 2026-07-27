@@ -14,7 +14,7 @@ import pytest
 
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import new_ai_guard_client
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core

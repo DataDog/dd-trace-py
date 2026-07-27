@@ -1,0 +1,79 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS40My40NiBtZC9Cb3RvY29yZSMxLjQzLjQ2IHVhLzIuMSBvcy9tYWNvcyMyNS41LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjE0LjMgbWQvcHlpbXBsI0NQeXRob24gbS91LHQg
+        Qm90b2NvcmUvMS40My40Ng==
+      X-Amz-Date:
+      - !!binary |
+        MjAyNjA3MTNUMTY1MzQyWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        YWVlOWRmYTUtNWNkNC00OGVmLTliN2UtYjFmNjgzY2U2ZmVk
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: GET
+    uri: https://bedrock.us-east-1.amazonaws.com/inference-profiles/arn%3Aaws%3Abedrock%3Aus-east-1%3A123456789012%3Aapplication-inference-profile%2F1arbu5hu2sjr
+  response:
+    body:
+      string: '{"createdAt":"2026-07-13T14:00:42.680622107Z","description":"FRMLO-206 repro resolve application inference profile model id","inferenceProfileArn":"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/1arbu5hu2sjr","inferenceProfileId":"1arbu5hu2sjr","inferenceProfileName":"dd-frmlo206","models":[{"modelArn":"arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"},{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"}],"status":"ACTIVE","toolboxArn":null,"type":"APPLICATION","updatedAt":"2026-07-13T14:00:42.680622107Z"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '608'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 13 Jul 2026 16:53:42 GMT
+      x-amzn-RequestId:
+      - 8a9fcc4b-7642-42bc-9b7a-83c1b6bf2849
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"text": "Explain distributed tracing in one sentence."}]}], "inferenceConfig": {"maxTokens": 100, "temperature": 0.0}}'
+    headers:
+      Content-Length:
+      - '162'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS40My40NiBtZC9Cb3RvY29yZSMxLjQzLjQ2IHVhLzIuMSBvcy9tYWNvcyMyNS41LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjE0LjMgbWQvcHlpbXBsI0NQeXRob24gbS9aLGIs
+        dSxELHQgY2ZnL3JldHJ5LW1vZGUjbGVnYWN5IEJvdG9jb3JlLzEuNDMuNDY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNjA3MTNUMTY1MzQyWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MzNlNzNkNDUtZGIzZi00M2Y1LWEzYmEtMTcwMTg2MjRiZWFj
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/arn%3Aaws%3Abedrock%3Aus-east-1%3A123456789012%3Aapplication-inference-profile%2F1arbu5hu2sjr/converse
+  response:
+    body:
+      string: '{"metrics":{"latencyMs":2251},"output":{"message":{"content":[{"text":"# Distributed Tracing\n\nDistributed tracing tracks requests as they flow through multiple services in a system, recording each operation to visualize performance bottlenecks and dependencies."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"cacheReadInputTokenCount":0,"cacheReadInputTokens":0,"cacheWriteInputTokenCount":0,"cacheWriteInputTokens":0,"inputTokens":16,"outputTokens":40,"serverToolUsage":{},"totalTokens":56}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '505'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 13 Jul 2026 16:53:46 GMT
+      x-amzn-RequestId:
+      - d79850a3-3c4a-41c8-8f3f-5a4171698792
+    status:
+      code: 200
+      message: OK
+version: 1

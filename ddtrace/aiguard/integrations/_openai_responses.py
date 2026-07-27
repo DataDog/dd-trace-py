@@ -34,7 +34,7 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -418,7 +418,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
     Streaming requests are evaluated only when the flag is on (the response is then buffered
     and evaluated at stream end); otherwise they are skipped.
     """
-    if kwargs.get("stream") and not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+    if kwargs.get("stream") and not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
         return None
 
@@ -444,7 +444,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
 
     logger.debug("AI Guard openai responses before-hook evaluating %d message(s)", len(messages))
     try:
-        client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
+        client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -478,7 +478,7 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
+        client.evaluate(all_messages, Options(block=aiguard_config._ai_guard_block))
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

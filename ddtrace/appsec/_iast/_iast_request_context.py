@@ -14,7 +14,7 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -70,7 +70,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
         move_to_root = asm_config._iast_use_root_span
         if move_to_root:
-            req_span = core.get_root_span()
+            req_span = span_bus.get_root_span()
         else:
             if span:
                 req_span = span

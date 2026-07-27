@@ -28,9 +28,18 @@ def mock_writer() -> Mock:
 
 @pytest.fixture
 def telemetry_api(mock_writer: Mock) -> t.Generator[TelemetryAPI, None, None]:
+    # `TelemetryAPI.__init__` has the side effect of overwriting the process-wide
+    # `TelemetryAPI._instance` singleton. These tests only ever call methods directly
+    # on `api`, never through `TelemetryAPI.get()`, so restore whatever singleton was
+    # live beforehand right away. Otherwise, for the duration of the test, any code
+    # elsewhere that calls the real `TelemetryAPI.get()` (e.g. a background writer
+    # flush thread from ddtrace's own self-instrumented test run) could resolve to
+    # this test's `api`/`mock_writer` and inject unrelated calls into our assertions.
+    previous_instance = TelemetryAPI._instance
     api = TelemetryAPI(connector_setup=Mock())
     api.writer = mock_writer
     mock_writer.reset_mock()
+    TelemetryAPI._instance = previous_instance
     yield api
 
 
