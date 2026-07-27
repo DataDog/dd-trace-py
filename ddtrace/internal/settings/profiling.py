@@ -410,7 +410,7 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
-    # AIDEV-NOTE: Keep these private experimental flags out of supported-configurations.json
+    # Keep these private experimental flags out of supported-configurations.json
     # until the central configuration registry is ready for them. The split strings avoid
     # local supported-config scanning while preserving envier's runtime env names.
     cpu_timer_enabled = DDConfig.v(

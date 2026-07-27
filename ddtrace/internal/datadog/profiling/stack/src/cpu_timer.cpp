@@ -69,7 +69,7 @@ static_assert(std::atomic<uint32_t>::is_always_lock_free, "CPU timer handler req
 
 constexpr uint64_t kDefaultIntervalMs = 10;
 constexpr microsecond_t kDrainIntervalUs = 10'000;
-// AIDEV-NOTE: Keep the effective minimum above 1ms. Ecosystem stress with
+// Keep the effective minimum above 1ms. Ecosystem stress with
 // AnyIO/httpcore on Trio showed that 1ms SIGPROF delivery can livelock
 // condition/event-loop handoff paths even with SA_RESTART. The setting remains
 // private, so clamp aggressively for stability while keeping the 10ms default.
@@ -263,7 +263,7 @@ struct EngineState
     std::atomic<uint64_t> stage2_invalid_frame_count{ 0 };
 };
 
-// AIDEV-NOTE: Intentionally leak EngineState. In embedders such as uWSGI with --skip-atexit,
+// Intentionally leak EngineState. In embedders such as uWSGI with --skip-atexit,
 // process shutdown can bypass Python profiler cleanup while per-thread CPU timers are still armed.
 // A late SIGPROF may then interrupt C/C++ exit destructors. If EngineState were destructed, the
 // handler could touch freed slot/handler_active storage. Leaking keeps the signal-handler control
@@ -349,7 +349,7 @@ install_sigprof_handler()
     {};
     if (sigaction(SIGPROF, nullptr, &current) == 0 && (current.sa_flags & SA_SIGINFO) != 0 &&
         current.sa_sigaction == cpu_timer_signal_handler) {
-        // AIDEV-NOTE: After fork, the child inherits our SIGPROF disposition. Do not reinstall
+        // After fork, the child inherits our SIGPROF disposition. Do not reinstall
         // over ourselves or previous_sigprof would point back at cpu_timer_signal_handler and
         // foreign SIGPROF forwarding could recurse until stack overflow. If the inherited action
         // lost hardening flags, restore them without replacing previous_sigprof.
@@ -436,7 +436,7 @@ install_current_thread_altstack(OwnedAltStack& altstack)
     }
 
     if (!(current.ss_flags & SS_DISABLE)) {
-        // AIDEV-NOTE: CPython 3.14/crashtracking can preinstall an alt stack before profiling starts.
+        // CPython 3.14/crashtracking can preinstall an alt stack before profiling starts.
         // Reuse an existing stack instead of replacing it. This keeps CPU-timer mode compatible with
         // crashtracking/faulthandler-style owners without making us responsible for their stack lifetime.
         g_state.app_altstack_present.fetch_add(1, std::memory_order_relaxed);
@@ -696,7 +696,7 @@ counter_delta(uint64_t current, uint64_t& seen)
 bool
 capture_state_health_should_disable(CaptureState& state)
 {
-    // AIDEV-NOTE: Health is evaluated on the sampler thread, never in the SIGPROF handler.
+    // Health is evaluated on the sampler thread, never in the SIGPROF handler.
     // The handler only increments lock-free counters. Timer deletion and state retirement stay
     // on the normal control path so pathological capture failures cannot turn into signal-time
     // locking or allocation.
@@ -795,7 +795,7 @@ guarded_read_scalar(CaptureState& state, T& out, const T* src)
     return true;
 }
 
-// AIDEV-NOTE: These helpers mirror private CPython 3.12-3.14 frame layouts.
+// These helpers mirror private CPython 3.12-3.14 frame layouts.
 // Keep every remote field access behind guarded_read_scalar(), and audit each
 // branch against the corresponding CPython source before widening support.
 bool
@@ -907,7 +907,7 @@ cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext)
 void
 cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
 {
-    // AIDEV-NOTE: This handler may run on arbitrary profiled Python threads. Keep it async-signal-safe:
+    // This handler may run on arbitrary profiled Python threads. Keep it async-signal-safe:
     // no allocation, no locks, no GIL, and keep the seq_cst active/slot handshake paired with retire_state_locked.
     const int saved_errno = errno;
 
@@ -938,7 +938,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
         return;
     }
 
-    // AIDEV-NOTE: Overrun accounting for sampling-quality diagnostics only. si_overrun is the
+    // Overrun accounting for sampling-quality diagnostics only. si_overrun is the
     // number of additional timer expirations that coalesced into this one delivered signal. The
     // CPU those expirations consumed is already captured by the cpu_delta_ns below (measured from
     // the thread CPU clock), so do NOT weight the sample by si_overrun here or CPU is double-counted.
@@ -1098,7 +1098,7 @@ Engine::start()
 #if DD_CPU_TIMER_SUPPORTED
     {
         std::lock_guard<std::mutex> lock(g_state.registry_lock);
-        // AIDEV-NOTE: The environment-selected CPU accounting mode is immutable after
+        // The environment-selected CPU accounting mode is immutable after
         // the first sampler start. Runtime timer failures stop timer samples, but must
         // not make the wall sampler begin reporting CPU time with a different mechanism.
         g_state.configuration_frozen = true;
@@ -1229,7 +1229,7 @@ Engine::postfork_child()
         !g_state.permanently_disabled.load(std::memory_order_acquire)) {
         register_profiling_fault_recover(cpu_timer_fault_recover);
         if (init_profiling_fault_handler() == 0 && install_sigprof_handler()) {
-            // AIDEV-NOTE: Do not forward foreign SIGPROF to a handler inherited across a
+            // Do not forward foreign SIGPROF to a handler inherited across a
             // multi-threaded fork. The inherited handler may depend on runtime state that
             // only existed in now-vanished parent threads. Own timer signals still carry
             // g_cookie and are handled normally; foreign SIGPROF is dropped in the child.
@@ -1253,7 +1253,7 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
 
     const pid_t current_tid = raw_gettid();
     const bool current_thread = native_id == static_cast<uint64_t>(current_tid);
-    // AIDEV-NOTE: Remote arming cannot inspect the target thread's signal mask.
+    // Remote arming cannot inspect the target thread's signal mask.
     // If current-thread registration already found SIGPROF/SIGSEGV/SIGBUS blocked,
     // keep the CPU timer inactive rather than replacing wall-sampled CPU time unsafely.
     if (!current_thread && g_state.blocked_signal_count.load(std::memory_order_relaxed) > 0) {

@@ -108,7 +108,7 @@ stack_thread_register(PyObject* self, PyObject* args)
     }
 
     PyThreadState* tstate = PyThreadState_Get();
-    // AIDEV-NOTE: stack.register_thread may be called for already-active threads
+    // stack.register_thread may be called for already-active threads
     // from a different Python thread. Only pass a PyThreadState pointer when it
     // belongs to the registered thread; timer_create signal capture dereferences
     // this pointer on the target native thread.

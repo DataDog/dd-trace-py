@@ -72,7 +72,7 @@ def test_cpu_timer_raw_native_ppoll_without_eintr_retry_is_not_interrupted(tmp_p
     assert result["errno"] != errno.EINTR, result
 
 
-# AIDEV-NOTE: Unlike ppoll, read/readv and nanosleep/clock_nanosleep take no signal
+# Unlike ppoll, read/readv and nanosleep/clock_nanosleep take no signal
 # mask, so there is no atomic unblock-inside-the-syscall race. A pending CPU timer
 # SIGPROF is delivered when it is unblocked, before the syscall, and the syscall then
 # blocks off-CPU where a per-thread CPU timer does not advance. These tests record that

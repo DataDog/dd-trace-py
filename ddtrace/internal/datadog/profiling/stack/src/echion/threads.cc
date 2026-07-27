@@ -972,7 +972,7 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
     current_tasks.clear();
     current_greenlets.clear();
 
-    // AIDEV-NOTE: timer_create CPU samples capture physical frames and task
+    // timer_create CPU samples capture physical frames and task
     // identity in the signal handler. A later task snapshot may contribute
     // logical ancestors only after exact object-identity and active-coroutine
     // fingerprint checks. Never select a task from drain-time on_cpu state or

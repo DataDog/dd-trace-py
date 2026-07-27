@@ -79,7 +79,7 @@ StackRenderer::render_cpu_sample_begin(std::string_view name,
     }
     sample = SampleManager::start_sample();
     if (sample == nullptr) {
-        std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
+        std::cerr << "Failed to create a sample.  Stack sampler will be disabled." << std::endl;
         failed = true;
         return;
     }
