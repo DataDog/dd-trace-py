@@ -53,12 +53,15 @@ def _activate_context() -> None:
 def _wrapped_run_handle(
     wrapped: Callable[[asyncio.Handle], None], args: tuple[asyncio.Handle], kwargs: dict[str, NoReturn]
 ) -> None:
+    if not core.has_listeners("ddtrace.context_provider.activate"):
+        return wrapped(*args, **kwargs)
+
     ctx: Context = args[0]._context  # type: ignore[attr-defined]
     ctx.run(_activate_context)
     try:
         return wrapped(*args, **kwargs)
     finally:
-        ctx.run(_activate_context)
+        _activate_context()
 
 
 def _wrapped_create_task(wrapped, args, kwargs):

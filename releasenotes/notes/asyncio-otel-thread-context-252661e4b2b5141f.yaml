@@ -3,4 +3,4 @@ features:
   - |
     tracing: Ensures that OpenTelemetry thread context is republished on asyncio task switches.
     This enables compatible host profiling and security tools to correlate samples with the active
-    trace and span in async functions.
+    trace and span in async functions when using the builtin asyncio event loops.
