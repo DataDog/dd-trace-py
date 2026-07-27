@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import http.client as httplib
 import itertools
+import json
 import os
 import time
 import traceback
@@ -21,7 +22,6 @@ from ddtrace.internal.utils.http import get_connection
 
 from ...internal import atexit
 from ...internal import forksafe
-from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_ancestor_runtime_id
 from ..runtime import get_parent_runtime_id
@@ -59,6 +59,15 @@ class LogData(dict):
         )
 
 
+class _TelemetryRequestEncoder:
+    """Encodes telemetry request payloads to JSON."""
+
+    content_type = "application/json"
+
+    def encode(self, obj: dict) -> tuple[str, int]:
+        return json.dumps(obj), len(obj)
+
+
 class _TelemetryClient:
     AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
     AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
@@ -66,7 +75,7 @@ class _TelemetryClient:
     def __init__(self, agentless: bool) -> None:
         self._telemetry_url = self.get_host(config.SITE, agentless)
         self._endpoint = self.get_endpoint(agentless)
-        self._encoder = JSONEncoderV2()
+        self._encoder = _TelemetryRequestEncoder()
         self._agentless = agentless
 
         self._headers = {

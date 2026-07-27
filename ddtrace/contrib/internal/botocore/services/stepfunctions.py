@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -77,7 +78,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
             pin=pin,
             integration_config=config.botocore,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_stepfunctions_api_call.started", (ctx,))
 
@@ -93,7 +94,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx.span.resource].is_error_code,
+                    config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                 ),
             )
             raise

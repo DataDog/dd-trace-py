@@ -37,11 +37,26 @@ _MAX_META_TAG_VALUE_LENGTH = 5000
 
 
 def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
-    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
+    truncated: t.Optional[dict[str, t.Any]] = None
+    for key, value in meta.items():
+        if isinstance(value, str) and len(value) > _MAX_META_TAG_VALUE_LENGTH:
+            if truncated is None:
+                truncated = dict(meta)
+            truncated[key] = value[:_MAX_META_TAG_VALUE_LENGTH]
+
+    return meta if truncated is None else truncated
 
 
 def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
-    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+    truncated: t.Optional[dict[str, dict[str, t.Any]]] = None
+    for event_type, event_metadata in metadata.items():
+        truncated_event_metadata = _truncate_meta_string_values(event_metadata)
+        if truncated_event_metadata is not event_metadata:
+            if truncated is None:
+                truncated = dict(metadata)
+            truncated[event_type] = truncated_event_metadata
+
+    return t.cast(dict[str, dict[str, t.Any]], metadata) if truncated is None else truncated
 
 
 def _truncate_event_meta(event: Event) -> Event:
@@ -53,17 +68,29 @@ def _truncate_event_meta(event: Event) -> Event:
     if not isinstance(meta, dict):
         return event
 
+    truncated_meta = _truncate_meta_string_values(meta)
+    if truncated_meta is meta:
+        return event
+
     return {
         **event,
         "content": {
             **content,
-            "meta": _truncate_meta_string_values(meta),
+            "meta": truncated_meta,
         },
     }
 
 
 def _truncate_events_meta(events: list[Event]) -> list[Event]:
-    return [_truncate_event_meta(event) for event in events]
+    truncated_events: t.Optional[list[Event]] = None
+    for index, event in enumerate(events):
+        truncated_event = _truncate_event_meta(event)
+        if truncated_event is not event:
+            if truncated_events is None:
+                truncated_events = list(events)
+            truncated_events[index] = truncated_event
+
+    return events if truncated_events is None else truncated_events
 
 
 class BaseWriter(ABC):
@@ -75,6 +102,7 @@ class BaseWriter(ABC):
         self,
         min_flush_events: t.Optional[int] = None,
         max_buffer_events: t.Optional[int] = None,
+        async_flush_events: t.Optional[int] = None,
     ) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
@@ -82,6 +110,7 @@ class BaseWriter(ABC):
         self.flush_interval_seconds: float = 60
         self.min_flush_events = min_flush_events
         self.max_buffer_events = max_buffer_events
+        self.async_flush_events = async_flush_events
         self.events: list[Event] = []
         self._consecutive_failures = 0
         self._dropped_events = 0
@@ -107,13 +136,13 @@ class BaseWriter(ABC):
             self.events.append(event)
             buffer_len = len(self.events)
 
-        # NOTE: When min_flush_events is set, flush synchronously on the
-        # calling thread.  A signal-based approach (waking the daemon thread)
-        # is not sufficient because os._exit() / SIGKILL can kill the process
-        # before the daemon thread gets scheduled.  Synchronous flush guarantees
-        # the data reaches the backend before the calling code can crash.
+        # Keep explicit partial-flush settings synchronous: users may configure them to reduce data loss
+        # when a process crashes before normal shutdown. The default threshold flush is async to avoid
+        # blocking the test runner on network I/O.
         if self.min_flush_events is not None and buffer_len >= self.min_flush_events:
             self.flush()
+        elif self.async_flush_events is not None and buffer_len >= self.async_flush_events:
+            self._flush_now.set()
 
     def pop_events(self) -> list[Event]:
         with self.lock:
@@ -125,6 +154,9 @@ class BaseWriter(ABC):
     def start(self) -> None:
         self.task = threading.Thread(target=self._periodic_task, daemon=True)
         self.task.start()
+
+    def set_async_flush_events(self, async_flush_events: t.Optional[int]) -> None:
+        self.async_flush_events = async_flush_events
 
     def signal_finish(self) -> None:
         log.debug("Signalling for %s writer thread to finish", self.__class__.__name__)
@@ -147,8 +179,8 @@ class BaseWriter(ABC):
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
         # Close the caller thread's thread-local connection for each registered
-        # connector (BackendConnector is threading.local, so this closes the
-        # connection opened by any sync flush that ran on the caller thread).
+        # connector (BackendConnector is threading.local, so this is safe even
+        # when the caller thread never opened a connection).
         for connector in self._connectors:
             connector.close()
 
@@ -168,11 +200,20 @@ class BaseWriter(ABC):
             except Exception:
                 log.exception("Unexpected error flushing %s events", self.__class__.__name__)
 
+            # During shutdown, another thread can enqueue events while this thread is blocked in flush(). Do not exit
+            # until the buffer is empty, and do not wait for the periodic interval: late shutdown events may be below
+            # the async threshold and therefore may not wake this thread again.
             if self.should_finish.is_set():
-                break
+                if not self._has_events():
+                    break
+                self._flush_now.set()
 
         self._task_teardown()
         log.debug("Exiting %s background task", self.__class__.__name__)
+
+    def _has_events(self) -> bool:
+        with self.lock:
+            return bool(self.events)
 
     def flush(self) -> None:
         events = self.pop_events()
@@ -235,38 +276,57 @@ class BaseWriter(ABC):
         return [pack]
 
 
-def _get_min_flush_events() -> t.Optional[int]:
-    """Read the minimum number of buffered events before triggering an early flush.
+def _get_partial_flush_env() -> t.Optional[str]:
+    return env.get("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"))
 
-    Uses _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS (preferred) or DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
-    (fallback, for backwards compatibility with the old CI Visibility plugin, which used
-    the same env var via the APM tracer's SpanAggregator) to control how eagerly test
-    events were sent. The private prefixed var avoids collisions with the tracer's own
-    handling of DD_TRACE_PARTIAL_FLUSH_MIN_SPANS.
 
-    Returns None (the default) to disable threshold-based flushing — events are
-    only sent on the 60-second periodic timer or on shutdown.
-    """
-    raw = env.get("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"))
+def _parse_positive_int_env(var_name: str, raw: t.Optional[str], description: str) -> t.Optional[int]:
     if raw is None:
         return None
     try:
         value = int(raw)
         return value if value > 0 else None
     except (ValueError, TypeError):
-        log.warning(
-            "Invalid value for _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS / DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r;"
-            " threshold-based flushing disabled",
-            raw,
-        )
+        log.warning("Invalid value for %s: %r; %s disabled", var_name, raw, description)
         return None
+
+
+def _calculate_async_flush_events(selected_tests_count: t.Optional[int]) -> int:
+    if selected_tests_count is None:
+        return 100
+    return max(100, min(1000, selected_tests_count // 10))
+
+
+def _get_min_flush_events() -> t.Optional[int]:
+    """Read the explicit synchronous partial-flush threshold, if configured."""
+    raw = _get_partial_flush_env()
+    if raw is None:
+        return None
+    return _parse_positive_int_env(
+        "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS / DD_TRACE_PARTIAL_FLUSH_MIN_SPANS",
+        raw,
+        "synchronous threshold-based flushing",
+    )
+
+
+def _get_async_flush_events(selected_tests_count: t.Optional[int] = None) -> t.Optional[int]:
+    """Read the buffered event count that wakes the writer thread for an async flush.
+
+    Without an explicit partial-flush setting, derive a linear threshold from selected
+    tests bounded between 100 and 1000 events, defaulting to 100 before collection.
+    Explicit partial-flush settings keep their existing synchronous behavior.
+    """
+    if _get_partial_flush_env() is not None:
+        return None
+
+    return _calculate_async_flush_events(selected_tests_count)
 
 
 class TestOptWriter(BaseWriter):
     __test__ = False
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
-        super().__init__(min_flush_events=_get_min_flush_events())
+        super().__init__(min_flush_events=_get_min_flush_events(), async_flush_events=_get_async_flush_events())
 
         self.metadata: dict[str, dict[str, str]] = {
             "*": {
@@ -370,7 +430,7 @@ class TestCoverageWriter(BaseWriter):
     __test__ = False
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
-        super().__init__(min_flush_events=_get_min_flush_events())
+        super().__init__(min_flush_events=_get_min_flush_events(), async_flush_events=_get_async_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
         self._connectors = [self.connector]
