@@ -6,6 +6,7 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.trace import tracer
 from ddtrace.vendor.debtcollector import deprecate
@@ -42,7 +43,7 @@ class TraceMiddleware(object):
             activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.falcon))
 
