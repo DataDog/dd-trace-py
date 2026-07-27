@@ -7,6 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
+
+from tests import ci_itr_env_cleanup  # isort: skip
+
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
@@ -14,25 +17,9 @@ from ddtrace.testing.internal.telemetry import TelemetryAPI
 pytest_plugins = ["pytester"]
 
 
-_CI_ITR_ROLLOUT_ENV_VARS = (
-    "DD_CIVISIBILITY_ITR_ENABLED",
-    "_DD_COVERAGE_FILE_LEVEL",
-    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
-    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
-)
-
-
-def _clear_ci_itr_rollout_env() -> None:
-    for name in _CI_ITR_ROLLOUT_ENV_VARS:
-        os.environ.pop(name, None)
-
-
-_clear_ci_itr_rollout_env()
-
-
 @pytest.fixture(autouse=True)
 def clear_ci_itr_rollout_env() -> None:
-    _clear_ci_itr_rollout_env()
+    ci_itr_env_cleanup.clear()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -107,7 +94,7 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Generator[Mock]:
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Generator[Mock, None, None]:
     """
     Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """

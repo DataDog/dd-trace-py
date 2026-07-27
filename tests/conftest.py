@@ -29,12 +29,16 @@ import warnings
 
 import pytest
 
+
+from tests import ci_itr_env_cleanup  # isort: skip
+
 import ddtrace
 
 
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
 os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
@@ -60,6 +64,11 @@ except ImportError:
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
+
+
+@pytest.fixture(autouse=True)
+def clear_ci_itr_rollout_env() -> None:
+    ci_itr_env_cleanup.clear()
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
