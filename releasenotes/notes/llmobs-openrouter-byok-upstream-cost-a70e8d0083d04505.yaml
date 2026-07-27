@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the OpenAI and LiteLLM integrations reported zero cost for OpenRouter requests using a BYOK (bring-your-own-key) setup. OpenRouter bills ``0`` for these requests and reports the provider inference cost under ``usage.cost_details.upstream_inference_cost`` (flagged by ``usage.is_byok``); this cost is now surfaced on the span's cost metrics.
