@@ -1,0 +1,11 @@
+features:
+  - |
+    profiling: Extend the experimental, opt-in native (C/C++) heap profiling with
+    live/retained-heap tracking. A gotter build (``DD_PROFILING_NATIVE_HEAP_BUILD=1``)
+    now flags sampled allocations and emits the ``ddheap:free`` USDT probe in
+    addition to ``ddheap:alloc``, so the Datadog eBPF profiler can reconcile frees
+    against allocations and report retained memory, not just cumulative
+    allocations. This is a build-time capability; the default (non-gotter) build is
+    unchanged. Runtime arming is still gated by
+    ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``, and the whole feature is a no-op when
+    disabled.
