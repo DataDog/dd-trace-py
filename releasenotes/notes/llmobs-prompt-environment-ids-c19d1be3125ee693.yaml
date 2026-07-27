@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds the ``env_ids`` argument to prompt creation and version update methods, allowing prompt versions to be deployed to feature-flag environments.

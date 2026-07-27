@@ -57,4 +57,12 @@ Configuration
    The service name reported by default for OpenAI requests.
 
    Alternatively, set this option with the ``DD_OPENAI_SERVICE`` environment variable.
+
+
+.. py:data:: DD_OPENAI_REALTIME_ENABLED
+
+   Enables instrumentation of the OpenAI Realtime API. Set to ``false`` to disable Realtime
+   instrumentation while keeping the rest of the OpenAI integration enabled.
+
+   Default: ``true``
 """  # noqa: E501

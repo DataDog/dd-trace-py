@@ -131,7 +131,12 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
         if state.counter < state.next_sample:
             return
 
-        state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
+        # sampling_interval=1 means sample every exception. Skip Poisson so
+        # variance cannot insert gaps of 2+.
+        if state.sampling_interval == 1:
+            state.next_sample = 1
+        else:
+            state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
         state.counter = 0
 
         # At the raise site the head of the traceback is the raising frame;

@@ -16,7 +16,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._constants import Constant_Class
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
@@ -27,8 +26,10 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -103,7 +104,7 @@ class ASM_Environment:
         if self.root:
             core.add_suppress_exception(BlockingException)
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
-        context_span = span or core.get_root_span()
+        context_span = span or span_bus.get_root_span()
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
@@ -164,11 +165,11 @@ def get_blocked() -> Optional[Block_config]:
 def get_entry_span() -> Optional[Span]:
     env = _get_asm_context()
     if env is None:
-        span = core.get_span()
+        span = span_bus.get_span()
         if span:
             return span._service_entry_span
         else:
-            return core.get_root_span()
+            return span_bus.get_root_span()
     return env.entry_span
 
 
@@ -497,8 +498,12 @@ def call_waf_callback(
     if env is not None and env.waf_callable is not None:
         return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
 
-    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
-    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    if rule_type is None:
+        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    else:
+        # RASP calls out of context are benign (e.g. outbound request with no active request)
+        logger.debug(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
     return None
 
 

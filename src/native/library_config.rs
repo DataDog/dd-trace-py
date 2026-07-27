@@ -127,6 +127,8 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_version: data.service_version.clone(),
         process_tags: data.process_tags.clone(),
         container_id: data.container_id.clone(),
+        #[cfg(target_os = "linux")]
+        threadlocal_attribute_keys: Some(vec![]),
     };
 
     let res = store_tracer_metadata(&metadata);
