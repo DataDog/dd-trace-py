@@ -1173,8 +1173,10 @@ def test_realtime_integration_mcp_tool_span(openai, openai_llmobs, test_spans):
     assert tool_data["parent_id"] == str(turn_span.span_id)
     assert tool_data["trace_id"] == turn_data["trace_id"]
     assert tool_data["session_id"] == turn_data["session_id"]
+    # input is the parsed-dict arguments (JSON-serialized); output is the raw result string
+    # (safe_json leaves strings as-is, so it is stored verbatim rather than JSON-encoded).
     assert json.loads(tool_data["meta"]["input"]["value"]) == {"q": "x"}
-    assert json.loads(tool_data["meta"]["output"]["value"]) == "result text"
+    assert tool_data["meta"]["output"]["value"] == "result text"
     # Back-dated to when the call was observed, and finishes no earlier than it started.
     assert tool_span.start_ns <= tool_span.start_ns + (tool_span.duration_ns or 0)
 
