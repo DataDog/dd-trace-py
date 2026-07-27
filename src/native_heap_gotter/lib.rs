@@ -11,7 +11,9 @@
 //! `heap_overrides_are_installed`); it is not a C-ABI surface. Here we re-export
 //! those calls as fixed, unmangled `extern "C"` entry points returning a plain
 //! `bool`, so the Python ctypes side links against stable symbol names and gets
-//! a trivial success signal.
+//! a trivial success signal. We also expose
+//! `ddtrace_heap_gotter_live_heap_enabled`, which reports whether this artifact
+//! was built with live-heap tracking (Phase 2: `ddheap:free` + retain flagging).
 //!
 //! Installation is permanent and process-global: the GOT entries patched by
 //! `install` point at functions inside the linked-in gotter code, so this
@@ -48,6 +50,29 @@ pub extern "C" fn ddtrace_heap_gotter_install() -> bool {
 #[no_mangle]
 pub extern "C" fn ddtrace_heap_gotter_is_installed() -> bool {
     libdd_profiling_heap_gotter::heap_overrides_are_installed()
+}
+
+/// Report whether this cdylib was built with live-heap tracking (Phase 2:
+/// the `ddheap:free` USDT + per-allocation retain flagging), so the free side
+/// can be reconciled against allocations. This is a *compile-time* property of
+/// the shipped artifact — alloc-only builds return `false`, live-heap builds
+/// return `true` — and is NOT a runtime toggle. The Python activator surfaces
+/// it so the profiler can report which native-heap mode is armed.
+///
+/// AIDEV-NOTE: `cfg!(feature = "live-heap")` here is our crate's own feature,
+/// declared in Cargo.toml as a pure forward to
+/// `libdd-profiling-heap-gotter/live-heap`. It is true iff the artifact was
+/// built with `--features live-heap`, which is exactly the condition under
+/// which the sampler compiled in DD_HEAP_LIVE_TRACKING and emits `ddheap:free`.
+/// Keep this boolean in lockstep with the Cargo feature so the runtime signal
+/// never disagrees with the ELF `.note.stapsdt` reality.
+///
+/// # Safety
+///
+/// C ABI entry point with no arguments and no pointers; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_live_heap_enabled() -> bool {
+    cfg!(feature = "live-heap")
 }
 
 /// Test-only: number of times a patched hook has run in this process. Lets
