@@ -142,6 +142,8 @@ class ProbeConditionMixin(AbstractProbeMixIn):
     condition: Optional[DDExpression]
     condition_error_rate: float = field(compare=False)
     condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
+    # monotonic timestamp before which evaluation should be skipped at probe entry (RFC: probe-entry skip)
+    _error_throttled_until: float = field(default=0.0, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()

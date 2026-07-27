@@ -1057,7 +1057,7 @@ def test_create_sync_block_is_anthropic_compatible_exception(mock_execute_reques
 
 def _find_anthropic_llm_span(test_spans):
     """Return the anthropic LLM span (the only non-AI-Guard span)."""
-    from ddtrace.appsec._constants import AI_GUARD
+    from ddtrace.aiguard._constants import AI_GUARD
 
     spans = test_spans.spans
     llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)

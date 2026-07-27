@@ -77,6 +77,20 @@ Traces
      version_added:
        v2.7.0:
 
+   DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables resolving the underlying foundation model of an AWS Bedrock application inference profile. When a
+         Bedrock request uses an application-inference-profile ARN as its ``modelId``, the model name is otherwise an
+         opaque identifier and LLM Observability cannot compute cost. When enabled, the integration makes an extra
+         ``bedrock:GetInferenceProfile`` call (once per profile, cached) to report the underlying model. The caller's
+         credentials must be allowed to call ``bedrock:GetInferenceProfile``.
+
+      version_added:
+         v4.13.0:
+
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean
       default: True

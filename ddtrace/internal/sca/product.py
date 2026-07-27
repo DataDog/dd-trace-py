@@ -14,7 +14,7 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.settings._config import config as tracer_config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 log = get_logger(__name__)
@@ -23,7 +23,7 @@ requires: list[str] = []
 
 
 def enabled() -> bool:
-    return tracer_config._sca_enabled and not in_aws_lambda()
+    return bool(appsec_telemetry_config.SCA_ENABLED) and not in_aws_lambda()
 
 
 def _get_installed_packages():
@@ -35,7 +35,11 @@ def _get_installed_packages():
     try:
         from importlib.metadata import distributions
 
-        return {name.lower(): dist.version for dist in distributions() if (name := dist.metadata.get("Name"))}  # type: ignore[attr-defined]
+        return {
+            name.lower(): dist.version
+            for dist in distributions()
+            if (name := dist.metadata.get("Name"))  # type: ignore[attr-defined]
+        }
     except Exception:
         log.debug("Could not enumerate installed packages", exc_info=True)
         return {}
