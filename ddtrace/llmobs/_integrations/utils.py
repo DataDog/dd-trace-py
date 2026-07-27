@@ -241,10 +241,6 @@ def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
         if isinstance(upstream_cost, (int, float)):
             total_cost += float(upstream_cost)
     metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
-    # Only emit the input/output breakdown when it reconciles with the total: the
-    # upstream_inference_* costs are wholesale and can diverge from `cost` (e.g. a BYOK fee on top
-    # of upstream). Reconcile at nanodollar precision (how the backend stores cost) so binary-float
-    # noise in the decimal components doesn't spuriously reject a breakdown that sums to the total.
     input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
     output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
     if (

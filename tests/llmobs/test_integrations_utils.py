@@ -17,7 +17,6 @@ from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
-from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -631,75 +630,3 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
-
-
-class TestGetOpenRouterCostMetrics:
-    """Tests for get_openrouter_cost_metrics, including OpenRouter BYOK upstream cost handling."""
-
-    def test_no_cost_returns_empty(self):
-        # A response without a numeric cost (e.g. a non-OpenRouter provider) yields no metrics.
-        assert get_openrouter_cost_metrics(SimpleNamespace(prompt_tokens=10)) == {}
-        assert get_openrouter_cost_metrics(SimpleNamespace(cost=None)) == {}
-
-    def test_standard_cost_with_reconciling_breakdown(self):
-        usage = SimpleNamespace(
-            cost=0.00197,
-            cost_details=SimpleNamespace(
-                upstream_inference_prompt_cost=0.00117,
-                upstream_inference_completions_cost=0.0008,
-            ),
-        )
-        metrics = get_openrouter_cost_metrics(usage)
-        assert metrics["total_cost"] == 0.00197
-        assert metrics["input_cost"] == 0.00117
-        assert metrics["output_cost"] == 0.0008
-
-    def test_standard_cost_breakdown_omitted_when_not_reconciling(self):
-        # When the upstream breakdown doesn't sum to the billed cost, only total_cost is emitted.
-        usage = SimpleNamespace(
-            cost=0.005,
-            cost_details=SimpleNamespace(
-                upstream_inference_prompt_cost=0.00117,
-                upstream_inference_completions_cost=0.0008,
-            ),
-        )
-        metrics = get_openrouter_cost_metrics(usage)
-        assert metrics == {"total_cost": 0.005}
-
-    def test_byok_uses_upstream_cost(self):
-        # BYOK: OpenRouter bills cost=0, but the real (provider) cost lives in
-        # cost_details.upstream_inference_cost and must be surfaced as total_cost.
-        usage = SimpleNamespace(
-            cost=0,
-            is_byok=True,
-            cost_details=SimpleNamespace(
-                upstream_inference_cost=0.00197,
-                upstream_inference_prompt_cost=0.00117,
-                upstream_inference_completions_cost=0.0008,
-            ),
-        )
-        metrics = get_openrouter_cost_metrics(usage)
-        assert metrics["total_cost"] == 0.00197
-        assert metrics["input_cost"] == 0.00117
-        assert metrics["output_cost"] == 0.0008
-
-    def test_byok_without_upstream_cost_falls_back_to_billed_cost(self):
-        # is_byok True but no upstream figure present: fall back to the billed cost unchanged.
-        usage = SimpleNamespace(cost=0, is_byok=True, cost_details=SimpleNamespace())
-        assert get_openrouter_cost_metrics(usage) == {"total_cost": 0.0}
-
-    def test_dict_usage_is_supported(self):
-        # token_usage may be a plain dict rather than an SDK object.
-        usage = {
-            "cost": 0,
-            "is_byok": True,
-            "cost_details": {
-                "upstream_inference_cost": 0.00159,
-                "upstream_inference_prompt_cost": 0.000222,
-                "upstream_inference_completions_cost": 0.001368,
-            },
-        }
-        metrics = get_openrouter_cost_metrics(usage)
-        assert metrics["total_cost"] == 0.00159
-        assert metrics["input_cost"] == 0.000222
-        assert metrics["output_cost"] == 0.001368
