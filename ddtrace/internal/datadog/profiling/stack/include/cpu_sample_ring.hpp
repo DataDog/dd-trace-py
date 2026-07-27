@@ -3,7 +3,6 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <memory>
 #include <type_traits>
 
 namespace Datadog {
@@ -41,30 +40,25 @@ static_assert(std::atomic<uint32_t>::is_always_lock_free,
 // overwritten by the next reservation.
 class CpuSampleRing
 {
-    static constexpr uint32_t kMinimumCapacity = 2;
+    static constexpr uint32_t kCapacity = 64;
+    static_assert(kCapacity > 1, "ring must keep one slot open to distinguish full from empty");
 
-    const uint32_t capacity_;
-    std::unique_ptr<RawSample[]> samples_;
+    std::array<RawSample, kCapacity> samples_{};
     std::atomic<uint32_t> head_{ 0 };
     std::atomic<uint32_t> tail_{ 0 };
 
     uint32_t advance(uint32_t index) const noexcept
     {
         const uint32_t next = index + 1;
-        return next == capacity_ ? 0 : next;
+        return next == kCapacity ? 0 : next;
     }
 
   public:
-    explicit CpuSampleRing(uint32_t capacity)
-      : capacity_(capacity < kMinimumCapacity ? kMinimumCapacity : capacity)
-      , samples_(std::make_unique<RawSample[]>(capacity_))
-    {
-    }
-
+    CpuSampleRing() = default;
     CpuSampleRing(const CpuSampleRing&) = delete;
     CpuSampleRing& operator=(const CpuSampleRing&) = delete;
 
-    [[nodiscard]] uint32_t capacity() const noexcept { return capacity_; }
+    [[nodiscard]] uint32_t capacity() const noexcept { return kCapacity; }
 
     // The acquire load pairs with the consumer's release store after it has
     // finished copying a slot, so the producer never overwrites an in-use slot.

@@ -74,7 +74,6 @@ constexpr microsecond_t kDrainIntervalUs = 10'000;
 // condition/event-loop handoff paths even with SA_RESTART. The setting remains
 // private, so clamp aggressively for stability while keeping the 10ms default.
 constexpr uint64_t kMinIntervalMs = 2;
-constexpr uint32_t kDefaultRingCapacity = 64;
 constexpr size_t kMinAltStackSize = size_t{ 128 } * 1024;
 constexpr size_t kAltStackSigstkszMultiplier = 4;
 constexpr uint64_t kHealthWindowEvents = 128;
@@ -220,7 +219,6 @@ struct CaptureState
       : python_thread_id(thread_id)
       , native_tid(tid)
       , name(thread_name == nullptr ? "" : thread_name)
-      , ring(kDefaultRingCapacity)
     {
     }
 };

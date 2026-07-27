@@ -48,34 +48,17 @@ expect_sample_eq(const RawSample& actual, const RawSample& expected)
 
 TEST(CpuSampleRing, StartsEmpty)
 {
-    CpuSampleRing ring(4);
+    CpuSampleRing ring;
     RawSample out{};
 
-    EXPECT_EQ(ring.capacity(), 4u);
+    EXPECT_EQ(ring.capacity(), 64u);
     EXPECT_TRUE(ring.empty());
     EXPECT_FALSE(ring.pop_for_consumer(out));
 }
 
-TEST(CpuSampleRing, ClampsCapacityToKeepOneUsableSlot)
-{
-    CpuSampleRing ring(0);
-    RawSample out{};
-
-    EXPECT_EQ(ring.capacity(), 2u);
-
-    RawSample* reserved = ring.reserve_for_producer();
-    ASSERT_NE(reserved, nullptr);
-    *reserved = make_sample(1);
-    ring.publish_for_producer();
-
-    EXPECT_EQ(ring.reserve_for_producer(), nullptr);
-    ASSERT_TRUE(ring.pop_for_consumer(out));
-    expect_sample_eq(out, make_sample(1));
-}
-
 TEST(CpuSampleRing, ProducerReserveDoesNotPublish)
 {
-    CpuSampleRing ring(4);
+    CpuSampleRing ring;
     RawSample out{};
     RawSample sample = make_sample(1);
 
@@ -96,22 +79,21 @@ TEST(CpuSampleRing, ProducerReserveDoesNotPublish)
 
 TEST(CpuSampleRing, CapacityKeepsOneSlotOpenToDistinguishFullFromEmpty)
 {
-    CpuSampleRing ring(4);
-    RawSample samples[] = { make_sample(1), make_sample(2), make_sample(3) };
+    CpuSampleRing ring;
 
-    for (const auto& sample : samples) {
+    for (uint64_t id = 1; id < ring.capacity(); id++) {
         RawSample* reserved = ring.reserve_for_producer();
         ASSERT_NE(reserved, nullptr);
-        *reserved = sample;
+        *reserved = make_sample(id);
         ring.publish_for_producer();
     }
 
     EXPECT_EQ(ring.reserve_for_producer(), nullptr);
 
-    for (const auto& expected : samples) {
+    for (uint64_t expected_id = 1; expected_id < ring.capacity(); expected_id++) {
         RawSample out{};
         ASSERT_TRUE(ring.pop_for_consumer(out));
-        expect_sample_eq(out, expected);
+        expect_sample_eq(out, make_sample(expected_id));
     }
 
     RawSample out{};
@@ -121,42 +103,43 @@ TEST(CpuSampleRing, CapacityKeepsOneSlotOpenToDistinguishFullFromEmpty)
 
 TEST(CpuSampleRing, WraparoundPreservesFifoOrder)
 {
-    CpuSampleRing ring(4);
+    CpuSampleRing ring;
 
-    RawSample first = make_sample(1);
-    RawSample second = make_sample(2);
-    RawSample third = make_sample(3);
+    for (uint64_t id = 1; id < ring.capacity(); id++) {
+        RawSample* reserved = ring.reserve_for_producer();
+        ASSERT_NE(reserved, nullptr);
+        *reserved = make_sample(id);
+        ring.publish_for_producer();
+    }
 
-    RawSample* reserved = ring.reserve_for_producer();
-    ASSERT_NE(reserved, nullptr);
-    *reserved = first;
-    ring.publish_for_producer();
-
-    reserved = ring.reserve_for_producer();
-    ASSERT_NE(reserved, nullptr);
-    *reserved = second;
-    ring.publish_for_producer();
-
+    constexpr uint64_t consumed_before_wrap = 32;
     RawSample out{};
-    ASSERT_TRUE(ring.pop_for_consumer(out));
-    expect_sample_eq(out, first);
+    for (uint64_t expected_id = 1; expected_id <= consumed_before_wrap; expected_id++) {
+        ASSERT_TRUE(ring.pop_for_consumer(out));
+        expect_sample_eq(out, make_sample(expected_id));
+    }
 
-    reserved = ring.reserve_for_producer();
-    ASSERT_NE(reserved, nullptr);
-    *reserved = third;
-    ring.publish_for_producer();
+    const uint64_t first_wrapped_id = ring.capacity();
+    const uint64_t last_wrapped_id = first_wrapped_id + consumed_before_wrap - 1;
+    for (uint64_t id = first_wrapped_id; id <= last_wrapped_id; id++) {
+        RawSample* reserved = ring.reserve_for_producer();
+        ASSERT_NE(reserved, nullptr);
+        *reserved = make_sample(id);
+        ring.publish_for_producer();
+    }
 
-    ASSERT_TRUE(ring.pop_for_consumer(out));
-    expect_sample_eq(out, second);
-    ASSERT_TRUE(ring.pop_for_consumer(out));
-    expect_sample_eq(out, third);
+    EXPECT_EQ(ring.reserve_for_producer(), nullptr);
+    for (uint64_t expected_id = consumed_before_wrap + 1; expected_id <= last_wrapped_id; expected_id++) {
+        ASSERT_TRUE(ring.pop_for_consumer(out));
+        expect_sample_eq(out, make_sample(expected_id));
+    }
     EXPECT_TRUE(ring.empty());
 }
 
 TEST(CpuSampleRing, ConcurrentProducerAndConsumerPreserveWholeFifoSamples)
 {
     constexpr uint64_t sample_count = 20'000;
-    CpuSampleRing ring(64);
+    CpuSampleRing ring;
 
     std::thread producer([&] {
         for (uint64_t id = 1; id <= sample_count; id++) {
