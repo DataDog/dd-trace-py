@@ -12,6 +12,18 @@ hooks/autohook.sh install
 
 This will create symlinks in `.git/hooks/` for all configured hook types.
 
+On Datadog-managed laptops (`core.hooksPath=/usr/local/dd/global_hooks`), **do not**
+set a local `core.hooksPath` override. That bypasses `dd-git-hooks` secrets scanning.
+`hooks/autohook.sh install` removes a stale local `.git/hooks` override automatically.
+After install, commits run:
+
+```
+global pre-commit → dd-git-hooks (secrets) → run-local-hooks → autohook (lint/format)
+```
+
+If you previously used `git config --local core.hooksPath .git/hooks`, re-run
+`hooks/autohook.sh install` or `hooks/scripts/ensure-dd-hook-chain.sh`.
+
 ## Available Hooks
 
 ### pre-commit (blocking)
@@ -185,6 +197,23 @@ If missing, run:
 hooks/autohook.sh install
 ```
 
+### Commits skip DD secrets scanning (Datadog laptops)
+If `git config --local core.hooksPath` points at `.git/hooks`, git never runs
+`/usr/local/dd/global_hooks/pre-commit` and `dd-git-hooks` is skipped. Fix:
+
+```bash
+hooks/scripts/ensure-dd-hook-chain.sh
+hooks/autohook.sh install
+```
+
+Verify the global chain (optional):
+
+```bash
+DD_GIT_HOOKS_DEBUG=1 /usr/local/dd/global_hooks/pre-commit
+```
+
+You should see `dd-git-hooks` run, then `run-local-hooks` invoking `.git/hooks/pre-commit`.
+
 ### Hook Failing
 Check the hook scripts are executable:
 ```bash
@@ -215,11 +244,14 @@ hooks/
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
+│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
+│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
 │   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
-    └── check-native-changes # Native change and dependency detection logic
+    ├── check-native-changes # Native change and dependency detection logic
+    └── ensure-dd-hook-chain.sh # DD laptop global-hook chain guard
 ```
 
 ## For Contributors
