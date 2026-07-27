@@ -17,7 +17,7 @@ from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -239,7 +239,7 @@ def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, k
                         ],
                     )
                 )
-                client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
+                client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
             except AIGuardAbortError:
                 raise
             except Exception:
@@ -302,7 +302,7 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
                 ],
             )
         )
-        client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
+        client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
     except AIGuardAbortError:
         raise
     except Exception:
@@ -400,7 +400,7 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> 
 
     if len(messages) > 0 and isinstance(messages[-1], (HumanMessage, ToolMessage)):
         try:
-            client.evaluate(_convert_messages(messages), Options(block=ai_guard_config._ai_guard_block))
+            client.evaluate(_convert_messages(messages), Options(block=aiguard_config._ai_guard_block))
         except AIGuardAbortError:
             raise
         except Exception:

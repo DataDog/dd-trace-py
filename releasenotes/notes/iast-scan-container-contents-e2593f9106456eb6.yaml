@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    IAST: A an issue where container values could not go unscanned has been fixed.

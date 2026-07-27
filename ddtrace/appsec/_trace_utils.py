@@ -15,6 +15,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -43,24 +44,16 @@ def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
 
 def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.sampling import add_trace_source
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
     span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
-    # set Security propagation tag
-    span._set_attribute(APPSEC.PROPAGATION_HEADER, "02")
-    span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
-
-
-def _aiguard_manual_keep(span: Span) -> None:
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
-
-    span._override_sampling_decision(USER_KEEP)
-    # set decision maker to AI_GUARD = -13
-    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.AI_GUARD}")
+    # set trace source propagation tag (_dd.p.ts) with the ASM bit
+    add_trace_source(span, TraceSource.ASM)
 
 
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
@@ -94,7 +87,7 @@ def _track_user_login_common(
 ) -> Optional[Span]:
     if span is None:
         span = _asm_request_context.get_entry_span()
-    if not span and (current_span := core.get_span()):
+    if not span and (current_span := span_bus.get_span()):
         span = current_span._service_entry_span
     if span:
         success_str = "success" if success else "failure"

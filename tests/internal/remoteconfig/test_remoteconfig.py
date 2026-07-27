@@ -699,6 +699,53 @@ def test_config_metadata_equality():
     )
 
 
+def test_agent_payload_from_agent_response_ignores_unknown_fields():
+    """Regression test: the agent's response proto gains fields over time (e.g.
+    config_status). AgentPayload(**data) used to raise TypeError on any such addition,
+    failing the whole poll with "invalid agent payload received".
+    """
+    data = {
+        "target_files": [],
+        "client_configs": [],
+        "config_status": 1,
+        "some_future_field": "unrecognized",
+    }
+    with mock.patch("ddtrace.internal.remoteconfig.client.log") as mock_log:
+        payload = AgentPayload.from_agent_response(data)
+    assert payload.config_status == 1
+    assert not hasattr(payload, "some_future_field")
+    mock_log.warning.assert_called_once()
+    assert "some_future_field" in str(mock_log.warning.call_args)
+
+
+def test_process_response_expired_config_status_removes_applied_configurations():
+    """When the agent reports ConfigStatus.EXPIRED (stale cache, expired TUF signatures since
+    it hasn't reached the backend in a while), the client must treat all currently applied
+    configurations as removed rather than leave them applied.
+    """
+    client = RemoteConfigClient()
+    received = []
+    client.register_callback("LIVE_DEBUGGING_SYMBOL_DB", lambda payloads: received.extend(payloads))
+
+    target = "datadog/2/LIVE_DEBUGGING_SYMBOL_DB/symDb/config"
+    applied = ConfigMetadata(
+        id="symDb",
+        product_name="LIVE_DEBUGGING_SYMBOL_DB",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=1,
+    )
+    client._applied_configs[target] = applied
+
+    client._process_response({"target_files": [], "client_configs": [], "config_status": 1})
+
+    assert client._applied_configs == {}
+    assert client.cached_target_files == []
+    assert len(received) == 1
+    assert received[0].path == target
+    assert received[0].content is None
+
+
 def test_reconcile_configurations_version_only_bump_is_not_reapplied():
     """A tuf_version bump with unchanged hash must not trigger a re-fetch attempt.
 

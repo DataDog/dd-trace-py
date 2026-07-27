@@ -12,6 +12,15 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
+    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
+    is_otel: bool
+
+
+class SpanWithTagValue(TypedDict):
+    tag_key: str
+    tag_value: str
+    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
+    is_otel: bool
 
 
 class Document(TypedDict, total=False):
