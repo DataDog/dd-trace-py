@@ -780,7 +780,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        old_exporter = self._exporter
         self._exporter = self._create_exporter()
+        old_exporter.shutdown(3_000_000_000)
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
@@ -790,7 +792,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
-            pass
+            # Shut down the exporter as it's started on init.
+            self._exporter.shutdown(3_000_000_000)
 
         api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
@@ -813,7 +816,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
+            old_exporter = self._exporter
             self._exporter = self._create_exporter()
+            old_exporter.shutdown(3_000_000_000)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
