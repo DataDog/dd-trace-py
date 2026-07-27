@@ -23,6 +23,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_bus import span_from_context
 
 
 MessageMapContainer = None
@@ -472,7 +473,7 @@ def _on_iast_fastapi_patch():
 
 
 def _on_pre_tracedrequest_iast(ctx):
-    current_span = ctx.span
+    current_span = span_from_context(ctx)
     _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
 
 
