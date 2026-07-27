@@ -1,10 +1,6 @@
 import os
-import sys
-from types import ModuleType
 
 import pytest
-
-from ddtrace.internal.telemetry import telemetry_writer
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
@@ -24,11 +20,13 @@ assert telemetry_writer._worker is not None
     assert stderr == b""
 
 
-def test_report_endpoints_while_asm_config_is_initializing(monkeypatch):
-    initializing_asm = ModuleType("ddtrace.internal.settings.asm")
-    monkeypatch.setitem(sys.modules, initializing_asm.__name__, initializing_asm)
+def test_enable_with_short_heartbeat_does_not_race_imports(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.00001"
 
-    assert telemetry_writer._report_endpoints() is None
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+
+    assert status == 0, stderr
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):

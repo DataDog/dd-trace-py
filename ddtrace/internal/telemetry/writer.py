@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import http.client as httplib
 import itertools
+import json
 import os
-import sys
 import time
 import traceback
 from typing import Any
@@ -17,11 +17,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.utils.http import get_connection
 
 from ...internal import atexit
 from ...internal import forksafe
-from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_ancestor_runtime_id
 from ..runtime import get_parent_runtime_id
@@ -59,6 +59,15 @@ class LogData(dict):
         )
 
 
+class _TelemetryRequestEncoder:
+    """Encodes telemetry request payloads to JSON."""
+
+    content_type = "application/json"
+
+    def encode(self, obj: dict) -> tuple[str, int]:
+        return json.dumps(obj), len(obj)
+
+
 class _TelemetryClient:
     AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
     AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
@@ -66,7 +75,7 @@ class _TelemetryClient:
     def __init__(self, agentless: bool) -> None:
         self._telemetry_url = self.get_host(config.SITE, agentless)
         self._endpoint = self.get_endpoint(agentless)
-        self._encoder = JSONEncoderV2()
+        self._encoder = _TelemetryRequestEncoder()
         self._agentless = agentless
 
         self._headers = {
@@ -375,18 +384,14 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
-        if asm_config is None:
-            return None
-
-        if not asm_config._api_security_endpoint_collection or not self._enabled:
+        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
             return None
 
         if not endpoint_collection.endpoints:
             return None
 
         with self._service_lock:
-            return endpoint_collection.flush(asm_config._api_security_endpoint_collection_limit)
+            return endpoint_collection.flush(appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT)
 
     def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
