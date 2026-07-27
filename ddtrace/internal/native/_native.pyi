@@ -1,5 +1,6 @@
 import contextvars
 from enum import Enum
+import sys
 from typing import Any
 from typing import Iterable
 from typing import Iterator
@@ -116,6 +117,11 @@ def crashtracker_on_fork(
 ) -> None: ...
 def crashtracker_status() -> CrashtrackerStatus: ...
 def crashtracker_receiver() -> None: ...
+def crashtracker_report_unhandled_exception(
+    exception_type: Optional[str],
+    exception_message: Optional[str],
+    frames: list[dict[str, Optional[str]]],
+) -> None: ...
 
 class PyTracerMetadata:
     """
@@ -162,6 +168,18 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.platform == "linux":
+    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
+        """
+        Update the OTel thread context from the active span and its local root span.
+        :param span: The active span.
+        :param local_root: The root span of the local trace chunk.
+        """
+        ...
+    def detach_otel_thread_context() -> None:
+        """Detach the OTel thread context from the current thread."""
+        ...
+
 class SharedRuntime:
     """
     SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
@@ -180,6 +198,15 @@ class SharedRuntime:
         ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
+    def shutdown_in_thread(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+        The code is run in a separate thread to bypass a stale thread local storage.
 
         Args:
             timeout_ms: Maximum time in milliseconds to wait for shutdown.
@@ -406,9 +433,8 @@ class TraceExporterBuilder:
         ...
     def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
         """
-        Enable OpenTelemetry trace semantics for the exported OTLP trace-metrics.
-        When enabled, the traces.span.sdk.metrics.duration histogram carries only OpenTelemetry
-        attributes; Datadog-specific dd.*/_dd.* data-point attributes are omitted. Driven by the
+        Enable OTel trace semantics, which does not add DD-specific per-span attributes
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload. Driven by the
         DD_TRACE_OTEL_SEMANTICS_ENABLED environment variable.
         """
         ...

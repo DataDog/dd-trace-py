@@ -114,16 +114,17 @@ def test_info_check_endpoint_selection():
     from ddtrace.debugging._signal.model import SignalTrack
     from ddtrace.debugging._uploader import SignalUploader
 
-    # Test 1: v2 endpoint available - both tracks use v2
+    # Test 1: v2 endpoint available (agent reports endpoints without a leading
+    # slash) - both tracks use v2
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    agent_info = {"endpoints": ["/debugger/v2/input", "/debugger/v1/diagnostics"]}
+    agent_info = {"endpoints": ["debugger/v2/input", "debugger/v1/diagnostics"]}
     assert uploader.info_check(agent_info) is True
     assert uploader._tracks[SignalTrack.LOGS].enabled is True
     assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is True
     assert "/debugger/v2/input" in uploader._tracks[SignalTrack.LOGS].endpoint
     assert "/debugger/v2/input" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
 
-    # Test 2: Only diagnostics available - both tracks fallback to diagnostics
+    # Test 2: Only diagnostics available (leading-slash form) - both tracks fallback
     uploader = SignalUploader(interval=LONG_INTERVAL)
     agent_info = {"endpoints": ["/debugger/v1/diagnostics"]}
     assert uploader.info_check(agent_info) is True
@@ -311,6 +312,77 @@ def test_online_raises_when_tracks_disabled():
 
     with pytest.raises(ValueError, match="not enabled"):
         uploader.online()
+
+
+def test_agent_check_is_throttled():
+    # A missing/unsupported agent must not cause /info to be polled on every
+    # periodic tick; the check is throttled independently of the upload interval.
+    from ddtrace.internal import agent as agent_module
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["/some/other/endpoint"]}
+
+    with patch.object(agent_module, "info", return_value=agent_info) as mock_info:
+        uploader._agent_check()
+        uploader._agent_check()
+
+    assert mock_info.call_count == 1
+    assert uploader._state == uploader._agent_check
+
+
+def test_unreachable_agent_is_not_throttled():
+    # A transient /info failure (agent restart/startup race) must not suppress
+    # capability checks; only a confirmed unsupported agent is throttled.
+    from ddtrace.internal import agent as agent_module
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+
+    with patch.object(agent_module, "info", return_value=None) as mock_info:
+        uploader._agent_check()
+        uploader._agent_check()
+
+    assert mock_info.call_count == 2
+    assert uploader._agent_check_throttle.trickling() is False
+
+
+def test_agent_check_recovers_after_online_failure():
+    # A transient upload failure after a healthy online cycle must not be
+    # throttled: the next tick should re-check the agent immediately.
+    from ddtrace.internal import agent as agent_module
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["debugger/v2/input"]}
+
+    with patch.object(agent_module, "info", return_value=agent_info) as mock_info:
+        # Healthy cycle: go online and clear the throttle.
+        uploader._agent_check()
+        assert uploader._state == uploader._online
+        assert mock_info.call_count == 1
+
+        # Simulate a transient upload failure reverting us to the agent check.
+        with patch.object(uploader, "online", side_effect=ValueError("transient")):
+            uploader._online()
+        assert uploader._state == uploader._agent_check
+
+        # Recovery must happen on the next tick, not after AGENT_CHECK_INTERVAL.
+        uploader._agent_check()
+        assert mock_info.call_count == 2
+        assert uploader._state == uploader._online
+
+
+def test_agent_check_throttle_reset_on_fork():
+    # A forked child must not inherit the parent's throttle window.
+    from ddtrace.internal import agent as agent_module
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["/some/other/endpoint"]}
+
+    with patch.object(agent_module, "info", return_value=agent_info):
+        uploader._agent_check()
+    assert uploader._agent_check_throttle.trickling() is True
+
+    uploader.reset()
+    assert uploader._agent_check_throttle.trickling() is False
 
 
 class _IsolatedUploader(MockSignalUploader):

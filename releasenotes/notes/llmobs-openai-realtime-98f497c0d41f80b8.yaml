@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI integration now automatically instruments the Realtime API
+    (``client.realtime.connect(...)``, both sync and async). Each conversation turn is captured as an
+    ``llm`` span with the user and assistant transcripts, audio, token usage, and any tool calls
+    (function and MCP), grouped per connection so the whole conversation is traced end to end.
+    Realtime instrumentation can be disabled on its own, without affecting the rest of the OpenAI
+    integration, by setting ``DD_OPENAI_REALTIME_ENABLED=false``.

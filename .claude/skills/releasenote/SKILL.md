@@ -1,143 +1,98 @@
 ---
-
 name: releasenote
 description: >
-  Create or update release notes for changes in the current branch using Reno,
-  following dd-trace-py's conventions and the guidelines in docs/releasenotes.rst.
+  Decide whether a release note is needed, and if so create or update a Reno fragment,
+  following dd-trace-py's conventions (docs/releasenotes.rst).
 allowed-tools:
   - Bash
   - Read
   - Grep
   - Glob
-  - TodoWrite
-
 ---
 
-## When to Use This Skill
+## Decide if a note is needed
 
-Use this skill whenever:
+Required: breaking API change, new feature, bug fix, deprecation, dependency upgrade —
+if it's customer-impacting.
+Not required: CI chores, internal-only/not-yet-released API changes, test-only changes.
 
-* The user asks to create a new release note.
-* The user asks to update or modify an existing release note.
-* The user wants a summary of changes that is intended to be inserted into a release note file.
+If customer impact is unclear, **ask the user** what the customer impact is. Never guess —
+unless the PR/issue/ticket you were given already states it. If no note is needed, say so and
+suggest the `changelog/no-changelog` PR label instead.
 
----
+## Audience
 
-## Key Principles
+The note is for a customer upgrading dd-trace-py — never for a dd-trace-py contributor.
+It is not a PR summary. Internal rationale, implementation detail, and CI/test notes go in
+the PR description, not here.
 
-* Follow strictly the conventions described in `docs/releasenotes.rst` and any Reno-related docs in the repo.
-* ALWAYS use `riot` (not `reno` directly) to generate the new release note skeleton.
-* If the user does not specify the release-note category (`feature`, `bugfix`, `deprecation`, `breaking-change`, `misc`, etc.), ask first.
-* Release notes must:
-  * Be one Reno fragment per change / PR, unless the change explicitly belongs inside an existing release note.
-  * Use a slug that is short, clear, and uses hyphens.
-  * Appear under `releasenotes/notes/` with a `.yaml` suffix.
-* If updating an existing fragment, search for a fragment that matches the topic or ticket before creating a new one.
-* Ensure the wording is:
-  * Clear, concise, and user-facing.
-  * Describes *what changed* and *why users should care*.
-  * Avoids internal-only terminology unless necessary.
+## Before writing
 
-## Interaction Rules
+1. If the category (`features`/`fixes`/`upgrade`/`deprecations`/`issues`/`api`/`security`/`other`)
+   isn't given, ask.
+2. Check for an existing fragment on the same topic, scoped to your current branch's own
+   unmerged changes: `git diff --name-only <base>...HEAD -- releasenotes/notes/`, where
+   `<base>` is the branch you're merging into (usually `origin/main`; use the actual base if
+   this branch forked off a release branch instead). Only reuse a fragment from that diff — one
+   already on the base branch may already be released; create a new fragment instead of
+   editing a shipped one.
+3. Read the PR/commit diff for ground truth, but translate it — don't copy engineering language.
 
-* Before creating anything:
+## Write the note
 
-  1. Confirm the category.
-  2. Confirm the title-slug if the user hasn't provided one.
-  3. Confirm whether the release note is for a new fragment or an update.
+Generate the skeleton: `riot run reno new <slug>` (slug: lowercase, hyphenated, e.g.
+`fix-aioredis-catch-canceled-error`). Edit the generated YAML, keeping only the section(s)
+that apply — one Reno fragment per change.
 
-* If the user wants to modify a note:
-  * Search for the matching fragment using `ls releasenotes/notes/` or grep keywords.
-  * Open the file and update only the content the user mentions.
+Format: `<scope>: <sentence(s)>.` Scope is the component name (see
+:ref:`release_notes_scope` in docs/releasenotes.rst — `tracing`, `profiling`, `ASM`,
+`dynamic instrumentation`, `CI visibility`, or the integration name). Use `internal` when the
+change genuinely isn't tied to one product (e.g. core threading/fork-safety affecting several
+products) — that's a legitimate scope, not a placeholder for when you didn't pick one.
 
+**Fix** — state the customer-visible symptom, not the root cause, in present tense:
+`Fixes an issue where <symptom> occurs when <condition>.`
 
-## Quick Start
+**Feature/behavior change** — if it's configurable or changes a default, state the exact env
+var / config option / argument and what it does. Don't skip this when a toggle exists.
 
-### Create a new release note
+**Never include**: internal function/class names, internal tag prefixes (`_dd.*`),
+RFC/JIRA/ticket numbers, CI job names, draft leftovers (`TODO`, `XXX`, unfinished sentences),
+or "why we built it this way" rationale.
 
-```bash
-riot run reno new <title-slug>
+**Length**: 1-2 sentences. Longer only to show a code example for a new public API.
+
+**Verify facts against the code**, not the PR title — defaults and numbers drift.
+
+## Examples
+
+Good (fix):
+```yaml
+fixes:
+  - |
+    profiling: Fixes inconsistent handling of ``DD_PROFILING_MAX_FRAMES`` by clamping it
+    before stack collection so samples stay within the backend's 600-location limit.
 ```
 
-After creation, modify the generated YAML fragment to include the content under the correct section:
-
+Good (feature, toggle):
 ```yaml
 features:
   - |
-    <description of the new feature>
+    AI Guard: Adds per-integration kill switches ``DD_AI_GUARD_ANTHROPIC_ENABLED`` and
+    ``DD_AI_GUARD_LANGCHAIN_ENABLED`` (default ``true``). Set to ``false`` to disable AI
+    Guard for that provider/framework.
+```
 
-# or
-
+Bad → good rewrite (`internal` scope is fine here — not product-specific; the fix is the wording):
+```yaml
+# Bad: internal mechanism, no customer symptom
 fixes:
   - |
-    <description of the bug fix>
-```
+    internal: Fixed a GC reference-cycle leak in PeriodicThread.
 
-### List existing release notes
-
-```bash
-ls releasenotes/notes/
-```
-
-### Find a release note containing a keyword
-
-```bash
-grep -R "<keyword>" releasenotes/notes/
-```
-
----
-
-## Best Practices for Note Content
-
-* Start with an action verb: *Add…*, *Fix…*, *Improve…*, *Deprecate…*
-* Reference PR or issue numbers only if relevant (e.g., "(#12345)").
-* If the change requires user action, highlight it clearly.
-* Avoid long paragraphs; prefer concise bullet-style explanations.
-
----
-
-## Optional Enhancements
-
-If you want, you can add:
-
-### Validation checks
-
-* Ensure the repo is clean (`git status`).
-* Confirm that the working directory is at the repo root.
-* Warn if a release note already exists for the same issue/PR.
-
-### Automation scaffolding
-
-* Automatically propose a slug from the branch name.
-* Suggest the best category based on commit diff keywords.
-
----
-
-If you'd like, I can also:
-
-✔ generate a stricter version (more guardrails)
-✔ generate a shorter version (minimal skill spec)
-✔ help you convert this to Anthropic’s new "Tool Use Skills" format
-✔ help you create automated tests or examples for this skill
-
-Just tell me!
-
-
-## When to Use This Skill
-
-Use this skill when:
-- You are asked to create a new release note
-- You are asked to update an existing release note
-
-## Key Principles
-
-- Strictly follow what is described in docs/releasenotes.rst
-- ALWAYS use riot to generate the new release note
-- If the user does not specify it, ask whether it is a fix, a feature, etc.
-
-## Quick Start
-
-Create the release note:
-```bash
-riot run reno new <title-slug>
+# Good
+fixes:
+  - |
+    internal: Fixes a memory leak that causes memory usage to grow over time in
+    long-running processes using background periodic tasks.
 ```

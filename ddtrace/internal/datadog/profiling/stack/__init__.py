@@ -21,7 +21,7 @@ try:
     # Child Spans created on the worker from a propagated Context use this value.
     _propagated_root: threading.local = threading.local()
 
-    def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]):
+    def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]) -> None:
         if isinstance(span, ddspan.Span):
             span_id = span.span_id
             # A Span whose _parent is None but parent_id is set was created with
@@ -40,6 +40,18 @@ try:
             _propagated_root.span_id = local_root_span_id
             _propagated_root.span_type = span_type
             _stack.link_span(span.span_id, local_root_span_id, span_type)
+
+    def link_origin_task(task_id: int, task_name: str) -> None:
+        """
+        Record, for the current thread, the asyncio task that submitted the work now running on it.
+        """
+        _stack.link_origin_task(task_id, task_name)
+
+    def unlink_origin_task() -> None:
+        """
+        Clear the originating asyncio task for the current thread.
+        """
+        _stack.unlink_origin_task()
 
 except Exception as e:
     failure_msg = str(e)

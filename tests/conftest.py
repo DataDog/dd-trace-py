@@ -301,13 +301,14 @@ def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
     if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
-        token = snap.kwargs.get("token")
-        if token:
-            del snap.kwargs["token"]
-        else:
+        # Copy the kwargs to not mutate the shared pytest Mark object. It allows for token
+        # to be persisted across test retries.
+        snap_kwargs = dict(snap.kwargs)
+        token = snap_kwargs.pop("token", None)
+        if not token:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+        mgr = _snapshot_context(token, *snap.args, **snap_kwargs)
         snapshot = mgr.__enter__()
         yield snapshot
         # Skip doing any checks if the test was skipped

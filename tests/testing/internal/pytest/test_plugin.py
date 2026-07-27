@@ -27,6 +27,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
@@ -254,6 +255,200 @@ class TestSkippingAndITRFeatures:
 
         assert result is None
         assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_nested_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None for unskippable markers nested in pytest.param."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "@pytest.mark.parametrize(\n"
+            "    'value',\n"
+            "    [pytest.param(1, marks=pytest.mark.skipif(False, reason='datadog_itr_unskippable'))],\n"
+            ")\n"
+            "def test_x(value): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_constant_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker uses module-level constants."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "NEVER = False\n"
+            "REASON = 'datadog_itr_unskippable'\n"
+            "@pytest.mark.skipif(NEVER, reason=REASON)\n"
+            "def test_x(): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_uses_decorator_time_constant_values(self, tmp_path: Path) -> None:
+        """A later constant reassignment does not hide an earlier unskippable marker."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "REASON = 'datadog_itr_unskippable'\n"
+            "@pytest.mark.skipif(False, reason=REASON)\n"
+            "def test_x(): pass\n"
+            "REASON = 'other'\n"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_aliased_skipif_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker uses a skipif alias."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            "import pytest\n"
+            "skipif = pytest.mark.skipif\n"
+            "@skipif(False, reason='datadog_itr_unskippable')\n"
+            "def test_x(): pass"
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_returns_none_for_fstring_unskippable_marker(self, tmp_path: Path) -> None:
+        """pytest_ignore_collect returns None when the unskippable marker reason uses a literal f-string."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text(
+            'import pytest\n@pytest.mark.skipif(False, reason=f"datadog_itr_unskippable")\ndef test_x(): pass'
+        )
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is None
+        assert not plugin._itr_ignored_suite_paths
+
+    def test_pytest_ignore_collect_ignores_comment_only_unskippable_marker(self, tmp_path: Path) -> None:
+        """A comment mentioning datadog_itr_unskippable does not force suite collection."""
+        workspace = tmp_path
+        test_file = workspace / "test_foo.py"
+        test_file.write_text("# datadog_itr_unskippable\ndef test_x(): pass")
+
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        mock_manager = (
+            session_manager_mock()
+            .with_workspace_path(str(workspace))
+            .with_skipping_enabled(True)
+            .with_skippable_items({suite_ref})
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .build_mock()
+        )
+        mock_manager.is_skippable_suite_path = Mock(return_value=True)
+
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        result = plugin._pytest_ignore_collect_impl(test_file, config=Mock())
+
+        assert result is True
+        assert plugin._itr_ignored_suite_paths == [test_file]
 
     def test_emit_itr_ignored_suite_events_emits_skip_event(self, tmp_path: Path) -> None:
         """_emit_itr_ignored_suite_events creates test_suite_end with status=skip for each ignored path."""
@@ -691,6 +886,73 @@ class TestNodeIdToTestRef:
         assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
         assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
+
+
+class TestItemToTestRef:
+    """Unit tests for item_to_test_ref helper."""
+
+    class _HookCaller:
+        def __init__(self, value: t.Optional[str] = None, has_impls: bool = False) -> None:
+            self.value = value
+            self.has_impls = has_impls
+            self.calls = 0
+
+        def __call__(self, item: t.Any) -> t.Optional[str]:
+            self.calls += 1
+            return self.value
+
+        def get_hookimpls(self) -> list[object]:
+            return [object()] if self.has_impls else []
+
+    class _Hook:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.pytest_ddtrace_get_item_module_name = TestItemToTestRef._HookCaller("custom.module", has_impls)
+            self.pytest_ddtrace_get_item_suite_name = TestItemToTestRef._HookCaller("custom_suite.py", has_impls)
+            self.pytest_ddtrace_get_item_test_name = TestItemToTestRef._HookCaller("custom_test", has_impls)
+
+    class _Config:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.hook = TestItemToTestRef._Hook(has_impls)
+
+    class _Item:
+        def __init__(self, nodeid: str, config: "TestItemToTestRef._Config") -> None:
+            self.nodeid = nodeid
+            self.config = config
+
+    def test_skips_custom_name_hooks_when_none_registered(self) -> None:
+        config = self._Config(has_impls=False)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "test_function"
+        assert test_ref.suite.name == "test_example.py"
+        assert test_ref.suite.module.name == "tests.internal"
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 0
+
+    def test_caches_test_ref_on_item(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        first_ref = item_to_test_ref(item)
+        second_ref = item_to_test_ref(item)
+
+        assert second_ref is first_ref
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 1
+
+    def test_uses_custom_name_hooks_when_registered(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "custom_test"
+        assert test_ref.suite.name == "custom_suite.py"
+        assert test_ref.suite.module.name == "custom.module"
 
 
 class TestHelperFunctions:
@@ -1426,6 +1688,94 @@ class TestXdistPlugin:
 class TestOutcomeProcessing:
     """Test test outcome processing methods."""
 
+    def test_passing_makereport_does_not_store_report(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        call = Mock(when="call", excinfo=None)
+        report = test_report(nodeid="test_id", outcome="passed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
+    def test_passing_makereport_can_store_report_when_optimization_disabled(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        with patch.dict(os.environ, {"_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS": "true"}):
+            plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        call = Mock(when="call", excinfo=None)
+        report = test_report(nodeid="test_id", outcome="passed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        assert plugin.reports_by_nodeid["test_id"] == {"call": report}
+        assert plugin.excinfo_by_report == {report: None}
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
+    def test_failing_makereport_stores_aggregate_outcome(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        excinfo = Mock()
+        excinfo.type = ValueError
+        excinfo.value = ValueError("boom")
+        excinfo.tb = None
+        call = Mock(when="call", excinfo=excinfo)
+        report = test_report(nodeid="test_id", outcome="failed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        status, tags = plugin._get_test_outcome("test_id")
+        assert status == TestStatus.FAIL
+        assert tags[TestTag.ERROR_TYPE] == "builtins.ValueError"
+        assert tags[TestTag.ERROR_MESSAGE] == "boom"
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+
+    def test_later_passing_call_report_clears_external_retry_failure(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        excinfo = Mock()
+        excinfo.type = ValueError
+        excinfo.value = ValueError("first attempt failed")
+        excinfo.tb = None
+
+        for call, report in (
+            (Mock(when="call", excinfo=excinfo), test_report(nodeid="test_id", outcome="failed", when="call")),
+            (Mock(when="call", excinfo=None), test_report(nodeid="test_id", outcome="passed", when="call")),
+        ):
+            outcome = Mock()
+            outcome.get_result.return_value = report
+            generator = plugin.pytest_runtest_makereport(item, call)
+            next(generator)
+            with pytest.raises(StopIteration):
+                generator.send(outcome)
+
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
     def test_get_test_outcome_pass(self) -> None:
         """Test _get_test_outcome for passing test."""
         mock_manager = session_manager_mock().build_mock()
@@ -1532,6 +1882,32 @@ class TestOutcomeProcessing:
 
         assert status == TestStatus.SKIP
         assert tags[TestTag.SKIP_REASON] == "Unknown skip reason"
+
+    def test_get_test_outcome_teardown_failure_overrides_skip(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="skipped", when="setup")
+        teardown_report = test_report(outcome="failed", when="teardown")
+        excinfo = Mock()
+        excinfo.type = RuntimeError
+        excinfo.value = RuntimeError("teardown failed")
+        excinfo.tb = None
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            teardown_report: excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.FAIL
+        assert tags[TestTag.ERROR_TYPE] == "builtins.RuntimeError"
+        assert tags[TestTag.ERROR_MESSAGE] == "teardown failed"
 
     def test_get_test_outcome_xfail_call(self) -> None:
         """Test _get_test_outcome for xfail test."""

@@ -1,54 +1,51 @@
-import os
 import sys
-from unittest import mock
 
 import pytest
 
-import ddtrace
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
-from ddtrace.ext import test
-from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from tests.ci_visibility.util import _patch_dummy_writer
-from tests.utils import DummyCIVisibilityWriter
-from tests.utils import TracerTestCase
-from tests.utils import override_env
+
+# AIDEV-NOTE: This plugin installs mocks at import time so they are active before the
+# child process initializes the Datadog pytest plugin. Keep this test out of inline_run:
+# nested in-process pytest-cov sessions can corrupt the outer session's coverage state.
+_INFRA_PLUGIN = """\
+import pytest
+from unittest.mock import patch
+
+from tests.testing.mocks import EventCapture
+from tests.testing.mocks import mock_api_client_settings
+from tests.testing.mocks import setup_standard_mocks
 
 
-class TestPytest(TracerTestCase):
+_api_client_patch = patch(
+    "ddtrace.testing.internal.session_manager.APIClient",
+    return_value=mock_api_client_settings(),
+)
+_api_client_patch.start()
+_standard_mocks = setup_standard_mocks()
+_standard_mocks.__enter__()
+_event_capture_context = EventCapture.capture()
+_event_capture = _event_capture_context.__enter__()
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session):
+    events = list(_event_capture.events())
+    assert sorted(event["type"] for event in events) == [
+        "test",
+        "test_module_end",
+        "test_session_end",
+        "test_suite_end",
+    ]
+
+    test_event = _event_capture.event_by_test_name("test_asynctest")
+    assert test_event["content"]["meta"]["test.status"] == "pass"
+"""
+
+
+class TestPytest:
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
-
-    @pytest.fixture(autouse=True)
-    def _dummy_check_enabled_features(self):
-        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
-
-        Tests that need a different response should re-patch the CIVisibility object.
-        """
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(False, False, False, False),
-        ):
-            yield
-
-    def inline_run(self, *args):
-        """Execute test script with test tracer."""
-
-        class CIVisibilityPlugin:
-            @staticmethod
-            def pytest_configure(config):
-                if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            self.tracer._span_aggregator.writer = DummyCIVisibilityWriter("https://citestcycle-intake.banana")
-            self.tracer._recreate()
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0),
@@ -61,7 +58,7 @@ class TestPytest(TracerTestCase):
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
         py_file = self.testdir.makepyfile(
-            """
+            test_asynctest="""
         import asynctest
         asynctest.CoroutineMock()
 
@@ -69,11 +66,10 @@ class TestPytest(TracerTestCase):
             assert 1 == 1
         """
         )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
+        self.testdir.makepyfile(asynctest_infra=_INFRA_PLUGIN)
+        file_name = py_file.strpath
+        self.monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "0")
 
-        assert len(spans) == 4
-        test_span = spans[0]
-        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
+        rec = self.testdir.runpytest_subprocess("--ddtrace", "-p", "asynctest_infra", file_name)
+
+        rec.assert_outcomes(passed=1)
