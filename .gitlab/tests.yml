@@ -63,13 +63,13 @@ include:
               export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
               export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
             else
-              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=false
+              unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
             fi
           else
-            export DD_CIVISIBILITY_ITR_ENABLED=false
-            export _DD_COVERAGE_FILE_LEVEL=false
-            export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=false
-            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=false
+            unset DD_CIVISIBILITY_ITR_ENABLED
+            unset _DD_COVERAGE_FILE_LEVEL
+            unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
+            unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
           fi
 
           echo "ITR gate debug:"
