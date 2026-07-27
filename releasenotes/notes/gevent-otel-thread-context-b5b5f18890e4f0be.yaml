@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Ensures that OpenTelemetry thread context is republished on gevent task switches.
+    This enables compatible host profiling and security tools to correlate samples with the active
+    trace and span in applications using gevent.

@@ -1,19 +1,37 @@
+from contextlib import contextmanager
 import subprocess  # noqa:I001
+import sys
 import threading
 
 import gevent
 import gevent.pool
+import pytest
 
-
-from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
-from ddtrace.trace import Context
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.trace import Context
 from tests.utils import TracerTestCase
 
 from .utils import silence_errors
+
+
+@contextmanager
+def _activation_events(provider):
+    events = []
+
+    def record(event_provider, context):
+        if event_provider is provider:
+            events.append(context)
+
+    core.on("ddtrace.context_provider.activate", record)
+    try:
+        yield events
+    finally:
+        core.reset_listeners("ddtrace.context_provider.activate", record)
 
 
 class TestGeventTracer(TracerTestCase):
@@ -55,6 +73,44 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
         assert "base" == traces[0][0].resource
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is Linux-only")
+    def test_otel_thread_ctx_follows_greenlet_switches(self):
+        with _activation_events(self.tracer.context_provider) as activated:
+            with self.tracer.trace("parent") as parent:
+                activated.clear()
+
+                def greenlet() -> None:
+                    assert activated[-1] is parent
+                    with self.tracer.trace("child") as child:
+                        activated.clear()
+                        gevent.sleep(0)
+                        assert activated[-1] is child
+
+                gevent.spawn(greenlet).join()
+                assert activated[-1] is parent
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is Linux-only")
+    def test_otel_thread_ctx_follows_raw_greenlet_switches_and_throw(self):
+        from greenlet import greenlet
+
+        with _activation_events(self.tracer.context_provider) as activated:
+            with self.tracer.trace("parent") as parent:
+                activated.clear()
+
+                def child():
+                    assert activated[-1] is None
+                    with self.tracer.trace("raw") as raw_span:
+                        activated.clear()
+                        try:
+                            greenlet.getcurrent().parent.switch()
+                        except RuntimeError:
+                            assert activated[-1] is raw_span
+
+                raw = greenlet(child)
+                raw.switch()
+                assert activated[-1] is parent
+                raw.throw(RuntimeError("expected"))
 
     def test_trace_greenlet_twice(self):
         # a greenlet can be traced using the trace API
@@ -391,3 +447,51 @@ class TestGeventTracer(TracerTestCase):
         assert p.returncode == 0, f"stdout: {stdout.decode()}\n\nstderr: {stderr.decode()}"
         assert b"Test success" in stdout, stdout.decode()
         assert b"RecursionError" not in stderr, stderr.decode()
+
+
+def test_greenlet_trace_multiplexer_preserves_callbacks():
+    from greenlet import gettrace
+    from greenlet import greenlet
+    from greenlet import settrace
+
+    from ddtrace.internal._greenlet import register_trace
+    from ddtrace.internal._greenlet import unregister_trace
+
+    events = []
+
+    def customer(event, args):
+        events.append(("customer", event))
+
+    def tracing(event, args):
+        events.append(("tracing", event))
+
+    def profiling(event, args):
+        events.append(("profiling", event))
+
+    def replacement(event, args):
+        pass
+
+    original = settrace(customer)
+    try:
+        register_trace(tracing)
+        register_trace(profiling)
+        greenlet(lambda: None).switch()
+
+        unregister_trace(tracing)
+        assert gettrace() is not customer
+        greenlet(lambda: None).switch()
+
+        unregister_trace(profiling)
+        assert gettrace() is customer
+
+        register_trace(tracing)
+        settrace(replacement)
+        unregister_trace(tracing)
+        assert gettrace() is replacement
+    finally:
+        unregister_trace(tracing)
+        unregister_trace(profiling)
+        settrace(original)
+
+    assert {name for name, _ in events[:6]} == {"customer", "tracing", "profiling"}
+    assert {name for name, _ in events[6:]} == {"customer", "profiling"}
