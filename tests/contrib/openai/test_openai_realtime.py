@@ -75,7 +75,6 @@ class _RecordingIntegration:
         metadata,
         metrics,
         session_id=None,
-        audio_timing=None,
         parent_span=None,
     ):
         self.responses.append(
@@ -87,7 +86,6 @@ class _RecordingIntegration:
                 "metadata": metadata,
                 "metrics": metrics,
                 "session_id": session_id,
-                "audio_timing": audio_timing,
                 "parent_span": parent_span,
             }
         )
@@ -190,25 +188,35 @@ def test_realtime_state_pcm_turn_wraps_audio_as_wav():
     assert resp["span"].finished is True
 
 
-def test_realtime_state_audio_turn_carries_timing_anchors():
-    """An audio turn carries absolute (unix ns) start anchors for its input/output segments, plus the
-    user speech-end, so the full-conversation-playback UI can place each segment and measure latency."""
+def test_realtime_state_audio_turn_emits_phase_spans():
+    """An audio turn emits the phase span tree - a workflow turn root with user-speech, llm, and
+    agent-speech children - with the turn's timing carried on the span boundaries (start/finish)."""
     integration, state = _new_state()
     _drive_turn(state)
 
-    timing = integration.responses[0]["audio_timing"]
-    assert timing is not None
-    input_start = timing["_dd.llmobs.audio.input.start_time_unix_nano"]
-    speech_end = timing["_dd.llmobs.audio.input.speech_end_time_unix_nano"]
-    output_start = timing["_dd.llmobs.audio.output.start_time_unix_nano"]
-    assert all(isinstance(v, int) for v in (input_start, speech_end, output_start))
-    # Captured on our own clock in event order: user audio starts, user speech ends (commit), then
-    # the agent's audio starts.
-    assert input_start <= speech_end <= output_start
+    wf = {w["name"]: w for w in integration.workflows}
+    assert {"realtime turn", "user speech", "agent speech"} <= set(wf)
+    root, user, agent = wf["realtime turn"], wf["user speech"], wf["agent speech"]
+    llm = integration.responses[0]
+
+    # Nesting: the root is parentless; user-speech, llm, and agent-speech all hang off the root span.
+    assert root["parent_span"] is None
+    assert user["parent_span"] is root["span"]
+    assert agent["parent_span"] is root["span"]
+    assert llm["parent_span"] is root["span"]
+
+    # Timing lives on the span boundaries now (no separate metadata): each span has start <= finish,
+    # the user speaks before the agent, and generation (llm) starts no earlier than the user began.
+    for span in (root["span"], user["span"], agent["span"], llm["span"]):
+        assert span.start_ns is not None and span.finish_ns is not None
+        assert span.start_ns <= span.finish_ns
+    assert user["span"].start_ns <= agent["span"].start_ns
+    assert llm["span"].start_ns >= user["span"].start_ns
 
 
-def test_realtime_state_text_only_turn_has_no_audio_timing():
-    """A turn with no audio (text in, text out) carries none of the audio-timing keys."""
+def test_realtime_state_text_only_turn_emits_no_speech_spans():
+    """A turn with no audio (text in, text out) emits the turn root and llm span but no user-speech
+    or agent-speech workflow spans (nothing was spoken to bracket)."""
     integration, state = _new_state()
     state.on_server_event(_session_created(transcription=False))
     state.on_client_event(
@@ -222,7 +230,10 @@ def test_realtime_state_text_only_turn_has_no_audio_timing():
     state.on_server_event(_ns(type="response.output_text.done", response_id="r", text="hello"))
     state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
 
-    assert integration.responses[0]["audio_timing"] is None
+    names = [w["name"] for w in integration.workflows]
+    assert "realtime turn" in names
+    assert "user speech" not in names
+    assert "agent speech" not in names
 
 
 def test_realtime_state_turn_carries_session_metadata_and_id():

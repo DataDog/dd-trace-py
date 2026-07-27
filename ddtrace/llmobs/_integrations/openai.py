@@ -185,7 +185,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
-        audio_timing: Optional[dict[str, int]] = None,
         parent_span: Optional[Span] = None,
     ) -> None:
         """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
@@ -193,14 +192,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         Nested under its turn root (a workflow span) via explicit ``parent_id``/``trace_id`` when
         ``parent_span`` is given, the same way the tool span nests (the active context has moved on by
         finalize). ``session_id`` groups all turns of one connection into a single conversation in the
-        UI. ``audio_timing`` carries absolute (unix ns) anchors for the turn's audio segments
-        (``_dd.llmobs.audio.*``), merged into metadata so the single-span path still carries timing.
+        UI. The turn's timing lives on the span boundaries (the user-speech, llm, and agent-speech
+        spans), so there is no separate timing metadata to merge here.
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         model_provider = self._get_model_provider(span)
-        merged_metadata = dict(metadata or {})
-        if audio_timing:
-            merged_metadata.update(audio_timing)
         parent_id = None
         trace_id = None
         if parent_span is not None:
@@ -214,7 +210,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider=model_provider,
             input_messages=input_messages or None,
             output_messages=output_messages or None,
-            metadata=merged_metadata,
+            metadata=metadata,
             metrics=metrics or None,
             session_id=session_id,
             parent_id=parent_id,

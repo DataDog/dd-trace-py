@@ -580,7 +580,6 @@ class _RealtimeState:
             metadata=self._session_metadata(),
             metrics=_usage_metrics(turn.usage),
             session_id=self._session_id,
-            audio_timing=_audio_timing(turn),
             parent_span=turn.root_span,
         )
 
@@ -777,25 +776,6 @@ def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Opt
     if g711_variant(mime) is not None:
         return int(decoded_bytes / G711_SAMPLE_RATE * 1_000_000_000)
     return None
-
-
-def _audio_timing(turn: "_ResponseTurn") -> Optional[dict[str, int]]:
-    """Absolute (unix ns) anchors for this turn's audio segments on the shared session timeline.
-
-    These let the full-conversation-playback UI place each segment and compute time-to-response.
-    Captured on our own clock when the audio was observed, so they are provider-agnostic. Emitted as
-    span metadata under the ``_dd.`` prefix (not tags — timestamps are high-cardinality) so they are
-    treated as internal and hidden from the metadata UI. Keys are omitted when the segment has no
-    audio (a text-only or tool-only turn carries none of them).
-    """
-    timing: dict[str, int] = {}
-    if turn.input.audio.start_ns is not None:
-        timing["_dd.llmobs.audio.input.start_time_unix_nano"] = turn.input.audio.start_ns
-    if turn.audio.start_ns is not None:
-        timing["_dd.llmobs.audio.output.start_time_unix_nano"] = turn.audio.start_ns
-    if turn.input.speech_end_ns is not None:
-        timing["_dd.llmobs.audio.input.speech_end_time_unix_nano"] = turn.input.speech_end_ns
-    return timing or None
 
 
 def _start_realtime_state(integration: Any, client: Any, model: Optional[str]) -> _RealtimeState:
