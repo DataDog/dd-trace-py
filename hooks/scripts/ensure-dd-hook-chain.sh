@@ -26,7 +26,9 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$repo_root"
 
 global_hooks="$(git config --global --get core.hooksPath 2>/dev/null || true)"
-if [ -z "$global_hooks" ]; then
+# Only repair when the DD-managed global hook chain is configured. An unrelated
+# global hooksPath plus a deliberate local .git/hooks override may be intentional.
+if [ "$global_hooks" != "/usr/local/dd/global_hooks" ]; then
   exit 0
 fi
 

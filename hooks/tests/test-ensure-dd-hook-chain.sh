@@ -57,7 +57,7 @@ EOF
 run_ensure() {
     (
         cd "$TMPDIR_TEST/repo"
-        sh "$SCRIPT" --quiet
+        "$SCRIPT" --quiet
     )
 }
 
@@ -82,6 +82,10 @@ assert_equals "" "$(local_hooks_path)" "local .git/hooks override removed"
 setup_repo "/usr/local/dd/global_hooks" "/tmp/custom-hooks"
 run_ensure
 assert_equals "/tmp/custom-hooks" "$(local_hooks_path)" "unrelated local hooksPath left alone"
+
+setup_repo "/tmp/custom-global-hooks" ".git/hooks"
+run_ensure
+assert_equals ".git/hooks" "$(local_hooks_path)" "non-DD global hooksPath: local .git/hooks left alone"
 
 echo "test-ensure-dd-hook-chain: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
