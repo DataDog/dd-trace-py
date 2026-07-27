@@ -6,6 +6,7 @@ coverage data.
 """
 
 import contextlib
+import functools
 import logging
 from pathlib import Path
 import typing as t
@@ -28,10 +29,11 @@ log = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 
-def install_coverage(workspace_path: Path) -> None:
+def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
+        file_level_coverage=file_level_coverage,
     )
     ModuleCodeCollector.start_coverage()
 
@@ -40,22 +42,39 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
+@functools.lru_cache(maxsize=65536)
+def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
+    try:
+        return f"/{Path(absolute_path).relative_to(relative_to)}"
+    except ValueError:
+        return None  # covered file does not belong to current repo
+
+
+_FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
+
+
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
+        self._covered_file_paths: t.Optional[t.Iterable[str]] = None
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
+        relative_to_str = str(relative_to)
+
+        if self._covered_file_paths is not None:
+            for absolute_path in self._covered_file_paths:
+                path_str = _relative_coverage_path(absolute_path, relative_to_str)
+                if path_str is not None:
+                    yield path_str, _FILE_LEVEL_BITMAP
+            return
+
         if not self._covered_lines:
             return
 
         for absolute_path, covered_lines in self._covered_lines.items():
-            try:
-                relative_path = Path(absolute_path).relative_to(relative_to)
-            except ValueError:
-                continue  # covered file does not belong to current repo
-
-            path_str = f"/{relative_path}"
-            yield path_str, covered_lines.to_bytes()
+            path_str = _relative_coverage_path(absolute_path, relative_to_str)
+            if path_str is not None:
+                yield path_str, covered_lines.to_bytes()
 
 
 @contextlib.contextmanager
@@ -63,7 +82,10 @@ def coverage_collection() -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
-        coverage_data._covered_lines = coverage_collector.get_covered_lines()
+        if ModuleCodeCollector.file_level_coverage_enabled():
+            coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
+        else:
+            coverage_data._covered_lines = coverage_collector.get_covered_lines()
 
 
 def install_coverage_percentage():
