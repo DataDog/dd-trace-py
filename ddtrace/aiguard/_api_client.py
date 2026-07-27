@@ -14,6 +14,7 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.http import HTTPConnection
@@ -325,7 +326,7 @@ class AIGuardClient:
                         ("error", "false"),
                     )
                 )
-                root_span = core.get_root_span()
+                root_span = span_bus.get_root_span()
                 if root_span:
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
