@@ -1,5 +1,6 @@
 import contextvars
 from enum import Enum
+import sys
 from typing import Any
 from typing import Iterable
 from typing import Iterator
@@ -167,6 +168,18 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.platform == "linux":
+    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
+        """
+        Update the OTel thread context from the active span and its local root span.
+        :param span: The active span.
+        :param local_root: The root span of the local trace chunk.
+        """
+        ...
+    def detach_otel_thread_context() -> None:
+        """Detach the OTel thread context from the current thread."""
+        ...
+
 class SharedRuntime:
     """
     SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
@@ -185,6 +198,15 @@ class SharedRuntime:
         ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
+    def shutdown_in_thread(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+        The code is run in a separate thread to bypass a stale thread local storage.
 
         Args:
             timeout_ms: Maximum time in milliseconds to wait for shutdown.
