@@ -407,10 +407,21 @@ detect_circular_imports:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      # Deepen to a full history if this checkout is shallow: a shallow clone can
+      # make `git merge-base` below fail or resolve the wrong (too-recent) ancestor.
+      if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+        git fetch --unshallow origin
+      fi
       git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      # Compare against the merge-base commit, not the current tip of ${BASE_BRANCH}.
+      # Using the branch tip means commits landed on the base branch after this PR
+      # branched off show up as phantom "new"/"removed" cycles that have nothing to
+      # do with this PR's own changes.
+      MERGE_BASE=$(git merge-base HEAD FETCH_HEAD)
+      echo "Comparing against merge-base ${MERGE_BASE} (base branch: ${BASE_BRANCH})"
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of cycles.py (has uv metadata)
+    # Analyse the merge-base ddtrace using the PR version of cycles.py (has uv metadata)
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
     - |
