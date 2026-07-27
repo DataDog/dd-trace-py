@@ -1647,47 +1647,41 @@ def test_mem_domain_churn_does_not_inflate_live_heap(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
-def test_mem_domain_cap_saturation_does_not_inflate_live_heap(tmp_path: Path) -> None:
+def test_mem_domain_cap_saturation_does_not_inflate_live_heap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Regression for the ai_gateway phantom heap-live-size inflation at the cap.
 
-    The heap tracker bounds its live-sample map at ``TRACEBACK_ARRAY_MAX_COUNT``
-    (65,536). Pre-fix, once the map was saturated the sampler dropped candidate
-    samples WITHOUT resetting ``allocated_memory`` -- the byte accumulator that
-    doubles as each sample's weight. While saturated it therefore kept summing the
-    size of *every* allocation, so the first sample taken once a slot freed up
-    inherited that huge accumulated weight. A handful of such post-saturation
-    samples, each weighted with the entire churn volume, made reported
-    ``heap-space`` explode to many GiB/TiB while real memory stayed flat -- the
-    phantom leak. The fix resets the sampling state on a cap-drop, bounding every
-    sample's weight to ~one sampling interval.
+    ``allocated_memory`` is the running byte accumulator that also weights the next
+    sample. Pre-fix, once the live-sample map saturated the sampler dropped
+    candidates WITHOUT resetting it, so it kept summing every dropped allocation; the
+    first sample taken once a slot freed inherited that whole weight, exploding
+    ``heap-space`` while RSS stayed flat. The fix resets on a cap-drop.
 
-    This test saturates the cap with a large bounded working set, then churns hard
-    (rotating the working set + transient allocate/free) so the buggy path is
-    exercised, and asserts reported heap-space stays bounded by the real tracked
-    working set rather than scaling with the churned-allocation volume.
+    To saturate cheaply we shrink the cap via ``_DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT``
+    instead of allocating 65,536+ objects, then churn to run the drop-at-cap path and
+    assert ``heap-space`` stays bounded by the real working set (not the churn
+    volume). Fails pre-fix, passes post-fix.
     """
+    # Set before the collector starts; the tracker reads the cap once at construction.
+    max_sample_count: int = 512
+    monkeypatch.setenv("_DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT", str(max_sample_count))
+
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_cap_saturation")
     sample_interval: int = 256  # small R so each ~1 KiB object is reliably sampled
     obj_size: int = 1024
-    # >65,536 reliably-sampled live objects guarantees the map saturates.
-    n_held: int = 70_000
-    n_rounds: int = 60
-    pile_per_round: int = 10_000
+    # More reliably-sampled objects than the (small) cap, so the map saturates.
+    n_held: int = 1_500
+    n_rounds: int = 20
+    pile_per_round: int = 2_000
     mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_interval, mem_domain_enabled=True)
     held: list[object] = []
     with mc:
         # Phase 1: fill the working set to saturate the live-sample cap.
         for _ in range(n_held):
             held.append(_make_mem_domain_object(obj_size))
-        # Phase 2: each round (a) piles up dropped-allocation bytes while the map is
-        # fully saturated -- transient allocations are dropped at the cap and their
-        # frees do NOT open a slot (they were never tracked), so pre-fix the
-        # `allocated_memory` accumulator grows without bound -- then (b) frees one
-        # retained entry to open a single slot and immediately allocates a *retained*
-        # replacement. Pre-fix, that replacement is the first allocation after the
-        # slot opens, so it captures the entire piled-up weight and keeps it live,
-        # inflating heap-space. Post-fix, every cap-drop resets the accumulator, so
-        # the replacement's weight is ~one sampling interval.
+        # Phase 2: each round piles dropped-allocation bytes while saturated (transient
+        # allocs are dropped at the cap; their frees open no slot), then frees one
+        # retained entry and replaces it. Pre-fix the replacement captures the whole
+        # piled-up weight; post-fix each cap-drop resets the accumulator.
         for r in range(n_rounds):
             for _ in range(pile_per_round):
                 tmp = _make_mem_domain_object(obj_size * 4)
@@ -1703,10 +1697,8 @@ def test_mem_domain_cap_saturation_does_not_inflate_live_heap(tmp_path: Path) ->
     assert heap_space_idx >= 0, "heap-space sample type not found in profile"
     total_heap_space: int = sum(s.value[heap_space_idx] for s in profile.sample if s.value[heap_space_idx] > 0)
 
-    # Upper bound on genuinely-live MEM bytes we ever hold. Reported heap-space must
-    # stay within a small multiple of this (post-fix it is ~cap * R, which is below
-    # this bound). Pre-fix it scales with the churn volume and blows past it by
-    # orders of magnitude (GiB+).
+    # Post-fix heap-space is ~cap * R, well under this bound; pre-fix it scales with
+    # the churn volume (hundreds of MiB) and blows past it by orders of magnitude.
     real_working_set: int = n_held * obj_size
     assert 0 < total_heap_space < 4 * real_working_set, (
         f"heap-space {total_heap_space:,} B is not bounded by the real working set "
