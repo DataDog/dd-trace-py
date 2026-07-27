@@ -68,7 +68,7 @@ if [ "$local_abs" != "$repo_hooks_dir" ]; then
   exit 0
 fi
 
-git config --local --unset core.hooksPath
+git config --local --unset-all core.hooksPath
 log "Removed local core.hooksPath=$local_hooks (it bypassed DD secrets scanning)."
 log "Repo hooks still run via global run-local-hooks after dd-git-hooks."
 if [ ! -e "$repo_hooks_dir/pre-commit" ]; then
