@@ -430,9 +430,12 @@ class _RealtimeState:
                 continue
             name = tool_call.get("name", "")
             call_type = tool_call.get("type")
-            if call_type == "mcp_call":
-                # Ensure a span exists even if output_item.added was never seen, then finish inline.
-                self._ensure_tool_span(turn, call_id, name, start_ns=turn.span.start_ns if turn.span else None)
+            # Ensure a span exists even if the streaming start events (output_item.added /
+            # function_call_arguments.*) were never observed — some transports deliver only
+            # response.done. A newly-created span back-dates to the turn's start; an existing one
+            # (opened during streaming) keeps its earlier start. The MCP span is finished inline
+            # below; a function span stays open until its function_call_output.
+            self._ensure_tool_span(turn, call_id, name, start_ns=turn.span.start_ns if turn.span else None)
             pending = self._pending_tool_spans.get(call_id)
             if pending is not None:
                 if not pending.name and name:

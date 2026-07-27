@@ -575,6 +575,47 @@ def test_realtime_state_tool_span_started_on_arguments_delta():
     assert integration.tools[0]["result"] == "cold"
 
 
+def test_realtime_state_function_call_only_in_response_done_emits_tool_span():
+    """A function_call observed ONLY at response.done (no output_item.added / arguments streaming
+    events, as some transports deliver) still gets a tool span, lazily created at response.done and
+    finished when the app returns the result.
+    """
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    # No output_item.added / function_call_arguments.* — the call first appears in response.done.
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[
+                    _ns(type="function_call", name="get_weather", arguments='{"city": "Denver"}', call_id="call_1")
+                ],
+            ),
+        )
+    )
+    # Span was created lazily at response.done and is still open (awaiting the result).
+    assert "call_1" in state._pending_tool_spans
+    assert integration.tools == []
+
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call_1", "output": "72F and sunny"},
+        }
+    )
+    assert len(integration.tools) == 1
+    tool = integration.tools[0]
+    assert tool["name"] == "get_weather"
+    assert tool["arguments"] == {"city": "Denver"}
+    assert tool["result"] == "72F and sunny"
+    assert tool["error"] is False
+    assert tool["span"].finished is True
+    assert not state._pending_tool_spans
+
+
 def test_realtime_state_unwrappable_audio_fallback_marker():
     """Audio in a format we can't wrap (not PCM16/G.711) with no transcript surfaces an [audio] marker."""
     integration, state = _new_state(model="gpt-realtime")
@@ -1068,7 +1109,10 @@ def test_realtime_integration_multi_turn_with_output_audio(openai, openai_llmobs
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
-    """A function_call in response.done is captured as a tool_call on the turn span (real integration)."""
+    """A function_call in response.done is captured as a tool_call on the turn span AND emits its own
+    tool span (real integration). No function_call_output arrives here, so the tool span is finished
+    at session close.
+    """
     messages = [
         json.dumps(
             {"type": "session.created", "event_id": "e0", "session": {"type": "realtime", "model": "gpt-realtime"}}
@@ -1103,11 +1147,19 @@ def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.resource for s in spans] == ["createRealtimeResponse"]
-    out = _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"][0]
+    by_resource = {s.resource: s for s in spans}
+    assert set(by_resource) == {"createRealtimeResponse", "createRealtimeToolCall"}
+    turn_span = by_resource["createRealtimeResponse"]
+    out = _get_llmobs_data_metastruct(turn_span)["meta"]["output"]["messages"][0]
     assert out["tool_calls"] == [
         {"name": "get_weather", "arguments": {"city": "Paris"}, "tool_id": "call_1", "type": "function"}
     ]
+    # The function call also gets its own tool-kind span, nested under the turn, even though only
+    # response.done (no output_item.added / arguments streaming) carried it.
+    tool_data = _get_llmobs_data_metastruct(by_resource["createRealtimeToolCall"])
+    assert tool_data["meta"]["span"]["kind"] == "tool"
+    assert tool_data["name"] == "get_weather"
+    assert tool_data["parent_id"] == str(turn_span.span_id)
 
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
