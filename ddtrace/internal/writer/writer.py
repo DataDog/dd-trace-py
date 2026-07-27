@@ -894,6 +894,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # Stopping them before that will raise a ServiceStatusError.
                 # Shut down the exporter as it's started on init.
                 self._exporter.shutdown(3_000_000_000)
+            except Exception:
                 _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
