@@ -286,6 +286,138 @@ def test_cpu_timer_profiler_stitches_asyncio_task_samples():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_parent_stitching",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "2",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_stitches_parent_for_consistent_task_snapshot():
+    import asyncio
+    import hashlib
+    import os
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def cpu_timer_native_busy_loop():
+        return hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 1_000_000)
+
+    async def cpu_timer_async_child():
+        assert cpu_timer_native_busy_loop()
+
+    async def cpu_timer_async_parent():
+        task = asyncio.create_task(cpu_timer_async_child(), name="cpu-timer-async-child")
+        await task
+
+    async def main():
+        p = profiler.Profiler()
+        p.start()
+        await cpu_timer_async_parent()
+        p.stop()
+
+    asyncio.run(main())
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    stitched_functions = []
+    for sample in profile.sample:
+        if sample.value[cpu_time_index] <= 0:
+            continue
+        task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if task_name_label is None or profile.string_table[task_name_label.str] != "cpu-timer-async-child":
+            continue
+        function_names = set()
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_names.add(profile.string_table[function.name])
+        if "cpu_timer_native_busy_loop" in function_names:
+            stitched_functions.append(function_names)
+
+    assert stitched_functions
+    assert any("cpu_timer_async_parent" in function_names for function_names in stitched_functions)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_task_transition",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "2",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_does_not_stitch_sleeping_task_over_captured_cpu_stack():
+    import asyncio
+    import os
+    import time
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def cpu_timer_transition_busy_loop():
+        deadline = time.thread_time_ns() + 6_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    async def fresh_request():
+        await asyncio.sleep(0.02)
+        assert cpu_timer_transition_busy_loop() > 0
+
+    async def fresh_task_slot(deadline):
+        loop = asyncio.get_running_loop()
+        while loop.time() < deadline:
+            await asyncio.create_task(fresh_request())
+
+    async def long_lived_task(deadline):
+        loop = asyncio.get_running_loop()
+        while loop.time() < deadline:
+            assert cpu_timer_transition_busy_loop() > 0
+            await asyncio.sleep(0.02)
+
+    async def main():
+        p = profiler.Profiler()
+        p.start()
+        deadline = asyncio.get_running_loop().time() + 1.5
+        await asyncio.gather(fresh_task_slot(deadline), long_lived_task(deadline))
+        p.stop()
+
+    asyncio.run(main())
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    busy_sample_count = 0
+    impossible_stacks = []
+    for sample in profile.sample:
+        if sample.value[cpu_time_index] <= 0:
+            continue
+        function_names = []
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_names.append(profile.string_table[function.name])
+        if "cpu_timer_transition_busy_loop" not in function_names:
+            continue
+        busy_sample_count += 1
+        if "sleep" in function_names:
+            impossible_stacks.append(function_names)
+
+    assert busy_sample_count > 0
+    assert not impossible_stacks, impossible_stacks[:10]
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_fault_guard",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",

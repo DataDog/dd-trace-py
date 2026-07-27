@@ -666,7 +666,7 @@ render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& r
             tstate_arg = &tstate;
             maybe_thread->second->tstate_addr = reinterpret_cast<uintptr_t>(state.tstate);
         }
-        maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us);
+        maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us, raw);
         return;
     }
 
@@ -967,10 +967,21 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     sample->cpu_delta_ns = delta;
     sample->python_thread_id = state->python_thread_id;
     sample->native_tid = state->native_tid;
+    sample->asyncio_task = 0;
+    sample->coroutine_fingerprint_count = 0;
     sample->depth = 0;
 
     bool failed = false;
     PyThreadState* tstate = state->tstate;
+#if PY_VERSION_HEX >= 0x030e0000
+    if (tstate != nullptr) {
+        PyObject* asyncio_task = nullptr;
+        auto* tstate_impl = reinterpret_cast<_PyThreadStateImpl*>(tstate);
+        if (guarded_read_scalar(*state, asyncio_task, &tstate_impl->asyncio_running_task)) {
+            sample->asyncio_task = reinterpret_cast<uintptr_t>(asyncio_task);
+        }
+    }
+#endif
     DataDog::py_frame_t* frame = nullptr;
     if (tstate == nullptr || !read_current_frame(*state, tstate, frame)) {
         failed = true;
@@ -1013,6 +1024,20 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
         if (!guarded_read_scalar(*state, first_lineno, &code->co_firstlineno)) {
             failed = true;
             break;
+        }
+
+        if (owner == FRAME_OWNED_BY_GENERATOR &&
+            sample->coroutine_fingerprint_count < kMaxCpuTimerCoroutineFingerprints) {
+            const uintptr_t frame_address = reinterpret_cast<uintptr_t>(frame);
+            constexpr uintptr_t interpreter_frame_offset = offsetof(PyGenObject, gi_iframe);
+            if (frame_address >= interpreter_frame_offset) {
+                CoroutineFingerprint& fingerprint =
+                  sample->coroutine_fingerprints[sample->coroutine_fingerprint_count++];
+                fingerprint.coroutine = frame_address - interpreter_frame_offset;
+                fingerprint.code_object = reinterpret_cast<uintptr_t>(code);
+                fingerprint.lasti = lasti;
+                fingerprint.first_lineno = first_lineno;
+            }
         }
 
         RawFrame& raw_frame = sample->frames[sample->depth];

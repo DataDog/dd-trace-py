@@ -25,6 +25,8 @@
 #include <mach/mach.h>
 #endif
 
+#include "cpu_sample_ring.hpp"
+
 #include <echion/errors.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
@@ -61,7 +63,11 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t, bool include_cpu_time = true);
-    void sample_cpu_timer(EchionSampler&, PyThreadState*, FrameStack&&, microsecond_t);
+    void sample_cpu_timer(EchionSampler&,
+                          PyThreadState*,
+                          FrameStack&&,
+                          microsecond_t,
+                          const Datadog::CpuTimer::RawSample&);
     void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------

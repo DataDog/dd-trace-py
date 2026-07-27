@@ -718,78 +718,179 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
 namespace {
 
+using Datadog::CpuTimer::CoroutineFingerprint;
+using Datadog::CpuTimer::RawSample;
+
 bool
-contains_frame(const FrameStack& stack, Frame::Key cache_key)
+fingerprint_matches_frame(const CoroutineFingerprint& fingerprint, const Frame& frame)
 {
-    return std::any_of(stack.begin(), stack.end(), [&](const Frame& frame) { return frame.cache_key == cache_key; });
+    return fingerprint.code_object == frame.code_object && fingerprint.lasti == frame.lasti &&
+           fingerprint.first_lineno == frame.first_lineno;
 }
 
-FrameStack
-merge_captured_stack_with_task_stack(const FrameStack& captured_stack, const FrameStack& task_stack)
+const GenInfo*
+active_coroutine(const TaskInfo& task)
 {
-    FrameStack merged;
-    size_t captured_prefix_size = captured_stack.size();
+    const GenInfo* active = task.coro.get();
+    while (active != nullptr && active->await != nullptr) {
+        active = active->await.get();
+    }
+    return active;
+}
 
-    for (size_t i = 0; i < captured_stack.size(); i++) {
-        if (contains_frame(task_stack, captured_stack[i].cache_key)) {
-            captured_prefix_size = i;
-            break;
+bool
+task_contains_captured_coroutine(const TaskInfo& task, const RawSample& raw)
+{
+    for (const GenInfo* coro = task.coro.get(); coro != nullptr; coro = coro->await.get()) {
+        const uintptr_t coroutine = reinterpret_cast<uintptr_t>(coro->origin);
+        for (uint8_t i = 0; i < raw.coroutine_fingerprint_count; i++) {
+            if (raw.coroutine_fingerprints[i].coroutine == coroutine) {
+                return true;
+            }
         }
     }
+    return false;
+}
 
-    for (size_t i = 0; i < captured_prefix_size && merged.size() < max_frames; i++) {
-        merged.push_back(captured_stack[i]);
-    }
-    for (const auto& frame : task_stack) {
-        if (merged.size() >= max_frames) {
-            break;
+TaskInfo*
+find_captured_task(std::vector<TaskInfo::Ptr>& tasks, const RawSample& raw)
+{
+    TaskInfo* selected = nullptr;
+    if (raw.asyncio_task != 0) {
+        for (auto& task : tasks) {
+            if (reinterpret_cast<uintptr_t>(task->origin) == raw.asyncio_task) {
+                // Python 3.14 can enumerate the same native task from both the
+                // per-thread and per-interpreter lists. Treat duplicate snapshots
+                // of the same object as one identity.
+                if (selected == nullptr) {
+                    selected = task.get();
+                }
+            }
         }
-        merged.push_back(frame);
+        return selected;
     }
 
-    if (merged.empty()) {
-        return captured_stack;
+    for (auto& task : tasks) {
+        if (!task_contains_captured_coroutine(*task, raw)) {
+            continue;
+        }
+        if (selected != nullptr && selected->origin != task->origin) {
+            return nullptr;
+        }
+        selected = task.get();
     }
-    return merged;
+    return selected;
 }
 
 void
-mark_cpu_timer_task_stack(FrameStack& captured_stack, std::vector<std::unique_ptr<StackInfo>>& current_tasks)
+unwind_selected_task(EchionSampler& echion,
+                     TaskInfo& selected,
+                     const std::vector<TaskInfo::Ptr>& tasks,
+                     bool using_uvloop,
+                     FrameStack& stack)
 {
-    if (current_tasks.empty()) {
-        return;
+    std::unordered_map<PyObject*, TaskInfo*> tasks_by_origin;
+    std::unordered_map<PyObject*, TaskInfo*> waiter_parents;
+    for (const auto& task : tasks) {
+        tasks_by_origin.emplace(task->origin, task.get());
+        if (task->waiter != nullptr) {
+            waiter_parents.emplace(task->waiter->origin, task.get());
+        }
     }
 
-    size_t selected = 0;
-    bool found = false;
-    for (size_t i = 0; i < current_tasks.size(); i++) {
-        if (current_tasks[i]->on_cpu) {
-            selected = i;
-            found = true;
+    std::unordered_set<PyObject*> visited;
+    TaskInfo* current = &selected;
+    for (size_t depth = 0; current != nullptr && depth < MAX_RECURSION_DEPTH; depth++) {
+        if (!visited.insert(current->origin).second) {
+            break;
+        }
+        (void)current->unwind(echion, stack, using_uvloop);
+
+        TaskInfo* parent = nullptr;
+        if (auto waiter_parent = waiter_parents.find(current->origin); waiter_parent != waiter_parents.end()) {
+            parent = waiter_parent->second;
+        } else {
+            PyObject* parent_origin = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+                auto& task_link_map = echion.task_link_map();
+                auto& weak_task_link_map = echion.weak_task_link_map();
+                if (auto task_parent = task_link_map.find(current->origin); task_parent != task_link_map.end()) {
+                    parent_origin = task_parent->second;
+                } else if (auto weak_parent = weak_task_link_map.find(current->origin);
+                           weak_parent != weak_task_link_map.end()) {
+                    parent_origin = weak_parent->second;
+                }
+            }
+            if (auto parent_task = tasks_by_origin.find(parent_origin); parent_task != tasks_by_origin.end()) {
+                parent = parent_task->second;
+            }
+        }
+        current = parent;
+    }
+}
+
+const CoroutineFingerprint*
+matching_active_fingerprint(EchionSampler& echion, const TaskInfo& task, const RawSample& raw)
+{
+    if (!task.is_on_cpu) {
+        return nullptr;
+    }
+
+    const GenInfo* active = active_coroutine(task);
+    if (active == nullptr || active->frame == nullptr) {
+        return nullptr;
+    }
+
+    const uintptr_t active_origin = reinterpret_cast<uintptr_t>(active->origin);
+    const CoroutineFingerprint* fingerprint = nullptr;
+    for (uint8_t i = 0; i < raw.coroutine_fingerprint_count; i++) {
+        if (raw.coroutine_fingerprints[i].coroutine == active_origin) {
+            fingerprint = &raw.coroutine_fingerprints[i];
             break;
         }
     }
-    if (!found) {
-        for (size_t i = 0; i < current_tasks.size(); i++) {
-            for (const auto& captured_frame : captured_stack) {
-                if (contains_frame(current_tasks[i]->stack, captured_frame.cache_key)) {
-                    selected = i;
-                    found = true;
-                    break;
-                }
-            }
-            if (found) {
-                break;
-            }
+    if (fingerprint == nullptr) {
+        return nullptr;
+    }
+
+    FrameStack active_stack;
+    if (unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1) != 1) {
+        return nullptr;
+    }
+    return fingerprint_matches_frame(*fingerprint, active_stack[0]) ? fingerprint : nullptr;
+}
+
+FrameStack
+stitch_captured_stack(FrameStack captured_stack,
+                      const FrameStack& logical_stack,
+                      const CoroutineFingerprint& fingerprint)
+{
+    auto captured_boundary = std::find_if(captured_stack.begin(), captured_stack.end(), [&](const Frame& frame) {
+        return fingerprint_matches_frame(fingerprint, frame);
+    });
+    auto logical_boundary = std::find_if(logical_stack.begin(), logical_stack.end(), [&](const Frame& frame) {
+        return fingerprint_matches_frame(fingerprint, frame);
+    });
+    if (captured_boundary == captured_stack.end() || logical_boundary == logical_stack.end() ||
+        captured_stack.size() >= max_frames) {
+        return captured_stack;
+    }
+
+    const size_t available = max_frames - captured_stack.size();
+    std::vector<Frame> logical_ancestors;
+    logical_ancestors.reserve(std::min(available, static_cast<size_t>(logical_stack.end() - logical_boundary - 1)));
+    for (auto it = logical_boundary + 1; it != logical_stack.end() && logical_ancestors.size() < available; ++it) {
+        const bool already_captured = std::any_of(captured_stack.begin(),
+                                                  captured_stack.end(),
+                                                  [&](const Frame& frame) { return frame.cache_key == it->cache_key; });
+        if (!already_captured) {
+            logical_ancestors.push_back(*it);
         }
     }
 
-    current_tasks[selected]->on_cpu = true;
-    current_tasks[selected]->stack =
-      merge_captured_stack_with_task_stack(captured_stack, current_tasks[selected]->stack);
-    if (selected != 0) {
-        std::swap(current_tasks[0], current_tasks[selected]);
-    }
+    captured_stack.insert(captured_boundary + 1, logical_ancestors.begin(), logical_ancestors.end());
+    return captured_stack;
 }
 
 } // namespace
@@ -862,29 +963,44 @@ void
 ThreadInfo::sample_cpu_timer(EchionSampler& echion,
                              PyThreadState* tstate,
                              FrameStack&& captured_stack,
-                             microsecond_t cpu_time_us)
+                             microsecond_t cpu_time_us,
+                             const Datadog::CpuTimer::RawSample& raw)
 {
     auto& renderer = echion.renderer();
     renderer.render_cpu_sample_begin(name, cpu_time_us, thread_id, native_id);
 
     current_tasks.clear();
     current_greenlets.clear();
-    FrameStack timer_stack = captured_stack;
-    python_stack = std::move(captured_stack);
 
-    // AIDEV-NOTE: timer_create CPU samples are captured in a signal handler as
-    // raw physical frames only. Do async task and greenlet stitching here on the
-    // sampler thread, using the same ThreadInfo machinery as wall samples.
+    // AIDEV-NOTE: timer_create CPU samples capture physical frames and task
+    // identity in the signal handler. A later task snapshot may contribute
+    // logical ancestors only after exact object-identity and active-coroutine
+    // fingerprint checks. Never select a task from drain-time on_cpu state or
+    // code-location overlap alone.
     if (asyncio_loop) {
-        (void)unwind_tasks(echion, tstate);
-        // Task state is inspected on the sampler thread, potentially after the
-        // signal-captured code already yielded. Preserve the captured physical
-        // on-CPU frames and attach them to the matching logical task stack.
-        mark_cpu_timer_task_stack(timer_stack, current_tasks);
-    } else {
-        unwind_greenlets(echion, tstate, native_id);
+        auto maybe_tasks = get_all_tasks(echion, tstate);
+        if (maybe_tasks) {
+            auto tasks = std::move(*maybe_tasks);
+            if (TaskInfo* task = find_captured_task(tasks, raw)) {
+                task->name.visit_string([&](std::string_view task_name) {
+                    renderer.render_task_begin(task_name, true, reinterpret_cast<uintptr_t>(task->origin));
+                });
+
+                if (const CoroutineFingerprint* fingerprint = matching_active_fingerprint(echion, *task, raw)) {
+                    FrameStack logical_stack;
+                    unwind_selected_task(echion, *task, tasks, using_uvloop, logical_stack);
+                    captured_stack = stitch_captured_stack(std::move(captured_stack), logical_stack, *fingerprint);
+                }
+            }
+        }
+
+        captured_stack.render(echion);
+        renderer.render_stack_end();
+        return;
     }
 
+    python_stack = std::move(captured_stack);
+    unwind_greenlets(echion, tstate, native_id);
     this->render_unwound_stacks(echion);
 }
 

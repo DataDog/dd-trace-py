@@ -12,10 +12,19 @@ namespace CpuTimer {
 // is embedded in every preallocated ring slot, so high frame caps multiply into
 // large per-thread resident memory and can destabilize thread-heavy processes.
 constexpr uint16_t kMaxCpuTimerFrames = 512;
+constexpr uint8_t kMaxCpuTimerCoroutineFingerprints = 8;
 
 struct RawFrame
 {
     void* code_object = nullptr;
+    int lasti = -1;
+    int first_lineno = 0;
+};
+
+struct CoroutineFingerprint
+{
+    uintptr_t coroutine = 0;
+    uintptr_t code_object = 0;
     int lasti = -1;
     int first_lineno = 0;
 };
@@ -25,7 +34,10 @@ struct RawSample
     uint64_t cpu_delta_ns = 0;
     uint64_t python_thread_id = 0;
     uint64_t native_tid = 0;
+    uintptr_t asyncio_task = 0;
+    uint8_t coroutine_fingerprint_count = 0;
     uint16_t depth = 0;
+    std::array<CoroutineFingerprint, kMaxCpuTimerCoroutineFingerprints> coroutine_fingerprints{};
     std::array<RawFrame, kMaxCpuTimerFrames> frames{};
 };
 
