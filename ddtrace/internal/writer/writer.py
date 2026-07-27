@@ -873,7 +873,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        old_exporter = self._exporter
         self._exporter = self._create_exporter()
+        old_exporter.shutdown(3_000_000_000)
 
     def recreate(
         self,
@@ -888,7 +890,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
-            pass
+            # Shut down the exporter as it's started on init.
+            self._exporter.shutdown(3_000_000_000)
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
@@ -912,8 +915,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _downgrade(self, status):
         if self._api_version == "v0.5":
             self._api_version = "v0.4"
-            # Rebuilding the exporter drops any spans still buffered under v0.5.
+            old_exporter = self._exporter
             self._exporter = self._create_exporter()
+            old_exporter.shutdown(3_000_000_000)
+
+            # Since we have to change the encoding in this case, the payload
+            # would need to be converted to the downgraded encoding before
+            # sending it, but we chuck it away instead.
             _safelog(
                 log.warning,
                 "Calling endpoint 'v0.5/traces' but received %s; downgrading API. "
