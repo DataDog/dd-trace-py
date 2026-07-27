@@ -301,7 +301,6 @@ suites:
       - tests/tracer/uwsgi-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
-    retry: 2
   vendor:
     parallelism: 1
     paths:
