@@ -87,5 +87,9 @@ setup_repo "/tmp/custom-global-hooks" ".git/hooks"
 run_ensure
 assert_equals ".git/hooks" "$(local_hooks_path)" "non-DD global hooksPath: local .git/hooks left alone"
 
+setup_repo "/usr/local/dd/global_hooks" "/tmp/does-not-exist/hooks"
+run_ensure
+assert_equals "/tmp/does-not-exist/hooks" "$(local_hooks_path)" "non-existent local hooksPath left alone"
+
 echo "test-ensure-dd-hook-chain: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

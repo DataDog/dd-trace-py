@@ -42,14 +42,23 @@ resolve_hooks_path() {
   if [ "${path#/}" = "$path" ]; then
     path="$repo_root/$path"
   fi
-  (
-    cd "$(dirname "$path")"
-    echo "$(pwd -P)/$(basename "$path")"
-  )
+  local dir base
+  dir="$(dirname "$path")"
+  base="$(basename "$path")"
+  if [ ! -d "$dir" ]; then
+    return 1
+  fi
+  echo "$(cd "$dir" && pwd -P)/$base"
 }
 
-local_abs="$(resolve_hooks_path "$local_hooks")"
-repo_hooks_dir="$(cd "$repo_root/.git/hooks" && pwd -P)"
+if ! local_abs="$(resolve_hooks_path "$local_hooks")"; then
+  log "Local core.hooksPath=$local_hooks is not a resolvable path; leaving it unchanged."
+  exit 0
+fi
+
+if ! repo_hooks_dir="$(resolve_hooks_path "$(git rev-parse --git-dir)/hooks")"; then
+  exit 0
+fi
 
 # Only remove overrides that point at this repo's .git/hooks. Other local values
 # may be intentional (worktree setups, etc.).
