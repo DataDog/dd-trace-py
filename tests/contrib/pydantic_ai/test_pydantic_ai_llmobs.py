@@ -407,13 +407,14 @@ class TestLLMObsPydanticAI:
     @pytest.mark.skipif(
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="sub-agent introspection verified on pydantic-ai >=1.63.0"
     )
-    def test_manifest_sub_agent_capability(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A function tool that delegates to another Agent is captured as a ``sub_agent`` capability.
+    def test_manifest_delegating_tool_captured_as_plain_tool(self, pydantic_ai, pydantic_ai_llmobs, integration):
+        """A tool that delegates to another Agent is captured as a plain ``tool``, NOT inferred as ``sub_agent``.
 
-        Driven through the builder (not a live run) so no model call is needed. ``sub_worker`` is
-        closure-captured by ``delegate_to_sub_agent``, which the bytecode walk resolves. Plain function
-        tools (``calculate_square_tool``) are ``type: function`` in the same unified ``capabilities`` list;
-        a delegating tool is single-homed as ``type: sub_agent`` (carrying its parameters + target agent).
+        pydantic-ai has no first-class sub-agent construct, so the manifest does not infer delegation from a
+        tool body (that was an unsound bytecode/closure heuristic that mislabeled ordinary code); the real
+        delegation is observable in the trace's nested agent span. The delegating tool still appears in both
+        ``tools`` and ``capabilities`` (as ``type: tool``) with its parameter schema, and no capability
+        carries an ``agent_name``. Fails-on-revert if delegation inference is reintroduced.
         """
         sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
 
@@ -424,8 +425,6 @@ class TestLLMObsPydanticAI:
         agent = pydantic_ai.Agent(
             model="gpt-4o", name="test_agent", tools=[calculate_square_tool, delegate_to_sub_agent]
         )
-        # Both tools stay in the frozen ``tools`` list (registration order); the delegating one is
-        # ADDITIONALLY surfaced in ``capabilities`` as a ``sub_agent``; it is NOT removed from ``tools``.
         assert integration._get_agent_tools(agent) == [
             {
                 "name": "calculate_square_tool",
@@ -438,49 +437,15 @@ class TestLLMObsPydanticAI:
                 "parameters": {"query": {"type": "string", "required": True}},
             },
         ]
-        # In the unified ``capabilities`` superset the delegating tool is single-homed as ``sub_agent``
-        # (carrying its parameter schema + resolved target agent); the plain tool stays ``type: tool``.
         capabilities = {c["name"]: c for c in integration._build_capabilities(agent)}
         assert capabilities["delegate_to_sub_agent"] == {
             "name": "delegate_to_sub_agent",
-            "type": "sub_agent",
-            "content": {"schema": {"query": {"type": "string", "required": True}}, "agent_name": "sub_worker"},
+            "type": "tool",
+            "content": {"schema": {"query": {"type": "string", "required": True}}},
             "description": "Delegate the query to the sub agent.",
         }
-        assert capabilities["calculate_square_tool"]["type"] == "tool"
-
-    @pytest.mark.skipif(
-        PYDANTIC_AI_VERSION < (1, 63, 0), reason="sub-agent introspection verified on pydantic-ai >=1.63.0"
-    )
-    def test_manifest_agent_reference_without_delegation_stays_tool(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: a tool that REFERENCES an ``Agent`` but does not delegate stays ``type: tool``.
-
-        ``_referenced_agent_name`` matches any Agent in the tool's globals/closure, so a tool that merely
-        reads ``agent.name`` (or references an Agent for logging) would be mislabeled ``sub_agent`` and
-        corrupt the versioning manifest. ``_build_capabilities`` gates the reclassification on
-        ``_fn_delegates``: a delegation method (``run`` / ``run_sync`` / ``run_stream`` / ``iter``) must
-        appear in the tool's code. A real delegating tool stays ``sub_agent`` (see
-        ``test_manifest_sub_agent_capability``). Fails-on-revert: drop the gate and this tool flips to
-        ``sub_agent``.
-        """
-        sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
-
-        def reads_agent_name(query: str) -> str:
-            """References an Agent but only reads its name; does not delegate."""
-            return f"{sub_worker.name}: {query}"
-
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", tools=[reads_agent_name])
-        capabilities = {c["name"]: c for c in integration._build_capabilities(agent)}
-        assert capabilities["reads_agent_name"]["type"] == "tool", capabilities
-        assert "agent_name" not in capabilities["reads_agent_name"]["content"], capabilities
-        # The discriminator itself: reading ``.name`` is not delegation; a ``run_sync`` call is.
-        assert integration._fn_delegates(reads_agent_name) is False
-
-        def delegates(query: str) -> str:
-            """Delegates to the sub agent."""
-            return sub_worker.run_sync(query).output
-
-        assert integration._fn_delegates(delegates) is True
+        assert all(c["type"] != "sub_agent" for c in capabilities.values())
+        assert all("agent_name" not in c["content"] for c in capabilities.values())
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="custom toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_custom_toolset_tools_not_over_captured_as_function_caps(
@@ -527,10 +492,11 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="output-function handoffs verified on pydantic-ai >=1.63.0"
     )
     def test_manifest_handoff_from_output_function(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """An output-function callable that delegates to an Agent is captured as a ``handoff``.
+        """An output-function callable is captured as a ``handoff`` with its docstring as the description.
 
-        The callable is partitioned out of ``output_type`` (which is empty here) and into
-        ``handoffs`` with its docstring as the description and the resolved sub-agent name.
+        The callable is partitioned out of ``output_type`` (empty here) and into ``handoffs``. No
+        ``agent_name``: the target is not inferred (pydantic exposes no reliable static link), so the entry
+        is just ``{tool_name, handoff_description}``.
         """
         sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
 
@@ -544,7 +510,6 @@ class TestLLMObsPydanticAI:
             {
                 "tool_name": "route_to_sub_agent",
                 "handoff_description": "Route the request to the sub agent.",
-                "agent_name": "sub_worker",
             }
         ]
 
@@ -619,7 +584,7 @@ class TestLLMObsPydanticAI:
             # The wrapped callable is a handoff, not an output type.
             assert output_type == {}, (marker_cls.__name__, output_type)
             assert [h["tool_name"] for h in handoffs] == ["route"], (marker_cls.__name__, handoffs)
-            assert handoffs[0].get("agent_name") == "sub_worker", (marker_cls.__name__, handoffs)
+            assert "agent_name" not in handoffs[0], (marker_cls.__name__, handoffs)
             # No memory-address string leaks onto the span via output_type.
             assert "0x" not in safe_json(output_type), (marker_cls.__name__, output_type)
 
@@ -800,9 +765,9 @@ class TestLLMObsPydanticAI:
         """The function source is HASHED, never emitted, so its size is irrelevant (a hash is fixed-size)
         and the raw body never rides the span.
 
-        Even a source far over the old byte budget yields only a 64-char ``source_hash`` and no ``source``
-        key; the byte cap and ``source_truncated`` flag are gone because a hash cannot overflow the event.
-        Fails-on-revert if the builder ever stores the raw source again.
+        Even a 100k-char source yields only a 64-char ``source_hash`` and no ``source`` key, since a hash
+        is fixed-size and cannot overflow the event. Fails-on-revert if the builder ever stores the raw
+        source again.
         """
 
         def dynamic_instructions(ctx) -> str:
@@ -838,6 +803,35 @@ class TestLLMObsPydanticAI:
         assert "source_hash" not in descriptor
         assert "source" not in descriptor
 
+    def test_manifest_unnamed_callable_recovers_identity_not_faked(self, pydantic_ai, pydantic_ai_llmobs, integration):
+        """A callable with no ``__name__`` is named by its recoverable identity, never a faked constant.
+
+        ``functools.partial`` and callable-class instances have no ``__name__`` and no retrievable source, so
+        the old ``or "function"`` fallback collapsed every such callable to one indistinguishable descriptor,
+        defeating change-detection and contradicting the "never faked" rule. The name is now recovered from
+        the partial's wrapped ``func.__name__`` or the instance's class. Fails-on-revert if a constant returns.
+        """
+        import functools
+
+        def base_trimmer(messages):
+            return messages
+
+        def base_summarizer(messages):
+            return messages
+
+        class Redactor:
+            def __call__(self, messages):
+                return messages
+
+        described = integration._describe_functions(
+            [functools.partial(base_trimmer), functools.partial(base_summarizer), Redactor()]
+        )
+        names = [d["name"] for d in described]
+        assert names == ["base_trimmer", "base_summarizer", "Redactor"], described
+        # The point: distinct unnamed callables stay distinct (no collapse to a shared "function").
+        assert len(set(names)) == 3
+        assert "function" not in names
+
     @pytest.mark.skipif(
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="mixed _instructions list shape verified on pydantic-ai >=1.63.0"
     )
@@ -870,6 +864,19 @@ class TestLLMObsPydanticAI:
         # De-duped: the single callable is described exactly once in ``extra_instructions``.
         descriptor = extract_extra_instruction(manifest, "dynamic_instructions")
         assert descriptor["name"] == "dynamic_instructions"
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="multi-element static instructions list is >=1.63.0")
+    def test_manifest_multi_static_instructions_joined_with_newline(self, pydantic_ai, pydantic_ai_llmobs, integration):
+        """Multiple static instruction strings join with a newline (pydantic-ai's own separator), not a space.
+
+        The framework renders static instruction literals with a newline join (``agent.__init__``), so
+        mirroring it keeps the captured text faithful: ``["a b"]`` and ``["a", "b"]`` stay distinguishable.
+        Fails-on-revert if the join uses a space (a separator the framework never produces, which collapses
+        those two).
+        """
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", instructions=["You are helpful.", "Be concise."])
+        manifest = integration._build_agent_manifest(agent)
+        assert manifest["instructions"] == "You are helpful.\nBe concise."
 
     def test_manifest_agent_settings_retries_version_tolerant(self, pydantic_ai, pydantic_ai_llmobs, integration):
         """Regression: ``retries`` survives the post-1.63.0 rename of ``_max_result_retries``.

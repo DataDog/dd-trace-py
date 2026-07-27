@@ -130,11 +130,9 @@ def expected_agent_metadata(
 
     manifest["tools"] = tools if tools is not None else []
 
-    # Auto-derive capabilities from the function tools, sorted by (type, name) to match the builder.
+    # Auto-derive capabilities from the function tools, in the builder's assembly (registration) order.
     if tools:
-        manifest["capabilities"] = sorted(
-            (_capability_from_tool(t) for t in tools), key=lambda c: (c["type"], c["name"])
-        )
+        manifest["capabilities"] = [_capability_from_tool(t) for t in tools]
 
     if handoffs:
         manifest["handoffs"] = handoffs

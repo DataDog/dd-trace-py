@@ -131,6 +131,14 @@ def _dedupe_by_id(items: list[Any], key=lambda item: id(item)) -> list[Any]:
     return unique
 
 
+def _callable_name(fn: Any) -> str:
+    """Best recoverable name for a callable: its ``__name__``, else a ``functools.partial``'s wrapped
+    ``func.__name__``, else the class name of a callable instance. Always a real identifier read off the
+    object (never a faked constant), so distinct unnamed callables stay distinguishable in the manifest.
+    """
+    return getattr(fn, "__name__", None) or getattr(getattr(fn, "func", None), "__name__", None) or type(fn).__name__
+
+
 def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     """Gather ``(static_texts, dynamic_fns)`` from an agent's instructions, across pydantic-ai versions.
 
@@ -336,7 +344,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         ``model`` / ``model_settings`` / ``instructions`` (str|None) / ``system_prompts`` (list) / ``tools``
         (flat list, kept for backward compatibility). New additive keys: ``model_provider``;
         ``extra_instructions`` (ordered typed DYNAMIC resolvers: dynamic instructions + dynamic system
-        prompts); ``capabilities`` (unified typed superset of tools / sub-agents / builtins / MCP servers /
+        prompts); ``capabilities`` (unified typed superset of tools / builtins / MCP servers /
         custom toolsets, each ``{name, type, description?, content}``; function tools appear here AND in the
         flat ``tools``, an accepted duplication); ``handoffs``; ``guardrails``; ``output_type``;
         ``memory_policies``; ``tool_transforms``; ``agent_settings``; ``metadata``. Function-bearing fields
@@ -366,7 +374,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # resolvers go in the additive ``extra_instructions`` bucket (dynamics only).
         static_instructions, dynamic_instructions = _collect_instructions(agent)
         dynamic_system_prompts = _collect_dynamic_system_prompts(agent)
-        instructions_text = " ".join(t for t in static_instructions if t)
+        # Join multiple static instruction strings with ``\n`` to mirror pydantic-ai's own renderer
+        # (``agent.__init__``: ``"\n".join(literal_parts)``); a space would be a separator the framework
+        # never produces and would collapse ``["a b"]`` and ``["a", "b"]`` to the same string.
+        instructions_text = "\n".join(t for t in static_instructions if t)
         manifest["instructions"] = instructions_text or None
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
@@ -434,23 +445,21 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return entries
 
     def _build_capabilities(self, agent: Any) -> list[dict[str, Any]]:
-        """Unified capability list: function tools / sub-agents (delegating tools) / builtins / MCP servers /
-        custom toolsets, each ``{name, type, description?, content}``. Emitted in assembly order (function
-        tools in registration order, then builtins / MCP / custom); canonical ordering is a backend concern.
+        """Unified capability list: function tools / builtins / MCP servers / custom toolsets, each
+        ``{name, type, description?, content}``. Emitted in assembly order (function tools in registration
+        order, then builtins / MCP / custom); canonical ordering is a backend concern.
+
+        Function tools are captured as ``type: "tool"``. pydantic-ai has no first-class sub-agent construct,
+        so agent-to-sub-agent delegation is NOT inferred here (that lived in an unsound bytecode/closure
+        heuristic); the delegation is observable in the trace's nested agent span instead.
         """
         capabilities: list[dict[str, Any]] = []
-        for name, tool_instance, fn in _iter_agent_tools(agent):
-            content: dict[str, Any] = {"schema": self._tool_parameters(tool_instance)}
-            agent_name = self._referenced_agent_name(fn) if callable(fn) else None
-            # Classify as ``sub_agent`` only when the tool BOTH references an Agent AND calls a delegation
-            # method on it; a tool that merely reads ``agent.name`` or references an Agent for logging is a
-            # plain tool, not a delegation (see ``_fn_delegates``).
-            if agent_name is not None and self._fn_delegates(fn):
-                if agent_name:
-                    content["agent_name"] = agent_name
-                entry: dict[str, Any] = {"name": name, "type": "sub_agent", "content": content}
-            else:
-                entry = {"name": name, "type": "tool", "content": content}
+        for name, tool_instance, _fn in _iter_agent_tools(agent):
+            entry: dict[str, Any] = {
+                "name": name,
+                "type": "tool",
+                "content": {"schema": self._tool_parameters(tool_instance)},
+            }
             if hasattr(tool_instance, "description") and tool_instance.description:
                 entry["description"] = tool_instance.description
             capabilities.append(entry)
@@ -495,7 +504,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         described: list[dict[str, Any]] = []
         for fn in fns:
-            entry: dict[str, Any] = {"name": getattr(fn, "__name__", None) or "function"}
+            entry: dict[str, Any] = {"name": _callable_name(fn)}
             try:
                 source: Optional[str] = inspect.getsource(fn)
             except (OSError, TypeError):
@@ -693,22 +702,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _get_agent_handoffs(self, agent: Any) -> list[dict[str, Any]]:
         """List every output-function callable in ``agent.output_type`` as a handoff.
 
-        Entry ``{tool_name, handoff_description?, agent_name?}`` matches the openai_agents manifest shape:
-        ``tool_name`` is the output function, ``agent_name`` the target it delegates to (when statically
-        resolvable), ``handoff_description`` the routing text.
+        Entry ``{tool_name, handoff_description?}``: ``tool_name`` is the output function and
+        ``handoff_description`` the routing text. No ``agent_name``: pydantic exposes no reliable static link
+        from an output function to a target agent, so it is not inferred (the delegation is observable in the
+        trace's nested agent span).
         """
         if not hasattr(agent, "output_type"):
             return []
         handoffs: list[dict[str, Any]] = []
         for marker, fn in self._iter_output_functions(agent.output_type):
-            handoff: dict[str, Any] = {"tool_name": getattr(fn, "__name__", None) or "output_function"}
+            handoff: dict[str, Any] = {"tool_name": _callable_name(fn)}
             description = getattr(marker, "description", None) or getattr(fn, "__doc__", None)
             if description:
                 # Routing text, not code, emitted as-is (short by nature; the 5MB event cap is the backstop).
                 handoff["handoff_description"] = description
-            agent_name = self._referenced_agent_name(fn)
-            if agent_name:
-                handoff["agent_name"] = agent_name
             handoffs.append(handoff)
         return handoffs
 
@@ -759,52 +766,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _is_output_function(candidate: Any) -> bool:
         """True if ``candidate`` is an output *function* (callable but not a class)."""
         return callable(candidate) and not isinstance(candidate, type)
-
-    _AGENT_DELEGATION_METHODS = frozenset({"run", "run_sync", "run_stream", "iter"})
-
-    @classmethod
-    def _fn_delegates(cls, fn: Any) -> bool:
-        """True if ``fn``'s code calls an Agent delegation method (``run`` / ``run_sync`` / ``run_stream`` / ``iter``).
-
-        Name-based heuristic over ``co_names``; narrows the ``sub_agent`` classification so a tool that
-        merely references an ``Agent`` (reads ``.name``, logging) is not mislabeled. Not operand-precise: a
-        tool that references an Agent AND calls a same-named method on another object can still match, which
-        is acceptable for a best-effort capability label.
-        """
-        code = getattr(fn, "__code__", None)
-        if code is None:
-            return False
-        return bool(cls._AGENT_DELEGATION_METHODS.intersection(code.co_names))
-
-    @staticmethod
-    def _referenced_agent_name(fn: Any) -> Optional[str]:
-        """Return the ``name`` of an ``Agent`` in ``fn``'s globals/closure, else ``None``.
-
-        Best-effort, NOT sound: any referenced Agent matches (incidental references are false positives) and
-        agents reached via ``ctx.deps`` / a registry lookup / a helper return are missed. Callers that need
-        delegation (``_build_capabilities``) gate this behind ``_fn_delegates``.
-        """
-        try:
-            from pydantic_ai import Agent
-        except Exception:  # noqa: BLE001
-            return None
-        code = getattr(fn, "__code__", None)
-        if code is None:
-            return None
-        glbls = getattr(fn, "__globals__", {}) or {}
-        cellmap: dict[str, Any] = {}
-        for var, cell in zip(code.co_freevars, fn.__closure__ or ()):
-            try:
-                cellmap[var] = cell.cell_contents
-            except ValueError:
-                continue
-        for name in list(code.co_names) + list(code.co_freevars):
-            obj = cellmap[name] if name in cellmap else glbls.get(name)
-            if isinstance(obj, Agent):
-                # AIDEV-NOTE: emit ONLY the name string, never ``obj``; the Agent holds its model client,
-                # deps, prompts, and tool closures, so serializing it onto the span would leak credentials/PII.
-                return getattr(obj, "name", None) or ""
-        return None
 
     def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":
