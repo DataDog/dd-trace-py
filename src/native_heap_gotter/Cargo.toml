@@ -1,0 +1,50 @@
+# Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
+# SPDX-License-Identifier: Apache-2.0
+
+# Thin cdylib wrapper around libdatadog's `libdd-profiling-heap-gotter` crate
+# (published on crates.io). See "Phase 1.5" in
+# `ddtrace/native-heap-profiling-roadmap.md`: this dependency was migrated from
+# a libdatadog `main` git pin to the published crates.io release.
+#
+# Why this crate exists (rather than consuming the upstream crate directly):
+#   * Building our own cdylib lets us pick a clean `[lib] name` and so sidestep
+#     libdatadog's repo-wide `liblib*.so` double-prefix convention: the output
+#     is simply `libdd_heap_gotter.so`.
+#   * It lets us expose a stable, ddtrace-owned C ABI (`ddtrace_heap_gotter_*`)
+#     over the upstream crate's pure-Rust API, so the Python ctypes activator
+#     links against fixed, unmangled symbol names and gets a plain `bool`.
+#
+# Phase 1 is allocation-only: the `live-heap` cargo feature of the gotter is
+# intentionally NOT enabled, so the free-path USDT (`ddheap:free`) and its
+# per-free overhead stay compiled out. Enabling live-heap later just adds the
+# `live-heap` feature on the `libdd-profiling-heap-gotter` dependency below.
+[package]
+name = "ddtrace-heap-gotter"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+# Produces `libdd_heap_gotter.so` (single `lib` prefix, unlike the upstream
+# `liblibdd_profiling_heap_gotter.so`). setup.py renames it to carry the
+# Python EXT_SUFFIX before placing it under ddtrace/internal/datadog/profiling.
+name = "dd_heap_gotter"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+debug = "line-tables-only"
+codegen-units = 1
+
+[features]
+# Forwards to the upstream crate's test-support surface so integration tests can
+# assert the patched GOT hooks actually ran (hit counter) without needing a
+# live eBPF uprobe attach. Never enabled for shipped wheels.
+test-support = ["libdd-profiling-heap-gotter/test-support"]
+
+[dependencies]
+# Pinned to the published crates.io release (Phase 1.5 migration off the
+# libdatadog `main` git pin). `default-features = false` keeps the
+# allocation-only surface: `live-heap` stays opt-in and off for Phase 1.
+libdd-profiling-heap-gotter = { version = "1.0.0", default-features = false }
