@@ -7,11 +7,12 @@ from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from typing import Iterator
-from typing import MutableMapping
 from typing import cast
 
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
+from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
 
 @singledispatch
@@ -97,13 +98,9 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
                     seen_functions.add(c)
 
         # If the function has bytecode wrapping we return the function itself.
-        # We don't want to return the temporary wrapped function from the
-        # __dd_wrapped__ attribute.
-        try:
-            object.__getattribute__(g, "__dd_wrapped__")
+        # We don't want to descend into the temporary inner copy.
+        if _dd_is_wrapped(g):
             return g
-        except AttributeError:
-            pass
 
         # Look for a function attribute (method decoration)
         # DEV: We don't recurse over arbitrary objects. We stop at the first
@@ -141,19 +138,6 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
-_CODE_TO_ORIGINAL_FUNCTION_MAPPING: MutableMapping[CodeType, FunctionType] = dict()
-
-
-def link_function_to_code(code: CodeType, function: FunctionType) -> None:
-    """
-    Link a function to a code object. This is used to speed up the search for
-    the original function from a code object.
-    """
-    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
-
-    _CODE_TO_ORIGINAL_FUNCTION_MAPPING[code] = function
-
-
 @lru_cache(maxsize=(1 << 14))  # 16k entries
 def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
     import gc
@@ -162,8 +146,6 @@ def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
 
 
 def functions_for_code(code: CodeType) -> list[FunctionType]:
-    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
-
     try:
         # Try to get the function from the original code-to-function mapping
         return [_CODE_TO_ORIGINAL_FUNCTION_MAPPING[code]]
@@ -179,7 +161,5 @@ def clear():
     This should be called when modules are reloaded to ensure that the mappings
     stay relevant.
     """
-    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
-
     _functions_for_code_gc.cache_clear()
     _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
