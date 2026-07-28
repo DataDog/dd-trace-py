@@ -29,7 +29,6 @@ from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
-from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.llmobs.test_prompts import CHAT_PROMPT_RESPONSE
 from tests.llmobs.test_prompts import mock_api
@@ -3066,72 +3065,6 @@ MUL: "*"
             tool_definitions=[
                 EXPECTED_TOOL_DEFINITIONS[0],
                 {"name": "search_logs", "description": "", "schema": {}},
-            ],
-        )
-
-    @pytest.mark.skipif(
-        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
-    )
-    def test_tool_with_deep_schema_has_schema_stringified(self, openai, openai_llmobs, test_spans):
-        """Tool schemas that exceed the maximum nested depth are stringified at the point where
-        they exceed the limit, preserving all data as a JSON string while keeping shallower
-        structure intact. Tools with shallow schemas are unaffected.
-        """
-        deep_tool = {
-            "type": "function",
-            "function": {
-                "name": "deep_tool",
-                "description": "A tool with a deeply nested schema",
-                "parameters": DEEP_TOOL_SCHEMA,
-            },
-        }
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
-            client = openai.OpenAI()
-            client.chat.completions.create(
-                tools=[chat_completion_custom_functions[0], deep_tool],
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": chat_completion_input_description}],
-                user="ddtrace-test",
-            )
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[0]),
-            span_kind="llm",
-            tool_definitions=[
-                EXPECTED_TOOL_DEFINITIONS[0],
-                {
-                    "name": "deep_tool",
-                    "description": "A tool with a deeply nested schema",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "l1": {
-                                "type": "object",
-                                "properties": {
-                                    "l2": {
-                                        "type": "object",
-                                        "properties": {
-                                            "l3": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "l4": {
-                                                        "type": "object",
-                                                        "properties": (
-                                                            '{"l5": {"properties": {"l6": {"properties":'
-                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
-                                                            ' "type": "object"}}'
-                                                        ),
-                                                    }
-                                                },
-                                            }
-                                        },
-                                    }
-                                },
-                            }
-                        },
-                    },
-                },
             ],
         )
 

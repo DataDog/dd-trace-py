@@ -5,7 +5,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
-from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _stringify_mapping_keys
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -521,30 +521,30 @@ class TestAnnotateLLMObsSpanData:
             assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
 
 
-class TestSanitizeSpanEventDepth:
+class TestStringifyMappingKeys:
     """Non-string mapping keys are stringified so the msgpack meta_struct intake path
     does not drop the span (MLOB-7618).
     """
 
     def test_stringifies_top_level_non_string_keys(self):
-        assert _sanitize_span_event_depth({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
+        assert _stringify_mapping_keys({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
             "metadata": {"5": "a", "2.5": "b", "None": "c"}
         }
-        assert _sanitize_span_event_depth({"metadata": {True: "x", False: "y"}}) == {
+        assert _stringify_mapping_keys({"metadata": {True: "x", False: "y"}}) == {
             "metadata": {"True": "x", "False": "y"}
         }
 
     def test_stringifies_nested_non_string_keys(self):
-        sanitized = _sanitize_span_event_depth({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
+        sanitized = _stringify_mapping_keys({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
         assert sanitized == {"metadata": {"outer": {"3": {"4": [{"5": "v"}]}}}}
 
     def test_string_keyed_structures_pass_through_unchanged(self):
         original = {"metadata": {"temperature": 0.5, "nested": {"k": [1, 2, 3]}}}
-        assert _sanitize_span_event_depth(original) == original
+        assert _stringify_mapping_keys(original) == original
 
     def test_does_not_mutate_input(self):
         original = {"metadata": {1: "a"}}
-        _sanitize_span_event_depth(original)
+        _stringify_mapping_keys(original)
         assert original == {"metadata": {1: "a"}}  # original keys untouched
 
 
