@@ -2803,6 +2803,7 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         {
+            "event_kind": "evaluation",
             "metric_type": "score",
             "label": "quality",
             "tags": [

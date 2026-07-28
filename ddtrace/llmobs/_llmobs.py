@@ -3340,6 +3340,7 @@ class LLMObs(Service):
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
+                "event_kind": "evaluation",
                 "join_on": join_on,
                 "label": str(label),
                 "metric_type": metric_type,

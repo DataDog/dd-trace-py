@@ -19,6 +19,7 @@ DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricEvent:
     return {
+        "event_kind": "evaluation",
         "join_on": {
             "span": {
                 "span_id": "12345678901",
@@ -35,6 +36,7 @@ def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricE
 
 def _score_metric_event(label: str, value: float) -> LLMObsEvaluationMetricEvent:
     return {
+        "event_kind": "evaluation",
         "join_on": {
             "span": {
                 "span_id": "12345678902",
@@ -59,6 +61,18 @@ def _feedback_metric_event() -> LLMObsEvaluationMetricEvent:
         "text_value": "The response was clear.",
         "ml_app": "dummy-ml-app",
         "timestamp_ms": 1756910127022,
+    }
+
+
+def test_evaluation_metric_uses_evaluation_metric_envelope():
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    evaluation_event = _categorical_metric_event(label="toxicity", value="very")
+
+    assert llmobs_eval_metric_writer._data([evaluation_event]) == {
+        "data": {
+            "type": "evaluation_metric",
+            "attributes": {"metrics": [evaluation_event]},
+        }
     }
 
 

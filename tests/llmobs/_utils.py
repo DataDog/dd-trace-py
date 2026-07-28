@@ -428,6 +428,7 @@ def _expected_llmobs_eval_metric_event(
     eval_scope="span",
 ):
     eval_metric_event = {
+        "event_kind": "evaluation",
         "join_on": {},
         "metric_type": metric_type,
         "label": label,
@@ -807,6 +808,7 @@ class DummyEvaluator:
 
 def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
+        event_kind="evaluation",
         join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
