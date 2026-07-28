@@ -43,6 +43,7 @@ EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
+_USE_ACCURATE_IMPORTS = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -302,7 +303,7 @@ def _instrument_with_monitoring(
         # In file-level mode, PY_START is too coarse for import dependency tracking: it fires when a code object
         # starts, before guarded imports are known to execute. Inject a tiny hook immediately after actual import
         # opcodes instead, and keep PY_START exclusively for file coverage.
-        if import_names and getattr(hook_self, "_collect_import_coverage", False):
+        if _USE_ACCURATE_IMPORTS and import_names and getattr(hook_self, "_collect_import_coverage", False):
             try:
                 code = inject_import_hooks(code, hook, path, import_events)
             except Exception:
