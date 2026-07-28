@@ -13,6 +13,9 @@ import sys
 from types import CodeType
 import typing as t
 
+from bytecode import Bytecode
+from bytecode import Instr
+
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -248,8 +251,8 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
         else:
             hook((0, path, None))
 
-        # Report any import dependencies (extracted at instrumentation time from bytecode). This keeps import tracking
-        # tied to executed code objects even though file-level mode does not fire on individual lines.
+        # Fallback path for import dependencies when bytecode import-hook injection is unavailable. This is less
+        # precise because PY_START fires before guarded imports are known to execute.
         for import_name in import_names.values():
             if import_hook is not None:
                 import_hook(path, import_name)
@@ -278,42 +281,140 @@ def _instrument_with_monitoring(
     """
     Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
     """
-    # Enable local line/py_start events for the code object
-    sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
-
     track_lines = not _USE_FILE_LEVEL_COVERAGE
-    # Extract import names and collect line numbers
+    # Extract import names and collect line numbers before rewriting nested code objects.
     lines, import_names = _extract_lines_and_imports(code, package, track_lines=track_lines)
 
-    # Recursively instrument nested code objects
-    for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
-        _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
-        lines.update(nested_lines)
+    # Recursively instrument nested code objects first. sys.monitoring events must be enabled on the final code
+    # objects, not on the original nested constants that may be replaced below.
+    new_consts: t.Optional[list[t.Any]] = None
+    for const_index, nested_code in enumerate(code.co_consts):
+        if isinstance(nested_code, CodeType):
+            new_nested_code, nested_lines = instrument_all_lines(nested_code, hook, path, package)
+            lines.update(nested_lines)
+            if new_nested_code is not nested_code:
+                if new_consts is None:
+                    new_consts = list(code.co_consts)
+                new_consts[const_index] = new_nested_code
 
-    # Register the generic hook plus specialized hooks when the collector provides them. Keeping file-, line-, and
-    # import-level operations separate makes the two coverage modes easier to follow and avoids tuple dispatch in the
-    # common ModuleCodeCollector path.
+    if new_consts is not None:
+        code = code.replace(co_consts=tuple(new_consts))
+
     hook_self = getattr(hook, "__self__", None)
     line_hook = getattr(hook_self, "hook_line", None)
     file_hook = getattr(hook_self, "hook_file", None)
     import_hook = getattr(hook_self, "hook_import", None)
-    _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
 
     if _USE_FILE_LEVEL_COVERAGE:
-        # Return CoverageLines with line 0 as sentinel to indicate file-level coverage
-        # Line 0 means "file was instrumented/executed" without specific line details
+        # In file-level mode, PY_START is too coarse for import dependency tracking: it fires when a code object
+        # starts, before guarded imports are known to execute. Inject a tiny hook immediately after actual import
+        # opcodes instead, and keep PY_START exclusively for file coverage.
+        if import_names and getattr(hook_self, "_collect_import_coverage", False):
+            try:
+                code = _inject_import_hooks(code, hook, path, package)
+            except Exception:
+                log.debug(
+                    "Failed to inject import hooks into %r; falling back to static import metadata", code, exc_info=True
+                )
+            else:
+                import_names = {}
+
+        # Enable local PY_START events for the final code object.
+        sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
+        _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
+
+        # Return CoverageLines with line 0 as sentinel to indicate file-level coverage.
         lines = CoverageLines()
         lines.add(0)
         return code, lines
-    else:
-        # Special case for empty modules (eg: __init__.py ):
-        # Make sure line 0 is marked as executable, and add package dependency
-        if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
-            lines.add(0)
-            if package is not None:
-                import_names[0] = (package, ("",))
+
+    # Special case for empty modules (eg: __init__.py ):
+    # Make sure line 0 is marked as executable, and add package dependency
+    if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+        lines.add(0)
+        if package is not None:
+            import_names[0] = (package, ("",))
+
+    # Enable local LINE events for the final code object.
+    sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
+    # Register the generic hook plus specialized hooks when the collector provides them. Keeping file-, line-, and
+    # import-level operations separate makes the two coverage modes easier to follow and avoids tuple dispatch in the
+    # common ModuleCodeCollector path.
+    _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
 
     return code, lines
+
+
+def _import_call_instructions(hook: HookType, arg: tuple[int, str, tuple[str, tuple[str, ...]]], lineno: int):
+    """Build bytecode instructions for hook(arg) on Python 3.12+.
+
+    AIDEV-NOTE: This helper intentionally mirrors ddtrace.internal.bytecode_injection's call sequence for
+    Python 3.12/3.13+. If CPython call bytecode changes again, update both places together.
+    """
+    if sys.version_info >= (3, 13):
+        return [
+            Instr("LOAD_CONST", hook, lineno=lineno),
+            Instr("PUSH_NULL", lineno=lineno),
+            Instr("LOAD_CONST", arg, lineno=lineno),
+            Instr("CALL", 1, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+        ]
+    return [
+        Instr("PUSH_NULL", lineno=lineno),
+        Instr("LOAD_CONST", hook, lineno=lineno),
+        Instr("LOAD_CONST", arg, lineno=lineno),
+        Instr("CALL", 1, lineno=lineno),
+        Instr("POP_TOP", lineno=lineno),
+    ]
+
+
+def _resolve_import_package(package: str, import_depth: int) -> str:
+    return ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+
+
+def _inject_import_hooks(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
+    """Inject import dependency hooks immediately after actual import bytecodes.
+
+    File-level coverage uses PY_START, which is too early to know whether guarded imports in the code object will run.
+    These injected hooks fire only when the interpreter reaches IMPORT_NAME/IMPORT_FROM, so false runtime branches do
+    not create dependency edges. The hook is inserted after the import opcode, meaning failed imports are not recorded.
+    """
+    bytecode = Bytecode.from_code(code)
+
+    pending_insertions: list[tuple[int, tuple[int, str, tuple[str, tuple[str, ...]]], int]] = []
+    current_import_name: t.Optional[str] = None
+    current_import_package: str = package
+    previous_previous_arg: t.Any = 0
+    previous_arg: t.Any = 0
+
+    for idx, instr in enumerate(bytecode):
+        if not isinstance(instr, Instr):
+            continue
+
+        if instr.name == "IMPORT_NAME":
+            import_depth = previous_previous_arg if isinstance(previous_previous_arg, int) else 0
+            current_import_name = t.cast(str, instr.arg)
+            current_import_package = _resolve_import_package(package, import_depth)
+            pending_insertions.append(
+                (idx, (0, path, (current_import_package, (current_import_name,))), instr.lineno or code.co_firstlineno)
+            )
+        elif instr.name == "IMPORT_FROM" and current_import_name is not None:
+            import_from_name = f"{current_import_name}.{instr.arg}"
+            pending_insertions.append(
+                (idx, (0, path, (current_import_package, (import_from_name,))), instr.lineno or code.co_firstlineno)
+            )
+
+        if instr.name == "LOAD_CONST":
+            decoded = instr.arg
+        else:
+            decoded = instr.arg if isinstance(instr.arg, int) else 0
+        previous_previous_arg = previous_arg
+        previous_arg = decoded
+
+    for idx, arg, lineno in reversed(pending_insertions):
+        bytecode[idx + 1 : idx + 1] = _import_call_instructions(hook, arg, lineno)
+
+    return bytecode.to_code()
 
 
 def _extract_lines_and_imports(
