@@ -151,19 +151,23 @@ def test_profiler_keeps_managed_heap_when_native_heap_armed() -> None:
 
     with mock.patch.object(heap_gotter, "install", return_value=True) as install:
         with mock.patch.object(heap_gotter, "live_heap_enabled", return_value=False):
-            from ddtrace.profiling.profiler import Profiler
+            with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
+                from ddtrace.profiling.profiler import Profiler
 
-            prof = Profiler()
-            prof.start()
-            try:
-                assert install.called, "the gotter must still be armed when native heap is enabled"
-                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
-                assert has_mem, (
-                    "in-process managed-heap (OBJ/MEM) collector must stay active when the gotter is armed; "
-                    "the gotter owns only the native/raw glibc malloc domain"
-                )
-            finally:
-                prof.stop(flush=False)
+                prof = Profiler()
+                prof.start()
+                try:
+                    assert install.called, "the gotter must still be armed when native heap is enabled"
+                    has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                    assert has_mem, (
+                        "in-process managed-heap (OBJ/MEM) collector must stay active when the gotter is armed; "
+                        "the gotter owns only the native/raw glibc malloc domain"
+                    )
+                    # The producer-side size partition must be turned on so the
+                    # in-process sampler drops the > 512B tail the gotter owns.
+                    set_partition.assert_called_once_with(True)
+                finally:
+                    prof.stop(flush=False)
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
@@ -181,15 +185,18 @@ def test_profiler_keeps_managed_heap_when_gotter_not_installed() -> None:
     profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
 
     with mock.patch.object(heap_gotter, "install", return_value=False):
-        from ddtrace.profiling.profiler import Profiler
+        with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
+            from ddtrace.profiling.profiler import Profiler
 
-        prof = Profiler()
-        prof.start()
-        try:
-            has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
-            assert has_mem, "in-process memory collector must stay active when the gotter fails to install"
-        finally:
-            prof.stop(flush=False)
+            prof = Profiler()
+            prof.start()
+            try:
+                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                assert has_mem, "in-process memory collector must stay active when the gotter fails to install"
+                # Not armed -> partition off so ALL sizes keep being sampled.
+                set_partition.assert_called_once_with(False)
+            finally:
+                prof.stop(flush=False)
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
@@ -208,13 +215,16 @@ def test_profiler_keeps_managed_heap_when_native_heap_disabled() -> None:
     # install() is patched to True to prove arming keys on the feature being
     # enabled, not merely on install() — it must never be called here.
     with mock.patch.object(heap_gotter, "install", return_value=True) as install:
-        from ddtrace.profiling.profiler import Profiler
+        with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
+            from ddtrace.profiling.profiler import Profiler
 
-        prof = Profiler()
-        prof.start()
-        try:
-            assert not install.called
-            has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
-            assert has_mem, "in-process memory collector must run when native heap is disabled"
-        finally:
-            prof.stop(flush=False)
+            prof = Profiler()
+            prof.start()
+            try:
+                assert not install.called
+                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                assert has_mem, "in-process memory collector must run when native heap is disabled"
+                # Feature off -> partition off (all sizes sampled).
+                set_partition.assert_called_once_with(False)
+            finally:
+                prof.stop(flush=False)

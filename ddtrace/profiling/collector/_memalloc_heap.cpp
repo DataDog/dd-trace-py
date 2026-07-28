@@ -365,11 +365,41 @@ memalloc_heap_untrack_no_cpython(void* ptr)
     }
 }
 
+/* CPython obmalloc's SMALL_REQUEST_THRESHOLD: requests of this many bytes or
+ * fewer are served from pymalloc pools; larger requests fall back to the raw
+ * allocator (PyMem_RawMalloc -> glibc malloc). Stable at 512 across the
+ * supported 3.x line (see CPython Objects/obmalloc.c). */
+static constexpr size_t MEMALLOC_PYMALLOC_SMALL_REQUEST_THRESHOLD = 512;
+
+/* When true, skip OBJ/MEM allocations larger than the pymalloc small-request
+ * threshold (they hit glibc malloc and are owned by the native-heap gotter).
+ * Read on the allocation hot path under the GIL (OBJ/MEM hooks hold it), and
+ * written only from Python via memalloc_heap_set_native_heap_partition(), so a
+ * plain bool needs no additional synchronization under the current GIL model. */
+static bool g_native_heap_partition_enabled = false;
+
+void
+memalloc_heap_set_native_heap_partition(bool enabled)
+{
+    g_native_heap_partition_enabled = enabled;
+}
+
 /* Track a memory allocation in the heap profiler. */
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     (void)domain; // Parameter kept for API consistency but not currently used
+
+    /* Native-heap ownership partition: when the gotter is armed it owns the
+     * native/raw glibc-malloc domain, which includes the large-object managed
+     * tail (pymalloc delegates requests > SMALL_REQUEST_THRESHOLD to the raw
+     * allocator). Skip those here so the same allocation is not sampled by both
+     * producers; the in-process sampler keeps only the pool-served small tail.
+     * Single cheap comparison; off unless explicitly enabled from Python. */
+    if (g_native_heap_partition_enabled && size > MEMALLOC_PYMALLOC_SMALL_REQUEST_THRESHOLD) {
+        return;
+    }
+
     if (!heap_tracker_t::instance) {
         return;
     }

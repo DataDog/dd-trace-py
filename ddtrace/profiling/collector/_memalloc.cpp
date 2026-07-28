@@ -451,9 +451,36 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+PyDoc_STRVAR(memalloc_set_native_heap_partition__doc__,
+             "set_native_heap_partition($module, enabled, /)\n"
+             "--\n"
+             "\n"
+             "Enable or disable the native-heap ownership partition.\n"
+             "\n"
+             "When enabled, the in-process heap sampler skips OBJ/MEM allocations\n"
+             "larger than pymalloc's small-request threshold (512 bytes), because\n"
+             "pymalloc delegates those to glibc malloc where the native-heap gotter\n"
+             "already samples them. This avoids double-counting the large-object\n"
+             "managed tail. Disabled by default; enabled from Python only when the\n"
+             "gotter is actually armed.\n");
+static PyObject*
+memalloc_set_native_heap_partition(PyObject* Py_UNUSED(module), PyObject* args)
+{
+    int enabled;
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {
+        return nullptr;
+    }
+    memalloc_heap_set_native_heap_partition((bool)enabled);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
                                         { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+                                        { "set_native_heap_partition",
+                                          (PyCFunction)memalloc_set_native_heap_partition,
+                                          METH_VARARGS,
+                                          memalloc_set_native_heap_partition__doc__ },
                                         /* sentinel */
                                         { NULL, NULL, 0, NULL } };
 
