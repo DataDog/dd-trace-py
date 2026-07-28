@@ -9,7 +9,6 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -1266,13 +1265,7 @@ def test_wrapping_context_lazy_no_memory_leak_uncalled():
     assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, never-invoked context(s) leaked"
 
 
-@pytest.mark.xfail(
-    condition=PYTHON_VERSION_INFO >= (3, 14),
-    reason="LazyWrappingContext leaks on Python 3.14 only when coverage.py instrumentation is active "
-    "(e.g. via pytest-cov); it does not reproduce with --no-cov, suggesting a coverage/CPython 3.14 "
-    "interaction rather than a genuine production leak.",
-    strict=False,
-)
+@pytest.mark.subprocess(err=None)
 def test_wrapping_context_lazy_no_memory_leak_invoked():
     """Ephemeral functions lazily wrapped and then invoked (promoted to universal
     wrapping) must still be garbage-collected, along with their context, once all
@@ -1280,6 +1273,8 @@ def test_wrapping_context_lazy_no_memory_leak_invoked():
     """
     import gc
     import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
 
     refs = []
 

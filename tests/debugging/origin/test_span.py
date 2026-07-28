@@ -6,12 +6,10 @@ import typing as t
 import pytest
 
 import ddtrace
-from ddtrace.debugging._origin.span import EntrySpanWrappingContext
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.debugging.mocking import MockSignalUploader
 from tests.utils import TracerTestCase
 
@@ -292,51 +290,65 @@ class SpanProbeTestCase(TracerTestCase):
         assert inner_span.get_tag("_dd.code_origin.type") is None
         assert inner_span.get_tag("_dd.code_origin.frames.0.file") is None
 
-    @pytest.mark.xfail(
-        condition=PYTHON_VERSION_INFO >= (3, 14),
-        reason="The EntrySpanWrappingContext appears to leak on Python 3.14 only when coverage.py "
-        "instrumentation is active (e.g. via pytest-cov); it does not reproduce standalone or under "
-        "coverage-free subprocess runs, suggesting a coverage/CPython 3.14 interaction rather than a "
-        "genuine production leak.",
-        strict=False,
-    )
-    def test_span_origin_tracer_wrap_ephemeral_no_leak(self):
-        """
-        Regression: ephemeral functions decorated with @tracer.wrap() on every
-        call (e.g. a connection/cursor factory pattern) must not leak the
-        function, its EntrySpanWrappingContext, or its EntrySpanProbe once
-        code origin for spans is enabled and the function goes out of scope.
-        """
-        import gc
-        import weakref
 
-        def make_and_call():
-            @self.tracer.wrap("entry")
-            def entry_call():
-                pass
+@pytest.mark.subprocess(err=None)
+def test_span_origin_tracer_wrap_ephemeral_no_leak():
+    """
+    Regression: ephemeral functions decorated with @tracer.wrap() on every call
+    (e.g. a connection/cursor factory pattern) must not leak the function, its
+    EntrySpanWrappingContext, or its EntrySpanProbe once code origin for spans
+    is enabled and the function goes out of scope.
 
-            original = unwrap(entry_call)
+    Run in a subprocess, rather than in-process under pytest, to escape a
+    pytest-cov/coverage.py artifact: on Python 3.12+, coverage's SysMonitor
+    backend (coverage/sysmon.py) intentionally keeps a strong reference to every
+    code object it has ever seen for the life of the collection session, to keep
+    id()-based identity safe. Once one of these ephemeral functions is invoked
+    and promoted to permanent wrapping, its spliced code object embeds the
+    wrapping context in its constants, so coverage's strong reference would
+    otherwise keep it (and the function) alive for the rest of the pytest run --
+    not a genuine production leak.
+    """
+    import gc
+    from inspect import unwrap
+    import typing as t
+    import weakref
 
-            with self.tracer.trace("root"):
-                entry_call()
+    import ddtrace
+    from ddtrace.debugging._origin.span import EntrySpanWrappingContext
+    import ddtrace.debugging._products.code_origin.span as code_origin_span
 
-            context = t.cast(EntrySpanWrappingContext, EntrySpanWrappingContext.extract(original))
-            return (
-                weakref.ref(original),
-                weakref.ref(context),
-                weakref.ref(context.location.probe),
-            )
+    code_origin_span.start()
 
-        refs = [make_and_call() for _ in range(5)]
-        gc.collect()
+    tracer = ddtrace.tracer
 
-        alive_functions = sum(1 for f_ref, _, _ in refs if f_ref() is not None)
-        alive_contexts = sum(1 for _, c_ref, _ in refs if c_ref() is not None)
-        alive_probes = sum(1 for _, _, p_ref in refs if p_ref() is not None)
+    def make_and_call():
+        @tracer.wrap("entry")
+        def entry_call():
+            pass
 
-        assert alive_functions == 0, f"{alive_functions} ephemeral function(s) leaked"
-        assert alive_contexts == 0, f"{alive_contexts} EntrySpanWrappingContext(s) leaked"
-        assert alive_probes == 0, f"{alive_probes} EntrySpanProbe(s) leaked"
+        original = unwrap(entry_call)
+
+        with tracer.trace("root"):
+            entry_call()
+
+        context = t.cast(EntrySpanWrappingContext, EntrySpanWrappingContext.extract(original))
+        return (
+            weakref.ref(original),
+            weakref.ref(context),
+            weakref.ref(context.location.probe),
+        )
+
+    refs = [make_and_call() for _ in range(5)]
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref, _ in refs if c_ref() is not None)
+    alive_probes = sum(1 for _, _, p_ref in refs if p_ref() is not None)
+
+    assert alive_functions == 0, f"{alive_functions} ephemeral function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} EntrySpanWrappingContext(s) leaked"
+    assert alive_probes == 0, f"{alive_probes} EntrySpanProbe(s) leaked"
 
 
 def test_instrument_view_benchmark(benchmark):
