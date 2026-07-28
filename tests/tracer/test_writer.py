@@ -485,6 +485,22 @@ class _IncompleteReadRequestHandlerTest(_BaseHTTPRequestHandler):
         self.do_PUT()
 
 
+class _CapturePayloadHandlerTest(_BaseHTTPRequestHandler):
+    """Captures the raw request body of each trace PUT/POST for wire-format assertions."""
+
+    payloads: list = []
+
+    def do_PUT(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        _CapturePayloadHandlerTest.payloads.append(self.rfile.read(length))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    do_POST = do_PUT
+
+
 _HOST = "0.0.0.0"
 _PORT = 8743
 _TIMEOUT_PORT = _PORT + 1
@@ -609,6 +625,67 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
             writer.write([Span("foobar")])
             writer.flush_queue(raise_exc=True)
+
+
+def test_native_writer_send_failure_emits_drop_metrics():
+    # Regression (#990): a generic (non-4xx) send failure surfaces `http.dropped.traces` and
+    # `http.errors` health metrics. These are distinct from the keep-rate `_drop_sma`, which still
+    # counts the drained-but-undelivered traces as "sent" (see test_metrics_generic_send_failure).
+    statsd = mock.Mock()
+    with (
+        override_global_config(dict(_health_metrics_enabled=True)),
+        # Long interval so the background periodic thread never flushes mid-test.
+        managed_writer(
+            NativeWriter,
+            "http://asdf:1234",
+            dogstatsd=statsd,
+            sync_mode=False,
+            processing_interval=1000,
+        ) as writer,
+    ):
+        for i in range(10):
+            writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+        writer.flush_queue()
+
+        ns = writer.STATSD_NAMESPACE
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.%s.http.errors" % ns, 1, tags=["type:err"]),
+                mock.call("datadog.%s.http.dropped.traces" % ns, 10, tags=None),
+            ],
+            any_order=True,
+        )
+
+
+def test_native_writer_dedupes_injected_origin_key():
+    # Regression (#292): when a span's own meta already holds `_dd.origin` (as trace_utils writes on
+    # distributed traces) and the trace-level origin is injected too, the wire span must carry
+    # `_dd.origin` exactly once — not a duplicate map key that `mark_deduped` would wrongly certify.
+    _CapturePayloadHandlerTest.payloads = []
+    server, thread = _make_server(_PORT, _CapturePayloadHandlerTest)
+    try:
+        with managed_writer(
+            NativeWriter,
+            "http://%s:%s" % (_HOST, _PORT),
+            sync_mode=True,
+            api_version="v0.4",  # v0.4 inlines meta per span (v0.5 dict-encodes strings)
+        ) as writer:
+            root = Span(name="root", trace_id=1, span_id=1)
+            child = Span(name="child", trace_id=1, span_id=2, parent_id=1)
+            # Root already carries `_dd.origin` in its own meta (the collision source)...
+            root.set_tag("_dd.origin", "synthetics")
+            assert "_dd.origin" in root.get_tags(), "setup: _dd.origin must be stored in span meta"
+            # ...and the trace-level origin is injected into every span at build time.
+            root.context.dd_origin = "synthetics"
+            writer.write([root, child])
+            writer.flush_queue(raise_exc=True)
+
+        body = b"".join(_CapturePayloadHandlerTest.payloads)
+        # One `_dd.origin` per span: root (deduped from tag+injection) + child (injection only).
+        assert body.count(b"_dd.origin") == 2, "duplicate _dd.origin wire key (mark_deduped unsound)"
+    finally:
+        server.shutdown()
+        thread.join()
 
 
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))

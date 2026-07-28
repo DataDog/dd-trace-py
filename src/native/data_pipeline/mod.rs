@@ -257,12 +257,12 @@ impl TraceExporterBuilderPy {
     }
 }
 
-/// Native buffer of fully-built libdatadog v0.4 trace chunks awaiting flush. Spans are converted
-/// to the wire format at `put_trace` time (on the request thread), so `flush` is a pure
-/// `mem::take` + off-GIL network send with no per-span work — see `put_trace`'s doc comment.
+/// Buffer of built v0.4 trace chunks awaiting flush: spans are built at `put_trace`, so `flush`
+/// just takes and sends them (see `flush`).
 ///
-/// No size or count limits are enforced here; bounding the buffered data is libdatadog's
-/// responsibility.
+/// Unbounded today — no size/count cap here or in the exporter, so the buffer grows if flushing
+/// stalls; bounding belongs in libdatadog's `TraceExporter`. This dropped the old writer's
+/// `DD_TRACE_WRITER_BUFFER_SIZE_BYTES` / max-payload buffer-drop path.
 struct TraceBuffer {
     chunks: Vec<Vec<Span<PyTraceData>>>,
 }
@@ -289,12 +289,13 @@ pub struct TraceExporterPy {
 }
 
 impl TraceExporterPy {
-    /// Lock the native span buffer, recovering from poisoning instead of panicking — a
-    /// poisoned lock would otherwise permanently break every subsequent put_trace/flush call.
+    /// Lock the native span buffer, recovering from poisoning: only `push`/`mem::take` run under it,
+    /// so the buffered data is intact — reuse it and clear the poison rather than panic or discard.
     fn lock_buffer(&self) -> std::sync::MutexGuard<'_, TraceBuffer> {
-        self.buffer
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.buffer.lock().unwrap_or_else(|poisoned| {
+            self.buffer.clear_poison();
+            poisoned.into_inner()
+        })
     }
 }
 
@@ -326,12 +327,9 @@ impl TraceExporterPy {
     /// Build one trace chunk (a Python ``list[Span]``) into libdatadog v0.4 wire spans and buffer
     /// it for the next flush.
     ///
-    /// The full wire-format conversion (`SpanData::build_v04_span`: `clone_ref`, string
-    /// truncation, `VecMap` construction, the `meta_struct` `packb` and v0.5 links/events
-    /// `json.dumps` Python calls) runs right here, under the GIL, bounded by the size of *this*
-    /// trace chunk. This spreads the cost across every request instead of paying it as one
-    /// periodic burst at flush, and lets `flush` be a pure `mem::take` + off-GIL send. Returns an
-    /// outcome rather than raising.
+    /// Each span is built to its wire form here, under the GIL (see `SpanData::build_v04_span`), so
+    /// the Python-bound cost is spread across requests instead of bursting at flush — and `flush`
+    /// itself does no Python work. Returns an outcome rather than raising.
     #[pyo3(signature = (spans, dd_origin=None))]
     fn put_trace(
         &self,
@@ -344,37 +342,36 @@ impl TraceExporterPy {
         }
 
         let has_packb = get_packb(py).is_some();
-        let encode_links_as_json = self.encode_links_as_json;
-        let encode_events_as_json = self.encode_events_as_json;
         let origin: Option<PyBackedString> = match &dd_origin {
             Some(o) => PyBackedString::try_from(o.bind(py).clone()).ok(),
             None => None,
         };
 
+        // Build each span into its v0.4 wire form, releasing its borrow before the next. Fill an
+        // explicit presized `Vec` (a `PyResult<Vec<_>>` collect can't presize); errors propagate.
         let mut chunk = Vec::with_capacity(spans.len());
-        for span in &spans {
-            let span_ref = span.bind(py).borrow();
-            chunk.push(span_ref.build_v04_span(
+        for span in spans {
+            let wire = span.bind(py).borrow().build_v04_span(
                 py,
                 origin.as_ref(),
-                encode_links_as_json,
-                encode_events_as_json,
+                self.encode_links_as_json,
+                self.encode_events_as_json,
                 has_packb,
-            )?);
-            // Borrow released at end of iteration, before the next span is built.
+            )?;
+            chunk.push(wire);
         }
 
         self.lock_buffer().chunks.push(chunk);
         Ok(PutOutcome::Accepted)
     }
 
-    /// Send the buffered, already-built v0.4 trace chunks directly to the agent via
-    /// [`TraceExporter::send_trace_chunks`], bypassing msgpack encode/decode.
+    /// Send the buffered v0.4 chunks via [`TraceExporter::send_trace_chunks`], handing libdatadog the
+    /// native `Span` structs directly (bypassing the old Cython-encode / libdatadog-decode round-trip).
     ///
-    /// `flush` does no per-span work: it `mem::take`s the buffer (dropping the lock before the
-    /// network call) and hands the chunks straight to the exporter. Every `Span<PyTraceData>`
-    /// field is GIL-free-readable, so the send runs fully detached and never blocks other Python
-    /// threads.
+    /// Does no Python/GIL work: it `mem::take`s the buffer (releasing the lock first) and, since every
+    /// `Span<PyTraceData>` field is GIL-free-readable, serializes-and-sends fully off the GIL. The
+    /// msgpack serialization still happens here (O(buffered spans)), just detached, so it never blocks
+    /// other Python threads.
     ///
     /// Returns ``(n_traces_sent, response_body)`` where ``response_body`` is the agent's JSON
     /// body for a changed sampling rate, else ``None``.
@@ -422,6 +419,9 @@ impl TraceExporterPy {
     }
 
     fn __clear__(&mut self) {
+        // Recover from poison (see `lock_buffer`) so tp_clear still drops the buffered Py handles
+        // that close the GC cycle.
+        self.buffer.clear_poison();
         if let Ok(buf) = self.buffer.get_mut() {
             buf.chunks.clear();
         }
@@ -448,14 +448,6 @@ impl TraceExporterPy {
 
     fn debug(&self) -> String {
         format!("{:?}", self.inner)
-    }
-}
-
-impl Drop for TraceExporterPy {
-    fn drop(&mut self) {
-        if let Some(exporter) = self.inner.take() {
-            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
-        }
     }
 }
 

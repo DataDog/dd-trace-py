@@ -14,6 +14,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 
@@ -92,7 +93,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx,
-        ctx.span as req_span,
+        span_from_context(ctx) as req_span,
     ):
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))

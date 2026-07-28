@@ -52,8 +52,7 @@ impl PyBackedString {
 
     pub fn py_none<'py>(py: Python<'py>) -> Self {
         Self {
-            // SAFETY: "" is a non-null 'static str literal
-            data: unsafe { ptr::NonNull::new_unchecked("" as *const str as *mut _) },
+            data: ptr::NonNull::from(""),
             storage: Some(py.None()),
         }
     }
@@ -161,8 +160,7 @@ impl TryFrom<pyo3::Bound<'_, pyo3::types::PyBytes>> for PyBackedString {
 impl From<pyo3::Bound<'_, PyNone>> for PyBackedString {
     fn from(value: pyo3::Bound<'_, PyNone>) -> Self {
         Self {
-            // SAFETY: "" is a non-null 'static str literal
-            data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
+            data: NonNull::from(""),
             storage: Some(value.to_owned().unbind().into_any()),
         }
     }
@@ -233,17 +231,10 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
-impl From<String> for PyBackedString {
-    fn from(_s: String) -> Self {
-        todo!()
-    }
-}
-
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {
-            // SAFETY: value is a 'static str reference, guaranteed to be non-null
-            data: unsafe { ptr::NonNull::new_unchecked(value as *const str as *mut _) },
+            data: ptr::NonNull::from(value),
             storage: None,
         }
     }
@@ -292,8 +283,7 @@ unsafe impl Sync for Bytes {}
 impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
         Self {
-            // SAFETY: value is a 'static [u8] reference, guaranteed to be non-null.
-            data: unsafe { ptr::NonNull::new_unchecked(value as *const [u8] as *mut _) },
+            data: ptr::NonNull::from(value),
             storage: None,
         }
     }

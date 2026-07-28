@@ -7,7 +7,7 @@ use pyo3::{
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
-use super::attributes::{AttrKey, MetaMap, MetricValue, MetricsMap};
+use super::attributes::{MetaMap, MetricValue, MetricsMap};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::get_or_init;
 use crate::py_string::{Bytes, PyBackedString, PyTraceData};
@@ -131,15 +131,15 @@ impl SpanData {
 
     /// Insert into `meta`, evicting any existing `metrics` entry for the same key so the two
     /// maps stay mutually exclusive.
-    fn insert_meta(&mut self, key: AttrKey, value: Py<PyString>) {
-        self.metrics.remove(key.as_str());
+    fn insert_meta(&mut self, key: PyBackedString, value: Py<PyString>) {
+        self.metrics.remove(&key);
         self.meta.insert(key, value);
     }
 
     /// Insert into `metrics`, evicting any existing `meta` entry for the same key so the two
     /// maps stay mutually exclusive.
-    fn insert_metric(&mut self, key: AttrKey, value: MetricValue) {
-        self.meta.remove(key.as_str());
+    fn insert_metric(&mut self, key: PyBackedString, value: MetricValue) {
+        self.meta.remove(&key);
         self.metrics.insert(key, value);
     }
 
@@ -192,35 +192,41 @@ impl SpanData {
             ..Default::default()
         };
 
-        // Pre-size meta and metrics *separately* so neither grows-and-reallocs while filling.
-        // meta gets a few extras: `_dd.origin` + whichever of the v0.5 links/events JSON keys
-        // apply. metrics is sized to exactly the numeric-tag count.
+        // Pre-size meta so it doesn't grow-and-realloc while filling: the meta tag count plus a
+        // few extras (`_dd.origin` + whichever of the v0.5 links/events JSON keys apply), which are
+        // inserted after this pass. metrics is `collect`ed below, presized from its exact length.
         let links_as_json = encode_links_as_json && !self.span_links.is_empty();
         let events_as_json = encode_events_as_json && !self.span_events.is_empty();
         let extra_meta =
             links_as_json as usize + events_as_json as usize + dd_origin.is_some() as usize;
         out.meta = VecMap::with_capacity(self.meta.len() + extra_meta);
-        out.metrics = VecMap::with_capacity(self.metrics.len());
 
         // meta: clone_ref the key and project the stored `Py<PyString>` into a GIL-free-readable
-        // `PyBackedString` wire value, truncating both.
-        for (key, value) in self.meta.iter() {
-            // A stored str carrying lone surrogates has no valid UTF-8 wire representation;
-            // skip it rather than emit bytes the msgpack payload can't legally carry.
-            let Ok(value) = PyBackedString::try_from(value.bind(py).clone()) else {
-                continue;
-            };
-            out.meta.insert(
+        // `PyBackedString` wire value, truncating both. `filter_map` skips a value with lone
+        // surrogates (no valid UTF-8 wire form) and skips any user tag colliding with a reserved key
+        // injected below (`_dd.origin`/`events`/`_dd.span_links`) so the injected value wins and keys
+        // stay unique for `mark_deduped`.
+        out.meta.extend(self.meta.iter().filter_map(|(key, value)| {
+            let k: &str = key;
+            if (dd_origin.is_some() && k == ORIGIN_KEY)
+                || (links_as_json && k == SPAN_LINKS_KEY)
+                || (events_as_json && k == SPAN_EVENTS_KEY)
+            {
+                return None;
+            }
+            let value = PyBackedString::try_from(value.bind(py).clone()).ok()?;
+            Some((
                 truncate_span_text(key.clone_ref(py)),
                 truncate_span_text(value),
-            );
-        }
+            ))
+        }));
 
         // metrics: project Int/Float into the wire f64.
-        for (key, value) in self.metrics.iter() {
-            out.metrics
-                .insert(truncate_span_text(key.clone_ref(py)), value.as_f64());
-        }
+        out.metrics = self
+            .metrics
+            .iter()
+            .map(|(key, value)| (truncate_span_text(key.clone_ref(py)), value.as_f64()))
+            .collect();
 
         // Links/events: JSON-encode into meta for v0.5 (no wire field), else clone the native
         // structures (never drain — self stays intact). json.dumps is a Python call, under GIL.
@@ -274,28 +280,35 @@ impl SpanData {
         // GIL). Iterate (don't take) so post-finish `_get_struct_tag` still works.
         if has_packb {
             if let (Some(meta_struct), Some(packb)) = (&self.meta_struct, get_packb(py)) {
-                for (k, v) in meta_struct.bind(py).iter() {
-                    let Ok(key_backed) = k.extract::<PyBackedString>() else {
-                        continue;
-                    };
-                    let Ok(result) = packb.call1(py, (v,)) else {
-                        continue;
-                    };
-                    let Ok(py_bytes) = result.bind(py).cast::<PyBytes>() else {
-                        continue;
-                    };
-                    out.meta_struct.insert(
-                        truncate_span_text(key_backed),
-                        Bytes::from_py_bytes(py_bytes),
-                    );
-                }
+                out.meta_struct
+                    .extend(meta_struct.bind(py).iter().filter_map(|(k, v)| {
+                        let key_backed = k.extract::<PyBackedString>().ok()?;
+                        // AIDEV-NOTE: a value that fails to msgpack-pack is skipped, keeping the
+                        // rest of the span. This is intentionally more resilient than the old
+                        // encoder (which raised and dropped the whole trace); log at debug so the
+                        // per-key drop stays diagnosable instead of fully silent.
+                        let result = match packb.call1(py, (v,)) {
+                            Ok(result) => result,
+                            Err(e) => {
+                                tracing::debug!(
+                                    "meta_struct key {:?} dropped: packb failed: {e}",
+                                    key_backed.as_ref()
+                                );
+                                return None;
+                            }
+                        };
+                        let py_bytes = result.bind(py).cast::<PyBytes>().ok()?;
+                        Some((
+                            truncate_span_text(key_backed),
+                            Bytes::from_py_bytes(py_bytes),
+                        ))
+                    }));
             }
         }
 
-        // Every wire-map key came from a unique `VecStore` row (last-wins insert + meta/metrics
-        // mutual exclusion) or a unique Python dict key (meta_struct), so there are no duplicate
-        // keys. Assert it without scanning, making the exporter's `span.dedup()` a no-op and
-        // dropping its per-map dedup `HashSet` allocation.
+        // Keys are unique (meta via `VecStore` + the reserved-key skip above; meta_struct via the
+        // Python dict), so assert dedup without scanning — making the exporter's `span.dedup()` a
+        // no-op and dropping its per-map `HashSet`.
         out.meta.mark_deduped();
         out.metrics.mark_deduped();
         out.meta_struct.mark_deduped();
@@ -906,11 +919,10 @@ impl SpanData {
             return Ok(());
         };
         // Non-UTF8 keys (lone surrogates) are dropped rather than stored under a collapsed ""
-        // key — see AttrKey's doc comment.
+        // key: a `PyBackedString` view has no valid UTF-8 representation for them.
         let Ok(key_backed) = PyBackedString::try_from(key_str.clone()) else {
             return Ok(());
         };
-        let attr_key = AttrKey::new(key_backed);
 
         // http.status_code must always be a string in meta.
         // Fast path: typed contract is `str`, so most callers already pass a PyString.
@@ -924,13 +936,13 @@ impl SpanData {
                 };
                 s
             };
-            self.insert_meta(attr_key, s.unbind());
+            self.insert_meta(key_backed, s.unbind());
             return Ok(());
         }
 
         // str → meta
         if let Ok(s) = value.cast::<PyString>() {
-            self.insert_meta(attr_key, s.clone().unbind());
+            self.insert_meta(key_backed, s.clone().unbind());
             return Ok(());
         }
 
@@ -942,7 +954,7 @@ impl SpanData {
             if n.is_nan() || n.is_infinite() {
                 return Ok(());
             }
-            self.insert_metric(attr_key, MetricValue::Float(n));
+            self.insert_metric(key_backed, MetricValue::Float(n));
             return Ok(());
         }
 
@@ -951,7 +963,7 @@ impl SpanData {
         // type implementing __index__. Python ints that overflow i64 fall through
         // to the str() fallback below.
         if let Ok(n) = value.extract::<i64>() {
-            self.insert_metric(attr_key, MetricValue::Int(n));
+            self.insert_metric(key_backed, MetricValue::Int(n));
             return Ok(());
         }
 
@@ -959,7 +971,7 @@ impl SpanData {
         if let Ok(b) = value.cast::<PyBytes>() {
             let decoded = String::from_utf8_lossy(b.as_bytes());
             let py_str = PyString::new(key.py(), &decoded);
-            self.insert_meta(attr_key, py_str.unbind());
+            self.insert_meta(key_backed, py_str.unbind());
             return Ok(());
         }
 
@@ -967,7 +979,7 @@ impl SpanData {
         let Ok(s) = value.str() else {
             return Ok(());
         };
-        self.insert_meta(attr_key, s.unbind());
+        self.insert_meta(key_backed, s.unbind());
         Ok(())
     }
 
@@ -1075,10 +1087,10 @@ impl SpanData {
     fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in self.meta.iter() {
-            d.set_item(k.as_bound(py), v.bind(py))?;
+            d.set_item(k.as_py(py), v.bind(py))?;
         }
         for (k, v) in self.metrics.iter() {
-            d.set_item(k.as_bound(py), v.as_py(py))?;
+            d.set_item(k.as_py(py), v.as_py(py))?;
         }
         Ok(d)
     }
@@ -1089,7 +1101,7 @@ impl SpanData {
     fn get_str_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in self.meta.iter() {
-            d.set_item(k.as_bound(py), v.bind(py))?;
+            d.set_item(k.as_py(py), v.bind(py))?;
         }
         Ok(d)
     }
@@ -1103,10 +1115,10 @@ impl SpanData {
         for (k, v) in self.metrics.iter() {
             match v {
                 MetricValue::Int(i) => {
-                    d.set_item(k.as_bound(py), *i)?;
+                    d.set_item(k.as_py(py), *i)?;
                 }
                 MetricValue::Float(f) => {
-                    d.set_item(k.as_bound(py), *f)?;
+                    d.set_item(k.as_py(py), *f)?;
                 }
             }
         }
@@ -1340,7 +1352,7 @@ impl SpanData {
         self.name.traverse(&visit)?;
         self.resource.traverse(&visit)?;
         self.span_type.traverse(&visit)?;
-        // `self.meta` keys hold `Py<PyString>` (via AttrKey) and values hold `Py<PyString>`.
+        // `self.meta` keys hold `Py<PyString>` (via `PyBackedString`) and values hold `Py<PyString>`.
         for (k, v) in self.meta.iter() {
             k.traverse(&visit)?;
             visit.call(v)?;
