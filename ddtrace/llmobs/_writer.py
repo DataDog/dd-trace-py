@@ -818,7 +818,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def experiment_list(
         self,
         experiment_name: Optional[str] = None,
-        metadata_filter: Optional[dict] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
         parent_experiment_ids: Optional[list[str]] = None,
         project_id: Optional[str] = None,
         dataset_id: Optional[str] = None,
@@ -828,8 +828,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         """List experiments with optional filtering for CI/CD comparison flows.
 
         :param experiment_name: Filter by logical experiment name (shared across all CI runs).
-        :param metadata_filter: Filter by metadata key-value containment,
-            e.g. ``{"commit": "abc123", "branch": "main"}``.
+        :param metadata_filter: Filter by metadata containment. Experiments created by this SDK
+            only store the ``tags`` key under metadata, so CI/CD lookups filter on tags, e.g.
+            ``{"tags": ["git.commit.sha:abc123"]}``.
         :param parent_experiment_ids: Filter by one or more parent/baseline experiment UUIDs.
         :param project_id: Filter by project UUID.
         :param dataset_id: Filter by dataset UUID.
@@ -862,7 +863,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             params = list(base_params)
             if cursor:
                 params.append(("page[cursor]", cursor))
-            path = "/api/v2/llm-obs/v1/experiments?" + urllib.parse.urlencode(params)
+            path = "/api/v2/llm-obs/v1/experiments?" + urllib.parse.urlencode(params, safe="[]")
             resp = self.request("GET", path)
             if resp.status != 200:
                 raise ValueError(f"Failed to list experiments: {resp.status} {resp.get_json()}")
@@ -877,12 +878,17 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     project_id=attrs.get("project_id") or "",
                     dataset_id=attrs.get("dataset_id") or "",
                     dataset_version=attrs.get("dataset_version") or 0,
+                    dataset_name=attrs.get("dataset_name") or "",
                     description=attrs.get("description") or "",
                     config=attrs.get("config") or {},
                     run_count=attrs.get("run_count") or 0,
                     tags=meta.get("tags") or [],
                     parent_experiment_id=attrs.get("parent_experiment_id"),
                     aggregate_data=attrs.get("aggregate_data"),
+                    status=attrs.get("status"),
+                    error=attrs.get("error"),
+                    created_at=attrs.get("created_at"),
+                    updated_at=attrs.get("updated_at"),
                 )
                 results.append(summary)
             cursor = (body.get("meta") or {}).get("after")

@@ -1144,12 +1144,17 @@ class Project(TypedDict):
 
 class _ExperimentSummaryOptional(TypedDict, total=False):
     dataset_version: int
+    dataset_name: str
     description: str
     config: dict[str, Any]
     run_count: int
     tags: list[str]
     parent_experiment_id: Optional[str]
     aggregate_data: Optional[dict[str, Any]]
+    status: Optional[str]
+    error: Optional[str]
+    created_at: Optional[str]
+    updated_at: Optional[str]
 
 
 class ExperimentSummary(_ExperimentSummaryOptional):
@@ -1161,14 +1166,23 @@ class ExperimentSummary(_ExperimentSummaryOptional):
     :param project_id: UUID of the project this experiment belongs to.
     :param dataset_id: UUID of the dataset this experiment ran against.
     :param dataset_version: Dataset version used during this run.
+    :param dataset_name: Name of the dataset, when the backend returns it.
     :param description: Experiment description.
     :param config: Experiment configuration dict.
     :param run_count: Number of runs recorded for this experiment.
-    :param tags: List of tags attached to this experiment.
+    :param tags: List of tags attached to this experiment. Includes the automatically
+        captured ``git.commit.sha`` and ``git.repository_url`` tags, which is what makes
+        commit-based CI/CD lookups possible via ``metadata_filter``.
     :param parent_experiment_id: UUID of the parent/baseline experiment, if any.
     :param aggregate_data: Pre-computed aggregate metrics (eval distributions,
         token costs, error rates) written by the aggregation snap. ``None``
         when not yet computed.
+    :param status: Run status reported by the SDK: ``running``, ``completed``,
+        ``failed``, or ``interrupted``. Gate on ``completed`` before comparing
+        ``aggregate_data`` across runs.
+    :param error: Error summary recorded when ``status`` is ``failed``.
+    :param created_at: ISO-8601 creation timestamp.
+    :param updated_at: ISO-8601 last-update timestamp.
     """
 
     id: str

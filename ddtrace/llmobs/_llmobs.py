@@ -1221,15 +1221,21 @@ class LLMObs(Service):
     def list_experiments(
         cls,
         experiment_name: Optional[str] = None,
-        metadata_filter: Optional[dict] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
         parent_experiment_ids: Optional[list[str]] = None,
         project_name: Optional[str] = None,
         page_limit: int = 100,
     ) -> "list[ExperimentSummary]":
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
+        Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
+        costs) and ``status``, which together support CI/CD gating: pick the most recent
+        ``completed`` run for the baseline commit and compare it against the current one.
+
         :param experiment_name: Filter by logical experiment name.
         :param metadata_filter: Filter by metadata containment, e.g. ``{"tags": ["git.commit.sha:abc123"]}``.
+            Experiments created by this SDK store only ``tags`` under metadata; ``git.commit.sha`` and
+            ``git.repository_url`` tags are captured automatically at experiment creation.
         :param parent_experiment_ids: Filter by parent experiment UUID(s).
         :param project_name: Project to query (defaults to the configured project).
         :param page_limit: Page size for backend requests (1–5000, default: 100). All pages are fetched.
