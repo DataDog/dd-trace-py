@@ -57,12 +57,16 @@ impl SharedRuntimePy {
     fn shutdown_in_thread(&self, timeout_ms: Option<u64>) -> PyResult<()> {
         let timeout = timeout_ms.map(Duration::from_millis);
         let inner = self.inner.clone();
-        let result = thread::spawn(move || inner.shutdown(timeout))
+        thread::Builder::new()
+            .spawn(move || inner.shutdown(timeout))
+            .map_err(|_| {
+                pyo3::exceptions::PyRuntimeError::new_err("Failed to start shutdown thread")
+            })?
             .join()
             .map_err(|_| {
                 pyo3::exceptions::PyRuntimeError::new_err("Failed to join shutdown thread")
-            })?;
-        result.map_err(shared_runtime_error_to_pyerr)
+            })?
+            .map_err(shared_runtime_error_to_pyerr)
     }
 
     fn debug(&self) -> String {
