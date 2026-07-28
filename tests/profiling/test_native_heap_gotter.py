@@ -126,3 +126,95 @@ def test_profiler_start_survives_native_heap_install_error() -> None:
             assert prof.status.value == "running"
         finally:
             prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_keeps_managed_heap_when_native_heap_armed() -> None:
+    """Ownership partition (Phase 2 de-dup): the partition is by allocator domain.
+
+    The gotter owns native / raw glibc ``malloc`` (RAW domain, direct C-ext/numpy
+    allocations, pymalloc arena refills). The in-process ``_memalloc`` collector
+    hooks ONLY the pymalloc-managed OBJ/MEM domains and never the RAW domain, so
+    the two producers are domain-disjoint. Arming the gotter must therefore KEEP
+    the in-process managed-heap sampler running — dropping it would lose the
+    Python-managed (pymalloc OBJ/MEM) heap profile the gotter never produces.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.profiling.collector import memalloc
+
+    # Force on regardless of whether the cdylib shipped, and simulate a
+    # successful arm (install() returning True).
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    with mock.patch.object(heap_gotter, "install", return_value=True) as install:
+        with mock.patch.object(heap_gotter, "live_heap_enabled", return_value=False):
+            from ddtrace.profiling.profiler import Profiler
+
+            prof = Profiler()
+            prof.start()
+            try:
+                assert install.called, "the gotter must still be armed when native heap is enabled"
+                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                assert has_mem, (
+                    "in-process managed-heap (OBJ/MEM) collector must stay active when the gotter is armed; "
+                    "the gotter owns only the native/raw glibc malloc domain"
+                )
+            finally:
+                prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_keeps_managed_heap_when_gotter_not_installed() -> None:
+    """Fail-safe: if native heap is enabled but the gotter did NOT install
+    (install() returned False), the in-process sampler must remain active so
+    heap profiling is never silently lost.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.profiling.collector import memalloc
+
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    with mock.patch.object(heap_gotter, "install", return_value=False):
+        from ddtrace.profiling.profiler import Profiler
+
+        prof = Profiler()
+        prof.start()
+        try:
+            has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+            assert has_mem, "in-process memory collector must stay active when the gotter fails to install"
+        finally:
+            prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_keeps_managed_heap_when_native_heap_disabled() -> None:
+    """With native heap disabled, the in-process memory collector runs unchanged
+    and the gotter is never armed.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.profiling.collector import memalloc
+
+    profiling_config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+    # install() is patched to True to prove arming keys on the feature being
+    # enabled, not merely on install() — it must never be called here.
+    with mock.patch.object(heap_gotter, "install", return_value=True) as install:
+        from ddtrace.profiling.profiler import Profiler
+
+        prof = Profiler()
+        prof.start()
+        try:
+            assert not install.called
+            has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+            assert has_mem, "in-process memory collector must run when native heap is disabled"
+        finally:
+            prof.stop(flush=False)

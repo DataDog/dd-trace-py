@@ -1,0 +1,11 @@
+features:
+  - |
+    profiling: The experimental native (C/C++) heap profiler
+    (``DD_PROFILING_NATIVE_HEAP_ENABLED=true``) and the in-process memory (heap)
+    profiler now cover complementary allocator domains, so enabling native heap
+    profiling no longer risks double-counting or disabling Python-managed heap
+    profiling. Native heap profiling covers native / raw ``malloc`` allocations
+    (direct C-extension/NumPy allocations, the raw allocator domain, and pymalloc
+    arena growth), while the in-process memory profiler continues to cover
+    Python-managed (pymalloc) object allocations. This has no effect when
+    ``DD_PROFILING_NATIVE_HEAP_ENABLED`` is disabled (the default).
