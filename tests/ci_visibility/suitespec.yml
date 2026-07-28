@@ -7,9 +7,8 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
-    - ddtrace/contrib/internal/pytest/*
-    - ddtrace/contrib/internal/pytest_bdd/*
-    - ddtrace/contrib/internal/pytest_benchmark/*
+    - ddtrace/testing/internal/pytest/*
+    - ddtrace/testing/internal/*
   selenium:
     - ddtrace/contrib/internal/selenium/*
   unittest:
@@ -56,38 +55,6 @@ suites:
       - '@dd_coverage'
       - tests/coverage/*
     snapshot: true
-  pytest:
-    venvs_per_job: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@pytest'
-      - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
-      - '@testing'
-      - tests/contrib/pytest/*
-      - tests/contrib/internal/coverage/*
-    snapshot: true
-    pattern: 'pytest$'
-  pytest:snapshot:
-    venvs_per_job: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@pytest'
-      - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
-      - '@testing'
-      - tests/contrib/pytest/snapshot/*
-      - tests/snapshots/tests.contrib.pytest.*
-    snapshot: true
-    pattern: 'pytest:snapshot'
   pytest_benchmark:
     venvs_per_job: 3
     paths:
@@ -100,10 +67,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_benchmark.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_bdd:
     venvs_per_job: 3
@@ -117,10 +82,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_bdd.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_flaky:
     venvs_per_job: 3
@@ -134,10 +97,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_flaky.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     pattern: 'pytest:flaky'
   testing:

@@ -1,12 +1,11 @@
-# DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
-# Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
-# Get version is imported from patch.py in _monkey.py
+# ddtrace/_monkey.py and the integration registry expect all integrations
+# to define get_version in <integration>/patch.py.
+# The actual pytest plugin lives at ddtrace.testing.internal.pytest.
 def get_version() -> str:
-    import pytest
+    import importlib.metadata as importlib_metadata
 
-    return pytest.__version__
+    return str(importlib_metadata.version("pytest"))
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"pytest": ">=6.0"}
+    return {"pytest": ">=7.4.4"}

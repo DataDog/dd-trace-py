@@ -490,7 +490,7 @@ Pyramid
 
 pytest
 ^^^^^^
-.. automodule:: ddtrace.contrib.internal.pytest
+.. automodule:: ddtrace.testing.internal.pytest
 
 
 .. _pytest_bdd:
@@ -503,7 +503,7 @@ pytest-bdd
 
 pytest-benchmark
 ^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.pytest_benchmark
+.. automodule:: ddtrace.testing.internal.pytest.benchmark
 
 .. _protobuf:
 

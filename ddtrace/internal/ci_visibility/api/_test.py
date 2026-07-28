@@ -6,7 +6,6 @@ from typing import Union
 
 import ddtrace
 from ddtrace._trace.context import Context
-from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -43,6 +42,7 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationD
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.testing.internal.pytest.benchmark import BENCHMARK_INFO_TAG as BENCHMARK_INFO
 
 
 log = get_logger(__name__)
