@@ -305,17 +305,21 @@ def test_cpu_timer_stitches_parent_for_consistent_task_snapshot():
     def cpu_timer_native_busy_loop():
         return hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 1_000_000)
 
-    async def cpu_timer_async_child():
+    async def cpu_timer_async_leaf():
         assert cpu_timer_native_busy_loop()
 
-    async def cpu_timer_async_parent():
-        task = asyncio.create_task(cpu_timer_async_child(), name="cpu-timer-async-child")
+    async def cpu_timer_async_middle():
+        task = asyncio.create_task(cpu_timer_async_leaf(), name="cpu-timer-async-leaf")
+        await task
+
+    async def cpu_timer_async_root():
+        task = asyncio.create_task(cpu_timer_async_middle(), name="cpu-timer-async-middle")
         await task
 
     async def main():
         p = profiler.Profiler()
         p.start()
-        await cpu_timer_async_parent()
+        await cpu_timer_async_root()
         p.stop()
 
     asyncio.run(main())
@@ -323,24 +327,116 @@ def test_cpu_timer_stitches_parent_for_consistent_task_snapshot():
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
 
-    stitched_functions = []
+    leaf_cpu_stacks = []
     for sample in profile.sample:
         if sample.value[cpu_time_index] <= 0:
             continue
         task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
-        if task_name_label is None or profile.string_table[task_name_label.str] != "cpu-timer-async-child":
+        if task_name_label is None or profile.string_table[task_name_label.str] != "cpu-timer-async-leaf":
             continue
+        function_names = []
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_names.append(profile.string_table[function.name])
+        if "cpu_timer_native_busy_loop" in function_names:
+            leaf_cpu_stacks.append(function_names)
+
+    assert leaf_cpu_stacks
+
+    # pprof locations are ordered leaf-to-root. The logical chain must explain
+    # which suspended tasks awaited the task that consumed the CPU.
+    expected_order = [
+        "cpu_timer_native_busy_loop",
+        "cpu_timer_async_leaf",
+        "cpu_timer_async_middle",
+        "cpu_timer_async_root",
+    ]
+
+    def contains_in_order(function_names, expected):
+        position = -1
+        for function_name in expected:
+            try:
+                position = function_names.index(function_name, position + 1)
+            except ValueError:
+                return False
+        return True
+
+    assert any(contains_in_order(function_names, expected_order) for function_names in leaf_cpu_stacks), (
+        leaf_cpu_stacks[:10]
+    )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_non_leaf_cpu",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "2",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_attributes_leaf_cpu_to_non_leaf_asyncio_tasks():
+    import asyncio
+    import hashlib
+    import os
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def cpu_timer_non_leaf_busy_loop():
+        return hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 1_000_000)
+
+    async def cpu_timer_non_leaf_child():
+        assert cpu_timer_non_leaf_busy_loop()
+
+    async def cpu_timer_non_leaf_parent():
+        task = asyncio.create_task(cpu_timer_non_leaf_child(), name="cpu-timer-non-leaf-child")
+        await task
+
+    async def main():
+        p = profiler.Profiler()
+        p.start()
+        await cpu_timer_non_leaf_parent()
+        p.stop()
+
+    asyncio.run(main())
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    child_cpu_ns = 0
+    parent_inclusive_cpu_ns = 0
+    for sample in profile.sample:
+        cpu_time_ns = sample.value[cpu_time_index]
+        if cpu_time_ns <= 0:
+            continue
+        task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if task_name_label is None or profile.string_table[task_name_label.str] != "cpu-timer-non-leaf-child":
+            continue
+
         function_names = set()
         for location_id in sample.location_id:
             location = pprof_utils.get_location_with_id(profile, location_id)
             line = location.line[0]
             function = pprof_utils.get_function_with_id(profile, line.function_id)
             function_names.add(profile.string_table[function.name])
-        if "cpu_timer_native_busy_loop" in function_names:
-            stitched_functions.append(function_names)
+        if "cpu_timer_non_leaf_busy_loop" not in function_names:
+            continue
 
-    assert stitched_functions
-    assert any("cpu_timer_async_parent" in function_names for function_names in stitched_functions)
+        child_cpu_ns += cpu_time_ns
+        if "cpu_timer_non_leaf_parent" in function_names:
+            parent_inclusive_cpu_ns += cpu_time_ns
+
+    assert child_cpu_ns > 0
+    # The parent does no CPU-heavy work. It is visible in the CPU flame graph
+    # only when its child's CPU samples retain the logical awaiter chain.
+    assert parent_inclusive_cpu_ns > 0, {
+        "child_cpu_ns": child_cpu_ns,
+        "parent_inclusive_cpu_ns": parent_inclusive_cpu_ns,
+    }
 
 
 @pytest.mark.subprocess(
