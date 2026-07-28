@@ -309,7 +309,6 @@ def test_no_false_dependencies():
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
 def test_file_level_false_guarded_import_not_tracked():
     """Runtime-false import statements should not create file-level dependency edges."""
-    import importlib
     import os
     from pathlib import Path
 
@@ -322,32 +321,14 @@ def test_file_level_false_guarded_import_not_tracked():
 
     install(include_paths=[include_path], collect_import_time_coverage=True)
 
-    false_guarded_import_path = include_path / "false_guarded_import.py"
-    false_guarded_import_path.write_text(
-        "RUNTIME_FALSE = bool(0)\n"
-        "\n"
-        "if RUNTIME_FALSE:\n"
-        "    from tests.coverage.included_path import imported_in_function_lib\n"
-        "\n"
-        "from tests.coverage.included_path import import_time_lib\n"
-        "\n"
-        "\n"
-        "def called_after_import():\n"
-        "    return import_time_lib\n"
-    )
-    importlib.invalidate_caches()
+    # Pre-import the false-guarded target after installing coverage so static import tracking could resolve it
+    # if the guarded import were recorded at PY_START.
+    from tests.coverage.included_path import imported_in_function_lib  # noqa:F401
+    from tests.coverage.included_path.false_guarded_import import called_after_import
 
-    try:
-        # Pre-import the false-guarded target after installing coverage so static import tracking could resolve it
-        # if the guarded import were recorded at PY_START.
-        from tests.coverage.included_path import imported_in_function_lib  # noqa:F401
-        from tests.coverage.included_path.false_guarded_import import called_after_import
-
-        with ModuleCodeCollector.CollectInContext() as context:
-            called_after_import()
-            covered_with_imports = _get_relpath_dict(cwd_path, context.get_covered_lines())
-    finally:
-        false_guarded_import_path.unlink(missing_ok=True)
+    with ModuleCodeCollector.CollectInContext() as context:
+        called_after_import()
+        covered_with_imports = _get_relpath_dict(cwd_path, context.get_covered_lines())
 
     assert "tests/coverage/included_path/import_time_lib.py" in covered_with_imports, (
         "Should track actual import dependency"

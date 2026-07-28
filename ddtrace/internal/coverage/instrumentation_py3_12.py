@@ -13,10 +13,13 @@ import sys
 from types import CodeType
 import typing as t
 
-from bytecode import Bytecode
-from bytecode import Instr
-
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportEvent
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
+from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -28,19 +31,8 @@ log = get_logger(__name__)
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
-EXTENDED_ARG = dis.EXTENDED_ARG
 RESUME = dis.opmap["RESUME"]
 CACHE = 0  # CACHE opcode is always 0 across all CPython versions
-LOAD_CONST = dis.opmap["LOAD_CONST"]
-IMPORT_NAME = dis.opmap["IMPORT_NAME"]
-IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-# LOAD_SMALL_INT was added in 3.14, replacing LOAD_CONST for small integer literals
-LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
-
-# In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
-# bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
-# So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
-_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
 
 # Detect empty modules: the bytecode pattern varies across Python versions.
 # Python 3.12-3.13: RESUME + RETURN_CONST
@@ -64,8 +56,6 @@ _DD_CANDIDATE_SLOTS = (4, 3, 1)
 # Store: (hook, path, import_names_by_line, line_hook, file_hook, import_hook)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
-ImportName = t.Tuple[str, t.Optional[t.Tuple[str]]]  # noqa: UP006
-ImportNamesByLine = t.Dict[int, ImportName]  # noqa: UP006
 LineHookType = t.Optional[t.Callable[[str, int], None]]  # noqa: UP006
 FileHookType = t.Optional[t.Callable[[str], None]]  # noqa: UP006
 ImportHookType = t.Optional[t.Callable[[str, ImportName], None]]  # noqa: UP006
@@ -283,7 +273,10 @@ def _instrument_with_monitoring(
     """
     track_lines = not _USE_FILE_LEVEL_COVERAGE
     # Extract import names and collect line numbers before rewriting nested code objects.
-    lines, import_names = _extract_lines_and_imports(code, package, track_lines=track_lines)
+    import_events = iter_import_events(code, package)
+    lines, import_names = _extract_lines_and_imports(
+        code, package, track_lines=track_lines, import_events=import_events
+    )
 
     # Recursively instrument nested code objects first. sys.monitoring events must be enabled on the final code
     # objects, not on the original nested constants that may be replaced below.
@@ -311,7 +304,7 @@ def _instrument_with_monitoring(
         # opcodes instead, and keep PY_START exclusively for file coverage.
         if import_names and getattr(hook_self, "_collect_import_coverage", False):
             try:
-                code = _inject_import_hooks(code, hook, path, package)
+                code = inject_import_hooks(code, hook, path, import_events)
             except Exception:
                 log.debug(
                     "Failed to inject import hooks into %r; falling back to static import metadata", code, exc_info=True
@@ -345,123 +338,24 @@ def _instrument_with_monitoring(
     return code, lines
 
 
-def _import_call_instructions(hook: HookType, arg: tuple[int, str, tuple[str, tuple[str, ...]]], lineno: int):
-    """Build bytecode instructions for hook(arg) on Python 3.12+.
-
-    AIDEV-NOTE: This helper intentionally mirrors ddtrace.internal.bytecode_injection's call sequence for
-    Python 3.12/3.13+. If CPython call bytecode changes again, update both places together.
-    """
-    if sys.version_info >= (3, 13):
-        return [
-            Instr("LOAD_CONST", hook, lineno=lineno),
-            Instr("PUSH_NULL", lineno=lineno),
-            Instr("LOAD_CONST", arg, lineno=lineno),
-            Instr("CALL", 1, lineno=lineno),
-            Instr("POP_TOP", lineno=lineno),
-        ]
-    return [
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("LOAD_CONST", hook, lineno=lineno),
-        Instr("LOAD_CONST", arg, lineno=lineno),
-        Instr("CALL", 1, lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-    ]
-
-
-def _resolve_import_package(package: str, import_depth: int) -> str:
-    return ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
-
-
-def _inject_import_hooks(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
-    """Inject import dependency hooks immediately after actual import bytecodes.
-
-    File-level coverage uses PY_START, which is too early to know whether guarded imports in the code object will run.
-    These injected hooks fire only when the interpreter reaches IMPORT_NAME/IMPORT_FROM, so false runtime branches do
-    not create dependency edges. The hook is inserted after the import opcode, meaning failed imports are not recorded.
-    """
-    bytecode = Bytecode.from_code(code)
-
-    pending_insertions: list[tuple[int, tuple[int, str, tuple[str, tuple[str, ...]]], int]] = []
-    current_import_name: t.Optional[str] = None
-    current_import_package: str = package
-    previous_previous_arg: t.Any = 0
-    previous_arg: t.Any = 0
-
-    for idx, instr in enumerate(bytecode):
-        if not isinstance(instr, Instr):
-            continue
-
-        if instr.name == "IMPORT_NAME":
-            import_depth = previous_previous_arg if isinstance(previous_previous_arg, int) else 0
-            current_import_name = t.cast(str, instr.arg)
-            current_import_package = _resolve_import_package(package, import_depth)
-            pending_insertions.append(
-                (idx, (0, path, (current_import_package, (current_import_name,))), instr.lineno or code.co_firstlineno)
-            )
-        elif instr.name == "IMPORT_FROM" and current_import_name is not None:
-            import_from_name = f"{current_import_name}.{instr.arg}"
-            pending_insertions.append(
-                (idx, (0, path, (current_import_package, (import_from_name,))), instr.lineno or code.co_firstlineno)
-            )
-
-        if instr.name == "LOAD_CONST":
-            decoded = instr.arg
-        else:
-            decoded = instr.arg if isinstance(instr.arg, int) else 0
-        previous_previous_arg = previous_arg
-        previous_arg = decoded
-
-    for idx, arg, lineno in reversed(pending_insertions):
-        bytecode[idx + 1 : idx + 1] = _import_call_instructions(hook, arg, lineno)
-
-    return bytecode.to_code()
-
-
 def _extract_lines_and_imports(
-    code: CodeType, package: str, track_lines: bool = True
-) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
-    """Extract line numbers and import information via raw bytecode iteration.
-
-    Iterates the 2-byte wordcode directly to avoid the overhead of creating
-    Instruction namedtuples via dis.get_instructions().
-
-    Handles all Python 3.12+ version differences:
-    - Skips CACHE entries (opcode 0) so they don't corrupt argument history
-    - Tracks decoded values (not raw args) for import depth, which handles both
-      LOAD_CONST (indexes co_consts) and LOAD_SMALL_INT (3.14+, arg IS value)
-    - Uses dis.findlinestarts() for version-agnostic line number mapping
-    - On 3.15+ (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
-      bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
-      _IMPORT_NAME_ARG_SHIFT (=2 on 3.15+, =0 otherwise) extracts the name index.
-    - IMPORT_FROM is unaffected by PEP 810 — still uses plain co_names index.
-    """
+    code: CodeType,
+    package: str,
+    track_lines: bool = True,
+    import_events: t.Optional[t.Iterable[ImportEvent]] = None,
+) -> tuple[CoverageLines, ImportNamesByLine]:
+    """Extract executable line numbers and import metadata for a code object."""
     lines = CoverageLines()
-    import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
+    import_names = import_names_by_line(iter_import_events(code, package) if import_events is None else import_events)
 
-    current_arg: int = 0
-    current_import_name: t.Optional[str] = None
-    current_import_package: t.Optional[str] = None
-
-    # Track line numbers
     linestarts = dict(dis.findlinestarts(code))
-    line: t.Optional[int] = None
-
-    # Track the decoded values of the previous two real instructions for import depth.
-    # The import sequence is: LOAD_CONST/LOAD_SMALL_INT <level>, LOAD_CONST <fromlist>, IMPORT_NAME
-    # At IMPORT_NAME, _prev_prev_val holds the decoded import depth.
-    _prev_prev_val: t.Any = 0
-    _prev_val: t.Any = 0
-
-    ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
     try:
         while True:
             offset, opcode = next(code_iter)
-            _, arg = next(code_iter)
+            next(code_iter)
 
             # Skip RESUME and CACHE entries (CACHE=0 on all CPython versions).
-            # CACHE entries appear after some opcodes (e.g. RESUME on 3.15+) and
-            # must not pollute the argument history used for import depth tracking.
             if opcode == RESUME or opcode == CACHE:
                 continue
 
@@ -476,55 +370,6 @@ def _extract_lines_and_imports(
 
                     if track_lines:
                         lines.add(line)
-
-            if opcode is EXTENDED_ARG:
-                ext.append(arg)
-                continue
-            else:
-                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                ext.clear()
-
-            if opcode == IMPORT_NAME and line is not None:
-                # _prev_prev_val is the decoded import depth (from LOAD_CONST or LOAD_SMALL_INT)
-                import_depth: int = _prev_prev_val
-                current_import_name = code.co_names[current_arg >> _IMPORT_NAME_ARG_SHIFT]
-                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package = (
-                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
-                )
-
-                if line in import_names:
-                    import_names[line] = (
-                        current_import_package,
-                        tuple(list(import_names[line][1]) + [current_import_name]),
-                    )
-                else:
-                    import_names[line] = (current_import_package, (current_import_name,))
-
-            # Also track import from statements since it's possible that the "from" target is a module, eg:
-            # from my_package import my_module
-            # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM and line is not None:
-                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
-                if line in import_names:
-                    import_names[line] = (
-                        current_import_package,
-                        tuple(list(import_names[line][1]) + [import_from_name]),
-                    )
-                else:
-                    import_names[line] = (current_import_package, (import_from_name,))
-
-            # Decode argument value and shift history AFTER opcode handling.
-            # LOAD_CONST indexes co_consts; LOAD_SMALL_INT (3.14+) uses the arg directly.
-            # This must happen after IMPORT_NAME reads _prev_prev_val, not before.
-            if opcode == LOAD_CONST:
-                decoded = code.co_consts[current_arg]
-            elif LOAD_SMALL_INT is not None and opcode == LOAD_SMALL_INT:
-                decoded = current_arg
-            else:
-                decoded = current_arg
-            _prev_prev_val = _prev_val
-            _prev_val = decoded
 
     except StopIteration:
         pass
