@@ -1,0 +1,217 @@
+"""
+Agentless Feature Flagging configuration source.
+
+Polls the Datadog UFC CDN (or a configured custom endpoint) for Universal Flag
+Configuration and feeds each accepted payload into the same apply function the
+Agent Remote Config path uses. A failed poll never replaces last-known-good.
+
+The poller runs on a background thread via :class:`PeriodicService`. That thread
+already implements fixed-delay-after-completion scheduling, so polls never
+overlap. The per-poll retry/backoff and per-request timeout live inside a single
+:meth:`periodic` tick.
+"""
+
+from collections import namedtuple
+import random
+from typing import Any
+from typing import Callable
+from typing import Optional
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
+
+from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._agentless import decode_response_body
+from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
+from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import get_connection
+from ddtrace.internal.utils.retry import RetryError
+from ddtrace.internal.utils.retry import retry
+from ddtrace.internal.utils.version import _pep440_to_semver
+
+
+log = get_logger(__name__)
+
+# Polling / retry policy (mirrors the dd-trace-js reference implementation).
+MAX_POLL_INTERVAL_SECONDS = 60 * 60
+DEFAULT_POLL_INTERVAL_SECONDS = 30.0
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
+
+MAX_ATTEMPTS = 3
+FIRST_RETRY_MIN_S = 2.0
+FIRST_RETRY_MAX_S = 10.0
+SECOND_RETRY_MIN_S = 5.0
+SECOND_RETRY_MAX_S = 30.0
+RETRY_JITTER = 0.2
+
+
+# A single poll outcome. ``status`` is None for a network error / timeout.
+_PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
+
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, value))
+
+
+def _is_retryable_status(status: Optional[int]) -> bool:
+    if status is None:
+        return True
+    return status == 408 or status == 429 or (500 <= status <= 599)
+
+
+class AgentlessConfigurationSource(PeriodicService):
+    """Background poller that loads UFC from the agentless endpoint."""
+
+    def __init__(
+        self,
+        endpoint: str,
+        apply_configuration: Callable[["dict[str, Any]"], None],
+        api_key: Optional[str] = None,
+        poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
+        request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    ) -> None:
+        if poll_interval > MAX_POLL_INTERVAL_SECONDS:
+            log.warning(
+                "Feature Flagging agentless poll interval %.0fs exceeds the %ds maximum; clamping",
+                poll_interval,
+                MAX_POLL_INTERVAL_SECONDS,
+            )
+            poll_interval = MAX_POLL_INTERVAL_SECONDS
+
+        super().__init__(interval=poll_interval, no_wait_at_start=True)
+
+        self._apply_configuration = apply_configuration
+        self._api_key = api_key
+        self._request_timeout = request_timeout
+
+        # Split the endpoint into an origin (for the connection) and a request
+        # target (path + query). get_connection drops the query, so the target
+        # must carry it.
+        parts = urlsplit(endpoint)
+        self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
+        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
+
+        self._etag: Optional[str] = None
+        self._failure_warnings: "set[str]" = set()
+        self._malformed_payload_logged = False
+        self._application_failure_logged = False
+
+    # -- scheduling ---------------------------------------------------------
+
+    def periodic(self) -> None:
+        """Run one poll with in-tick retries; never let an error escape."""
+        after = [self._retry_delay(1), self._retry_delay(2)]
+        poll = retry(after=after, until=lambda r: not _is_retryable_status(r.status))(self._request)
+        try:
+            response = poll()
+        except RetryError as e:
+            # All attempts failed with retryable outcomes; keep last-known-good.
+            self._warn_failure(e.args[0], MAX_ATTEMPTS)
+            return
+        except Exception:
+            log.debug("Feature Flagging agentless poll failed unexpectedly", exc_info=True)
+            return
+
+        self._apply(response)
+
+    def _retry_delay(self, attempt: int) -> float:
+        if attempt == 1:
+            base = _clamp(self.interval / 6, FIRST_RETRY_MIN_S, FIRST_RETRY_MAX_S)
+        else:
+            base = _clamp(self.interval / 3, SECOND_RETRY_MIN_S, SECOND_RETRY_MAX_S)
+        jitter = 1 - RETRY_JITTER + random.random() * RETRY_JITTER * 2  # nosec B311
+        return max(1.0, base * jitter)
+
+    # -- request ------------------------------------------------------------
+
+    def _headers(self) -> "dict[str, str]":
+        headers = {
+            "Accept-Encoding": "gzip",
+            "DD-Client-Library-Language": "python",
+            "DD-Client-Library-Version": _pep440_to_semver(),
+        }
+        if self._api_key:
+            headers["DD-API-KEY"] = self._api_key
+        if self._etag:
+            headers["If-None-Match"] = self._etag
+        return headers
+
+    def _request(self) -> _PollResponse:
+        conn = None
+        try:
+            conn = get_connection(self._conn_url, timeout=self._request_timeout)
+            # Suppress self-tracing: no HTTP span, no trace-header injection.
+            setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
+            conn.request("GET", self._request_target, None, self._headers())  # type: ignore[no-untyped-call]
+            resp = conn.getresponse()
+            body = resp.read()
+            return _PollResponse(
+                status=resp.status,
+                etag=resp.getheader("ETag"),
+                content_encoding=resp.getheader("Content-Encoding"),
+                body=body,
+                error=None,
+            )
+        except Exception as e:
+            return _PollResponse(status=None, etag=None, content_encoding=None, body=None, error=e)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    # -- response handling --------------------------------------------------
+
+    def _apply(self, response: _PollResponse) -> None:
+        status = response.status
+
+        if status == 304:
+            return
+        if status in (401, 403):
+            self._warn_failure(response, 1)
+            return
+        if status != 200:
+            # Non-2xx bodies are not decoded as config.
+            return
+
+        try:
+            body = decode_response_body(response.body, response.content_encoding)
+            attributes = parse_ufc_configuration(body)
+        except Exception:
+            if not self._malformed_payload_logged:
+                self._malformed_payload_logged = True
+                log.error("Feature Flagging agentless endpoint returned malformed UFC payload")
+            return
+
+        try:
+            self._apply_configuration(attributes)
+        except Exception as e:
+            if not self._application_failure_logged:
+                self._application_failure_logged = True
+                log.warning("Feature Flagging agentless UFC payload could not be applied: %s", e)
+            return
+
+        # Advance the ETag only after parse AND apply both succeed. A blank or
+        # absent ETag clears the previous one.
+        etag = (response.etag or "").strip()
+        self._etag = etag or None
+
+    def _warn_failure(self, response: _PollResponse, attempts: int) -> None:
+        status = response.status
+        if status in (401, 403):
+            category = "authentication"
+        elif status:
+            category = "http"
+        else:
+            category = "request"
+
+        if category in self._failure_warnings:
+            return
+        self._failure_warnings.add(category)
+
+        if status in (401, 403):
+            log.warning("Feature Flagging agentless endpoint returned HTTP %d; verify endpoint authentication", status)
+        elif status:
+            log.warning("Feature Flagging agentless endpoint returned HTTP %d after %d attempts", status, attempts)
+        elif attempts > 1:
+            log.warning("Feature Flagging agentless request failed after %d attempts: %s", attempts, response.error)
+        else:
+            log.warning("Feature Flagging agentless request failed: %s", response.error)
