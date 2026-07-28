@@ -35,6 +35,7 @@ Known limitations (deferred by design):
 """
 
 import importlib
+import threading
 import time
 from types import ModuleType
 from types import SimpleNamespace
@@ -186,6 +187,11 @@ class _RealtimeState:
         self._integration = integration
         self._client = client
         self._model = model
+        # All state below is shared between the two entry points, which run on different threads in
+        # the common sync-connection pattern (recv() looping on a background thread while send() runs
+        # on the main thread). Every mutation funnels through on_client_event / on_server_event /
+        # finish_session, so a single lock held across each of those serializes all access.
+        self._lock = threading.Lock()
         # Per-connection id used to group every turn span into one conversation in the UI.
         self._session_id = uuid.uuid4().hex
         self._session_config: dict[str, Any] = {}
@@ -213,65 +219,67 @@ class _RealtimeState:
 
     def on_client_event(self, event: Any) -> None:
         try:
-            event_type = _event_type(event)
-            if event_type == "session.update":
-                self._update_session_config(_get_attr(event, "session", None))
-            elif event_type == "input_audio_buffer.append":
-                audio = _get_attr(event, "audio", None)
-                if audio:
-                    self._pending_input.audio.append(audio)
-            elif event_type == "input_audio_buffer.clear":
-                # Discarded input audio must not be attributed to the next response.
-                self._pending_input.audio.clear()
-            elif event_type == "conversation.item.create":
-                self._absorb_input_item(_get_attr(event, "item", None))
+            with self._lock:
+                event_type = _event_type(event)
+                if event_type == "session.update":
+                    self._update_session_config(_get_attr(event, "session", None))
+                elif event_type == "input_audio_buffer.append":
+                    audio = _get_attr(event, "audio", None)
+                    if audio:
+                        self._pending_input.audio.append(audio)
+                elif event_type == "input_audio_buffer.clear":
+                    # Discarded input audio must not be attributed to the next response.
+                    self._pending_input.audio.clear()
+                elif event_type == "conversation.item.create":
+                    self._absorb_input_item(_get_attr(event, "item", None))
         except Exception:
             log.debug("error handling realtime client event", exc_info=True)
 
     def on_server_event(self, event: Any) -> None:
         try:
-            event_type = _event_type(event)
-            if event_type in ("session.created", "session.updated"):
-                self._update_session_config(_get_attr(event, "session", None))
-                return
-            if event_type == "input_audio_buffer.committed":
-                self._pending_input.item_id = _get_attr(event, "item_id", None)
-                return
-            if event_type == "input_audio_buffer.cleared":
-                self._pending_input.audio.clear()
-                return
-            if event_type == "conversation.item.input_audio_transcription.completed":
-                item_id = _get_attr(event, "item_id", None)
-                transcript = str(_get_attr(event, "transcript", "") or "")
-                if item_id is not None:
-                    self._input_transcripts[item_id] = transcript
-                if self._pending_input.item_id == item_id and not self._pending_input.transcript:
-                    self._pending_input.transcript = transcript
-                # A finished turn may have been waiting on exactly this transcript — finalize it now.
-                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
-                    turn.input.transcript = turn.input.transcript or transcript
-                    self._awaiting.remove(turn)
-                    self._finalize_turn(turn)
-                return
-            if event_type == "conversation.item.input_audio_transcription.failed":
-                # Transcription won't arrive for this item; finalize any turn waiting on it so its
-                # span doesn't hang (would otherwise wait until the next turn or close).
-                item_id = _get_attr(event, "item_id", None)
-                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
-                    self._awaiting.remove(turn)
-                    self._finalize_turn(turn)
-                return
-            if event_type == "response.created":
-                response = _get_attr(event, "response", None)
-                self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None))
-                return
-            if event_type == "response.done":
-                response = _get_attr(event, "response", None)
-                self._finish_response(
-                    _get_attr(response, "id", None) or _get_attr(event, "response_id", None), response
-                )
-                return
-            self._handle_response_delta(event, event_type)
+            with self._lock:
+                event_type = _event_type(event)
+                if event_type in ("session.created", "session.updated"):
+                    self._update_session_config(_get_attr(event, "session", None))
+                    return
+                if event_type == "input_audio_buffer.committed":
+                    self._pending_input.item_id = _get_attr(event, "item_id", None)
+                    return
+                if event_type == "input_audio_buffer.cleared":
+                    self._pending_input.audio.clear()
+                    return
+                if event_type == "conversation.item.input_audio_transcription.completed":
+                    item_id = _get_attr(event, "item_id", None)
+                    transcript = str(_get_attr(event, "transcript", "") or "")
+                    if item_id is not None:
+                        self._input_transcripts[item_id] = transcript
+                    if self._pending_input.item_id == item_id and not self._pending_input.transcript:
+                        self._pending_input.transcript = transcript
+                    # A finished turn may have been waiting on exactly this transcript — finalize now.
+                    for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
+                        turn.input.transcript = turn.input.transcript or transcript
+                        self._awaiting.remove(turn)
+                        self._finalize_turn(turn)
+                    return
+                if event_type == "conversation.item.input_audio_transcription.failed":
+                    # Transcription won't arrive for this item; finalize any turn waiting on it so its
+                    # span doesn't hang (would otherwise wait until the next turn or close).
+                    item_id = _get_attr(event, "item_id", None)
+                    for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
+                        self._awaiting.remove(turn)
+                        self._finalize_turn(turn)
+                    return
+                if event_type == "response.created":
+                    response = _get_attr(event, "response", None)
+                    self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None))
+                    return
+                if event_type == "response.done":
+                    response = _get_attr(event, "response", None)
+                    self._finish_response(
+                        _get_attr(response, "id", None) or _get_attr(event, "response_id", None), response
+                    )
+                    return
+                self._handle_response_delta(event, event_type)
         except Exception:
             log.debug("error handling realtime server event", exc_info=True)
 
@@ -468,24 +476,25 @@ class _RealtimeState:
         self._awaiting = []
 
     def finish_session(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
-        # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
-        self._flush_awaiting()
-        for turn in list(self._responses.values()):
-            if not turn.input.transcript and turn.input.item_id is not None:
-                turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
-            self._finalize_turn(turn)
-        # Finish any tool spans whose result never arrived (client call still in flight at close) so
-        # none leak — submitted with whatever arguments we captured and an empty result.
-        for call_id in list(self._pending_tool_spans):
-            self._finish_tool_span(call_id, "")
-        self._responses.clear()
-        self._input_transcripts.clear()
-        self._tool_call_names.clear()
-        self._pending_tool_spans.clear()
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
+            # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
+            self._flush_awaiting()
+            for turn in list(self._responses.values()):
+                if not turn.input.transcript and turn.input.item_id is not None:
+                    turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
+                self._finalize_turn(turn)
+            # Finish any tool spans whose result never arrived (client call still in flight at close)
+            # so none leak — submitted with whatever arguments we captured and an empty result.
+            for call_id in list(self._pending_tool_spans):
+                self._finish_tool_span(call_id, "")
+            self._responses.clear()
+            self._input_transcripts.clear()
+            self._tool_call_names.clear()
+            self._pending_tool_spans.clear()
 
     # -- tagging helpers ----------------------------------------------------
 

@@ -616,6 +616,79 @@ def test_realtime_state_function_call_only_in_response_done_emits_tool_span():
     assert not state._pending_tool_spans
 
 
+def test_realtime_state_concurrent_send_recv_is_thread_safe():
+    """Server events (recv thread) and client events (send thread) run concurrently — the common
+    sync-connection pattern. The state lock must keep the shared dicts consistent so every function
+    call still yields exactly one finished tool span carrying its own result, with none lost or leaked.
+
+    A stress test over the concurrent path rather than a deterministic race detector: it drives many
+    overlapping turns from two threads and asserts end-state integrity.
+    """
+    import queue
+    import threading
+
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+
+    n = 60
+    ready: "queue.Queue[str]" = queue.Queue()
+
+    def drive_server():
+        # recv thread: create each function call and complete its turn, then hand the call_id off.
+        for i in range(n):
+            rid, cid, args = "r%d" % i, "call_%d" % i, '{"i": %d}' % i
+            state.on_server_event(_ns(type="response.created", response=_ns(id=rid)))
+            state.on_server_event(
+                _ns(
+                    type="response.output_item.added",
+                    response_id=rid,
+                    item=_ns(type="function_call", name="get_weather", call_id=cid),
+                )
+            )
+            state.on_server_event(
+                _ns(type="response.function_call_arguments.done", response_id=rid, call_id=cid, arguments=args)
+            )
+            state.on_server_event(
+                _ns(
+                    type="response.done",
+                    response=_ns(
+                        id=rid,
+                        status="completed",
+                        output=[_ns(type="function_call", name="get_weather", arguments=args, call_id=cid)],
+                    ),
+                )
+            )
+            ready.put(cid)
+
+    def drive_client():
+        # send thread: return each tool result once its call has been observed by the server thread.
+        for _ in range(n):
+            cid = ready.get()
+            state.on_client_event(
+                {
+                    "type": "conversation.item.create",
+                    "item": {"type": "function_call_output", "call_id": cid, "output": "res-%s" % cid},
+                }
+            )
+
+    threads = [threading.Thread(target=drive_server), threading.Thread(target=drive_client)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    state.finish_session()
+
+    # Every call produced exactly one finished tool span with its own result; none lost, none leaked.
+    assert not state._pending_tool_spans
+    by_call = {t["call_id"]: t for t in integration.tools}
+    assert len(integration.tools) == n and len(by_call) == n
+    for i in range(n):
+        cid = "call_%d" % i
+        assert by_call[cid]["result"] == "res-%s" % cid
+        assert by_call[cid]["error"] is False
+        assert by_call[cid]["span"].finished is True
+
+
 def test_realtime_state_unwrappable_audio_fallback_marker():
     """Audio in a format we can't wrap (not PCM16/G.711) with no transcript surfaces an [audio] marker."""
     integration, state = _new_state(model="gpt-realtime")
