@@ -113,6 +113,7 @@ from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
+from ddtrace.llmobs._experiment import ExperimentSummary
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
@@ -1213,6 +1214,63 @@ class LLMObs(Service):
             inner_exp._dataset_version = experiment_meta._dataset._version
 
         return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
+
+    @classmethod
+    def list_experiments(
+        cls,
+        experiment_name: Optional[str] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
+        parent_experiment_ids: Optional[list[str]] = None,
+        project_name: Optional[str] = None,
+        page_limit: int = 100,
+        max_results: Optional[int] = None,
+    ) -> "list[ExperimentSummary]":
+        """List experiments, optionally filtered by name, metadata, or parent experiment.
+
+        Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
+        costs) and ``status``, which together support CI/CD gating: pick the most recent
+        ``completed`` run for the baseline commit and compare it against the current one.
+
+        :param experiment_name: Filter by logical experiment name.
+        :param metadata_filter: Filter by metadata containment, e.g. ``{"tags": ["git.commit.sha:abc123"]}``.
+            Experiments created by this SDK store only ``tags`` under metadata; ``git.commit.sha`` and
+            ``git.repository_url`` tags are captured automatically at experiment creation.
+        :param parent_experiment_ids: Filter by parent experiment UUID(s).
+        :param project_name: Project to query (defaults to the configured project).
+        :param page_limit: Page size for backend requests (1–5000, default: 100).
+        :param max_results: Stop after collecting this many experiments; must be at least 1.
+            ``None`` (default) fetches every page; since results are ordered newest first, pass e.g.
+            ``max_results=20`` to look at only recent runs instead of walking the project's whole
+            experiment history.
+        :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
+        :raises ValueError: If LLMObs is not enabled, ``max_results`` is less than 1, the project
+            cannot be resolved, or the backend request fails.
+        """
+        if cls._instance is None or not cls.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling list_experiments().")
+        # Pass None for the default project so the client can serve it from its cached
+        # _default_project instead of issuing a create-or-get request on every call.
+        try:
+            project = cls._instance._dne_client.project_create_or_get(project_name or None)
+        except Exception as e:
+            # Listing without a project_id would silently widen the query to every project in the
+            # org, which a CI/CD comparison would then read as the baseline. Fail instead.
+            raise ValueError(
+                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+            ) from e
+        project_id = project.get("_id")
+        if not project_id:
+            raise ValueError(
+                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+            )
+        return cls._instance._dne_client.experiment_list(
+            experiment_name=experiment_name,
+            metadata_filter=metadata_filter,
+            parent_experiment_ids=parent_experiment_ids,
+            project_id=project_id,
+            page_limit=page_limit,
+            max_results=max_results,
+        )
 
     @classmethod
     def create_dataset(
