@@ -7,7 +7,7 @@ use pyo3::{
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
-use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use super::attributes::{MetaMap, MetricValue, MetricsMap};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
@@ -42,11 +42,11 @@ pub struct SpanData {
     pub span_links: Vec<NativeSpanLink<PyTraceData>>,
     pub span_events: Vec<NativeSpanEvent<PyTraceData>>,
     pub span_api: PyBackedString,
-    /// Unified attribute storage — source of truth for all tag/metric attributes.
-    /// `meta` and `metrics` are left empty in the native span; they are materialized
-    /// from this map at encode time (currently by the Python encoder via the bulk read
-    /// accessors `_get_str_attributes` / `_get_numeric_attributes`).
-    pub(crate) attributes: AttributeMap,
+    /// String-valued tags. Mutually exclusive with `metrics`: a key lives in exactly one of the
+    /// two; `insert_meta`/`insert_metric`/`remove_attribute` enforce this invariant.
+    pub(crate) meta: MetaMap,
+    /// Numeric-valued tags. Mutually exclusive with `meta` (see above).
+    pub(crate) metrics: MetricsMap,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `trace_id`.
     /// `trace_id` is always the source of truth.
@@ -74,6 +74,23 @@ impl SpanData {
         if !self.has_attribute(k) {
             let _ = self.set_attribute(k, v);
         }
+    }
+
+    /// Insert into `meta`, evicting any `metrics` entry for the same key to keep the two maps
+    /// mutually exclusive. The emptiness check skips the eviction scan on a meta-only span.
+    fn insert_meta(&mut self, key: PyBackedString, value: Py<PyString>) {
+        if !self.metrics.is_empty() {
+            self.metrics.remove_slow(&key);
+        }
+        self.meta.insert(key, value);
+    }
+
+    /// Insert into `metrics`, evicting any `meta` entry for the same key (see [`Self::insert_meta`]).
+    fn insert_metric(&mut self, key: PyBackedString, value: MetricValue) {
+        if !self.meta.is_empty() {
+            self.meta.remove_slow(&key);
+        }
+        self.metrics.insert(key, value);
     }
 }
 
@@ -435,8 +452,8 @@ impl SpanData {
 
     // ── Attribute API (meta / metrics) ──────────────────────────────────────
 
-    /// Set a tag/metric on the span. Stores the value in the unified `attributes` map,
-    /// preserving the original Python type (str → Str, int/bool → Int, float → Float).
+    /// Set a tag/metric on the span, routing the value into `meta` or `metrics` based on
+    /// its Python type (str → meta, int/bool/float → metrics).
     ///
     /// Special case: `http.status_code` is always coerced to a string so the trace agent
     /// can compute HTTP metrics from the meta tag.
@@ -452,7 +469,11 @@ impl SpanData {
         let Ok(key_str) = key.cast::<PyString>() else {
             return Ok(());
         };
-        let attr_key = AttrKey::new(key_str.clone().unbind());
+        // Keys with no valid UTF-8 representation (lone surrogates) can't back a
+        // `PyBackedString`; drop the tag rather than store it under a collapsed "" key.
+        let Ok(key_backed) = PyBackedString::try_from(key_str.clone()) else {
+            return Ok(());
+        };
 
         // http.status_code must always be a string in meta.
         // Fast path: typed contract is `str`, so most callers already pass a PyString.
@@ -466,19 +487,17 @@ impl SpanData {
                 };
                 s
             };
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.unbind()));
+            self.insert_meta(key_backed, s.unbind());
             return Ok(());
         }
 
-        // str → Str
+        // str → meta
         if let Ok(s) = value.cast::<PyString>() {
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.clone().unbind()));
+            self.insert_meta(key_backed, s.clone().unbind());
             return Ok(());
         }
 
-        // float → Float (drop NaN/Inf)
+        // float → metrics (drop NaN/Inf)
         // Check before int because some types (e.g. numpy.float64) implement __float__
         // but not __index__, so PyFloat succeeds and PyInt would fail.
         if let Ok(f) = value.cast::<PyFloat>() {
@@ -486,25 +505,24 @@ impl SpanData {
             if n.is_nan() || n.is_infinite() {
                 return Ok(());
             }
-            self.attributes.insert(attr_key, AttributeValue::Float(n));
+            self.insert_metric(key_backed, MetricValue::Float(n));
             return Ok(());
         }
 
-        // int (catches bool and numpy.int* via __index__) → Int.
+        // int (catches bool and numpy.int* via __index__) → metrics.
         // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
         // type implementing __index__. Python ints that overflow i64 fall through
         // to the str() fallback below.
         if let Ok(n) = value.extract::<i64>() {
-            self.attributes.insert(attr_key, AttributeValue::Int(n));
+            self.insert_metric(key_backed, MetricValue::Int(n));
             return Ok(());
         }
 
-        // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
+        // bytes → UTF-8 decoded meta (with U+FFFD replacements for invalid sequences)
         if let Ok(b) = value.cast::<PyBytes>() {
             let decoded = String::from_utf8_lossy(b.as_bytes());
             let py_str = PyString::new(key.py(), &decoded);
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(py_str.unbind()));
+            self.insert_meta(key_backed, py_str.unbind());
             return Ok(());
         }
 
@@ -512,8 +530,7 @@ impl SpanData {
         let Ok(s) = value.str() else {
             return Ok(());
         };
-        self.attributes
-            .insert(attr_key, AttributeValue::Str(s.unbind()));
+        self.insert_meta(key_backed, s.unbind());
         Ok(())
     }
 
@@ -549,7 +566,7 @@ impl SpanData {
         Ok(())
     }
 
-    /// Return True if the span has an attribute with the given key.
+    /// Return True if the span has an attribute with the given key (in either meta or metrics).
     #[pyo3(name = "_has_attribute")]
     fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
         let Ok(k) = key.cast::<PyString>() else {
@@ -558,10 +575,10 @@ impl SpanData {
         let Ok(k_str) = k.to_str() else {
             return false;
         };
-        self.attributes.contains_key(k_str)
+        self.meta.contains_key(k_str) || self.metrics.contains_key(k_str)
     }
 
-    /// Remove an attribute by key.
+    /// Remove an attribute by key from whichever map holds it.
     #[pyo3(name = "_remove_attribute")]
     fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
         let Ok(k) = key.cast::<PyString>() else {
@@ -570,11 +587,17 @@ impl SpanData {
         let Ok(k_str) = k.to_str() else {
             return;
         };
-        self.attributes.remove(k_str);
+        // The maps are mutually exclusive, so removing from meta first and only scanning metrics
+        // when nothing was removed beats probing with `contains_key` (which rescans meta on a hit).
+        let meta_len = self.meta.len();
+        self.meta.remove_slow(k_str);
+        if self.meta.len() == meta_len {
+            self.metrics.remove_slow(k_str);
+        }
     }
 
     /// Return the raw stored value for the given key, or None if not found.
-    /// Returns the natural Python type: str for Str, int for Int, float for Float.
+    /// Returns the natural Python type: str for meta, int/float for metrics.
     #[pyo3(name = "_get_attribute")]
     fn get_attribute<'py>(
         &self,
@@ -583,10 +606,13 @@ impl SpanData {
     ) -> Option<Bound<'py, PyAny>> {
         let k = key.cast::<PyString>().ok()?;
         let k_str = k.to_str().ok()?;
-        Some(self.attributes.get(k_str)?.as_py(py))
+        match self.meta.get(k_str) {
+            Some(s) => Some(s.bind(py).clone().into_any()),
+            None => Some(self.metrics.get(k_str)?.as_py(py)),
+        }
     }
 
-    /// Return the string attribute for the given key, or None if not a Str variant.
+    /// Return the string attribute for the given key, or None if not present in `meta`.
     #[pyo3(name = "_get_str_attribute")]
     fn get_str_attribute<'py>(
         &self,
@@ -595,13 +621,10 @@ impl SpanData {
     ) -> Option<Bound<'py, PyAny>> {
         let k = key.cast::<PyString>().ok()?;
         let k_str = k.to_str().ok()?;
-        match self.attributes.get(k_str)? {
-            AttributeValue::Str(s) => Some(s.bind(py).clone().into_any()),
-            _ => None,
-        }
+        Some(self.meta.get(k_str)?.bind(py).clone().into_any())
     }
 
-    /// Return the numeric attribute for the given key, or None if not a numeric variant.
+    /// Return the numeric attribute for the given key, or None if not present in `metrics`.
     /// Returns int for Int values and float for Float values, preserving the original type.
     #[pyo3(name = "_get_numeric_attribute")]
     fn get_numeric_attribute<'py>(
@@ -611,15 +634,7 @@ impl SpanData {
     ) -> Option<Bound<'py, PyAny>> {
         let k = key.cast::<PyString>().ok()?;
         let k_str = k.to_str().ok()?;
-        match self.attributes.get(k_str)? {
-            AttributeValue::Int(i) => {
-                Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any())
-            }
-            AttributeValue::Float(f) => {
-                Some(f.into_pyobject(py).expect("f64 into_pyobject").into_any())
-            }
-            AttributeValue::Str(_) => None,
-        }
+        Some(self.metrics.get(k_str)?.as_py(py))
     }
 
     /// Return all attributes merged into a single dict.
@@ -628,45 +643,34 @@ impl SpanData {
     #[pyo3(name = "_get_attributes")]
     fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, v) in &self.attributes {
-            d.set_item(k.as_bound(py), v.as_py(py))?;
+        for (k, v) in self.meta.iter() {
+            d.set_item(k.as_py(py), v.bind(py))?;
+        }
+        for (k, v) in self.metrics.iter() {
+            d.set_item(k.as_py(py), v.as_py(py))?;
         }
         Ok(d)
     }
 
-    /// Return all Str-variant attributes as a Python dict snapshot.
+    /// Return the `meta` map as a Python dict snapshot.
     /// Used by the Python encoder to build the v0.4 `meta` dict.
-    /// Note: Int values with abs > 2^53 are NOT folded in here; the encoder
-    /// is responsible for moving them from metrics to meta at encode time.
     #[pyo3(name = "_get_str_attributes")]
     fn get_str_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, v) in &self.attributes {
-            if let AttributeValue::Str(s) = v {
-                d.set_item(k.as_bound(py), s.bind(py))?;
-            }
+        for (k, v) in self.meta.iter() {
+            d.set_item(k.as_py(py), v.bind(py))?;
         }
         Ok(d)
     }
 
-    /// Return all numeric (Int and Float) attributes as a Python dict snapshot.
+    /// Return the `metrics` map as a Python dict snapshot.
     /// Int values are returned as Python int; Float values as Python float.
     /// Used by the Python encoder to build the v0.4 `metrics` dict.
-    /// Note: the encoder is responsible for moving Int values with abs > 2^53
-    /// out of metrics and into meta as strings before serialization.
     #[pyo3(name = "_get_numeric_attributes")]
     fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, v) in &self.attributes {
-            match v {
-                AttributeValue::Int(i) => {
-                    d.set_item(k.as_bound(py), *i)?;
-                }
-                AttributeValue::Float(f) => {
-                    d.set_item(k.as_bound(py), *f)?;
-                }
-                AttributeValue::Str(_) => {}
-            }
+        for (k, v) in self.metrics.iter() {
+            d.set_item(k.as_py(py), v.as_py(py))?;
         }
         Ok(d)
     }
@@ -898,12 +902,13 @@ impl SpanData {
         self.name.traverse(&visit)?;
         self.resource.traverse(&visit)?;
         self.span_type.traverse(&visit)?;
-        // `self.attributes` is the unified tag/metric store.
-        // Keys hold `Py<PyString>`; Str values hold `Py<PyString>`. Int/Float
-        // variants are primitive Rust types with no Python references.
-        for (k, v) in self.attributes.iter() {
+        for (k, v) in self.meta.iter() {
             k.traverse(&visit)?;
-            v.traverse(&visit)?;
+            visit.call(v)?;
+        }
+        // `metrics` values are primitive Rust types with no Python references; keys only.
+        for (k, _) in self.metrics.iter() {
+            k.traverse(&visit)?;
         }
         for link in self.span_links.iter() {
             link.tracestate.traverse(&visit)?;
