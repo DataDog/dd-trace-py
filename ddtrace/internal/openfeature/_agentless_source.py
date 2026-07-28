@@ -12,7 +12,9 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 """
 
 from collections import namedtuple
+import os
 import random
+import time
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -43,6 +45,11 @@ FIRST_RETRY_MAX_S = 10.0
 SECOND_RETRY_MIN_S = 5.0
 SECOND_RETRY_MAX_S = 30.0
 RETRY_JITTER = 0.2
+
+# Upper bound (seconds) on the randomized delay before the FIRST poll in a
+# forked child, so pre-fork workers (gunicorn/uWSGI) don't hit the CDN in
+# lockstep. The origin process is never delayed.
+FIRST_POLL_JITTER_MAX_S = 5.0
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
@@ -96,10 +103,17 @@ class AgentlessConfigurationSource(PeriodicService):
         self._malformed_payload_logged = False
         self._application_failure_logged = False
 
+        # Fork staggering: the process that created the source polls immediately;
+        # a forked child jitters its first poll (see periodic()). Tracked by PID so
+        # it is race-free with the automatic post-fork thread restart.
+        self._origin_pid = os.getpid()
+        self._jittered_pid: Optional[int] = None
+
     # -- scheduling ---------------------------------------------------------
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
+        self._stagger_first_poll_after_fork()
         after = [self._retry_delay(1), self._retry_delay(2)]
         poll = retry(after=after, until=lambda r: not _is_retryable_status(r.status))(self._request)
         try:
@@ -113,6 +127,21 @@ class AgentlessConfigurationSource(PeriodicService):
             return
 
         self._apply(response)
+
+    def _stagger_first_poll_after_fork(self) -> None:
+        """Delay the first poll in a forked child so workers don't poll in lockstep.
+
+        The process that created the source (or any single-process run) is never
+        delayed, so behavior matches dd-trace-js and leaves tests unaffected. A
+        forked worker waits a random bounded delay before its first poll only.
+        """
+        pid = os.getpid()
+        if pid == self._origin_pid or self._jittered_pid == pid:
+            return
+        self._jittered_pid = pid
+        delay = random.uniform(0, min(self.interval, FIRST_POLL_JITTER_MAX_S))  # nosec B311
+        if delay:
+            time.sleep(delay)
 
     def _retry_delay(self, attempt: int) -> float:
         if attempt == 1:

@@ -215,6 +215,29 @@ def test_self_tracing_suppressed(harness):
     assert src._requests[0]["no_trace"] is True
 
 
+def test_origin_process_first_poll_is_not_jittered(harness, monkeypatch):
+    sleeps: list = []
+    monkeypatch.setattr(source_mod.time, "sleep", lambda d: sleeps.append(d))
+    src = harness([_FakeResponse(304)])
+    src.periodic()
+    assert sleeps == []  # origin process polls immediately
+
+
+def test_forked_child_first_poll_is_jittered_once(harness, monkeypatch):
+    sleeps: list = []
+    monkeypatch.setattr(source_mod.time, "sleep", lambda d: sleeps.append(d))
+    src = harness([_FakeResponse(304), _FakeResponse(304)])
+    # Simulate a forked worker: a PID different from the creating process.
+    monkeypatch.setattr(source_mod.os, "getpid", lambda: src._origin_pid + 1)
+
+    src.periodic()
+    assert len(sleeps) == 1
+    assert 0 <= sleeps[0] <= min(src.interval, source_mod.FIRST_POLL_JITTER_MAX_S)
+
+    src.periodic()
+    assert len(sleeps) == 1  # only the first poll in the child is staggered
+
+
 def test_poll_interval_clamped_to_one_hour():
     src = AgentlessConfigurationSource(
         endpoint=ENDPOINT,
