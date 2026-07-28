@@ -27,11 +27,8 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 
 _HTTP_MCP_SCHEMES = frozenset({"http", "https"})
-# AIDEV-NOTE: the manifest rides every agent span and ``_truncate_span_event`` does NOT drop it (it drops
-# only ``meta.input``/``meta.output``). There are deliberately no per-field size caps here; bounding an
-# oversized manifest belongs in the shared writer/backend truncation path, not per-field SDK logic. In
-# practice the fields that can grow (``instructions``/``system_prompts``, ``metadata``) are far below the
-# event size limit; a writer-level manifest bound is the tracked follow-up.
+# AIDEV-NOTE: no per-field size caps here. ``_truncate_span_event`` drops only meta.input/output, not the
+# manifest; bounding it belongs in the shared writer path, not per-field SDK logic (tracked follow-up).
 
 
 def _redact_mcp_uri(raw: Any) -> Optional[str]:
@@ -45,8 +42,7 @@ def _redact_mcp_uri(raw: Any) -> Optional[str]:
     if not text:
         return None
     parsed = urllib.parse.urlsplit(text)
-    # A scheme-less ``host:port/...`` has no ``//``, so ``urlsplit`` mistakes the host for the scheme;
-    # re-parse with a leading ``//`` to recover the authority.
+    # Scheme-less ``host:port`` has no ``//``; re-parse with a leading ``//`` so urlsplit finds the host.
     if not parsed.netloc and "//" not in text:
         parsed = urllib.parse.urlsplit("//" + text)
     elif parsed.scheme and parsed.scheme.lower() not in _HTTP_MCP_SCHEMES:
@@ -91,11 +87,8 @@ def _iter_agent_tools(agent: Any):
     else:
         function_toolset = getattr(agent, "_function_toolset", None)
         user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", None) or []
-        # Only FunctionToolsets expose a ``{name: tool}`` dict. A custom user toolset's ``.tools`` may be
-        # absent or a non-dict (e.g. a list): reading it over-captures the toolset's tools as function caps
-        # (they are captured separately as ``custom`` capabilities) and crashes the whole manifest build on
-        # ``.items()``. Gate user toolsets on FunctionToolset; the agent's own ``_function_toolset`` is always
-        # one. The ``isinstance(dict)`` guard is belt-and-suspenders so a non-dict can never raise.
+        # Only FunctionToolsets expose a ``{name: tool}`` dict; a custom toolset's ``.tools`` may be a
+        # non-dict (captured separately as ``custom`` caps). Gate to FunctionToolset + guard isinstance(dict).
         fn_cls = PydanticAIIntegration._function_toolset_cls()
         toolsets = [t for t in user_toolsets if fn_cls is None or isinstance(t, fn_cls)]
         if function_toolset is not None:
@@ -142,11 +135,8 @@ def _callable_name(fn: Any) -> str:
 def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     """Gather ``(static_texts, dynamic_fns)`` from an agent's instructions, across pydantic-ai versions.
 
-    Version drift (verified 0.8.1 / 1.0.0 / 1.63.0): ``agent._instructions`` is a plain ``str`` on
-    <1.63.0 and a ``list`` mixing static strings with raw callables on >=1.63.0; the dynamic instruction
-    functions live in ``agent._instructions_functions`` (``SystemPromptRunner`` wrappers, unwrap
-    ``.function``) on <1.63.0 but that attribute is absent on >=1.63.0. Reading both sources and de-duping
-    the callables by ``id`` captures the dynamic functions on every version.
+    Version drift: ``_instructions`` is a ``str`` (<1.63.0) or a mixed ``list`` (>=1.63.0); dynamic fns live
+    in ``_instructions_functions`` (<1.63.0) or inline in the list (>=1.63.0). Read both and de-dupe by id.
     """
     static_texts: list[str] = []
     dynamic: list[tuple[Any, bool]] = []  # (fn, reevaluated); instructions rebuild every request -> True
@@ -239,9 +229,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
-        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
-        # without setting user_prompt, we fall back to extracting the last user message from
-        # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
+        # AIDEV-NOTE: some callers (e.g. VercelAIAdapter) pass everything via message_history with no
+        # user_prompt; fall back to the last user message. See github.com/DataDog/dd-trace-py/issues/16400
         if user_prompt is None:
             user_prompt = self._extract_user_prompt_from_message_history(kwargs)
         result = response
@@ -261,9 +250,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             input_value=user_prompt,
             output_value=result,
         )
-        # Build the manifest LAST: it does closure walks / ``inspect.getsource`` / ``model_json_schema``, so
-        # if it raises, the name/input/output above are already annotated, so a manifest failure degrades to
-        # no-manifest instead of blanking the whole agent span (``llmobs_set_tags`` logs and bails on raise).
+        # Manifest LAST: it can raise (getsource / model_json_schema) and llmobs_set_tags bails on raise.
+        # With name/input/output already set, that degrades to no-manifest instead of blanking the span.
         self._tag_agent_manifest(span, kwargs, agent_instance)
 
     @staticmethod
@@ -338,24 +326,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, agent_manifest=self._build_agent_manifest(agent))
 
     def _build_agent_manifest(self, agent: Any) -> dict[str, Any]:
-        """Build the canonical agent manifest (the cross-framework schema) from a pydantic-ai ``Agent``.
+        """Build the canonical cross-framework agent manifest from a pydantic-ai ``Agent``.
 
-        ADDITIVE over the shipped manifest. Shipped keys keep their name + type: ``framework`` / ``name`` /
-        ``model`` / ``model_settings`` / ``instructions`` (str|None) / ``system_prompts`` (list) / ``tools``
-        (flat list, kept for backward compatibility). New additive keys: ``model_provider``;
-        ``extra_instructions`` (ordered typed DYNAMIC resolvers: dynamic instructions + dynamic system
-        prompts); ``capabilities`` (unified typed superset of tools / builtins / MCP servers /
-        custom toolsets, each ``{name, type, description?, content}``; function tools appear here AND in the
-        flat ``tools``, an accepted duplication); ``handoffs``; ``guardrails``; ``output_type``;
-        ``memory_policies``; ``tool_transforms``; ``agent_settings``; ``metadata``. Function-bearing fields
-        (``extra_instructions`` resolvers / ``guardrails`` / ``memory_policies`` / ``tool_transforms``) carry
-        ``{name, source_hash?}`` (source hashed, never emitted) plus per-field extras: ``extra_instructions``
-        adds ``reevaluated``, ``tool_transforms`` adds ``scope``.
-
-        pydantic-only: fields the framework does not expose (``max_turns``, ``parallel_tool_calls``,
-        ``tool_use_behavior``, input/tool guardrails, ...) are OMITTED, never faked. Empty additive keys are
-        omitted; shipped ``instructions`` / ``system_prompts`` / ``tools`` / ``model_settings`` mirror the
-        prior manifest's presence.
+        Additive and capture-only: shipped keys (framework/name/model/model_settings/instructions/
+        system_prompts/tools) keep their name, type, and presence; new keys are omit-when-empty.
+        Function-bearing fields carry ``{name, source_hash?}`` (source hashed, never emitted). Fields the
+        framework does not expose are omitted, never faked. The keys below are the schema.
         """
         manifest: dict[str, Any] = {"framework": "PydanticAI"}
         manifest["name"] = agent.name if getattr(agent, "name", None) else "PydanticAI Agent"
@@ -370,13 +346,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "model_settings"):
             manifest["model_settings"] = load_data_value(agent.model_settings)
 
-        # Instructions: shipped ``instructions`` (string) + shipped ``system_prompts`` (list); the runtime
-        # resolvers go in the additive ``extra_instructions`` bucket (dynamics only).
+        # Static text -> shipped ``instructions``/``system_prompts``; dynamic resolvers -> extra_instructions.
         static_instructions, dynamic_instructions = _collect_instructions(agent)
         dynamic_system_prompts = _collect_dynamic_system_prompts(agent)
-        # Join multiple static instruction strings with ``\n`` to mirror pydantic-ai's own renderer
-        # (``agent.__init__``: ``"\n".join(literal_parts)``); a space would be a separator the framework
-        # never produces and would collapse ``["a b"]`` and ``["a", "b"]`` to the same string.
+        # ``\n`` join mirrors pydantic-ai's own renderer; a space would collapse ``["a b"]`` and ``["a","b"]``.
         instructions_text = "\n".join(t for t in static_instructions if t)
         manifest["instructions"] = instructions_text or None
         if hasattr(agent, "_system_prompts"):
@@ -391,14 +364,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if capabilities:
             manifest["capabilities"] = capabilities
 
-        # Other additive sections (flat; pydantic-real fields only).
-        # Handoffs preserve registration order (semantic; openai_agents is also unsorted); any display
-        # reordering is a backend concern, not the SDK's.
+        # Additive sections. Registration order is preserved (semantic, e.g. guardrails are a pipeline);
+        # reordering is a backend concern.
         handoffs = self._get_agent_handoffs(agent)
         if handoffs:
             manifest["handoffs"] = handoffs
-        # Output validators run as a chained pipeline (each receives the previous validator's output), so
-        # their order is semantic, so preserve registration order; do NOT sort.
         guardrails = self._get_guardrails(agent)
         if guardrails:
             manifest["guardrails"] = guardrails
@@ -427,11 +397,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _build_extra_instructions(
         self, dynamic_instructions: list[Any], dynamic_system_prompts: list[Any]
     ) -> list[dict[str, Any]]:
-        """Additive ordered bucket of DYNAMIC prompt resolvers only: ``dynamic_instructions`` then
-        ``dynamic_system_prompt``; each ``{type, content:{name, source_hash?, reevaluated}}``.
-
-        The static instruction text stays in the shipped ``instructions`` (string) and static system prompts
-        in the shipped ``system_prompts`` (list); this bucket carries the resolvers only. Order preserved.
+        """Ordered bucket of DYNAMIC prompt resolvers (``dynamic_instructions`` then ``dynamic_system_prompt``),
+        each ``{type, content:{name, source_hash?, reevaluated}}``. Static text stays in the shipped
+        ``instructions``/``system_prompts``; order preserved.
         """
         entries: list[dict[str, Any]] = []
         for kind, pairs in (
@@ -445,13 +413,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return entries
 
     def _build_capabilities(self, agent: Any) -> list[dict[str, Any]]:
-        """Unified capability list: function tools / builtins / MCP servers / custom toolsets, each
-        ``{name, type, description?, content}``. Emitted in assembly order (function tools in registration
-        order, then builtins / MCP / custom); canonical ordering is a backend concern.
+        """Unified capability list (function tools / builtins / MCP servers / custom toolsets), each
+        ``{name, type, description?, content}`` in assembly order.
 
-        Function tools are captured as ``type: "tool"``. pydantic-ai has no first-class sub-agent construct,
-        so agent-to-sub-agent delegation is NOT inferred here (that lived in an unsound bytecode/closure
-        heuristic); the delegation is observable in the trace's nested agent span instead.
+        pydantic-ai has no sub-agent construct, so delegation is not inferred; it is observable in the
+        trace's nested agent span. Function tools are ``type: "tool"``.
         """
         capabilities: list[dict[str, Any]] = []
         for name, tool_instance, _fn in _iter_agent_tools(agent):
@@ -475,9 +441,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return capabilities
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """The shipped flat ``tools`` list: ``{name, description?, parameters}`` in registration order
-        (semantic, NOT sorted). Kept for backward compatibility alongside the unified ``capabilities``; a
-        function tool therefore appears in both (accepted duplication). Delegating tools stay here too.
+        """Shipped flat ``tools`` list ``{name, description?, parameters}`` in registration order, kept for
+        backward compatibility. A function tool also appears in ``capabilities`` (accepted duplication).
         """
         tools: list[dict[str, Any]] = []
         for tool_name, tool_instance, _fn in _iter_agent_tools(agent):
@@ -490,17 +455,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _describe_functions(fns: list[Any]) -> list[dict[str, Any]]:
-        """Describe each function as ``{name, source_hash?}``, the single descriptor shape shared by every
-        function-bearing field (dynamic prompt resolvers, guardrails, memory policies, tool transforms).
+        """Describe each function as ``{name, source_hash?}`` (the shared descriptor shape).
 
-        AIDEV-NOTE: we hash ``inspect.getsource`` instead of shipping it. The hash is change-detection for
-        versioning WITHOUT putting the function body on the span, an IP/secret exposure that cannot be
-        scrubbed the way ``_redact_mcp_uri`` scrubs a URL. ``signature`` and ``doc`` are both carved out of
-        that same source, so emitting them would re-expose slices of exactly what the hash protects; they
-        are intentionally dropped. ``source_hash`` is fixed-size, so this field needs no byte cap. NOTE for
-        consumers: ``getsource`` includes the decorator line + leading indentation, so the hash changes on
-        cosmetic reformatting (a conservative "did the text change" signal) and is NOT comparable across
-        call sites; do not treat it as a semantic fingerprint.
+        AIDEV-NOTE: hash ``inspect.getsource`` instead of shipping the body: change-detection for versioning
+        without leaking code/secrets (which can't be scrubbed like a URL). ``signature``/``doc`` are dropped
+        for the same reason. The hash covers the decorator + indentation, so it moves on reformatting and is
+        not comparable across call sites; not a semantic fingerprint.
         """
         described: list[dict[str, Any]] = []
         for fn in fns:
@@ -517,11 +477,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _get_history_processors(cls, agent: Any) -> list[dict[str, Any]]:
-        """Describe the agent's message-history processors: its memory / history policy.
+        """Describe the agent's message-history processors (its memory policy).
 
-        ``agent.history_processors`` is a public list of bare callables (verified 0.8.1 / 1.0.0 / 1.63.0),
-        so no ``.function`` unwrap is needed. Order is preserved (semantic): ``[trim, summarize]`` differs
-        from ``[summarize, trim]``.
+        ``agent.history_processors`` is a public list of bare callables (no ``.function`` unwrap); order
+        preserved (``[trim, summarize]`` != ``[summarize, trim]``).
         """
         processors = getattr(agent, "history_processors", None) or []
         fns = _dedupe_by_id([fn for fn in processors if callable(fn)])
@@ -550,8 +509,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         ``tool_retries`` is the distinct per-tool retry budget (``_max_tool_retries``).
         """
         settings: dict[str, Any] = {}
-        # pydantic-ai >1.63.0 renamed ``_max_result_retries`` -> ``_max_output_retries``; read the
-        # successor when the old name is absent.
+        # >1.63.0 renamed _max_result_retries -> _max_output_retries; fall back to the successor.
         retries = getattr(agent, "_max_result_retries", None)
         if not isinstance(retries, int):
             retries = getattr(agent, "_max_output_retries", None)
@@ -570,12 +528,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return settings
 
     def _get_agent_output_type(self, agent: Any) -> dict[str, Any]:
-        """Build ``output_type`` ``{name, schema?}`` from ``agent.output_type`` (callables go to ``handoffs``).
+        """``output_type`` ``{name, schema?}`` from ``agent.output_type`` (callables go to ``handoffs``).
 
-        A multi-output union (e.g. ``output_type=[Fruit, Vehicle]`` or ``NativeOutput([Fruit, Vehicle])``) is
-        captured in full: ``name`` joins the member names and ``schema`` is the union's JSON schema
-        (``anyOf``), so a change to any alternative (or adding/removing one) is reflected instead of
-        collapsing to the first. Member order is preserved.
+        A multi-output union (``[Fruit, Vehicle]`` / ``NativeOutput([...])``) is captured in full: ``name``
+        joins the members and ``schema`` is the union ``anyOf``, so any alternative change is reflected.
         """
         if not hasattr(agent, "output_type"):
             return {}
@@ -613,11 +569,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return schema
 
     def _get_guardrails(self, agent: Any) -> list[dict[str, Any]]:
-        """Describe the agent's output guardrails (``@agent.output_validator`` -> ``agent._output_validators``).
-
-        Each ``OutputValidator`` wraps the user function in ``.function``; describe it as ``{name, source_hash?}``
-        (see the AIDEV-NOTE on ``_describe_functions`` re: hashing the source rather than shipping it).
-        Output validators run as a chained pipeline, so registration order is semantic and is preserved (NOT sorted).
+        """Describe output guardrails (``@agent.output_validator`` -> ``agent._output_validators``), each
+        ``{name, source_hash?}`` (see ``_describe_functions``). Validators are a chained pipeline, so order
+        is semantic and preserved (not sorted).
         """
         validators = getattr(agent, "_output_validators", None) or []
         fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
@@ -662,8 +616,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset/MCP-server name: the user-set ``id`` else the class name.
 
-        AIDEV-NOTE: never read ``label``; ``MCPServer.label`` falls back to ``repr(self)``, which embeds
-        the connection config (URL userinfo/query secrets, stdio ``command``/``args``), bypassing ``_redact_mcp_uri``.
+        AIDEV-NOTE: never read ``label``; it falls back to ``repr(self)``, leaking the connection config
+        (URL secrets, stdio command/args) past ``_redact_mcp_uri``.
         """
         return getattr(toolset, "id", None) or type(toolset).__name__
 
@@ -700,12 +654,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return custom
 
     def _get_agent_handoffs(self, agent: Any) -> list[dict[str, Any]]:
-        """List every output-function callable in ``agent.output_type`` as a handoff.
+        """Output-function callables in ``agent.output_type``, each ``{tool_name, handoff_description?}``.
 
-        Entry ``{tool_name, handoff_description?}``: ``tool_name`` is the output function and
-        ``handoff_description`` the routing text. No ``agent_name``: pydantic exposes no reliable static link
-        from an output function to a target agent, so it is not inferred (the delegation is observable in the
-        trace's nested agent span).
+        No ``agent_name``: pydantic exposes no reliable static link to a target agent, so it is not inferred
+        (delegation is observable in the trace's nested agent span).
         """
         if not hasattr(agent, "output_type"):
             return []

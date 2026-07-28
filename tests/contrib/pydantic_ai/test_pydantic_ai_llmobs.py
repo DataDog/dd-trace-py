@@ -102,13 +102,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no Agent metadata")
     def test_manifest_metadata_is_deep_copied_not_aliased(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: the manifest stores a DEEP copy of ``agent._metadata``, not the live reference.
-
-        The same ``Agent`` is reused across runs and ``_writer._enqueue`` buffers the live event dict
-        until the periodic flush, so aliasing ``_metadata`` (even a shallow ``dict(...)`` copy, which
-        still shares nested containers) would let a later mutation rewrite the already-queued span
-        event. Builder-driven so no model call is needed. Fails if the integration stores
-        ``agent._metadata`` directly or via a shallow copy.
+        """``metadata`` is a deep copy of ``agent._metadata``, not the live reference: the agent is reused and the event
+        dict is buffered until flush, so a shared (even shallow-copied) nested container would let a later mutation
+        rewrite a queued span. Fails if it stores ``_metadata`` directly or shallow-copied.
         """
         agent = pydantic_ai.Agent(
             model="gpt-4o", name="test_agent", metadata={"team": "billing", "nested": {"k": "RUN1"}}
@@ -128,13 +124,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no Agent metadata")
     def test_manifest_metadata_unserializable_is_omitted(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: ``metadata`` that ``safe_json`` cannot serialize is dropped, not stored.
-
-        ``safe_json`` returns ``None`` for a dict with mixed-type keys at one level (``sort_keys``
-        cannot order ``int`` vs ``str``). If such a dict reached the manifest, ``_writer.enqueue``'s
-        unguarded ``len(safe_json(event))`` would raise and the whole agent span would be silently
-        dropped. The manifest must instead omit the field and build without raising. Fails if the
-        integration routes a ``None`` serialization to the store branch.
+        """``metadata`` that ``safe_json`` cannot serialize is omitted, not stored (an unserializable dict would make
+        ``_writer.enqueue`` raise and silently drop the span). Fails if a ``None`` serialization reaches the store
+        branch.
         """
 
         poison_metadata = {"x": {1: "a", "b": 2}}
@@ -146,11 +138,7 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no Agent metadata")
     def test_manifest_empty_metadata_omitted(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: an empty / unset ``metadata`` dict yields no ``metadata`` key.
-
-        Guards the existing ``isinstance(dict) and agent_metadata`` behavior so the copy rework does
-        not start emitting ``metadata`` for an agent with no metadata.
-        """
+        """An empty or unset ``metadata`` dict yields no ``metadata`` key."""
 
         empty_manifest = integration._build_agent_manifest(
             pydantic_ai.Agent(model="gpt-4o", name="test_agent", metadata={})
@@ -183,11 +171,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="builtin tool kinds verified on pydantic-ai >=1.63.0")
     def test_agent_run_with_builtin_capability(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A builtin tool is captured as a typed ``builtin`` entry in the unified ``capabilities`` list.
-
-        Built directly from the constructed agent (no run): a provider-hosted builtin like
-        ``WebSearchTool`` is model-gated at run time (``OpenAIChatModel`` rejects it), but the manifest
-        reads only the configured ``_builtin_tools``, so a run is unnecessary and version-fragile.
+        """A builtin tool is captured as a typed ``builtin`` capability, read from ``_builtin_tools`` on the constructed
+        agent (no run needed).
         """
         from pydantic_ai.builtin_tools import WebSearchTool
 
@@ -198,11 +183,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output_type/markers verified on pydantic-ai >=1.63.0")
     def test_agent_run_with_structured_output_type(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A Pydantic ``BaseModel`` output type is captured as ``output_type`` with a JSON schema.
-
-        Built directly from the constructed agent (no run): a structured ``output_type`` changes the
-        model request shape, which drifts from the recorded cassette across SDK versions. The manifest
-        reads only ``agent.output_type``, so a run is unnecessary and version-fragile.
+        """A Pydantic ``BaseModel`` output type is captured as ``output_type`` with a JSON schema, read from
+        ``agent.output_type`` (no run needed).
         """
         from pydantic import BaseModel
 
@@ -220,12 +202,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output_type verified on pydantic-ai >=1.63.0")
     def test_manifest_output_type_union_captures_all_alternatives(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A multi-output union captures ALL alternatives, not just the first.
-
-        ``output_type=[Fruit, Vehicle]`` previously collapsed to ``Fruit`` (indistinguishable from a single
-        ``Fruit`` output). Now ``name`` joins the members and ``schema`` is the union (``anyOf``), so a
-        change to any alternative (or adding/removing one) is reflected. Output *functions* still route
-        to ``handoffs``, not here. Fails-on-revert: collapse to the first model and the union == single.
+        """A multi-output union captures ALL alternatives: ``name`` joins the members and ``schema`` is the union
+        ``anyOf``, so any alternative change is reflected. Fails-on-revert if it collapses to the first model.
         """
         from pydantic import BaseModel
 
@@ -253,12 +231,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_mcp_capability(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """An MCP toolset is captured as a typed ``mcp`` capability entry.
-
-        MCP servers connect lazily, so we assert the builder output rather than running the agent. An
-        HTTP server (``.url``) carries a scrubbed ``scheme://host`` ``uri``; a stdio server
-        (``.command``) carries NO ``uri`` (its executable basename can be a secret); the ``name``
-        identifies it. The ``mcp`` extra is optional, so skip when it is not installed.
+        """An MCP toolset is captured as a typed ``mcp`` capability: an HTTP server carries a scrubbed ``scheme://host``
+        uri, a stdio server carries none. Builder-driven; skipped when the ``mcp`` extra is absent.
         """
         mcp = pytest.importorskip("pydantic_ai.mcp")
 
@@ -272,14 +246,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_mcp_uri_is_redacted(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: the MCP ``uri`` is an allowlist (``scheme://host[:port]`` only).
-
-        An HTTP URL can carry secrets in userinfo (``user:tok@``), the path (``/sk-.../``), the query
-        (under ANY key, allowlisted or not: ``?api_key=``, ``?pwd=``, ``?x-api-key=``), and the
-        fragment (``#token=``). The emitted ``uri`` keeps only scheme + host (+ port), so none of
-        those survive. A stdio command emits NO ``uri`` at all (its basename can be a secret). Fails
-        if the redactor reverts to a query-key denylist or keeps the path / userinfo / a stdio
-        basename.
+        """Regression: the MCP ``uri`` is an allowlist of ``scheme://host[:port]`` only, dropping
+        userinfo/path/query/fragment secrets; a stdio command emits no uri. Fails if the redactor reverts to a query-
+        key denylist or keeps path/userinfo.
         """
         mcp = pytest.importorskip("pydantic_ai.mcp")
 
@@ -309,12 +278,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_mcp_uri_ipv6_and_scheme_less(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """An IPv6 MCP host stays a valid, re-parseable authority and a scheme-less host:port is kept.
-
-        Regression for two redactor edge cases: an IPv6 literal must be re-bracketed (otherwise the
-        ``host:port`` colons corrupt the authority), and a scheme-less ``host:port/...`` URL must not
-        be mis-routed (it carries a secret query that must still be dropped). Fails if the redactor
-        drops the IPv6 brackets or mis-parses the scheme-less authority.
+        """Redactor edge cases: an IPv6 literal stays re-bracketed (valid authority) and a scheme-less ``host:port`` is
+        parsed without mis-routing (its secret query still dropped). Fails if the brackets are dropped or the
+        authority mis-parsed.
         """
         mcp = pytest.importorskip("pydantic_ai.mcp")
         import urllib.parse
@@ -336,15 +302,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="MCP toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_mcp_capability_name_is_not_credential_bearing(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: an MCP server with no ``id`` must NOT leak its config through the ``name``.
-
-        ``MCPServer.label`` is a property that returns ``repr(self)`` when ``id`` is unset (the
-        default), and that repr embeds the full connection config: an HTTP ``url`` (userinfo + query
-        secrets) or a stdio ``command`` + ``args`` (e.g. ``--token=...``). ``_toolset_name`` must read
-        only ``id`` (here unset) then fall back to the class name (never ``label``/repr), so no
-        secret reaches the capability ``name`` (the redacted ``uri`` carries the host identity). Fails
-        if ``_toolset_name`` reintroduces the ``label`` rung or any raw ``url`` / ``command`` / ``args``
-        read.
+        """Regression: an MCP server with no ``id`` must not leak config via ``name``. ``MCPServer.label`` returns
+        ``repr(self)`` (embedding url/command secrets); ``_toolset_name`` reads ``id`` then class name only. Fails if
+        it reintroduces the ``label`` read.
         """
         mcp = pytest.importorskip("pydantic_ai.mcp")
 
@@ -373,11 +333,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="custom toolsets verified on pydantic-ai >=1.63.0")
     def test_manifest_custom_toolset_name_is_not_credential_bearing(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A custom toolset whose ``repr`` embeds config surfaces only its class name as ``name``.
-
-        ``_get_custom_toolsets`` names a toolset via ``_toolset_name`` (``id`` then class name), so a
-        leaky ``__repr__`` (which ``label``/repr-based naming would have surfaced) never reaches the
-        ``custom`` capability ``name``. Fails if ``_toolset_name`` reintroduces a ``label`` / repr read.
+        """A custom toolset with a config-bearing ``repr`` surfaces only its class name (via ``_toolset_name``). Fails
+        if ``_toolset_name`` reintroduces a ``label``/repr read.
         """
         from pydantic_ai.toolsets import AbstractToolset
 
@@ -408,13 +365,9 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="sub-agent introspection verified on pydantic-ai >=1.63.0"
     )
     def test_manifest_delegating_tool_captured_as_plain_tool(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A tool that delegates to another Agent is captured as a plain ``tool``, NOT inferred as ``sub_agent``.
-
-        pydantic-ai has no first-class sub-agent construct, so the manifest does not infer delegation from a
-        tool body (that was an unsound bytecode/closure heuristic that mislabeled ordinary code); the real
-        delegation is observable in the trace's nested agent span. The delegating tool still appears in both
-        ``tools`` and ``capabilities`` (as ``type: tool``) with its parameter schema, and no capability
-        carries an ``agent_name``. Fails-on-revert if delegation inference is reintroduced.
+        """A tool that delegates to another Agent is captured as a plain ``tool``, not inferred as ``sub_agent``
+        (pydantic has no sub-agent construct; delegation is visible in the trace). No capability carries
+        ``agent_name``. Fails-on-revert if delegation inference returns.
         """
         sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
 
@@ -451,12 +404,9 @@ class TestLLMObsPydanticAI:
     def test_manifest_custom_toolset_tools_not_over_captured_as_function_caps(
         self, pydantic_ai, pydantic_ai_llmobs, integration
     ):
-        """Regression: a custom (non-Function) toolset surfaces ONLY as a ``custom`` capability.
-
-        ``_iter_agent_tools`` reads ``.tools`` only from ``FunctionToolset``s now; a custom toolset (whose
-        ``.tools`` may be absent or a non-dict) is excluded, so its entries are neither double-counted as
-        function ``tool`` caps nor able to crash the manifest build on ``.items()``, which, since the
-        manifest is built inside ``_llmobs_set_tags_agent``, would otherwise blank the whole agent span.
+        """Regression: a custom (non-Function) toolset surfaces only as a ``custom`` capability. ``_iter_agent_tools``
+        reads ``.tools`` only from ``FunctionToolset``s, so a non-dict ``.tools`` neither double-counts as function
+        caps nor crashes the build on ``.items()`` (which would blank the span).
         """
         from pydantic_ai.toolsets import AbstractToolset
         from pydantic_ai.toolsets import FunctionToolset
@@ -492,11 +442,8 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="output-function handoffs verified on pydantic-ai >=1.63.0"
     )
     def test_manifest_handoff_from_output_function(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """An output-function callable is captured as a ``handoff`` with its docstring as the description.
-
-        The callable is partitioned out of ``output_type`` (empty here) and into ``handoffs``. No
-        ``agent_name``: the target is not inferred (pydantic exposes no reliable static link), so the entry
-        is just ``{tool_name, handoff_description}``.
+        """An output-function callable is captured as a ``handoff`` ``{tool_name, handoff_description}`` (its docstring
+        is the description). No ``agent_name``: the target is not inferred.
         """
         sub_worker = pydantic_ai.Agent(model="gpt-4o", name="sub_worker")
 
@@ -514,13 +461,9 @@ class TestLLMObsPydanticAI:
         ]
 
     def test_manifest_build_failure_does_not_blank_agent_span(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: a manifest-build exception degrades to no-manifest, NOT a blanked agent span.
-
-        ``_build_agent_manifest`` does a lot (closure walks, ``inspect.getsource``, ``model_json_schema``), so
-        it can raise. It is now called AFTER the name/input/output annotation in ``_llmobs_set_tags_agent``,
-        so those survive even when the manifest raises (``llmobs_set_tags`` logs and bails on the raise, so
-        anything annotated before it persists). Fails-on-revert: move the ``_tag_agent_manifest`` call back
-        above the annotation and the name/input/output are lost when the manifest raises.
+        """Regression: a manifest-build exception degrades to no-manifest, not a blanked span. ``_tag_agent_manifest``
+        runs AFTER the name/input/output annotation, so those survive the raise. Fails-on-revert if the call moves
+        back above the annotation.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
 
@@ -558,12 +501,9 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output markers verified on pydantic-ai >=1.63.0")
     def test_manifest_output_marker_functions_route_to_handoffs(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: ``NativeOutput`` / ``PromptedOutput`` / ``TextOutput`` wrapping a callable.
-
-        Each wraps the target under a different attribute (``.outputs`` / ``.outputs`` /
-        ``.output_function``) than ``ToolOutput`` (``.output``). The callable must land in
-        ``handoffs`` and ``output_type`` must NOT be a ``repr``-of-marker string (which embeds a
-        non-deterministic memory address). Fails if the marker unwrap only reads ``.output``.
+        """``NativeOutput``/``PromptedOutput``/``TextOutput`` wrap a callable under ``.outputs``/``.output_function``
+        (not ``ToolOutput``'s ``.output``): the callable routes to ``handoffs`` and ``output_type`` is not a repr-of-
+        marker string. Fails if the unwrap only reads ``.output``.
         """
         from pydantic_ai.output import NativeOutput
         from pydantic_ai.output import PromptedOutput
@@ -590,10 +530,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output markers verified on pydantic-ai >=1.63.0")
     def test_manifest_output_marker_model_keeps_schema(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """``NativeOutput`` / ``PromptedOutput`` wrapping a model keep the schema (no handoff).
-
-        Confirms the unwrap reads ``.outputs`` for the structured (model) case too; otherwise the
-        model would be dropped from ``output_type`` entirely.
+        """``NativeOutput``/``PromptedOutput`` wrapping a model keep the schema (no handoff); confirms the unwrap reads
+        ``.outputs`` for the model case too.
         """
         from pydantic import BaseModel
         from pydantic_ai.output import NativeOutput
@@ -611,15 +549,10 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="output_type verified on pydantic-ai >=1.63.0")
     def test_manifest_dataclass_output_type_with_marker_field_names(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: a non-marker ``output_type`` whose members collide with marker attr names.
-
-        ``ToolOutput``/``NativeOutput``/``PromptedOutput``/``TextOutput`` wrap their target under
-        ``output`` / ``outputs`` / ``output_function``. Those names are NOT exclusive to the markers,
-        so a plain dataclass/NamedTuple/Enum with a member of the same name was duck-typed as a
-        marker, emitting the field DEFAULT (or a descriptor repr / ``Enum.member``) as the type
-        ``name`` and losing the class name, or fabricating a handoff from a callable default and a
-        ``description`` field. Fails if ``_marker_target`` reads the attr before an ``isinstance``
-        gate. ``_get_agent_output_type`` must name the class itself and emit no handoff.
+        """Regression: a plain dataclass/NamedTuple/Enum whose members collide with marker attr names
+        (``output``/``outputs``/``output_function``) must not be duck-typed as a marker. ``_marker_target`` gates on
+        ``isinstance`` first; the class is named and no handoff is fabricated. Fails if the attr is read before the
+        gate.
         """
         from dataclasses import dataclass
         from enum import Enum
@@ -658,10 +591,9 @@ class TestLLMObsPydanticAI:
         PYDANTIC_AI_VERSION < (1, 63, 0), reason="dynamic instructions verified on pydantic-ai >=1.63.0"
     )
     async def test_agent_run_with_dynamic_instructions(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """A dynamic (callable) instructions function is captured in the additive ``extra_instructions``
-        list as a ``{type: dynamic_instructions, content: {...}}`` entry whose ``content`` is a descriptor
-        (name / source_hash / reevaluated); the frozen ``instructions`` key stays a string|None (here None --
-        no static text).
+        """A dynamic (callable) instructions function is captured in ``extra_instructions`` as a ``{type:
+        dynamic_instructions, content:{name, source_hash?, reevaluated}}`` entry; the frozen ``instructions`` key
+        stays str|None (None here, no static text).
         """
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -691,8 +623,8 @@ class TestLLMObsPydanticAI:
     def test_manifest_restores_system_prompts_and_omits_dependencies(
         self, pydantic_ai, pydantic_ai_llmobs, integration
     ):
-        """A static ``system_prompt`` is captured in the ``system_prompts`` list, while a ``dependencies``
-        field is not emitted; the dependency type surfaces under ``agent_settings.deps_type`` instead.
+        """A static ``system_prompt`` is captured in ``system_prompts``; no ``dependencies`` key is emitted (the dep
+        type surfaces under ``agent_settings.deps_type``).
         """
 
         class SupportDeps:
@@ -710,15 +642,9 @@ class TestLLMObsPydanticAI:
         assert manifest["agent_settings"].get("deps_type") == "SupportDeps"
 
     def test_manifest_captures_dynamic_instructions_all_versions(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression (whole matrix): a dynamic ``@agent.instructions`` function is captured on EVERY
-        pydantic-ai version.
-
-        This is the load-bearing version-drift test. On >=1.63.0 the callable lives in the
-        ``agent._instructions`` list; on <1.63.0 it lives in ``agent._instructions_functions`` (a
-        ``SystemPromptRunner`` the collector unwraps via ``.function``). The pre-enrichment code read only
-        ``agent._instructions``, so it silently missed the function on 0.8.1 / 1.0.0. Builder-driven (no
-        cassette) so it runs on the full pin matrix. Fails if the collector stops reading
-        ``_instructions_functions``.
+        """Version-drift load-bearer: a dynamic ``@agent.instructions`` function is captured on every pin. It lives in
+        ``_instructions`` (>=1.63.0) or ``_instructions_functions`` (<1.63.0); the pre-enrichment code read only the
+        former and missed it on 0.8.1/1.0.0. Fails if the collector stops reading ``_instructions_functions``.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
 
@@ -734,13 +660,9 @@ class TestLLMObsPydanticAI:
         assert manifest["instructions"] is None
 
     def test_manifest_captures_static_and_dynamic_system_prompts(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A static ``system_prompt`` plus a dynamic ``@agent.system_prompt`` function are BOTH captured.
-
-        Builder-driven (runs on every pin: ``_system_prompts`` / ``_system_prompt_functions`` are stable
-        across versions). The static string lands in the frozen ``system_prompts`` list and the dynamic
-        function is described as a ``{type: dynamic_system_prompt, content: {...}}`` entry in the additive
-        ``extra_instructions`` list (carrying ``reevaluated``); single-homed, so the source is not
-        mirrored into the static string.
+        """A static ``system_prompt`` and a dynamic ``@agent.system_prompt`` are both captured: the static string in
+        ``system_prompts``, the dynamic fn as a ``dynamic_system_prompt`` entry in ``extra_instructions``. Single-
+        homed (source not mirrored into the static string). Builder-driven.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", system_prompt="You are a bot.")
 
@@ -762,12 +684,8 @@ class TestLLMObsPydanticAI:
         assert "def dynamic_system_prompt" not in " ".join(manifest["system_prompts"])
 
     def test_manifest_prompt_source_is_hashed_not_emitted(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """The function source is HASHED, never emitted, so its size is irrelevant (a hash is fixed-size)
-        and the raw body never rides the span.
-
-        Even a 100k-char source yields only a 64-char ``source_hash`` and no ``source`` key, since a hash
-        is fixed-size and cannot overflow the event. Fails-on-revert if the builder ever stores the raw
-        source again.
+        """The function source is hashed, never emitted: a 100k-char source yields only a 64-char ``source_hash`` and no
+        ``source`` key. Fails-on-revert if the builder stores the raw source again.
         """
 
         def dynamic_instructions(ctx) -> str:
@@ -783,12 +701,9 @@ class TestLLMObsPydanticAI:
         assert described[0]["source_hash"] == hashlib.sha256(oversized_source.encode("utf-8")).hexdigest()
 
     def test_manifest_prompt_source_unavailable_omits_hash(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: a function with no retrievable source degrades to a name-only descriptor.
-
-        ``inspect.getsource`` raises ``OSError`` (source file gone / REPL-defined) or ``TypeError``
-        (C-implemented / builtin); a lambda from a live REPL is the canonical case. The descriptor must
-        still emit the ``name`` with NO ``source_hash``; never raise, never emit a partial. Fails if the
-        ``getsource`` guard is removed.
+        """A function with no retrievable source (``getsource`` raises ``OSError``/``TypeError``: lambda, REPL,
+        C-implemented) degrades to a name-only descriptor: ``name`` present, no ``source_hash``, no raise. Fails if
+        the ``getsource`` guard is removed.
         """
 
         def dynamic_instructions(ctx) -> str:
@@ -804,12 +719,9 @@ class TestLLMObsPydanticAI:
         assert "source" not in descriptor
 
     def test_manifest_unnamed_callable_recovers_identity_not_faked(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """A callable with no ``__name__`` is named by its recoverable identity, never a faked constant.
-
-        ``functools.partial`` and callable-class instances have no ``__name__`` and no retrievable source, so
-        the old ``or "function"`` fallback collapsed every such callable to one indistinguishable descriptor,
-        defeating change-detection and contradicting the "never faked" rule. The name is now recovered from
-        the partial's wrapped ``func.__name__`` or the instance's class. Fails-on-revert if a constant returns.
+        """A callable with no ``__name__`` (``functools.partial``, callable instance) is named by recoverable identity
+        (``func.__name__`` or the class), never a faked constant that collapses distinct callables. Fails-on-revert
+        if a constant placeholder returns.
         """
         import functools
 
@@ -838,13 +750,9 @@ class TestLLMObsPydanticAI:
     def test_manifest_mixed_instructions_list_splits_static_and_dynamic(
         self, pydantic_ai, pydantic_ai_llmobs, integration
     ):
-        """Regression (>=1.63.0 only): ``agent._instructions`` is a list mixing a static string with a raw
-        callable; the collector splits them and de-dupes the callable.
-
-        On >=1.63.0 the dynamic function is stored directly in the ``_instructions`` list (not in
-        ``_instructions_functions``, which is absent). The static string must land in the primary
-        ``instructions`` text and the callable must be described exactly once. No current SDK version
-        dual-stores a dynamic instruction, so the ``id``-based de-dupe is defensive; fails if the list-split breaks.
+        """Regression (>=1.63.0): ``_instructions`` is a list mixing a static string and a raw callable; the collector
+        routes the string to ``instructions`` and describes the callable once in ``extra_instructions``. Fails if the
+        list-split breaks.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", instructions="You are a helpful assistant.")
 
@@ -867,28 +775,17 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="multi-element static instructions list is >=1.63.0")
     def test_manifest_multi_static_instructions_joined_with_newline(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Multiple static instruction strings join with a newline (pydantic-ai's own separator), not a space.
-
-        The framework renders static instruction literals with a newline join (``agent.__init__``), so
-        mirroring it keeps the captured text faithful: ``["a b"]`` and ``["a", "b"]`` stay distinguishable.
-        Fails-on-revert if the join uses a space (a separator the framework never produces, which collapses
-        those two).
+        """Multiple static instruction strings join with a newline (pydantic-ai's own separator), not a space, so ``["a
+        b"]`` and ``["a", "b"]`` stay distinguishable. Fails-on-revert if the join uses a space.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", instructions=["You are helpful.", "Be concise."])
         manifest = integration._build_agent_manifest(agent)
         assert manifest["instructions"] == "You are helpful.\nBe concise."
 
     def test_manifest_agent_settings_retries_version_tolerant(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Regression: ``retries`` survives the post-1.63.0 rename of ``_max_result_retries``.
-
-        pydantic-ai <=1.63.0 stores the output-retry budget on ``_max_result_retries``; >1.63.0
-        removed that name and stores it on ``_max_output_retries`` (verified on 1.107.0). Runs on
-        every pin: construct ``retries=2`` (both names, where present, are 2), then simulate the
-        post-rename shape by removing ``_max_result_retries`` while leaving ``_max_output_retries``
-        set, and assert the builder still emits ``retries == 2``. Fails against an
-        ``_max_result_retries``-only read (the key would silently vanish on >1.63.0). ``retries`` is the
-        OUTPUT budget; the distinct per-tool budget ``_max_tool_retries`` is emitted separately as
-        ``tool_retries``; a divergent value is set here to prove the two are never crossed.
+        """Regression: ``retries`` survives the >1.63.0 rename ``_max_result_retries`` -> ``_max_output_retries`` (reads
+        the successor when the old name is absent). ``tool_retries`` is the distinct per-tool budget, set divergently
+        here to prove the two are never crossed. Fails against a ``_max_result_retries``-only read.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", retries=2)
         # Sanity: the unmodified agent already reports the ctor retries on the current pin.
@@ -911,9 +808,8 @@ class TestLLMObsPydanticAI:
         assert settings["tool_retries"] == 7, settings
 
     def test_manifest_top_level_shape(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """The manifest's top-level shape is flat: identity + model + ``instructions`` (str) / ``tools``
-        (list) + the ``capabilities`` list + ``output_type`` + a flat ``agent_settings``, with no grouped
-        ``behaviors`` key and no ``definition`` wrapper. Builder-driven.
+        """The manifest is flat: identity + model + ``instructions``/``tools`` + ``capabilities`` + ``output_type`` +
+        flat ``agent_settings``, with no grouped ``behaviors`` key or ``definition`` wrapper.
         """
         agent = pydantic_ai.Agent(
             model="gpt-4o", name="test_agent", instructions="You are helpful.", tools=[calculate_square_tool]
@@ -943,11 +839,9 @@ class TestLLMObsPydanticAI:
         assert "definition" not in manifest
 
     def test_manifest_additive_over_shipped_contract(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """The manifest is additive over the previously shipped manifest: the shipped ``instructions``
-        (str|None) / ``system_prompts`` (list/tuple) / ``tools`` (flat list, always present) keep their
-        exact name + type, so existing consumers see no change. The ``capabilities`` list is a sibling of
-        the flat ``tools`` list (it never replaces it), and no grouped ``behaviors`` key is emitted.
-        Builder-driven so it runs on every pin; checks a minimal and a rich agent.
+        """Additive over the shipped manifest: ``instructions`` (str|None) / ``system_prompts`` (list) / ``tools``
+        (always present) keep their exact name and type, and ``capabilities`` is a sibling of ``tools`` (never a
+        replacement). Checks a minimal and a rich agent.
         """
         from pydantic import BaseModel
 
@@ -983,11 +877,8 @@ class TestLLMObsPydanticAI:
         assert "capabilities" not in integration._build_agent_manifest(minimal)
 
     def test_manifest_captures_guardrails(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """``@agent.output_validator`` functions are captured as ``guardrails`` with ``{name, source_hash}``
-        descriptors, so a change to a validator is detectable via the hash.
-
-        Output validators run as a chained pipeline (each receives the previous validator's output), so
-        their order is semantic and is preserved as registered, not sorted.
+        """``@agent.output_validator`` functions are captured as ``guardrails`` ``{name, source_hash}``. Validators
+        chain (each sees the prior's output), so order is semantic and preserved as registered, not sorted.
         """
         agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
 
@@ -1009,9 +900,8 @@ class TestLLMObsPydanticAI:
         assert_source_hash(guardrails["strip_pii"])
 
     def test_manifest_guardrails_order_is_preserved(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """Output validators chain (each sees the prior's output), so guardrail order is SEMANTIC and must
-        NOT be sorted: registering in reversed order yields a different manifest. Fails-on-revert if the
-        guardrails list is sorted.
+        """Guardrail order is semantic (validators chain), so reversed registration yields a different manifest. Fails-
+        on-revert if the guardrails list is sorted.
         """
 
         def alpha(ctx, output):
@@ -1030,8 +920,8 @@ class TestLLMObsPydanticAI:
         assert names_for([bravo, alpha]) == ["bravo", "alpha"]
 
     def test_manifest_captures_tool_transforms(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """``prepare_tools`` / ``prepare_output_tools`` are captured as ``tool_transforms`` with a ``scope``
-        (they rewrite the tool set per run, so they are part of the definition).
+        """``prepare_tools``/``prepare_output_tools`` are captured as ``tool_transforms`` with a ``scope`` (they rewrite
+        the tool set per run, part of the definition).
         """
 
         async def prepare_tools(ctx, tool_defs):
@@ -1053,11 +943,8 @@ class TestLLMObsPydanticAI:
         assert scopes == {"prepare_tools": "tools", "prepare_output_tools": "output_tools"}
 
     def test_manifest_history_processors_captured(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """An agent's ``history_processors`` (its memory / history policy) are captured under the flat
-        ``memory_policies`` key (the canonical cross-framework name) and described like any prompt function.
-
-        Builder-driven: ``agent.history_processors`` is a public list of bare callables on every supported
-        version (0.8.1 / 1.0.0 / 1.63.0), so no cassette and no ``.function`` unwrap are needed.
+        """``history_processors`` (the memory policy) are captured under the flat ``memory_policies`` key and described
+        like any prompt function. Builder-driven: bare callables on every pin, no ``.function`` unwrap needed.
         """
 
         def keep_last_message(messages):
@@ -1082,8 +969,8 @@ class TestLLMObsPydanticAI:
         assert "memory_policies" not in integration._build_agent_manifest(agent)
 
     def test_manifest_history_processors_order_is_preserved(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """History processors run as a pipeline, so their order is SEMANTIC and must NOT be sorted:
-        reversing the registration order yields a different manifest (unlike ``tools``).
+        """History processors run as a pipeline, so order is semantic: reversed registration yields a different
+        manifest. Must not be sorted.
         """
 
         def alpha(messages):
@@ -1102,8 +989,8 @@ class TestLLMObsPydanticAI:
         assert [p["name"] for p in m_ba["memory_policies"]] == ["beta", "alpha"]
 
     def test_manifest_tools_preserve_registration_order(self, pydantic_ai, pydantic_ai_llmobs, integration):
-        """The ``tools`` list preserves registration order; it is NOT sorted. Two agents registering the
-        same tools in reversed order therefore produce different ``tools`` orderings. Builder-driven.
+        """The ``tools`` list preserves registration order (not sorted): reversed registration yields a different
+        ordering.
         """
         manifest_ab = integration._build_agent_manifest(
             pydantic_ai.Agent(model="gpt-4o", name="test_agent", tools=[calculate_square_tool, foo_tool])
@@ -1130,9 +1017,8 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.parametrize("delta", [False, True])
     async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, delta):
-        """
-        delta determines whether each chunk represents the entire output up to the current point or just the
-        delta from the previous chunk
+        """``delta`` selects whether each chunk is the full output so far or just the increment from the
+        previous chunk.
         """
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
@@ -1333,8 +1219,8 @@ class TestLLMObsPydanticAI:
     async def test_agent_message_history_sets_input_value(
         self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, invoke
     ):
-        """INPUT_VALUE is taken from message_history when no user_prompt is passed, across run /
-        run_stream / iter. Each extracts output differently, but the input-from-history behavior is shared.
+        """INPUT_VALUE comes from ``message_history`` when no ``user_prompt`` is passed, across run / run_stream / iter
+        (output extraction differs; input-from-history is shared).
         """
         from pydantic_ai.messages import ModelRequest
         from pydantic_ai.messages import UserPromptPart
@@ -1382,11 +1268,8 @@ class TestLLMObsPydanticAI:
         )
 
     async def test_agent_run_with_unserializable_model_settings(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """Regression test: agent.model_settings containing non-JSON-serializable provider
-        sentinel values must not crash span submission.
-
-        Uses FunctionModel to avoid OpenAI SDK serialization, which would reject the
-        sentinel before our span-tagging code ever runs.
+        """Regression: ``model_settings`` with non-JSON-serializable provider sentinels must not crash span submission.
+        Uses ``FunctionModel`` to avoid OpenAI SDK serialization rejecting the sentinel first.
         """
         from pydantic_ai.messages import ModelResponse
         from pydantic_ai.messages import TextPart
@@ -1446,11 +1329,8 @@ class _UnserializableSentinel:
 
 
 def test_model_settings_unserializable_values_are_coerced():
-    """Regression test: ``agent.model_settings`` may hold provider sentinels (e.g.
-    OpenAI's ``Omit``/``NOT_GIVEN`` for unset params). The agent manifest is written to
-    the span's meta_struct, so storing these raw crashed the agentless trace encoder at
-    span finish (``TypeError: Object of type Omit is not JSON serializable``). They must
-    be coerced to JSON-safe values while serializable settings are preserved.
+    """Regression: non-JSON-serializable ``model_settings`` sentinels (OpenAI ``Omit``/``NOT_GIVEN``) are coerced to
+    JSON-safe values, not stored raw (which crashed the trace encoder at span finish).
     """
     raw = {"temperature": _UnserializableSentinel(), "max_tokens": 100}
     # This is what used to be stored raw on the span and crash encoding.
