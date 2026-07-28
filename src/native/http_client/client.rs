@@ -20,8 +20,31 @@ use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
 #[cfg(not(unix))]
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, pybacked::PyBackedBytes};
-use std::{sync::Arc, sync::OnceLock, time::Duration};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::{sync::Arc, sync::OnceLock, thread, time::Duration};
 use url::Url;
+
+/// Run `f`, retrying once on a fresh thread if it panics.
+///
+/// AIDEV-NOTE: this exists for requests issued at interpreter shutdown. Some
+/// embedders tear down their threads *before* Python runs its `atexit` hooks,
+/// so a request made from such a hook runs on a thread whose thread-local
+/// storage is already destroyed, and `Runtime::block_on` panics with "The Tokio
+/// context thread-local variable has been destroyed". A freshly spawned thread
+/// has intact thread-local storage, so re-running the call there succeeds. Same
+/// workaround as `SharedRuntimePy::shutdown_in_thread`.
+///
+/// A scoped thread is used so `f` can keep borrowing the client. The retry is
+/// only paid on the panic path; if it panics again the panic is propagated.
+fn block_on_resilient<T: Send>(f: impl Fn() -> T + Send + Sync) -> T {
+    match catch_unwind(AssertUnwindSafe(&f)) {
+        Ok(out) => out,
+        Err(_) => thread::scope(|s| match s.spawn(f).join() {
+            Ok(out) => out,
+            Err(panic) => resume_unwind(panic),
+        }),
+    }
+}
 
 /// Install the ring crypto provider once.
 ///
@@ -106,7 +129,11 @@ impl HttpClientPy {
         // `Result<HttpResponse, HttpClientError>`. The io::Error only appears if the
         // runtime fails to rebuild a fallback (fork chaos); map it to HttpIoError so
         // callers never see a raw error type leak through.
-        let result = py.detach(move || runtime.block_on(client.send(req)));
+        //
+        // DEV: `req` is cloned per attempt so the call can be retried by
+        // `block_on_resilient`; `HttpRequest` is a cheap, plain-data value.
+        let result =
+            py.detach(move || block_on_resilient(|| runtime.block_on(client.send(req.clone()))));
         match result {
             Ok(Ok(resp)) => Ok(HttpResponsePy::from(resp)),
             Ok(Err(e)) => Err(http_error_to_pyerr(py, e)),
@@ -312,5 +339,43 @@ impl HttpClientPy {
 
     fn __repr__(&self) -> String {
         format!("HTTPClient(base={:?})", self.base)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::block_on_resilient;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
+
+    #[test]
+    fn resilient_returns_first_attempt() {
+        let calls = AtomicUsize::new(0);
+        let out = block_on_resilient(|| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            42
+        });
+        assert_eq!(out, 42);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn resilient_retries_on_another_thread_after_panic() {
+        let caller = thread::current().id();
+        let calls = AtomicUsize::new(0);
+        let out = block_on_resilient(|| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                panic!("the Tokio context thread-local variable has been destroyed");
+            }
+            thread::current().id()
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_ne!(out, caller, "retry must run on a fresh thread");
+    }
+
+    #[test]
+    #[should_panic(expected = "always")]
+    fn resilient_propagates_a_persistent_panic() {
+        block_on_resilient(|| panic!("always"));
     }
 }
