@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Code Security (IAST): This fix scopes ``copy_ranges_from_strings`` and
+    ``copy_and_shift_ranges_from_strings`` to the active request slot, matching the
+    scoped taint read path. Previously these copy helpers resolved the taint map by
+    scanning all request slots, so a concurrent or still-open request could capture the
+    derived taint and the current request would miss the transformed tainted input.
