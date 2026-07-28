@@ -427,15 +427,24 @@ class _ProfilerInstance(service.Service):
         # disabling the in-process collector: doing so would throw away the
         # Python-managed (pymalloc OBJ/MEM) heap profile — which the gotter never
         # produces — and is the regression we explicitly avoid here. We keep the
-        # in-process managed-heap sampler running regardless of arming. The only
-        # residual overlap (the large-object tail of OBJ/MEM that pymalloc
-        # delegates down to glibc ``malloc``) is a size/routing property invisible
-        # at the OBJ/MEM hook point, so it is not domain-separable in-process; it
-        # is handled by backend dedup / runtime hints (see roadmap Phase 2 / 5).
+        # in-process managed-heap sampler running regardless of arming.
+        #
+        # The one residual overlap is the large-object tail of OBJ/MEM that
+        # pymalloc delegates down to glibc ``malloc`` (requests larger than
+        # pymalloc's small-request threshold): those DO hit glibc malloc, so the
+        # gotter already samples them. When armed, we close that overlap at the
+        # producer by telling the in-process sampler to skip those large requests
+        # (see memalloc.set_native_heap_partition), leaving it to sample only the
+        # pool-served small tail. This is set before the collectors start so it is
+        # in effect for the memory collector's whole lifetime. Fail-safe: when the
+        # gotter did not arm, the partition is off and the in-process sampler keeps
+        # sampling all sizes (no behavior change).
+        memalloc.set_native_heap_partition(native_heap_armed)
         if native_heap_armed:
             LOG.debug(
                 "Native heap profiling armed; in-process managed-heap (pymalloc OBJ/MEM) sampling "
-                "continues — the gotter owns only the native/raw glibc malloc domain"
+                "continues for pool-served allocations (<= 512 bytes), while the gotter owns the "
+                "native/raw glibc malloc domain including the large-object managed tail"
             )
 
         collectors = []
