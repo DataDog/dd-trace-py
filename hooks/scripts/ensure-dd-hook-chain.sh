@@ -11,6 +11,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=hook-telemetry.sh
+source "$SCRIPT_DIR/hook-telemetry.sh"
+
 quiet=0
 if [ "${1:-}" = "--quiet" ]; then
   quiet=1
@@ -68,7 +72,9 @@ if [ "$local_abs" != "$repo_hooks_dir" ]; then
   exit 0
 fi
 
+dd_hook_telemetry_hook_chain_bypass "git_hooks_override"
 git config --local --unset-all core.hooksPath
+dd_hook_telemetry_hook_chain_repair
 log "Removed local core.hooksPath=$local_hooks (it bypassed DD secrets scanning)."
 log "Repo hooks still run via global run-local-hooks after dd-git-hooks."
 if [ ! -e "$repo_hooks_dir/pre-commit" ]; then
