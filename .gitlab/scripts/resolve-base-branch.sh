@@ -18,9 +18,7 @@
 # Falls back to "main" whenever the branch can't be determined (e.g. no open
 # PR for the ref, or the GitHub lookup fails), rather than erroring out.
 #
-# Merge-queue runs use devflow's `mq-working-branch-<target>-<sha>` naming (this
-# repo doesn't use GitHub's native merge queue, so `gh-readonly-queue/*` is not
-# handled).
+# Merge-queue runs use devflow's `mq-working-branch-<target>-<sha>` naming.
 #
 # Requires `git`, `curl` and `jq`. For the feature/PR-branch fallback it
 # queries the GitHub REST API directly (rather than shelling out to the `gh`

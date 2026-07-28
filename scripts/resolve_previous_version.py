@@ -14,9 +14,7 @@ means "what shipped right before this" can't be resolved via git ancestry
 (`git describe`, `git merge-base`) - a branch's own tag history simply
 doesn't contain the tags this needs. It has to be a plain version-number
 comparison over every tag in the repo, independent of which branch/commit
-each tag happens to sit on. This module is deliberately CI-agnostic - any job
-that needs "the previous release relative to X" (benchmark baselines,
-changelog diffing, upgrade-path checks, ...) can reuse it.
+each tag happens to sit on.
 
 Every ref belonging to a minor line that hasn't shipped a final release yet
 (a raw branch push, an rc tag, or the eventual final tag) resolves to the
@@ -29,7 +27,7 @@ final releases below it in its own minor) instead resolves to the immediately
 preceding patch, once one exists.
 
 Usage:
-    git tag -l | python3 resolve_previous_version.py <ref>
+    git tag -l | scripts/resolve_previous_version.py <ref>
 
 Where <ref> is one of:
     main            -> latest final (non-prerelease) release, e.g. v4.12.0
@@ -42,6 +40,7 @@ Prints the resolved tag to stdout, or nothing if no suitable tag exists.
 
 import re
 import sys
+import typing as t
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
@@ -50,7 +49,7 @@ from packaging.version import Version
 _BRANCH_RE = re.compile(r"^(\d+)\.(\d+)$")
 
 
-def _parse_tag(tag):
+def _parse_tag(tag: str) -> t.Optional[Version]:
     """Parse a `vX.Y.Z[rcN]` release tag into a comparable Version, or None.
 
     >>> _parse_tag("v4.13.0rc1") < _parse_tag("v4.13.0")
@@ -68,13 +67,13 @@ def _parse_tag(tag):
         return None
 
 
-def _final_releases(tags):
+def _final_releases(tags: list[str]) -> list[tuple[Version, str]]:
     """The (Version, tag) pairs among `tags` that are final (non-prerelease) releases."""
-    parsed = [(_parse_tag(t), t) for t in tags]
-    return [(v, t) for v, t in parsed if v is not None and not v.is_prerelease]
+    parsed = [(_parse_tag(tag), tag) for tag in tags]
+    return [(v, tag) for v, tag in parsed if v is not None and not v.is_prerelease]
 
 
-def latest_final_release(tags):
+def latest_final_release(tags: list[str]) -> t.Optional[str]:
     """The latest final (non-prerelease) tag among `tags`.
 
     >>> latest_final_release(["v3.18.0", "v4.12.0", "v4.13.0rc1"])
@@ -88,7 +87,7 @@ def latest_final_release(tags):
     return max(finals)[1]
 
 
-def _upper_bound(ref):
+def _upper_bound(ref: str) -> Version:
     """A Version greater than every tag that could belong to `ref`.
 
     `ref` is either an exact release tag (its own version is the bound) or a
@@ -110,7 +109,7 @@ def _upper_bound(ref):
     return target
 
 
-def nearest_final_release(tags, ref):
+def nearest_final_release(tags: list[str], ref: str) -> t.Optional[str]:
     """The latest already-shipped final release strictly below `ref`'s version.
 
     Only final releases count as candidates - never rc's - so every rc in an
@@ -135,7 +134,7 @@ def nearest_final_release(tags, ref):
     True
     """
     upper_bound = _upper_bound(ref)
-    lower = [(v, t) for v, t in _final_releases(tags) if v < upper_bound]
+    lower = [(v, tag) for v, tag in _final_releases(tags) if v < upper_bound]
     if not lower:
         return None
     return max(lower)[1]

@@ -16,14 +16,14 @@ set -ex -o pipefail
 # The branch or tag name of the CI run
 UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
 
-# Release branches (e.g. `4.13`) are cut from `main` and never merged back, and
-# final tags are cut on those branches rather than on `main`. That means tag
-# resolution can't be done via git ancestry (`git describe`, which only sees
-# tags reachable from a given commit) - it has to be a plain version-number
-# comparison over every tag in the repo, regardless of which branch/commit
-# each one sits on. See scripts/resolve_previous_version.py.
+# Tags aren't branch-scoped, but make sure this checkout actually has all of
+# them before resolving against them.
+git fetch origin --tags --force
+
+# See scripts/resolve_previous_version.py for why this can't be done via git
+# ancestry.
 resolve_tag() {
-  git tag -l | python3 scripts/resolve_previous_version.py "$1"
+  git tag -l | scripts/resolve_previous_version.py "$1"
 }
 
 # Every branch below except the feature/merge-queue one resolves an actual
@@ -59,7 +59,7 @@ elif [[ "${UPSTREAM_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then
   BASELINE_TAG=$(resolve_tag "${UPSTREAM_BRANCH}")
 
 # If this is a build on a feature branch or merge queue, then try to determine
-# the base branch to compare against, default to `main`
+# the base branch to compare against, defaulting to a merge-base with `main`
 else
   BASELINE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh "${UPSTREAM_BRANCH}")
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
