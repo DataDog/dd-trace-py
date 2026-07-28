@@ -440,6 +440,17 @@ class _ProfilerInstance(service.Service):
         # gotter did not arm, the partition is off and the in-process sampler keeps
         # sampling all sizes (no behavior change).
         memalloc.set_native_heap_partition(native_heap_armed)
+        # One-shot, unambiguous startup line reporting the arming/partition
+        # decision so it can be verified from pod logs without DEBUG. Emitted
+        # exactly once as the profiler starts (never per-sample). When
+        # armed=false the size split is inactive and the in-process sampler
+        # keeps sampling all sizes; the threshold is still reported as the
+        # configured value for clarity.
+        LOG.info(
+            "native heap ownership partition: armed=%s size_threshold_bytes=%d domains=OBJ|MEM",
+            native_heap_armed,
+            512,
+        )
         if native_heap_armed:
             LOG.debug(
                 "Native heap profiling armed; in-process managed-heap (pymalloc OBJ/MEM) sampling "
