@@ -1,7 +1,7 @@
-import enum
 from typing import Any
 
 from ddtrace.debugging._config import er_config as config
+from ddtrace.internal.native import RemoteConfigCapabilities
 
 
 # TODO[gab]: Uncomment this when the feature is ready
@@ -34,8 +34,7 @@ def stop(join: bool = False) -> None:
     SpanExceptionHandler.disable()
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_ENABLE_EXCEPTION_REPLAY = 1 << 39
+APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableExceptionReplay,)
 
 
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:
