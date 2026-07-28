@@ -6,4 +6,5 @@ features:
     experiment ID. Returns a list of ``ExperimentSummary`` objects that include the run status
     and pre-computed aggregate data (eval score distributions, token costs, error rates), so
     CI/CD workflows can compare a run against a baseline commit and gate on the result.
-    Supports automatic cursor-based pagination for large result sets.
+    Results are ordered newest first and paginated automatically; pass ``max_results`` to stop
+    after a given number of experiments instead of fetching the project's whole history.
