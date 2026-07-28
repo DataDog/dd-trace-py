@@ -11,6 +11,10 @@ import threading
 import time
 import typing
 
+
+if typing.TYPE_CHECKING:
+    from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
@@ -124,13 +128,27 @@ class DataDogProvider(AbstractProvider):
             maxsize=65536
         )
 
-        # Check if experimental flagging provider is enabled
-        self._enabled = ffe_config.experimental_flagging_provider_enabled
-        if not self._enabled:
+        # Master gate: the resolved configuration source (stable kill switch +
+        # source selection, with legacy grandfathering). Mirrors dd-trace-js,
+        # where the provider only activates when a delivery source is selected.
+        from ddtrace.internal.openfeature._source_selection import DISABLED
+        from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
+
+        self._active = resolve_configuration_source(ffe_config) != DISABLED
+        if not self._active:
             logger.warning(
-                "openfeature: experimental flagging provider is not enabled, "
-                "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
+                "openfeature: Feature Flagging provider is disabled; set DD_FEATURE_FLAGS_ENABLED=true and "
+                "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE to a supported value to enable it",
             )
+
+        # Legacy experimental flag: an input to source grandfathering (handled in
+        # resolution) and the gate for the existing exposure/evaluation telemetry
+        # writers below, kept unchanged to preserve current telemetry behavior.
+        self._enabled = ffe_config.experimental_flagging_provider_enabled
+
+        # Agentless configuration-source poller; started in initialize() when
+        # agentless is the resolved source and stopped in shutdown().
+        self._configuration_source: typing.Optional["AgentlessConfigurationSource"] = None
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -172,7 +190,7 @@ class DataDogProvider(AbstractProvider):
     def attach(self, on_emit: typing.Callable[..., None]) -> None:
         """Attach OpenFeature event dispatch and register for RC callbacks."""
         super().attach(on_emit)
-        if self._enabled:
+        if self._active:
             _register_provider(self)
 
     def get_provider_hooks(self) -> list[typing.Any]:
@@ -219,26 +237,34 @@ class DataDogProvider(AbstractProvider):
             NOT_READY -> initialize() returns -> RC delivers config -> on_configuration_received()
                       -> READY
         """
-        if not self._enabled:
+        if not self._active:
             return
 
         # Register for RC config callbacks (in initialize, not __init__, so
         # re-initialization after shutdown re-registers the provider)
         _register_provider(self)
 
-        try:
-            # Start the exposure writer for reporting
-            start_exposure_writer()
-        except ServiceStatusError:
-            logger.debug("Exposure writer is already running", exc_info=True)
+        # Start the agentless poller when agentless is the resolved source
+        # (no-op otherwise). Mirrors dd-trace-js starting the source from the
+        # provider lifecycle rather than at tracer init.
+        self._start_configuration_source()
 
-        # Start the EVP flagevaluation writer (if enabled via killswitch).
-        if self._flag_eval_evp_writer is not None:
+        # Telemetry writers remain gated on the legacy experimental flag to
+        # preserve current exposure/evaluation reporting behavior.
+        if self._enabled:
             try:
-                self._flag_eval_evp_writer.start()
-                logger.debug("FlagEvaluationWriter started")
+                # Start the exposure writer for reporting
+                start_exposure_writer()
             except ServiceStatusError:
-                logger.debug("FlagEvaluationWriter is already running", exc_info=True)
+                logger.debug("Exposure writer is already running", exc_info=True)
+
+            # Start the EVP flagevaluation writer (if enabled via killswitch).
+            if self._flag_eval_evp_writer is not None:
+                try:
+                    self._flag_eval_evp_writer.start()
+                    logger.debug("FlagEvaluationWriter started")
+                except ServiceStatusError:
+                    logger.debug("FlagEvaluationWriter is already running", exc_info=True)
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
@@ -268,8 +294,11 @@ class DataDogProvider(AbstractProvider):
 
         Called by the OpenFeature SDK when the provider is being replaced or shutdown.
         """
-        if not self._enabled:
+        if not self._active:
             return
+
+        # Stop the agentless poller if it was started.
+        self._stop_configuration_source()
 
         try:
             # Stop the exposure writer
@@ -308,6 +337,36 @@ class DataDogProvider(AbstractProvider):
         _unregister_provider(self)
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
+
+    def _start_configuration_source(self) -> None:
+        """Start the agentless poller when agentless is the resolved source."""
+        if self._configuration_source is not None:
+            return
+
+        from ddtrace.internal.openfeature._native import process_ffe_configuration
+        from ddtrace.internal.openfeature._source_selection import create_agentless_source
+
+        source = create_agentless_source(ffe_config, process_ffe_configuration)
+        if source is None:
+            return
+
+        try:
+            source.start()
+        except ServiceStatusError:
+            logger.debug("Agentless configuration source is already running", exc_info=True)
+        self._configuration_source = source
+
+    def _stop_configuration_source(self) -> None:
+        """Stop the agentless poller if it was started."""
+        if self._configuration_source is None:
+            return
+
+        try:
+            self._configuration_source.stop()
+            self._configuration_source.join()
+        except ServiceStatusError:
+            logger.debug("Agentless configuration source is already stopped", exc_info=True)
+        self._configuration_source = None
 
     def resolve_boolean_details(
         self,
@@ -371,8 +430,8 @@ class DataDogProvider(AbstractProvider):
         # evaluation time, not the later hook/flush time.
         flag_metadata: dict[str, typing.Any] = {EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000)}
 
-        # If provider is not enabled, return default value
-        if not self._enabled:
+        # If provider is not active, return default value
+        if not self._active:
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.DISABLED,
