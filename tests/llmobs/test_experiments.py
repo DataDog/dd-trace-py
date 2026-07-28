@@ -6491,7 +6491,8 @@ class TestListExperiments:
             page_limit=500,
         )
 
-    def test_list_experiments_defaults_to_configured_project(self, llmobs):
+    def test_list_experiments_defaults_to_cached_project(self, llmobs):
+        """The default project is requested as None so the client can serve it from its cache."""
         client = llmobs._instance._dne_client
         with (
             mock.patch.object(
@@ -6501,19 +6502,31 @@ class TestListExperiments:
         ):
             llmobs.list_experiments()
 
-        mock_project.assert_called_once_with(llmobs._project_name)
+        mock_project.assert_called_once_with(None)
         assert mock_list.call_args[1]["project_id"] == "default-project-id"
 
-    def test_list_experiments_survives_project_resolution_failure(self, llmobs):
-        """A failure resolving the project must not fail the listing; it falls back to an unscoped query."""
+    def test_list_experiments_raises_on_project_resolution_failure(self, llmobs):
+        """Listing must not silently widen to every project in the org when project lookup fails."""
         client = llmobs._instance._dne_client
         with (
             mock.patch.object(client, "project_create_or_get", side_effect=ValueError("boom")),
-            mock.patch.object(client, "experiment_list", return_value=[]) as mock_list,
+            mock.patch.object(client, "experiment_list") as mock_list,
         ):
-            assert llmobs.list_experiments() == []
+            with pytest.raises(ValueError, match="Failed to resolve project"):
+                llmobs.list_experiments()
 
-        assert mock_list.call_args[1]["project_id"] is None
+        mock_list.assert_not_called()
+
+    def test_list_experiments_raises_on_empty_project_id(self, llmobs):
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(client, "project_create_or_get", return_value={"name": "default", "_id": ""}),
+            mock.patch.object(client, "experiment_list") as mock_list,
+        ):
+            with pytest.raises(ValueError, match="Got no project ID"):
+                llmobs.list_experiments()
+
+        mock_list.assert_not_called()
 
     def test_list_experiments_returns_summaries(self, llmobs):
         client = llmobs._instance._dne_client

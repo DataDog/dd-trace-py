@@ -1240,17 +1240,26 @@ class LLMObs(Service):
         :param project_name: Project to query (defaults to the configured project).
         :param page_limit: Page size for backend requests (1–5000, default: 100). All pages are fetched.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
-        :raises ValueError: If LLMObs is not enabled or the backend request fails.
+        :raises ValueError: If LLMObs is not enabled, the project cannot be resolved, or the
+            backend request fails.
         """
         if cls._instance is None or not cls.enabled:
             raise ValueError("LLMObs is not enabled. Enable LLMObs before calling list_experiments().")
-        project_id: Optional[str] = None
-        if project_name or cls._project_name:
-            try:
-                project = cls._instance._dne_client.project_create_or_get(project_name or cls._project_name)
-                project_id = project.get("_id")
-            except Exception:
-                log.debug("list_experiments: could not resolve project_id for %r", project_name, exc_info=True)
+        # Pass None for the default project so the client can serve it from its cached
+        # _default_project instead of issuing a create-or-get request on every call.
+        try:
+            project = cls._instance._dne_client.project_create_or_get(project_name or None)
+        except Exception as e:
+            # Listing without a project_id would silently widen the query to every project in the
+            # org, which a CI/CD comparison would then read as the baseline. Fail instead.
+            raise ValueError(
+                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+            ) from e
+        project_id = project.get("_id")
+        if not project_id:
+            raise ValueError(
+                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+            )
         return cls._instance._dne_client.experiment_list(
             experiment_name=experiment_name,
             metadata_filter=metadata_filter,
