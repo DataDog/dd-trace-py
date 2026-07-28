@@ -2,6 +2,8 @@
 OpenFeature configuration settings.
 """
 
+from typing import Optional
+
 from ddtrace.internal.settings._core import DDConfig
 
 
@@ -57,6 +59,48 @@ class OpenFeatureConfig(DDConfig):
         default=10000,
     )
 
+    # Stable Feature Flagging kill switch. When False, the provider is disabled
+    # regardless of the configured source. Default on.
+    feature_flags_enabled = DDConfig.var(
+        bool,
+        "DD_FEATURE_FLAGS_ENABLED",
+        default=True,
+    )
+
+    # Where Feature Flagging loads Universal Flag Configuration from.
+    # Supported: "agentless" (default) and "remote_config"; "offline" is reserved
+    # and currently unsupported. Normalized to trimmed lowercase; validity and
+    # grandfathering are resolved by the source-selection layer.
+    configuration_source = DDConfig.var(
+        str,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+        default="agentless",
+        parser=lambda v: v.strip().lower(),
+    )
+
+    # Optional override of the agentless UFC endpoint or base URL. A root/origin
+    # URL receives the standard rules-based path; a non-root URL is used verbatim.
+    configuration_source_agentless_base_url = DDConfig.var(
+        Optional[str],
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL",
+        default=None,
+        parser=lambda v: v.strip() or None,
+    )
+
+    # Agentless UFC polling interval in seconds, capped at one hour by the source.
+    configuration_source_agentless_poll_interval_seconds = DDConfig.var(
+        int,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
+        default=30,
+    )
+
+    # Agentless UFC per-request timeout in seconds.
+    configuration_source_agentless_request_timeout_seconds = DDConfig.var(
+        int,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
+        default=5,
+    )
+
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
         "experimental_flagging_provider_span_enrichment_enabled",
@@ -64,6 +108,11 @@ class OpenFeatureConfig(DDConfig):
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
+        "feature_flags_enabled",
+        "configuration_source",
+        "configuration_source_agentless_base_url",
+        "configuration_source_agentless_poll_interval_seconds",
+        "configuration_source_agentless_request_timeout_seconds",
     ]
 
 

@@ -1196,6 +1196,51 @@ Sampling
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
 
+Feature Flagging
+----------------
+
+.. ddtrace-configuration-options::
+
+   DD_FEATURE_FLAGS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Stable kill switch for Feature Flagging. When ``False``, the provider is
+         disabled regardless of the configured source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
+     type: String
+     default: agentless
+     description: |
+         Selects where Feature Flagging loads Universal Flag Configuration from.
+         Supported values are ``agentless`` (load directly from the Datadog CDN)
+         and ``remote_config`` (deliver via the Datadog Agent's Remote
+         Configuration). ``offline`` is reserved and currently unsupported; any
+         unsupported value disables the provider without contacting either source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
+     type: String
+     default: (none)
+     description: |
+         Overrides the agentless Universal Flag Configuration endpoint. A root or
+         origin URL receives the standard rules-based server path; a URL with a
+         non-root path is used verbatim as the exact endpoint. Only applies when
+         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS:
+     type: Integer
+     default: 30
+     description: |
+         The agentless Universal Flag Configuration polling interval in seconds,
+         capped at one hour.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS:
+     type: Integer
+     default: 5
+     description: |
+         The per-request timeout in seconds for agentless Universal Flag
+         Configuration polls.
+
 Other
 -----
 
