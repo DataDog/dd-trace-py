@@ -467,6 +467,43 @@ def _expected_llmobs_eval_metric_event(
     return eval_metric_event
 
 
+def _expected_llmobs_feedback_event(
+    metric_type,
+    label,
+    value,
+    submitter,
+    target_type,
+    target_value,
+    ml_app,
+    timestamp_ms=None,
+    tags=None,
+    assessment=None,
+    reasoning=None,
+):
+    feedback_event = {
+        "event_kind": "feedback",
+        target_type: target_value,
+        "metric_type": metric_type,
+        "label": label,
+        "{}_value".format(metric_type): value,
+        "submitter": submitter,
+        "tags": [
+            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
+        "timestamp_ms": timestamp_ms if timestamp_ms is not None else mock.ANY,
+    }
+    if tags is not None:
+        feedback_event["tags"] = tags
+    if assessment is not None:
+        feedback_event["assessment"] = assessment
+    if reasoning is not None:
+        feedback_event["reasoning"] = reasoning
+    if ml_app is not None:
+        feedback_event["ml_app"] = ml_app
+    return feedback_event
+
+
 def _completion_event():
     return {
         "kind": "llm",

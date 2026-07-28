@@ -49,6 +49,31 @@ def _score_metric_event(label: str, value: float) -> LLMObsEvaluationMetricEvent
     }
 
 
+def _feedback_metric_event() -> LLMObsEvaluationMetricEvent:
+    return {
+        "event_kind": "feedback",
+        "session_id": "session-123",
+        "submitter": {"id": "user-123", "type": "reviewer"},
+        "metric_type": "text",
+        "label": "comment",
+        "text_value": "The response was clear.",
+        "ml_app": "dummy-ml-app",
+        "timestamp_ms": 1756910127022,
+    }
+
+
+def test_feedback_metric_uses_evaluation_metric_envelope():
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    feedback_event = _feedback_metric_event()
+
+    assert llmobs_eval_metric_writer._data([feedback_event]) == {
+        "data": {
+            "type": "evaluation_metric",
+            "attributes": {"metrics": [feedback_event]},
+        }
+    }
+
+
 def test_writer_start(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_eval_metric_writer.start()
