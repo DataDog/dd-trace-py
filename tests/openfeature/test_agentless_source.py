@@ -21,7 +21,9 @@ def test_endpoint_managed_default_site():
 
 
 def test_endpoint_site_is_lowercased():
-    assert build_agentless_endpoint("DataDogHQ.com").startswith("https://ufc-server.ff-cdn.datadoghq.com")
+    assert build_agentless_endpoint("DataDogHQ.com") == (
+        "https://ufc-server.ff-cdn.datadoghq.com" + DEFAULT_AGENTLESS_PATH
+    )
 
 
 def test_endpoint_managed_staging_site():
