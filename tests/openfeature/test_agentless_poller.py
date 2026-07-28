@@ -245,3 +245,24 @@ def test_poll_interval_clamped_to_one_hour():
         poll_interval=MAX_POLL_INTERVAL_SECONDS * 5,
     )
     assert src.interval == MAX_POLL_INTERVAL_SECONDS
+
+
+@pytest.mark.parametrize("bad_interval", [0, -1, -30.0])
+def test_non_positive_poll_interval_falls_back_to_default(bad_interval):
+    """A non-positive interval would busy-loop against the CDN; use the default."""
+    src = AgentlessConfigurationSource(
+        endpoint=ENDPOINT,
+        apply_configuration=lambda _: None,
+        poll_interval=bad_interval,
+    )
+    assert src.interval == source_mod.DEFAULT_POLL_INTERVAL_SECONDS
+
+
+@pytest.mark.parametrize("bad_timeout", [0, -1, -5.0])
+def test_non_positive_request_timeout_falls_back_to_default(bad_timeout):
+    src = AgentlessConfigurationSource(
+        endpoint=ENDPOINT,
+        apply_configuration=lambda _: None,
+        request_timeout=bad_timeout,
+    )
+    assert src._request_timeout == source_mod.DEFAULT_REQUEST_TIMEOUT_SECONDS

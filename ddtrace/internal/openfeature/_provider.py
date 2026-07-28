@@ -141,10 +141,10 @@ class DataDogProvider(AbstractProvider):
                 "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE to a supported value to enable it",
             )
 
-        # Legacy experimental flag: an input to source grandfathering (handled in
-        # resolution) and the gate for the existing exposure/evaluation telemetry
-        # writers below, kept unchanged to preserve current telemetry behavior.
-        self._enabled = ffe_config.experimental_flagging_provider_enabled
+        # NOTE: the legacy DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED flag is an input
+        # to source grandfathering (handled during resolution above) only. Evaluation,
+        # hooks and telemetry all key off the resolved decision (``_active``), matching
+        # dd-trace-js where the same switch gates the provider and its writers.
 
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
@@ -154,7 +154,7 @@ class DataDogProvider(AbstractProvider):
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
         self._flag_eval_metrics: typing.Optional[FlagEvalMetrics] = None
         self._flag_eval_metrics_hook: typing.Optional[FlagEvalMetricsHook] = None
-        if self._enabled:
+        if self._active:
             self._flag_eval_metrics = FlagEvalMetrics()
             self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
 
@@ -172,7 +172,7 @@ class DataDogProvider(AbstractProvider):
         self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
         evp_config = OpenFeatureConfig()
         evp_counts_enabled = evp_config.flagging_evaluation_counts_enabled
-        if self._enabled and evp_counts_enabled:
+        if self._active and evp_counts_enabled:
             self._flag_eval_evp_writer = FlagEvaluationWriter()
             self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
 
@@ -180,7 +180,7 @@ class DataDogProvider(AbstractProvider):
         # Constructed ONLY when the gate is on, so nothing is allocated and
         # nothing subscribes to span finish when it is off (DG-005).
         self._span_enrichment_hook: typing.Optional[SpanEnrichmentHook] = None
-        if self._enabled and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
+        if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
             self._span_enrichment_hook = SpanEnrichmentHook()
 
     def get_metadata(self) -> Metadata:
@@ -249,22 +249,19 @@ class DataDogProvider(AbstractProvider):
         # provider lifecycle rather than at tracer init.
         self._start_configuration_source()
 
-        # Telemetry writers remain gated on the legacy experimental flag to
-        # preserve current exposure/evaluation reporting behavior.
-        if self._enabled:
-            try:
-                # Start the exposure writer for reporting
-                start_exposure_writer()
-            except ServiceStatusError:
-                logger.debug("Exposure writer is already running", exc_info=True)
+        try:
+            # Start the exposure writer for reporting
+            start_exposure_writer()
+        except ServiceStatusError:
+            logger.debug("Exposure writer is already running", exc_info=True)
 
-            # Start the EVP flagevaluation writer (if enabled via killswitch).
-            if self._flag_eval_evp_writer is not None:
-                try:
-                    self._flag_eval_evp_writer.start()
-                    logger.debug("FlagEvaluationWriter started")
-                except ServiceStatusError:
-                    logger.debug("FlagEvaluationWriter is already running", exc_info=True)
+        # Start the EVP flagevaluation writer (if enabled via killswitch).
+        if self._flag_eval_evp_writer is not None:
+            try:
+                self._flag_eval_evp_writer.start()
+                logger.debug("FlagEvaluationWriter started")
+            except ServiceStatusError:
+                logger.debug("FlagEvaluationWriter is already running", exc_info=True)
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).

@@ -3,13 +3,5 @@ features:
   - |
     openfeature: Adds agentless delivery for the Feature Flagging and Experimentation
     (FFE) OpenFeature provider, loading Universal Flag Configuration directly from Datadog
-    over HTTPS without requiring a Datadog Agent. The delivery source is selected with
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE``: ``agentless`` (default) loads from Datadog and
-    requires ``DD_API_KEY``, while ``remote_config`` keeps the existing Agent Remote
-    Configuration path. Agentless polling is tuned with
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS`` (default ``30``,
-    capped at one hour) and
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS`` (default ``5``),
-    and can target a custom endpoint with
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL``. The provider can be turned off
+    over HTTPS without requiring a Datadog Agent. The provider can be turned off
     with ``DD_FEATURE_FLAGS_ENABLED=false``.

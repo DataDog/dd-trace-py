@@ -77,13 +77,29 @@ class AgentlessConfigurationSource(PeriodicService):
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
-        if poll_interval > MAX_POLL_INTERVAL_SECONDS:
+        # A non-positive interval would make PeriodicThread schedule the next run
+        # immediately, turning polling into a tight loop against the CDN, so fall
+        # back to the documented default.
+        if poll_interval <= 0:
+            log.warning(
+                "Feature Flagging agentless poll interval must be positive; using the default %.0fs",
+                DEFAULT_POLL_INTERVAL_SECONDS,
+            )
+            poll_interval = DEFAULT_POLL_INTERVAL_SECONDS
+        elif poll_interval > MAX_POLL_INTERVAL_SECONDS:
             log.warning(
                 "Feature Flagging agentless poll interval %.0fs exceeds the %ds maximum; clamping",
                 poll_interval,
                 MAX_POLL_INTERVAL_SECONDS,
             )
             poll_interval = MAX_POLL_INTERVAL_SECONDS
+
+        if request_timeout <= 0:
+            log.warning(
+                "Feature Flagging agentless request timeout must be positive; using the default %.0fs",
+                DEFAULT_REQUEST_TIMEOUT_SECONDS,
+            )
+            request_timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS
 
         super().__init__(interval=poll_interval, no_wait_at_start=True)
 
