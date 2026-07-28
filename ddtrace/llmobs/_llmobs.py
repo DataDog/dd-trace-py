@@ -1240,12 +1240,13 @@ class LLMObs(Service):
         :param parent_experiment_ids: Filter by parent experiment UUID(s).
         :param project_name: Project to query (defaults to the configured project).
         :param page_limit: Page size for backend requests (1–5000, default: 100).
-        :param max_results: Stop after collecting this many experiments. ``None`` (default) fetches
-            every page; since results are ordered newest first, pass e.g. ``max_results=20`` to look
-            at only recent runs instead of walking the project's whole experiment history.
+        :param max_results: Stop after collecting this many experiments; must be at least 1.
+            ``None`` (default) fetches every page; since results are ordered newest first, pass e.g.
+            ``max_results=20`` to look at only recent runs instead of walking the project's whole
+            experiment history.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
-        :raises ValueError: If LLMObs is not enabled, the project cannot be resolved, or the
-            backend request fails.
+        :raises ValueError: If LLMObs is not enabled, ``max_results`` is less than 1, the project
+            cannot be resolved, or the backend request fails.
         """
         if cls._instance is None or not cls.enabled:
             raise ValueError("LLMObs is not enabled. Enable LLMObs before calling list_experiments().")

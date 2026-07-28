@@ -6481,6 +6481,16 @@ class TestExperimentList:
         assert [s["id"] for s in summaries] == ["exp-1", "exp-2"]
         assert mock_request.call_count == 1
 
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_experiment_list_rejects_non_positive_max_results(self, llmobs, max_results):
+        """max_results=0 must not quietly return one row, and must not issue a request."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            with pytest.raises(ValueError, match="max_results must be at least 1"):
+                client.experiment_list(max_results=max_results)
+
+        mock_request.assert_not_called()
+
     def test_experiment_list_without_max_results_walks_all_pages(self, llmobs):
         client = llmobs._instance._dne_client
         pages = [

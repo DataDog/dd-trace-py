@@ -838,12 +838,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :param is_deleted: Include soft-deleted experiments (default: False).
         :param page_limit: Maximum number of experiments per page request (1–5000, default: 100).
             This controls the batch size per HTTP request, not the total returned.
-        :param max_results: Stop paginating once this many experiments have been collected.
-            ``None`` (default) walks every page, which for a broad or unfiltered query can mean
-            many requests against an org with a large experiment history.
+        :param max_results: Stop paginating once this many experiments have been collected; must
+            be at least 1. ``None`` (default) walks every page, which for a broad or unfiltered
+            query can mean many requests against an org with a large experiment history.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
-        :raises ValueError: If the backend request fails.
+        :raises ValueError: If ``max_results`` is less than 1, or the backend request fails.
         """
+        if max_results is not None and max_results < 1:
+            raise ValueError("max_results must be at least 1, got {}".format(max_results))
         limit = max(1, min(page_limit, 5000))
         base_params: list[tuple[str, str]] = [("page[limit]", str(limit))]
         if experiment_name:
