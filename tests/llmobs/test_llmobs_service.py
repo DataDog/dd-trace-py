@@ -12,7 +12,16 @@ import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import EVAL_NAME_TAG
+from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
+from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
+from ddtrace.llmobs._constants import EVALUATIONS_ML_APP
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_SPAN_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_TRACE_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -663,15 +672,15 @@ def test_evaluation_span_span_scope(llmobs):
         assert judge.resource == "workflow"
         assert judge.span_type == "llm"
     assert get_llmobs_span_kind(judge) == "workflow"
-    assert get_llmobs_ml_app(judge) == "datadog-evaluations"
+    assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
     tags = get_llmobs_tags(judge)
-    assert tags["source"] == "datadog-evaluations"
-    assert tags["eval_name"] == "relevance"
-    assert tags["eval_source_type"] == "external"
-    assert tags["evaluated_ml_app"] == "my-app"
-    assert tags["evaluated_trace_id"] == "222"
-    assert tags["evaluated_span_id"] == "111"
-    assert "evaluated_session_id" not in tags
+    assert tags["source"] == EVALUATIONS_ML_APP
+    assert tags[EVAL_NAME_TAG] == "relevance"
+    assert tags[EVAL_SOURCE_TYPE_TAG] == "external"
+    assert tags[EVALUATED_ML_APP_TAG] == "my-app"
+    assert tags[EVALUATED_TRACE_ID_TAG] == "222"
+    assert tags[EVALUATED_SPAN_ID_TAG] == "111"
+    assert EVALUATED_SESSION_ID_TAG not in tags
 
 
 def test_evaluation_span_session_scope(llmobs):
@@ -682,11 +691,11 @@ def test_evaluation_span_session_scope(llmobs):
         evaluated_ml_app="my-app",
     ) as judge:
         pass
-    assert get_llmobs_ml_app(judge) == "datadog-evaluations"
+    assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
     tags = get_llmobs_tags(judge)
-    assert tags["evaluated_session_id"] == "sess-123"
-    assert "evaluated_span_id" not in tags
-    assert "evaluated_trace_id" not in tags
+    assert tags[EVALUATED_SESSION_ID_TAG] == "sess-123"
+    assert EVALUATED_SPAN_ID_TAG not in tags
+    assert EVALUATED_TRACE_ID_TAG not in tags
 
 
 def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
@@ -696,9 +705,27 @@ def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
         with llmobs.llm(name="grade", model_name="gpt-4o-mini", model_provider="openai") as llm_span:
             pass
     # Spans opened inside the judge root inherit the datadog-evaluations service.
-    assert get_llmobs_tags(judge)["ml_app"] == "datadog-evaluations"
-    assert get_llmobs_tags(tool_span)["ml_app"] == "datadog-evaluations"
-    assert get_llmobs_tags(llm_span)["ml_app"] == "datadog-evaluations"
+    assert get_llmobs_tags(judge)["ml_app"] == EVALUATIONS_ML_APP
+    assert get_llmobs_tags(tool_span)["ml_app"] == EVALUATIONS_ML_APP
+    assert get_llmobs_tags(llm_span)["ml_app"] == EVALUATIONS_ML_APP
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"name": "", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # empty name
+        {"name": "has.dot", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # dotted name
+        {"name": "relevance", "eval_scope": "typo", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # bad scope
+        {"name": "relevance", "eval_scope": "session"},  # session without evaluated_session_id
+        {"name": "relevance", "evaluated_span": {"span_id": "1"}},  # malformed evaluated_span (no trace_id)
+        {"name": "relevance"},  # span scope without evaluated_span
+    ],
+)
+def test_evaluation_invalid_args_raise_before_starting_span(llmobs, kwargs):
+    # Bad args must raise before the judge span is started, so nothing is left active in the trace.
+    with pytest.raises(ValueError):
+        llmobs.evaluation(**kwargs)
+    assert llmobs._instance._current_span() is None
 
 
 def test_embedding_span_no_model_sets_default(llmobs):
@@ -2506,7 +2533,7 @@ def test_submit_evaluation_judge_span_adds_metadata(llmobs, mock_llmobs_eval_met
             label="relevance",
             metric_type="score",
             score_value=4,
-            metadata={"judge_trace_id": "j-trace", "judge_span_id": "j-span"},
+            metadata={JUDGE_TRACE_ID_KEY: "j-trace", JUDGE_SPAN_ID_KEY: "j-span"},
         )
     )
 
@@ -2529,7 +2556,7 @@ def test_submit_evaluation_judge_span_merges_with_existing_metadata(llmobs, mock
             label="relevance",
             metric_type="score",
             score_value=4,
-            metadata={"foo": "bar", "judge_trace_id": "j-trace", "judge_span_id": "j-span"},
+            metadata={"foo": "bar", JUDGE_TRACE_ID_KEY: "j-trace", JUDGE_SPAN_ID_KEY: "j-span"},
         )
     )
 

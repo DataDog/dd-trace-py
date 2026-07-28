@@ -188,7 +188,6 @@ PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 
 # Judge Span Constants
 EVALUATIONS_ML_APP = "datadog-evaluations"
-EVALUATIONS_SOURCE = "datadog-evaluations"
 EVAL_NAME_TAG = "eval_name"
 EVALUATED_ML_APP_TAG = "evaluated_ml_app"
 EVALUATED_SPAN_ID_TAG = "evaluated_span_id"

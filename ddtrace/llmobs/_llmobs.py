@@ -72,7 +72,6 @@ from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
 from ddtrace.llmobs._constants import EVALUATIONS_ML_APP
-from ddtrace.llmobs._constants import EVALUATIONS_SOURCE
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
@@ -2717,39 +2716,74 @@ class LLMObs(Service):
         (single-call or multi-step judge: identical code). Link the resulting score to it with
         ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
 
-        :param str name: The evaluation name (e.g. "relevance"). Should match the ``label`` passed to
-                         ``submit_evaluation``.
+        :param str name: The evaluation name (e.g. "relevance"). Must be non-empty and must not
+                         contain a '.' — it is reused as the ``submit_evaluation`` ``label``.
         :param dict evaluated_span: A dictionary of shape {'span_id': str, 'trace_id': str} identifying
-                                    the span being judged (from ``LLMObs.export_span``). Used for
-                                    span-scope evaluations.
+                                    the span being judged (from ``LLMObs.export_span``). Required for
+                                    "span" and "trace" scope (for "trace", pass the trace's root span).
         :param str evaluated_ml_app: The ml_app of the application being judged.
-        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "session".
-        :param str evaluated_session_id: The id of the session being judged, for session-scope evaluations.
+        :param str eval_scope: The scope of the evaluation. One of "span" (default), "trace", or
+                               "session". "span"/"trace" require ``evaluated_span``; "session"
+                               requires ``evaluated_session_id``.
+        :param str evaluated_session_id: The id of the session being judged, for "session" scope.
 
         :returns: The judge root Span. Use it with ``with LLMObs.evaluation(...) as judge:``.
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+            return cls._instance._start_span(
+                "workflow", name="custom_evaluator.%s" % name, agent_service=EVALUATIONS_ML_APP, _decorator=_decorator
+            )
+
+        # Validate every input BEFORE starting the span, so a bad argument can never leave a
+        # half-created judge span active in the trace (which would orphan the caller's later spans).
+        # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
+        if not name or "." in name:
+            raise ValueError("name must be a non-empty string that does not contain a '.'.")
+        if eval_scope not in ("span", "trace", "session"):
+            raise ValueError("eval_scope must be one of 'span', 'trace', or 'session'.")
+        if eval_scope == "session":
+            if not evaluated_session_id:
+                raise ValueError("eval_scope='session' requires a non-empty evaluated_session_id.")
+        elif (
+            not isinstance(evaluated_span, dict)
+            or not isinstance(evaluated_span.get("span_id"), str)
+            or not isinstance(evaluated_span.get("trace_id"), str)
+        ):
+            raise ValueError(
+                "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
+                "'trace_id' keys (use LLMObs.export_span())." % eval_scope
+            )
+
+        # The judge trace is meant to be its own root trace. If evaluation() is called while another
+        # LLMObs span is active, the judge span nests under it (and the score would link back into the
+        # application trace instead of a standalone judge trace). Warn rather than do that silently;
+        # run evaluation() outside an active LLMObs span (e.g. after the turn or in a background task).
+        if cls._instance._current_span() is not None:
+            log.warning(
+                "LLMObs.evaluation() was called while another LLMObs span is active; the judge trace "
+                "will nest under it. Call it outside an active LLMObs span for a standalone judge trace."
+            )
+
         span = cls._instance._start_span(
             "workflow",
             name="custom_evaluator.%s" % name,
             agent_service=EVALUATIONS_ML_APP,
             _decorator=_decorator,
         )
-        if cls.enabled:
-            tags = {
-                "source": EVALUATIONS_SOURCE,
-                EVAL_NAME_TAG: name,
-                EVAL_SOURCE_TYPE_TAG: "external",
-            }
-            if evaluated_ml_app:
-                tags[EVALUATED_ML_APP_TAG] = evaluated_ml_app
-            if eval_scope == "session" and evaluated_session_id:
-                tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
-            elif evaluated_span:
-                tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
-                tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
-            cls.annotate(span=span, tags=tags)
+        tags = {
+            "source": EVALUATIONS_ML_APP,
+            EVAL_NAME_TAG: name,
+            EVAL_SOURCE_TYPE_TAG: "external",
+        }
+        if evaluated_ml_app:
+            tags[EVALUATED_ML_APP_TAG] = evaluated_ml_app
+        if eval_scope == "session":
+            tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
+        else:  # "span" or "trace" (for "trace", evaluated_span is the trace's root span)
+            tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
+            tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
+        cls.annotate(span=span, tags=tags)
         return span
 
     @classmethod
