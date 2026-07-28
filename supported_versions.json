@@ -1157,45 +1157,45 @@
         "auto-instrumented": true,
         "python_versions": {
             "3.9": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             },
             "3.10": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             },
             "3.11": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "5.5.3",
-                "maximum_package_version": "5.5.3",
+                "minimum_package_version": "5.6.3",
+                "maximum_package_version": "5.6.3",
                 "tested_versions": [
-                    "5.5.3"
+                    "5.6.3"
                 ]
             }
         }
