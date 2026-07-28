@@ -44,16 +44,6 @@ def _is_iast_taint_source_enabled() -> bool:
     return not _IAST_TAINT_SOURCES_SUPPRESSED.get()
 
 
-@contextlib.contextmanager
-def iast_suppress_context():
-    """Temporarily disable IAST taint *source* generation for the current context."""
-    token = IAST_CONTEXT.set(None)
-    try:
-        yield
-    finally:
-        IAST_CONTEXT.reset(token)
-
-
 def _set_span_tag_iast_request_tainted(span):
     total_objects_tainted = _num_objects_tainted_in_request()
 
