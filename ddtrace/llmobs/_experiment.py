@@ -1144,7 +1144,6 @@ class Project(TypedDict):
 
 class _ExperimentSummaryOptional(TypedDict, total=False):
     dataset_version: int
-    dataset_name: str
     description: str
     config: dict[str, Any]
     run_count: int
@@ -1166,13 +1165,13 @@ class ExperimentSummary(_ExperimentSummaryOptional):
     :param project_id: UUID of the project this experiment belongs to.
     :param dataset_id: UUID of the dataset this experiment ran against.
     :param dataset_version: Dataset version used during this run.
-    :param dataset_name: Name of the dataset, when the backend returns it.
     :param description: Experiment description.
     :param config: Experiment configuration dict.
     :param run_count: Number of runs recorded for this experiment.
-    :param tags: List of tags attached to this experiment. Includes the automatically
-        captured ``git.commit.sha`` and ``git.repository_url`` tags, which is what makes
-        commit-based CI/CD lookups possible via ``metadata_filter``.
+    :param tags: List of tags attached to this experiment. For experiments created by this SDK
+        this includes ``project_name``, ``dataset_name``, ``experiment_name`` and the automatically
+        captured ``git.commit.sha`` / ``git.repository_url`` tags, which is what makes commit-based
+        CI/CD lookups possible via ``metadata_filter``.
     :param parent_experiment_id: UUID of the parent/baseline experiment, if any.
     :param aggregate_data: Pre-computed aggregate metrics (eval distributions,
         token costs, error rates) written by the aggregation snap. ``None``

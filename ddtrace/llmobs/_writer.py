@@ -824,6 +824,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id: Optional[str] = None,
         is_deleted: bool = False,
         page_limit: int = 100,
+        max_results: Optional[int] = None,
     ) -> "list[ExperimentSummary]":
         """List experiments with optional filtering for CI/CD comparison flows.
 
@@ -836,7 +837,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :param dataset_id: Filter by dataset UUID.
         :param is_deleted: Include soft-deleted experiments (default: False).
         :param page_limit: Maximum number of experiments per page request (1–5000, default: 100).
-            Results from all pages are returned; this controls the batch size per HTTP request.
+            This controls the batch size per HTTP request, not the total returned.
+        :param max_results: Stop paginating once this many experiments have been collected.
+            ``None`` (default) walks every page, which for a broad or unfiltered query can mean
+            many requests against an org with a large experiment history.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
         :raises ValueError: If the backend request fails.
         """
@@ -878,7 +882,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     project_id=attrs.get("project_id") or "",
                     dataset_id=attrs.get("dataset_id") or "",
                     dataset_version=attrs.get("dataset_version") or 0,
-                    dataset_name=attrs.get("dataset_name") or "",
                     description=attrs.get("description") or "",
                     config=attrs.get("config") or {},
                     run_count=attrs.get("run_count") or 0,
@@ -891,6 +894,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     updated_at=attrs.get("updated_at"),
                 )
                 results.append(summary)
+                if max_results is not None and len(results) >= max_results:
+                    return results
             cursor = (body.get("meta") or {}).get("after")
             if not cursor:
                 break

@@ -6340,7 +6340,17 @@ def _experiment_list_page(experiment_ids, after=None, **attr_overrides):
             "run_count": 1,
             "metadata": {"tags": ["git.commit.sha:abc123", "experiment_name:nightly-eval"]},
             "parent_experiment_id": "mock-parent-id",
-            "aggregate_data": {"correctness": {"avg": 0.75}},
+            # Mirrors the shape returned by the live v2 experiments endpoint.
+            "aggregate_data": {
+                "evaluations": {"custom": None, "summary": None},
+                "total_spans": 4,
+                "total_errors": 0,
+                "total_tokens": 654,
+                "total_duration_ns": 500000000,
+                "total_input_tokens": 621,
+                "total_output_tokens": 33,
+                "estimated_total_cost": 44250,
+            },
             "status": "completed",
             "error": None,
             "created_at": "2026-07-01T00:00:00Z",
@@ -6365,17 +6375,21 @@ class TestExperimentList:
         assert summary["project_id"] == "mock-project-id"
         assert summary["dataset_id"] == "mock-dataset-id"
         assert summary["dataset_version"] == 3
-        assert summary["dataset_name"] == "mock-dataset-name"
         assert summary["description"] == "a description"
         assert summary["config"] == {"model": "gpt-4"}
         assert summary["run_count"] == 1
         assert summary["tags"] == ["git.commit.sha:abc123", "experiment_name:nightly-eval"]
         assert summary["parent_experiment_id"] == "mock-parent-id"
-        assert summary["aggregate_data"] == {"correctness": {"avg": 0.75}}
+        assert summary["aggregate_data"]["total_tokens"] == 654
+        assert summary["aggregate_data"]["estimated_total_cost"] == 44250
+        assert summary["aggregate_data"]["evaluations"] == {"custom": None, "summary": None}
         assert summary["status"] == "completed"
         assert summary["error"] is None
         assert summary["created_at"] == "2026-07-01T00:00:00Z"
         assert summary["updated_at"] == "2026-07-01T00:05:00Z"
+        # dataset_name is only populated when include[dataset_names]=true is requested, which this
+        # client does not do, so it is deliberately not surfaced. dataset_name is available as a tag.
+        assert "dataset_name" not in summary
 
     def test_experiment_list_serializes_filters(self, llmobs):
         client = llmobs._instance._dne_client
@@ -6445,6 +6459,41 @@ class TestExperimentList:
         ]
         assert cursors == [None, ["cursor-1"], ["cursor-2"]]
 
+    def test_experiment_list_stops_at_max_results(self, llmobs):
+        """max_results must stop pagination, not just truncate after walking every page."""
+        client = llmobs._instance._dne_client
+        pages = [
+            _fake_response(_experiment_list_page(["exp-1", "exp-2", "exp-3"], after="cursor-1")),
+            _fake_response(_experiment_list_page(["exp-4", "exp-5", "exp-6"], after="cursor-2")),
+        ]
+        with mock.patch.object(client, "request", side_effect=pages) as mock_request:
+            summaries = client.experiment_list(page_limit=3, max_results=4)
+
+        assert [s["id"] for s in summaries] == ["exp-1", "exp-2", "exp-3", "exp-4"]
+        assert mock_request.call_count == 2
+
+    def test_experiment_list_max_results_within_first_page(self, llmobs):
+        client = llmobs._instance._dne_client
+        page = _fake_response(_experiment_list_page(["exp-1", "exp-2", "exp-3"], after="cursor-1"))
+        with mock.patch.object(client, "request", return_value=page) as mock_request:
+            summaries = client.experiment_list(max_results=2)
+
+        assert [s["id"] for s in summaries] == ["exp-1", "exp-2"]
+        assert mock_request.call_count == 1
+
+    def test_experiment_list_without_max_results_walks_all_pages(self, llmobs):
+        client = llmobs._instance._dne_client
+        pages = [
+            _fake_response(_experiment_list_page(["exp-1"], after="cursor-1")),
+            _fake_response(_experiment_list_page(["exp-2"], after="cursor-2")),
+            _fake_response(_experiment_list_page(["exp-3"])),
+        ]
+        with mock.patch.object(client, "request", side_effect=pages) as mock_request:
+            summaries = client.experiment_list()
+
+        assert len(summaries) == 3
+        assert mock_request.call_count == 3
+
     def test_experiment_list_stops_on_empty_page(self, llmobs):
         client = llmobs._instance._dne_client
         with mock.patch.object(
@@ -6489,7 +6538,18 @@ class TestListExperiments:
             parent_experiment_ids=["parent-1"],
             project_id="resolved-project-id",
             page_limit=500,
+            max_results=None,
         )
+
+    def test_list_experiments_forwards_max_results(self, llmobs):
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(client, "project_create_or_get", return_value={"name": "p", "_id": "p-id"}),
+            mock.patch.object(client, "experiment_list", return_value=[]) as mock_list,
+        ):
+            llmobs.list_experiments(max_results=20)
+
+        assert mock_list.call_args[1]["max_results"] == 20
 
     def test_list_experiments_defaults_to_cached_project(self, llmobs):
         """The default project is requested as None so the client can serve it from its cache."""

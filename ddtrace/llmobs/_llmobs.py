@@ -1225,6 +1225,7 @@ class LLMObs(Service):
         parent_experiment_ids: Optional[list[str]] = None,
         project_name: Optional[str] = None,
         page_limit: int = 100,
+        max_results: Optional[int] = None,
     ) -> "list[ExperimentSummary]":
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
@@ -1238,7 +1239,10 @@ class LLMObs(Service):
             ``git.repository_url`` tags are captured automatically at experiment creation.
         :param parent_experiment_ids: Filter by parent experiment UUID(s).
         :param project_name: Project to query (defaults to the configured project).
-        :param page_limit: Page size for backend requests (1–5000, default: 100). All pages are fetched.
+        :param page_limit: Page size for backend requests (1–5000, default: 100).
+        :param max_results: Stop after collecting this many experiments. ``None`` (default) fetches
+            every page; since results are ordered newest first, pass e.g. ``max_results=20`` to look
+            at only recent runs instead of walking the project's whole experiment history.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
         :raises ValueError: If LLMObs is not enabled, the project cannot be resolved, or the
             backend request fails.
@@ -1266,6 +1270,7 @@ class LLMObs(Service):
             parent_experiment_ids=parent_experiment_ids,
             project_id=project_id,
             page_limit=page_limit,
+            max_results=max_results,
         )
 
     @classmethod
