@@ -863,6 +863,8 @@ class CustomBuildExt(build_ext):
         if BUILD_NATIVE_HEAP_GOTTER and CURRENT_OS == "Linux" and is_64_bit_python():
             with _time_phase("build_heap_gotter"):
                 self.build_heap_gotter()
+        else:
+            self._clean_stale_heap_gotter()
 
         # Build all declared shared C++ dependencies before extension builds.
         with _time_phase("build_shared_deps"):
@@ -1049,6 +1051,7 @@ class CustomBuildExt(build_ext):
             "cargo",
             "build",
             "--release",
+            "--locked",
             "--manifest-path",
             str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
             # Emit machine-readable artifact records so we can locate the built
@@ -1092,6 +1095,22 @@ class CustomBuildExt(build_ext):
             subprocess.run(["patchelf", "--set-soname", gotter_name, gotter_library], check=True)
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
+
+    def _clean_stale_heap_gotter(self):
+        """Remove any previously staged heap-gotter artifacts so a default wheel
+        does not accidentally ship the opt-in cdylib.
+        """
+        candidates = [Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"]
+        if hasattr(self, "build_lib") and self.build_lib:
+            candidates.append(
+                Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+        for base in candidates:
+            if not base.is_dir():
+                continue
+            for stale in base.glob("libdd_heap_gotter*"):
+                stale.unlink()
+                print(f"Removed stale heap-gotter artifact: {stale}")
 
     def build_shared_deps(self) -> None:
         """Build all shared C++ dependencies declared in SHARED_DEPS.
