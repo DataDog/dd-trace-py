@@ -396,7 +396,7 @@ class _ProfilerInstance(service.Service):
                     # live-heap (ddheap:free + retain flagging) is a build-time
                     # property of the cdylib, not a runtime toggle; report which
                     # mode was actually armed for observability.
-                    mode = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
                     LOG.debug("Native heap profiling armed (GOT overrides installed, %s)", mode)
                 else:
                     LOG.debug("Native heap profiling requested but GOT overrides were not installed")
