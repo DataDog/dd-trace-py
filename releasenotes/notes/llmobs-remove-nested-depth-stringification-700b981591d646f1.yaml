@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Deeply nested span fields are no longer stringified before submission.
+    Datadog now ingests these fields at their original depth, so structures such as large tool
+    schemas and structured-output response formats remain queryable as nested JSON instead of
+    being flattened into a JSON string. This also removes the accompanying warning log, which
+    could dominate application logs for services that regularly submit deeply nested fields.

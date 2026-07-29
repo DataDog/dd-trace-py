@@ -249,32 +249,22 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
-_MAX_NESTED_META_DEPTH = 12
+def _stringify_mapping_keys(obj: Any) -> Any:
+    """Return a copy of obj with every mapping key stringified, at every depth.
 
-
-def _sanitize_span_event_depth(obj: Any) -> Any:
-    """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
-    and every mapping key stringified. The original structure is never mutated.
-    A warning is logged for each stringified field, including its dotted path.
+    Non-string keys are preserved by-type on the msgpack meta_struct intake path, and the
+    llmobs_spans trace-indexer decodes into a string-keyed map and drops the whole span
+    (MLOB-7618). The original structure is never mutated.
     """
 
-    def _walk(node: Any, depth: int, path: str) -> Any:
-        if not isinstance(node, (dict, list)):
-            return node
-        if depth >= _MAX_NESTED_META_DEPTH:
-            log.warning(
-                "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
-                "stringified to avoid backend parsing errors.",
-                path,
-                _MAX_NESTED_META_DEPTH,
-            )
-            return safe_json(node)
+    def _walk(node: Any) -> Any:
         if isinstance(node, dict):
-            return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
-        return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+            return {str(k): _walk(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [_walk(v) for v in node]
+        return node
 
-    return _walk(obj, 0, "")
+    return _walk(obj)
 
 
 def safe_json(obj, ensure_ascii=True):

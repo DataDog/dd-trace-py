@@ -13,7 +13,6 @@ from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
-from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -1629,79 +1628,6 @@ class TestLLMObsAnthropic:
                     "name": "search_logs",
                     "description": "",
                     "schema": {},
-                },
-            ],
-        )
-
-    def test_tool_with_deep_schema_has_schema_stringified(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
-        """Tool schemas that exceed the maximum nested depth are stringified at the point where
-        they exceed the limit, preserving all data as a JSON string while keeping shallower
-        structure intact. Tools with shallow schemas are unaffected.
-        """
-        llm = anthropic.Anthropic()
-        with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
-            llm.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=200,
-                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
-                tools=[
-                    {
-                        "name": "get_weather",
-                        "description": "Get the weather for a specific location",
-                        "input_schema": {
-                            "type": "object",
-                            "properties": {"location": {"type": "string"}},
-                        },
-                    },
-                    {
-                        "name": "deep_tool",
-                        "description": "A tool with a deeply nested schema",
-                        "input_schema": DEEP_TOOL_SCHEMA,
-                    },
-                ],
-            )
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[0]),
-            span_kind="llm",
-            tool_definitions=[
-                {
-                    "name": "get_weather",
-                    "description": "Get the weather for a specific location",
-                    "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
-                },
-                {
-                    "name": "deep_tool",
-                    "description": "A tool with a deeply nested schema",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "l1": {
-                                "type": "object",
-                                "properties": {
-                                    "l2": {
-                                        "type": "object",
-                                        "properties": {
-                                            "l3": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "l4": {
-                                                        "type": "object",
-                                                        "properties": (
-                                                            '{"l5": {"properties": {"l6": {"properties":'
-                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
-                                                            ' "type": "object"}}'
-                                                        ),
-                                                    }
-                                                },
-                                            }
-                                        },
-                                    }
-                                },
-                            }
-                        },
-                    },
                 },
             ],
         )
