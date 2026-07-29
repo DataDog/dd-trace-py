@@ -12,7 +12,7 @@ requires_metrics_api = pytest.mark.skipif(
 
 
 @requires_metrics_api
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"})
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"}, err=None)
 def test_otel_metrics_enabled():
     """The native MeterProvider is installed automatically when DD_METRICS_OTEL_ENABLED is set.
 
@@ -30,7 +30,7 @@ def test_otel_metrics_enabled():
 
 
 @requires_metrics_api
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]})
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]}, err=None)
 def test_otel_metrics_disabled_and_unset():
     """The native MeterProvider is NOT installed when DD_METRICS_OTEL_ENABLED is unset or false."""
     from opentelemetry.metrics import get_meter_provider
@@ -44,7 +44,7 @@ def test_otel_metrics_disabled_and_unset():
 
 
 @requires_metrics_api
-@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "true"})
+@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "true"}, err=None)
 def test_native_meter_provider_records():
     """Every instrument kind can be created and recorded through the native path.
 
