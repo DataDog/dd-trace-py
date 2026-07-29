@@ -21,8 +21,10 @@ def test_otel_metrics_enabled():
     """
     from opentelemetry.metrics import get_meter_provider
 
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
     meter_provider = get_meter_provider()
-    assert type(meter_provider).__name__ == "NativeMeterProvider", (
+    assert isinstance(meter_provider, MeterProvider), (
         "DD_METRICS_OTEL_ENABLED should install the native MeterProvider, got %r" % type(meter_provider).__name__
     )
 
@@ -33,8 +35,10 @@ def test_otel_metrics_disabled_and_unset():
     """The native MeterProvider is NOT installed when DD_METRICS_OTEL_ENABLED is unset or false."""
     from opentelemetry.metrics import get_meter_provider
 
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
     meter_provider = get_meter_provider()
-    assert (meter_provider is None) or (type(meter_provider).__name__ != "NativeMeterProvider"), (
+    assert not isinstance(meter_provider, MeterProvider), (
         "OpenTelemetry metrics should not be configured automatically."
     )
 
@@ -56,8 +60,10 @@ def test_native_meter_provider_records():
     from opentelemetry.metrics import Observation
     from opentelemetry.metrics import get_meter_provider
 
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
     provider = get_meter_provider()
-    assert type(provider).__name__ == "NativeMeterProvider"
+    assert isinstance(provider, MeterProvider)
 
     meter = provider.get_meter("ddtrace.test")
 

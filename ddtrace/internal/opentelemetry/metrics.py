@@ -36,10 +36,13 @@ def set_otel_meter_provider():
     try:
         from opentelemetry.metrics import set_meter_provider
 
-        from ddtrace.internal.opentelemetry._native_metrics_provider import build_native_meter_provider
+        from ddtrace.internal.opentelemetry._native_metrics_provider import build_meter_provider
 
-        provider = build_native_meter_provider(
-            resource_attributes=_build_resource_attributes(),
+        provider = build_meter_provider(
+            service=config.service,
+            env=config.env,
+            version=config.version,
+            resource_attributes=_build_extra_resource_attributes(),
             endpoint=otel_config.exporter.METRICS_ENDPOINT,
             protocol=protocol,
             timeout_ms=otel_config.exporter.METRICS_TIMEOUT,
@@ -89,14 +92,13 @@ def _should_configure_metrics_exporter() -> bool:
 
 
 # TODO: We should build one set of resource attributes for both logs and metrics.
-def _build_resource_attributes() -> dict[str, str]:
-    """Build OpenTelemetry resource attributes from DD_TAGS, DD_SERVICE/ENV/VERSION, and hostname."""
-    resource_attributes = {
-        **config.tags,
-        "service.name": config.service,
-        "service.version": config.version,
-        "deployment.environment": config.env,
-    }
+def _build_extra_resource_attributes() -> dict[str, str]:
+    """Build the generic OTel resource attributes (DD_TAGS + hostname).
+
+    service/env/version are passed to the native ResourceBuilder as primitives, which owns their
+    mapping to OTel semantic-convention keys — so they are intentionally not included here.
+    """
+    resource_attributes = dict(config.tags)
 
     if config._report_hostname and "host.name" not in resource_attributes:
         resource_attributes["host.name"] = get_hostname()

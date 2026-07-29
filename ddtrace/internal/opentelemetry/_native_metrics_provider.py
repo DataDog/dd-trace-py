@@ -1,13 +1,14 @@
-"""A ``MeterProvider`` backed by libdatadog's native OTel telemetry aggregator.
+"""An OpenTelemetry ``MeterProvider`` backed by libdatadog's native telemetry aggregator.
 
-This implements the ``opentelemetry-api`` metrics interfaces (``MeterProvider`` /
-``Meter`` / the instrument types) and forwards every call into the native
-``TelemetryAggregator`` over a primitives-only boundary — opaque instrument ids,
-float values, and string attribute pairs. It lets ddtrace aggregate and export
-OTLP metrics without depending on the ``opentelemetry-sdk`` or
-``opentelemetry-exporter-otlp`` packages.
+This implements the ``opentelemetry-api`` metrics interfaces (``MeterProvider`` / ``Meter`` / the
+instrument types) as a thin shim: every call is forwarded into the native ``TelemetryAggregator``
+over a primitives-only boundary — opaque instrument ids, float values, and string attribute pairs.
+libdatadog owns aggregation, resource building, and OTLP export, so ddtrace needs neither the
+``opentelemetry-sdk`` nor ``opentelemetry-exporter-otlp`` packages for metrics.
 
-Only the metrics signal is handled here; logs still use the SDK path.
+Classes mirror the OpenTelemetry SDK's own naming (``MeterProvider``, ``Meter``, ``Counter`` …)
+so this reads as a drop-in OTel implementation. Only the metrics signal is handled here; logs
+still use the SDK path.
 """
 
 from threading import Lock
@@ -16,15 +17,7 @@ from typing import Iterable
 from typing import Optional
 from typing import Sequence
 
-from opentelemetry.metrics import CallbackOptions
-from opentelemetry.metrics import Counter
-from opentelemetry.metrics import Histogram
-from opentelemetry.metrics import Meter
-from opentelemetry.metrics import MeterProvider
-from opentelemetry.metrics import ObservableCounter
-from opentelemetry.metrics import ObservableGauge
-from opentelemetry.metrics import ObservableUpDownCounter
-from opentelemetry.metrics import UpDownCounter
+from opentelemetry import metrics as otel
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import TelemetryAggregatorBuilder
@@ -51,8 +44,8 @@ def _attrs(attributes: Optional[dict[str, Any]]) -> list[tuple[str, str]]:
     return pairs
 
 
-def _iter_observations(callback: Any, options: CallbackOptions) -> Iterable[Any]:
-    """Invoke a single observable-instrument callback and yield its ``Observation``s.
+def _iter_observations(callback: Any, options: "otel.CallbackOptions") -> Iterable[Any]:
+    """Invoke a single observable-instrument callback and return its ``Observation``s.
 
     Supports the plain-callable form ``cb(options) -> Iterable[Observation]``, which is what
     virtually all instrumentation uses. Generator-style callbacks are best-effort iterated.
@@ -63,7 +56,7 @@ def _iter_observations(callback: Any, options: CallbackOptions) -> Iterable[Any]
     return list(result)
 
 
-class _NativeCounter(Counter):
+class Counter(otel.Counter):
     def __init__(self, aggregator, instrument_id, name, unit="", description=""):
         self._aggregator = aggregator
         self._id = instrument_id
@@ -72,7 +65,7 @@ class _NativeCounter(Counter):
         self._aggregator.record_counter(self._id, float(amount), _attrs(attributes))
 
 
-class _NativeUpDownCounter(UpDownCounter):
+class UpDownCounter(otel.UpDownCounter):
     def __init__(self, aggregator, instrument_id, name, unit="", description=""):
         self._aggregator = aggregator
         self._id = instrument_id
@@ -81,7 +74,7 @@ class _NativeUpDownCounter(UpDownCounter):
         self._aggregator.record_up_down_counter(self._id, float(amount), _attrs(attributes))
 
 
-class _NativeHistogram(Histogram):
+class Histogram(otel.Histogram):
     def __init__(
         self, aggregator, instrument_id, name, unit="", description="", explicit_bucket_boundaries_advisory=None
     ):
@@ -92,31 +85,31 @@ class _NativeHistogram(Histogram):
         self._aggregator.record_histogram(self._id, float(amount), _attrs(attributes))
 
 
-class _NativeObservableCounter(ObservableCounter):
+class ObservableCounter(otel.ObservableCounter):
     def __init__(self, aggregator, instrument_id, name, callbacks=None, unit="", description=""):
         self._aggregator = aggregator
         self._id = instrument_id
 
 
-class _NativeObservableGauge(ObservableGauge):
+class ObservableGauge(otel.ObservableGauge):
     def __init__(self, aggregator, instrument_id, name, callbacks=None, unit="", description=""):
         self._aggregator = aggregator
         self._id = instrument_id
 
 
-class _NativeObservableUpDownCounter(ObservableUpDownCounter):
+class ObservableUpDownCounter(otel.ObservableUpDownCounter):
     def __init__(self, aggregator, instrument_id, name, callbacks=None, unit="", description=""):
         self._aggregator = aggregator
         self._id = instrument_id
 
 
-class _ObservableScheduler(PeriodicService):
-    """Polls registered observable-instrument callbacks once per export interval.
+class _ObservableCallbackReader(PeriodicService):
+    """Resolves registered observable-instrument callbacks once per export interval.
 
-    Callback *scheduling* is the tracer's responsibility (only it can run a user closure); the
-    native aggregator just receives the resolved values. Each resolved value is pushed through the
-    ``feed`` function matching the instrument kind (``observe_counter`` / ``observe_gauge`` /
-    ``record_up_down_counter``).
+    Only the tracer can execute a user's Python callback, so this scheduling stays on the Python
+    side of the primitives-only boundary — the native aggregator just receives resolved values.
+    Each value is pushed through the ``feed`` function matching the instrument kind
+    (``observe_counter`` / ``observe_gauge`` / ``record_up_down_counter``).
     """
 
     def __init__(self, aggregator, interval_seconds: float) -> None:
@@ -132,13 +125,13 @@ class _ObservableScheduler(PeriodicService):
             self._observables.append((instrument_id, feed, list(callbacks)))
 
     def periodic(self) -> None:
-        self._collect()
+        self.collect()
 
     def on_shutdown(self) -> None:  # type: ignore[override]  # base hook is a no-op staticmethod
-        self._collect()
+        self.collect()
 
-    def _collect(self) -> None:
-        options = CallbackOptions()
+    def collect(self) -> None:
+        options = otel.CallbackOptions()
         with self._lock:
             observables = list(self._observables)
         for instrument_id, feed, callbacks in observables:
@@ -150,52 +143,52 @@ class _ObservableScheduler(PeriodicService):
                     log.debug("Error collecting OpenTelemetry observable instrument", exc_info=True)
 
 
-class NativeMeter(Meter):
+class Meter(otel.Meter):
     """A ``Meter`` whose instruments forward to the native aggregator."""
 
-    def __init__(self, aggregator, scheduler, name, version=None, schema_url=None):
+    def __init__(self, aggregator, reader, name, version=None, schema_url=None):
         super().__init__(name, version=version, schema_url=schema_url)
         self._aggregator = aggregator
-        self._scheduler = scheduler
+        self._reader = reader
 
     def _register(self, name, kind, unit, description) -> int:
         return int(self._aggregator.register_instrument(name, kind, unit or None, description or None))
 
     def create_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "counter", unit, description)
-        return _NativeCounter(self._aggregator, instrument_id, name, unit, description)
+        return Counter(self._aggregator, instrument_id, name, unit, description)
 
     def create_up_down_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "up_down_counter", unit, description)
-        return _NativeUpDownCounter(self._aggregator, instrument_id, name, unit, description)
+        return UpDownCounter(self._aggregator, instrument_id, name, unit, description)
 
     def create_histogram(self, name, unit="", description="", *, explicit_bucket_boundaries_advisory=None):
         instrument_id = self._register(name, "histogram", unit, description)
-        return _NativeHistogram(self._aggregator, instrument_id, name, unit, description)
+        return Histogram(self._aggregator, instrument_id, name, unit, description)
 
     def create_observable_counter(self, name, callbacks=None, unit="", description=""):
         instrument_id = self._register(name, "observable_counter", unit, description)
-        self._scheduler.register(instrument_id, self._aggregator.observe_counter, callbacks)
-        return _NativeObservableCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
+        self._reader.register(instrument_id, self._aggregator.observe_counter, callbacks)
+        return ObservableCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
 
     def create_observable_gauge(self, name, callbacks=None, unit="", description=""):
         instrument_id = self._register(name, "observable_gauge", unit, description)
-        self._scheduler.register(instrument_id, self._aggregator.observe_gauge, callbacks)
-        return _NativeObservableGauge(self._aggregator, instrument_id, name, callbacks, unit, description)
+        self._reader.register(instrument_id, self._aggregator.observe_gauge, callbacks)
+        return ObservableGauge(self._aggregator, instrument_id, name, callbacks, unit, description)
 
     def create_observable_up_down_counter(self, name, callbacks=None, unit="", description=""):
         instrument_id = self._register(name, "observable_up_down_counter", unit, description)
-        self._scheduler.register(instrument_id, self._aggregator.record_up_down_counter, callbacks)
-        return _NativeObservableUpDownCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
+        self._reader.register(instrument_id, self._aggregator.record_up_down_counter, callbacks)
+        return ObservableUpDownCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
 
 
-class NativeMeterProvider(MeterProvider):
+class MeterProvider(otel.MeterProvider):
     """A ``MeterProvider`` backed by the native ``TelemetryAggregator``."""
 
-    def __init__(self, aggregator, scheduler):
+    def __init__(self, aggregator, reader):
         self._aggregator = aggregator
-        self._scheduler = scheduler
-        self._meters: dict[tuple[str, Optional[str], Optional[str]], NativeMeter] = {}
+        self._reader = reader
+        self._meters: dict[tuple[str, Optional[str], Optional[str]], Meter] = {}
         self._lock = Lock()
 
     def get_meter(self, name, version=None, schema_url=None, attributes=None):
@@ -203,13 +196,13 @@ class NativeMeterProvider(MeterProvider):
         with self._lock:
             meter = self._meters.get(key)
             if meter is None:
-                meter = NativeMeter(self._aggregator, self._scheduler, name, version, schema_url)
+                meter = Meter(self._aggregator, self._reader, name, version, schema_url)
                 self._meters[key] = meter
             return meter
 
     def force_flush(self, timeout_millis=10000):
         # Resolve observable instruments first so their latest values are included in the flush.
-        self._scheduler._collect()
+        self._reader.collect()
         try:
             self._aggregator.force_flush()
         except Exception:
@@ -219,9 +212,9 @@ class NativeMeterProvider(MeterProvider):
 
     def shutdown(self, timeout_millis=30000):
         try:
-            self._scheduler.stop()
+            self._reader.stop()
         except Exception:
-            log.debug("Error stopping observable metrics scheduler", exc_info=True)
+            log.debug("Error stopping observable metrics reader", exc_info=True)
         try:
             self._aggregator.shutdown()
         except Exception:
@@ -240,7 +233,10 @@ def _parse_headers(headers: str) -> list[tuple[str, str]]:
     return pairs
 
 
-def build_native_meter_provider(
+def build_meter_provider(
+    service: Optional[str],
+    env: Optional[str],
+    version: Optional[str],
     resource_attributes: dict[str, str],
     endpoint: str,
     protocol: str,
@@ -248,9 +244,21 @@ def build_native_meter_provider(
     headers: str,
     temporality: str,
     export_interval_ms: int,
-) -> NativeMeterProvider:
-    """Construct a ``NativeMeterProvider`` wired to the native OTLP metrics exporter."""
+) -> MeterProvider:
+    """Construct a native-backed ``MeterProvider`` wired to the OTLP metrics exporter.
+
+    ``service``/``env``/``version`` are passed as primitives; the native ResourceBuilder owns the
+    mapping to OTel semantic-convention keys (``service.name`` etc.) and Datadog's precedence
+    rules, so this shim never hardcodes those keys. ``resource_attributes`` carries only the
+    remaining generic attributes (e.g. DD_TAGS, host.name).
+    """
     builder = TelemetryAggregatorBuilder()
+    if service:
+        builder = builder.set_resource_service(service)
+    if env:
+        builder = builder.set_resource_env(env)
+    if version:
+        builder = builder.set_resource_version(version)
     for key, value in resource_attributes.items():
         builder = builder.set_resource_attribute(str(key), str(value))
     builder = builder.set_metrics_exporter(endpoint, protocol, timeout_ms, _parse_headers(headers))
@@ -261,6 +269,6 @@ def build_native_meter_provider(
     for warning in warnings:
         log.warning("OpenTelemetry metrics aggregator build warning: %s", warning)
 
-    scheduler = _ObservableScheduler(aggregator, export_interval_ms / 1000.0)
-    scheduler.start()
-    return NativeMeterProvider(aggregator, scheduler)
+    reader = _ObservableCallbackReader(aggregator, export_interval_ms / 1000.0)
+    reader.start()
+    return MeterProvider(aggregator, reader)
