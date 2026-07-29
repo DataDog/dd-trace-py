@@ -252,6 +252,26 @@ MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
 ]
 
 
+MOCK_CACHE_ONLY_USAGE = {
+    "input_tokens": 0,
+    "output_tokens": 15,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5000,
+}
+EXPECTED_CACHE_ONLY_USAGE = {
+    "input_tokens": 5000,
+    "output_tokens": 15,
+    "total_tokens": 5015,
+    "cache_read_input_tokens": 5000,
+}
+MOCK_ASSISTANT_RESPONSE_CACHE_ONLY = create_mock_assistant_message("4", usage=MOCK_CACHE_ONLY_USAGE)
+MOCK_QUERY_RESPONSE_SEQUENCE_CACHE_ONLY = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE_CACHE_ONLY,
+    MOCK_RESULT_MESSAGE,
+]
+
+
 MOCK_READ_TOOL_ID = "toolu_01C4Thx957VoSn21zERxbeQX"
 MOCK_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_tool_use(
     [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],
@@ -378,20 +398,6 @@ MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE = [
     MOCK_ASSISTANT_RESPONSE,
     MOCK_STRUCTURED_RESULT_MESSAGE,
 ]
-
-EXPECTED_CACHE_WRITE_INPUT_TOKENS = 12742
-EXPECTED_CACHE_READ_INPUT_TOKENS = 1854
-EXPECTED_INPUT_TOKENS = 3 + EXPECTED_CACHE_WRITE_INPUT_TOKENS + EXPECTED_CACHE_READ_INPUT_TOKENS
-EXPECTED_OUTPUT_TOKENS = 5
-EXPECTED_TOTAL_TOKENS = EXPECTED_INPUT_TOKENS + EXPECTED_OUTPUT_TOKENS
-EXPECTED_QUERY_USAGE = {
-    "input_tokens": EXPECTED_INPUT_TOKENS,
-    "output_tokens": EXPECTED_OUTPUT_TOKENS,
-    "total_tokens": EXPECTED_TOTAL_TOKENS,
-    "cache_write_input_tokens": EXPECTED_CACHE_WRITE_INPUT_TOKENS,
-    "cache_read_input_tokens": EXPECTED_CACHE_READ_INPUT_TOKENS,
-}
-
 
 # mocked client messages are in a raw format compared to normal query responses
 MOCK_CLIENT_RAW_MESSAGES = [
