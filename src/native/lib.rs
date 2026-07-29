@@ -14,6 +14,7 @@ mod ffe;
 mod http_client;
 mod library_config;
 mod log;
+mod otel_telemetry;
 #[cfg(target_os = "linux")]
 mod otel_thread_ctx;
 mod py_string;
@@ -72,6 +73,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
+    otel_telemetry::register_otel_telemetry(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
