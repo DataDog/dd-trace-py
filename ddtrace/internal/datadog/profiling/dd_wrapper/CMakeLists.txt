@@ -56,6 +56,7 @@ add_library(
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
+    src/gc_monitor.cpp
     src/libdatadog_helpers.cpp
     src/native_call_tracker.cpp
     src/profile.cpp
@@ -71,8 +72,8 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
-set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+# Disable -Wold-style-cast for files that use Python C API headers directly
+set_source_files_properties(src/sample.cpp src/gc_monitor.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
