@@ -81,6 +81,12 @@ failure_msg: str = ""
 # Stays False when the cdylib is absent or was built allocation-only.
 _live_heap_available: bool = False
 
+# Whether the loaded cdylib exports the test-only hook-hit counter symbol
+# (``ddtrace_heap_gotter_test_hook_hits``). Only true for a ``test-support``
+# build (never a shipped wheel). Lets deterministic CI tests prove the patched
+# GOT actually ran without a live eBPF attach; see ``test_hook_hits`` below.
+_test_hook_available: bool = False
+
 _lib: ctypes.CDLL | None = None  # kept alive for process lifetime; never dlclose'd
 
 
@@ -134,6 +140,16 @@ try:
     except AttributeError:
         _live_heap_available = False
 
+    # Bind the test-only hook-hit counter defensively: it exists ONLY on a
+    # `test-support` build (never a shipped wheel). A missing symbol simply
+    # leaves the counter reported as unavailable rather than failing the load.
+    try:
+        _lib.ddtrace_heap_gotter_test_hook_hits.argtypes = []
+        _lib.ddtrace_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+        _test_hook_available = True
+    except AttributeError:
+        _test_hook_available = False
+
 except Exception as e:
     failure_msg = str(e)
     _lib = None
@@ -173,3 +189,25 @@ def live_heap_enabled() -> bool:
     """
     return _live_heap_available
 
+
+def test_hook_hits() -> int | None:
+    """Test-only: number of times the patched GOT hooks have run in this process.
+
+    Returns the process-global ``gotter_malloc``/``gotter_free`` hit counter,
+    which increments on every intercepted raw (glibc) ``malloc``/``free`` — it is
+    NOT sampling-gated — so a deterministic single-process test can prove the
+    native gotter actually captured the raw-domain allocations that the
+    in-process ``_memalloc`` sampler dropped under the ownership partition,
+    without needing a live eBPF/Full-Host attach.
+
+    Returns ``None`` when the counter is unavailable: on a non-Linux platform,
+    when the cdylib is absent, or (the common CI case) when the shipped cdylib
+    was NOT built with the ``test-support`` cargo feature. Tests must treat
+    ``None`` as "skip: no test-support gotter build".
+    """
+    if not is_available or _lib is None or not _test_hook_available:
+        return None
+    try:
+        return int(_lib.ddtrace_heap_gotter_test_hook_hits())
+    except Exception:
+        return None

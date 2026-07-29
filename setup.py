@@ -138,8 +138,13 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 # staging A/B harness sets this to bake the artifact into its custom wheels;
 # runtime install is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
-# Keep the staged cdylib unstripped when building with the upstream test-support
-# feature (hook-hit counter for e2e / integration tests).
+# Opt-in: also compile the gotter cdylib with the `test-support` cargo feature so
+# it exports `ddtrace_heap_gotter_test_hook_hits()` (a process-global hook-hit
+# counter). This lets a deterministic, cluster-independent CI test prove the
+# producer-side ownership handoff (the native gotter actually captures the raw
+# glibc-malloc tail the in-process sampler drops) without a live eBPF attach.
+# Never set for shipped wheels — it is strictly a test build knob and only has
+# any effect when BUILD_NATIVE_HEAP_GOTTER is also on.
 BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
     "1",
     "yes",
@@ -1075,6 +1080,14 @@ class CustomBuildExt(build_ext):
         # `live-heap` is a default cargo feature (see Cargo.toml), so the built
         # cdylib always emits both the `ddheap:alloc` and `ddheap:free` USDTs
         # (verifiable via `readelf -n`) and stamps per-allocation retain flags.
+        #
+        # Test builds may also opt into `test-support`, which forwards to the
+        # upstream crate and exports `ddtrace_heap_gotter_test_hook_hits()` so a
+        # deterministic single-process test can prove the patched GOT actually
+        # ran. This is additive (default features stay on) and is never enabled
+        # for shipped wheels.
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            cargo_cmd += ["--features", "test-support"]
         proc: subprocess.CompletedProcess[str] = subprocess.run(
             cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
         )
