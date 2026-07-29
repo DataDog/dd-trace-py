@@ -14,7 +14,7 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 from collections import namedtuple
 import os
 import random
-import time
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -125,13 +125,40 @@ class AgentlessConfigurationSource(PeriodicService):
         self._origin_pid = os.getpid()
         self._jittered_pid: Optional[int] = None
 
+        # Set on shutdown so in-tick waits (retry backoff, fork jitter) return
+        # immediately instead of holding the worker thread for their full delay.
+        self._shutdown = threading.Event()
+
     # -- scheduling ---------------------------------------------------------
+
+    def _start_service(self, *args: Any, **kwargs: Any) -> None:
+        self._shutdown.clear()
+        super()._start_service(*args, **kwargs)
+
+    def _stop_service(self, *args: Any, **kwargs: Any) -> None:
+        # Release any in-tick wait first so the worker thread can finish promptly.
+        self._shutdown.set()
+        super()._stop_service(*args, **kwargs)
+
+    def _wait(self, delay: float) -> bool:
+        """Wait ``delay`` seconds. Returns True if a shutdown was requested."""
+        if delay <= 0:
+            return self._shutdown.is_set()
+        return self._shutdown.wait(delay)
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
-        self._stagger_first_poll_after_fork()
+        if self._stagger_first_poll_after_fork():
+            return
+
         after = [self._retry_delay(1), self._retry_delay(2)]
-        poll = retry(after=after, until=lambda r: not _is_retryable_status(r.status))(self._request)
+        poll = retry(
+            after=after,
+            # Stop retrying on a decisive response, or as soon as a shutdown is
+            # requested (the backoff wait below returns early in that case).
+            until=lambda r: self._shutdown.is_set() or not _is_retryable_status(r.status),
+            sleep_func=self._wait,
+        )(self._request)
         try:
             response = poll()
         except RetryError as e:
@@ -142,22 +169,29 @@ class AgentlessConfigurationSource(PeriodicService):
             log.debug("Feature Flagging agentless poll failed unexpectedly", exc_info=True)
             return
 
+        # A shutdown mid-poll leaves the response unusable for state transitions;
+        # keep last-known-good and the current ETag.
+        if self._shutdown.is_set():
+            return
+
         self._apply(response)
 
-    def _stagger_first_poll_after_fork(self) -> None:
+    def _stagger_first_poll_after_fork(self) -> bool:
         """Delay the first poll in a forked child so workers don't poll in lockstep.
 
         The process that created the source (or any single-process run) is never
         delayed, so behavior matches dd-trace-js and leaves tests unaffected. A
         forked worker waits a random bounded delay before its first poll only.
+
+        Returns True if a shutdown was requested while waiting, in which case the
+        caller should skip the poll.
         """
         pid = os.getpid()
         if pid == self._origin_pid or self._jittered_pid == pid:
-            return
+            return self._shutdown.is_set()
         self._jittered_pid = pid
         delay = random.uniform(0, min(self.interval, FIRST_POLL_JITTER_MAX_S))  # nosec B311
-        if delay:
-            time.sleep(delay)
+        return self._wait(delay)
 
     def _retry_delay(self, attempt: int) -> float:
         if attempt == 1:

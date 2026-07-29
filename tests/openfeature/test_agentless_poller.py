@@ -215,27 +215,79 @@ def test_self_tracing_suppressed(harness):
     assert src._requests[0]["no_trace"] is True
 
 
+def _spy_waits(src, monkeypatch):
+    """Record the positive delays the source waits on (ignores no-op 0 waits)."""
+    waits: list = []
+
+    def fake_wait(delay):
+        if delay > 0:
+            waits.append(delay)
+        return False
+
+    monkeypatch.setattr(src, "_wait", fake_wait)
+    return waits
+
+
 def test_origin_process_first_poll_is_not_jittered(harness, monkeypatch):
-    sleeps: list = []
-    monkeypatch.setattr(source_mod.time, "sleep", lambda d: sleeps.append(d))
     src = harness([_FakeResponse(304)])
+    waits = _spy_waits(src, monkeypatch)
     src.periodic()
-    assert sleeps == []  # origin process polls immediately
+    assert waits == []  # origin process polls immediately
 
 
 def test_forked_child_first_poll_is_jittered_once(harness, monkeypatch):
-    sleeps: list = []
-    monkeypatch.setattr(source_mod.time, "sleep", lambda d: sleeps.append(d))
     src = harness([_FakeResponse(304), _FakeResponse(304)])
+    waits = _spy_waits(src, monkeypatch)
     # Simulate a forked worker: a PID different from the creating process.
     monkeypatch.setattr(source_mod.os, "getpid", lambda: src._origin_pid + 1)
 
     src.periodic()
-    assert len(sleeps) == 1
-    assert 0 <= sleeps[0] <= min(src.interval, source_mod.FIRST_POLL_JITTER_MAX_S)
+    assert len(waits) == 1
+    assert 0 < waits[0] <= min(src.interval, source_mod.FIRST_POLL_JITTER_MAX_S)
 
     src.periodic()
-    assert len(sleeps) == 1  # only the first poll in the child is staggered
+    assert len(waits) == 1  # only the first poll in the child is staggered
+
+
+# ---------------------------------------------------------------------------
+# Shutdown
+# ---------------------------------------------------------------------------
+
+
+def test_shutdown_during_backoff_stops_retrying(harness, monkeypatch):
+    """A shutdown requested while backing off must not start another attempt."""
+    src = harness([_FakeResponse(500), _FakeResponse(200, _ufc_body(), {"ETag": '"late"'})])
+
+    def wait_then_shutdown(delay):
+        src._shutdown.set()
+        return True
+
+    monkeypatch.setattr(src, "_wait", wait_then_shutdown)
+
+    src.periodic()
+
+    assert len(src._requests) == 1  # retry abandoned
+    assert src._applied == []
+    assert src._etag is None
+
+
+def test_shutdown_mid_poll_does_not_apply(harness):
+    """A response that arrives after shutdown must not replace state."""
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})])
+    src._shutdown.set()
+
+    src.periodic()
+
+    assert src._applied == []
+    assert src._etag is None
+
+
+def test_backoff_wait_is_interruptible(harness):
+    """The backoff wait returns as soon as a shutdown is requested."""
+    src = harness([_FakeResponse(304)])
+    src._shutdown.set()
+    # A long delay must return immediately (True) rather than sleeping it out.
+    assert src._wait(3600) is True
 
 
 def test_poll_interval_clamped_to_one_hour():
