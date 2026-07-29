@@ -128,13 +128,9 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
-# Opt-in build of the native heap-gotter cdylib (Phase 1: allocation-only native
-# heap profiling via GOT rewriting, driven at runtime by the FH eBPF profiler).
-# Off by default so normal builds don't pay the extra cargo fetch/compile for the
-# `libdd-profiling-heap-gotter` crates.io dependency and mainline wheels don't
-# ship the artifact until it graduates. The staging A/B harness sets this to bake
-# the artifact into its custom wheels; runtime install is separately gated by
-# DD_PROFILING_NATIVE_HEAP_ENABLED.
+# Opt-in build of the native heap-gotter cdylib.
+# Off by default so normal builds don't pay the extra cargo fetch/compile and
+# mainline wheels don't ship the artifact until it GA's.
 BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
@@ -857,9 +853,6 @@ class CustomBuildExt(build_ext):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
-        # Build the native heap-gotter cdylib (opt-in, Linux 64-bit only). It is
-        # a standalone ctypes-loaded library with no dependency on the other
-        # extensions, so ordering relative to them does not matter.
         if BUILD_NATIVE_HEAP_GOTTER and CURRENT_OS == "Linux" and is_64_bit_python():
             with _time_phase("build_heap_gotter"):
                 self.build_heap_gotter()
