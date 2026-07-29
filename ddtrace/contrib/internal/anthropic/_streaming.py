@@ -3,6 +3,7 @@ from typing import Any
 import anthropic
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
@@ -43,14 +44,14 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            AnthropicStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_text_stream,
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            AnthropicAsyncStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_async_text_stream,
         )
         return traced_stream
