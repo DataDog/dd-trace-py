@@ -206,7 +206,7 @@ dependencies = [
 [[package]]
 name = "build_common"
 version = "37.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "cbindgen",
  "serde",
@@ -541,7 +541,7 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 [[package]]
 name = "datadog-ffe"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "chrono",
  "derive_more",
@@ -563,7 +563,7 @@ dependencies = [
 [[package]]
 name = "datadog-ipc"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "bincode",
@@ -591,7 +591,7 @@ dependencies = [
 [[package]]
 name = "datadog-ipc-macros"
 version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1589,7 +1589,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1599,7 +1599,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1610,7 +1610,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "bytes",
  "http",
@@ -1623,7 +1623,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1663,7 +1663,7 @@ dependencies = [
 [[package]]
 name = "libdd-common-ffi"
 version = "37.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1677,7 +1677,7 @@ dependencies = [
 [[package]]
 name = "libdd-crashtracker"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "blazesym",
@@ -1710,7 +1710,7 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline"
 version = "6.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1746,7 +1746,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "prost",
 ]
@@ -1754,7 +1754,7 @@ dependencies = [
 [[package]]
 name = "libdd-dogstatsd-client"
 version = "3.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1767,7 +1767,7 @@ dependencies = [
 [[package]]
 name = "libdd-http-client"
 version = "37.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "bytes",
  "fastrand",
@@ -1780,7 +1780,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "libc",
@@ -1808,7 +1808,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "chrono",
  "tracing",
@@ -1819,7 +1819,7 @@ dependencies = [
 [[package]]
 name = "libdd-otel-telemetry"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "libdd-shared-runtime",
  "opentelemetry",
@@ -1831,7 +1831,7 @@ dependencies = [
 [[package]]
 name = "libdd-otel-thread-ctx"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "build_common",
  "cc",
@@ -1840,7 +1840,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1879,7 +1879,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1901,7 +1901,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "prost",
 ]
@@ -1909,7 +1909,7 @@ dependencies = [
 [[package]]
 name = "libdd-remote-config"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "base64",
@@ -1937,7 +1937,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "async-trait",
  "futures",
@@ -1954,7 +1954,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime-ffi"
 version = "37.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "build_common",
  "libdd-shared-runtime",
@@ -1964,7 +1964,7 @@ dependencies = [
 [[package]]
 name = "libdd-telemetry"
 version = "5.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1991,7 +1991,7 @@ dependencies = [
 [[package]]
 name = "libdd-tinybytes"
 version = "1.1.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "serde",
 ]
@@ -1999,7 +1999,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-normalization"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "libdd-trace-protobuf",
@@ -2008,7 +2008,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-obfuscation"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "fluent-uri",
@@ -2024,7 +2024,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-protobuf"
 version = "3.0.2"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "prost",
  "serde",
@@ -2034,7 +2034,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-stats"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2059,7 +2059,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-utils"
 version = "8.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "base64",
@@ -2093,7 +2093,7 @@ dependencies = [
 [[package]]
 name = "libdd-tracer-flare"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#7531f13a97c34161a07b0ac6abb1ee1996e2c487"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog-v37#fef5a9ea95d805b8295ec8a9ce8d16b46b31de02"
 dependencies = [
  "anyhow",
  "bytes",

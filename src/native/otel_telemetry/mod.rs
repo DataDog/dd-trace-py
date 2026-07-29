@@ -1,13 +1,13 @@
 use libdd_otel_telemetry::{
-    InstrumentDescriptor, InstrumentId, InstrumentKind, OtlpExporterConfig, OtlpProtocol,
-    ResourceBuilder, TelemetryAggregator, TelemetryAggregatorBuilder, Temporality,
+    InstrumentDescriptor, InstrumentId, InstrumentKind, OtelMetricsAggregator,
+    OtelMetricsAggregatorBuilder, OtlpExporterConfig, OtlpProtocol, ResourceBuilder, Temporality,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{
+    exceptions::{PyRuntimeError, PyValueError},
+    prelude::*,
+};
 use std::time::Duration;
-
-mod exceptions;
-use exceptions::TelemetryAggregatorErrorPy;
 
 use crate::shared_runtime::SharedRuntimePy;
 
@@ -35,18 +35,18 @@ fn parse_instrument_kind(kind: &str) -> PyResult<InstrumentKind> {
     }
 }
 
-/// A wrapper around [TelemetryAggregatorBuilder].
+/// A wrapper around [OtelMetricsAggregatorBuilder].
 ///
 /// Allows using the builder as a python class. Only one aggregator can be built using a builder;
 /// once `build` has been called the builder shouldn't be reused.
-#[pyclass(name = "TelemetryAggregatorBuilder")]
-pub struct TelemetryAggregatorBuilderPy {
-    builder: Option<TelemetryAggregatorBuilder>,
+#[pyclass(name = "OtelMetricsAggregatorBuilder")]
+pub struct OtelMetricsAggregatorBuilderPy {
+    builder: Option<OtelMetricsAggregatorBuilder>,
     resource: ResourceBuilder,
 }
 
-impl TelemetryAggregatorBuilderPy {
-    fn try_take_builder(&mut self) -> PyResult<TelemetryAggregatorBuilder> {
+impl OtelMetricsAggregatorBuilderPy {
+    fn try_take_builder(&mut self) -> PyResult<OtelMetricsAggregatorBuilder> {
         self.builder
             .take()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -54,11 +54,11 @@ impl TelemetryAggregatorBuilderPy {
 }
 
 #[pymethods]
-impl TelemetryAggregatorBuilderPy {
+impl OtelMetricsAggregatorBuilderPy {
     #[new]
     fn new() -> Self {
-        TelemetryAggregatorBuilderPy {
-            builder: Some(TelemetryAggregatorBuilder::new()),
+        OtelMetricsAggregatorBuilderPy {
+            builder: Some(OtelMetricsAggregatorBuilder::new()),
             resource: ResourceBuilder::new(),
         }
     }
@@ -133,7 +133,7 @@ impl TelemetryAggregatorBuilderPy {
     fn build(
         &mut self,
         shared_runtime: PyRef<'_, SharedRuntimePy>,
-    ) -> PyResult<(TelemetryAggregatorPy, Vec<String>)> {
+    ) -> PyResult<(OtelMetricsAggregatorPy, Vec<String>)> {
         let builder = self
             .try_take_builder()?
             .with_resource(std::mem::take(&mut self.resource).build());
@@ -141,7 +141,7 @@ impl TelemetryAggregatorBuilderPy {
         let (aggregator, warnings) = builder.build::<ForkSafeRuntime>(runtime);
         let warnings = warnings.iter().map(|w| w.to_string()).collect();
         Ok((
-            TelemetryAggregatorPy {
+            OtelMetricsAggregatorPy {
                 inner: Some(aggregator),
             },
             warnings,
@@ -153,22 +153,22 @@ impl TelemetryAggregatorBuilderPy {
     }
 }
 
-/// A python object wrapping a [TelemetryAggregator] instance.
-#[pyclass(name = "TelemetryAggregator")]
-pub struct TelemetryAggregatorPy {
-    inner: Option<TelemetryAggregator>,
+/// A python object wrapping a [OtelMetricsAggregator] instance.
+#[pyclass(name = "OtelMetricsAggregator")]
+pub struct OtelMetricsAggregatorPy {
+    inner: Option<OtelMetricsAggregator>,
 }
 
-impl TelemetryAggregatorPy {
-    fn try_as_ref(&self) -> PyResult<&TelemetryAggregator> {
+impl OtelMetricsAggregatorPy {
+    fn try_as_ref(&self) -> PyResult<&OtelMetricsAggregator> {
         self.inner.as_ref().ok_or(PyValueError::new_err(
-            "TelemetryAggregator has already been shut down",
+            "OtelMetricsAggregator has already been shut down",
         ))
     }
 }
 
 #[pymethods]
-impl TelemetryAggregatorPy {
+impl OtelMetricsAggregatorPy {
     /// `kind` is one of `"counter"`, `"up_down_counter"`, `"histogram"`, `"observable_gauge"`,
     /// `"observable_counter"`, `"observable_up_down_counter"`.
     fn register_instrument(
@@ -237,7 +237,7 @@ impl TelemetryAggregatorPy {
     fn force_flush(&self) -> PyResult<()> {
         self.try_as_ref()?
             .force_flush()
-            .map_err(TelemetryAggregatorErrorPy::from)?;
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
 
@@ -245,7 +245,7 @@ impl TelemetryAggregatorPy {
         if let Some(aggregator) = self.inner.take() {
             aggregator
                 .shutdown()
-                .map_err(TelemetryAggregatorErrorPy::from)?;
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         }
         Ok(())
     }
@@ -256,7 +256,7 @@ impl TelemetryAggregatorPy {
     }
 }
 
-impl Drop for TelemetryAggregatorPy {
+impl Drop for OtelMetricsAggregatorPy {
     fn drop(&mut self) {
         if let Some(aggregator) = self.inner.take() {
             let _ = aggregator.shutdown();
@@ -266,8 +266,7 @@ impl Drop for TelemetryAggregatorPy {
 
 #[pymodule]
 pub fn register_otel_telemetry(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<TelemetryAggregatorBuilderPy>()?;
-    m.add_class::<TelemetryAggregatorPy>()?;
-    exceptions::register_exceptions(m)?;
+    m.add_class::<OtelMetricsAggregatorBuilderPy>()?;
+    m.add_class::<OtelMetricsAggregatorPy>()?;
     Ok(())
 }

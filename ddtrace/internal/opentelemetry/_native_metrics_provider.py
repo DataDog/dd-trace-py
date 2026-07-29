@@ -1,7 +1,7 @@
 """An OpenTelemetry ``MeterProvider`` backed by libdatadog's native telemetry aggregator.
 
 This implements the ``opentelemetry-api`` metrics interfaces (``MeterProvider`` / ``Meter`` / the
-instrument types) as a thin shim: every call is forwarded into the native ``TelemetryAggregator``
+instrument types) as a thin shim: every call is forwarded into the native ``OtelMetricsAggregator``
 over a primitives-only boundary — opaque instrument ids, float values, and string attribute pairs.
 libdatadog owns aggregation, resource building, and OTLP export, so ddtrace needs neither the
 ``opentelemetry-sdk`` nor ``opentelemetry-exporter-otlp`` packages for metrics.
@@ -20,7 +20,7 @@ from typing import Sequence
 from opentelemetry import metrics as otel
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native._native import TelemetryAggregatorBuilder
+from ddtrace.internal.native._native import OtelMetricsAggregatorBuilder
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import PeriodicService
 
@@ -183,7 +183,7 @@ class Meter(otel.Meter):
 
 
 class MeterProvider(otel.MeterProvider):
-    """A ``MeterProvider`` backed by the native ``TelemetryAggregator``."""
+    """A ``MeterProvider`` backed by the native ``OtelMetricsAggregator``."""
 
     def __init__(self, aggregator, reader):
         self._aggregator = aggregator
@@ -252,7 +252,7 @@ def build_meter_provider(
     rules, so this shim never hardcodes those keys. ``resource_attributes`` carries only the
     remaining generic attributes (e.g. DD_TAGS, host.name).
     """
-    builder = TelemetryAggregatorBuilder()
+    builder = OtelMetricsAggregatorBuilder()
     if service:
         builder = builder.set_resource_service(service)
     if env:
