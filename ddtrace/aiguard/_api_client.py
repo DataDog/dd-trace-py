@@ -10,6 +10,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -17,6 +18,7 @@ from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
@@ -65,6 +67,9 @@ class Evaluation(TypedDict):
     tags: list[str]
     sds: list[Any]
     tag_probs: dict[str, float]
+    # The evaluated messages, redacted when the AI Guard service asked for it. Otherwise the very same
+    # list that was passed to evaluate, so `result["messages"] is messages` means nothing was redacted.
+    messages: list[Message]
 
 
 class Options(TypedDict, total=False):
@@ -109,12 +114,15 @@ class AIGuardAbortError(DDBlockException):
         tags: Optional[list[str]] = None,
         sds: Optional[list[Any]] = None,
         tag_probs: Optional[dict[str, float]] = None,
+        messages: Optional[list[Message]] = None,
     ):
         self.action = action
         self.reason = reason
         self.tags = tags
         self.sds = sds or []
         self.tag_probs = tag_probs
+        # Redacted when the evaluation asked for it, so handlers report the same content as the UI.
+        self.messages = messages if messages is not None else []
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
@@ -140,8 +148,6 @@ class AIGuardClient:
         }
 
         self._meta = {"service": config.service, "env": config.env}
-        # Import lazily to avoid a circular import: aiguard settings pull in this package.
-        from ddtrace.internal.settings.aiguard import aiguard_config
 
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
@@ -150,12 +156,11 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
-        # Import lazily to avoid a circular import: aiguard settings pull in this package.
-        from ddtrace.internal.settings.aiguard import aiguard_config
-
+    def _messages_for_meta_struct(messages: list[Message], emit_telemetry: bool = True) -> list[Message]:
+        # emit_telemetry is disabled when re-running this on the redacted messages of an evaluation
+        # that already reported its truncation, so a single call is never counted twice.
         max_messages_length = aiguard_config._ai_guard_max_messages_length
-        if len(messages) > max_messages_length:
+        if len(messages) > max_messages_length and emit_telemetry:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
             )
@@ -184,7 +189,7 @@ class AIGuardClient:
             return new_message
 
         result = [truncate_message(message) for message in messages]
-        if content_truncated:
+        if content_truncated and emit_telemetry:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
@@ -270,9 +275,6 @@ class AIGuardClient:
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 
-                meta_struct = {"messages": self._messages_for_meta_struct(messages)}
-                span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
-
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
@@ -288,6 +290,9 @@ class AIGuardClient:
                         sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                         tag_probs = attributes.get("tag_probs")
+                        # Presence of a non-empty array is the signal to redact; sds_findings are
+                        # detection metadata only and never drive redaction.
+                        redaction_replacements = attributes.get("redaction_replacements")
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
                         raise AIGuardClientError(
@@ -302,6 +307,18 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    redacted_messages = messages
+                    redaction_enabled = aiguard_config._ai_guard_redaction_enabled
+                    if redaction_enabled and redaction_replacements:
+                        redacted_messages = redact_messages(messages, redaction_replacements)
+                    # redact_messages returns the very same list when nothing was applied.
+                    redacted = redacted_messages is not messages
+                    if redaction_enabled:
+                        span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
+
+                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages)}
+                    span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
+
                     if tags:
                         meta_struct.update({"attack_categories": tags})
                     if reason:
@@ -318,13 +335,15 @@ class AIGuardClient:
                     )
 
                 should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
-                self._add_request_to_telemetry(
-                    (
-                        ("action", action),
-                        ("block", "true" if should_block else "false"),
-                        ("error", "false"),
-                    )
-                )
+                telemetry_tags = [
+                    ("action", action),
+                    ("block", "true" if should_block else "false"),
+                    ("error", "false"),
+                ]
+                # No tag at all when redaction is off, so absent is distinguishable from "nothing redacted".
+                if redaction_enabled:
+                    telemetry_tags.append(("redacted", "true" if redacted else "false"))
+                self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
                 if root_span:
                     _aiguard_manual_keep(root_span)
@@ -354,16 +373,26 @@ class AIGuardClient:
                         tags=tags,
                         sds=sds_findings,
                         tag_probs=tag_probs,
+                        messages=redacted_messages,
                     )
 
-                return Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings, tag_probs=tag_probs)
+                return Evaluation(
+                    action=action,
+                    reason=reason,
+                    tags=tags,
+                    sds=sds_findings,
+                    tag_probs=tag_probs,
+                    messages=redacted_messages,
+                )
 
             except AIGuardAbortError:
                 raise
 
             except Exception:
                 self._add_request_to_telemetry((("error", "true"),))
-                logger.debug("AI Guard evaluation failed for messages: %s", messages, exc_info=True)
+                # Log the size only: the messages may carry sensitive data that redaction would have
+                # removed, and this runs before any redaction decision is known.
+                logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
@@ -386,9 +415,6 @@ def new_ai_guard_client(
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
     if not endpoint:
-        # Import lazily to avoid a circular import: aiguard settings pull in this package.
-        from ddtrace.internal.settings.aiguard import aiguard_config
-
         endpoint = aiguard_config._ai_guard_endpoint
     if not endpoint:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
