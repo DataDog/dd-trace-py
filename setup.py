@@ -3,6 +3,7 @@ import contextlib
 from dataclasses import dataclass
 import hashlib
 from itertools import chain
+import json
 import os
 import platform
 import random
@@ -129,10 +130,11 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 # Opt-in build of the native heap-gotter cdylib (Phase 1: allocation-only native
 # heap profiling via GOT rewriting, driven at runtime by the FH eBPF profiler).
-# Off by default so mainline wheels are not pinned to a moving libdatadog `main`
-# SHA and normal builds don't pay the extra cargo fetch/compile. The staging A/B
-# harness sets this to bake the artifact into its custom wheels; runtime install
-# is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
+# Off by default so normal builds don't pay the extra cargo fetch/compile for the
+# `libdd-profiling-heap-gotter` crates.io dependency and mainline wheels don't
+# ship the artifact until it graduates. The staging A/B harness sets this to bake
+# the artifact into its custom wheels; runtime install is separately gated by
+# DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
@@ -1049,19 +1051,38 @@ class CustomBuildExt(build_ext):
             "--release",
             "--manifest-path",
             str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
+            # Emit machine-readable artifact records so we can locate the built
+            # cdylib no matter where cargo actually wrote it. Diagnostics still
+            # render to stderr in human form.
+            "--message-format=json-render-diagnostics",
         ] + DD_CARGO_ARGS
-        subprocess.run(cargo_cmd, check=True)
+        proc = subprocess.run(cargo_cmd, check=True, stdout=subprocess.PIPE, text=True)
 
-        # The wrapper crate's [lib] name is "dd_heap_gotter", so cargo emits a
-        # single-lib-prefixed artifact (unlike libdatadog's own liblib*.so).
-        # Glob defensively in case the extension/name assumption ever drifts.
-        release_dir = NATIVE_HEAP_GOTTER_CRATE / "target" / "release"
-        built = release_dir / "libdd_heap_gotter.so"
-        if not built.exists():
-            candidates = [c for c in release_dir.glob("libdd_heap_gotter.*") if c.suffix in (".so", ".dylib")]
-            if not candidates:
-                raise RuntimeError(f"Not able to find heap-gotter cdylib in {release_dir}")
-            built = candidates[0]
+        # Locate the produced cdylib from cargo's own artifact output rather than
+        # assuming a fixed `target/release` path: cargo honors CARGO_TARGET_DIR
+        # (common in CI) and DD_CARGO_ARGS may pass --target-dir / --target,
+        # either of which moves the artifact out from under a hard-coded lookup.
+        # Each "compiler-artifact" message lists the absolute output paths in
+        # "filenames"; we take the crate's cdylib (.so/.dylib).
+        built = None
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if msg.get("reason") != "compiler-artifact":
+                continue
+            if (msg.get("target") or {}).get("name") != "dd_heap_gotter":
+                continue
+            for filename in msg.get("filenames") or []:
+                if filename.endswith((".so", ".dylib")):
+                    built = Path(filename)
+                    break
+        if built is None or not built.exists():
+            raise RuntimeError("Not able to find heap-gotter cdylib in cargo build output")
 
         shutil.copy2(built, gotter_library)
         print(f"Built and copied heap-gotter cdylib: {gotter_name}")
