@@ -9,11 +9,11 @@ from typing import cast
 
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.internal.wrapping.context import BaseWrappingContext
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
@@ -701,39 +701,84 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
-def test_wrapping_context_deepcopy():
-    """Deepcopy of a route holding a wrapping context (e.g. Cadwyn/Airflow 3) must not raise.
-    This is a regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+def test_wrapping_context_deepcopy_with_lock():
+    """Deepcopy of a route decorated with functools.wraps over a wrapped endpoint must not raise.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/16443 (follow-up: _thread.lock).
+
+    Cadwyn's _versioned() uses @functools.wraps(endpoint) which copies endpoint.__dict__ into
+    the decorator. Previously, __dd_context_wrapped__ would be set on endpoint.__dict__ and
+    propagated by functools.wraps. Deepcopy of a plain function is atomic, but deepcopy of an
+    object whose __dict__ was updated from a function (e.g. a route that does
+    self.__dict__.update(endpoint.__dict__)) would traverse the wrapping context. The
+    _UniversalWrappingContext holds registered WrappingContext instances that may have
+    _thread.lock attributes, causing deepcopy to fail. Wrapping metadata is now kept off the
+    function's __dict__ entirely, so decorated.__dict__ stays clean and deepcopy succeeds.
     """
+    import functools
+    import threading
+
+    class LockHoldingWrappingContext(WrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+            self._lock = threading.Lock()
+
+        def __enter__(self):
+            return super().__enter__()
+
+        def __return__(self, value):
+            return super().__return__(value)
 
     def endpoint():
         return 1
 
-    wc = DummyLazyWrappingContext(endpoint)
+    wc = LockHoldingWrappingContext(endpoint)
     wc.wrap()
 
+    @functools.wraps(endpoint)
+    def decorated(*args, **kwargs):
+        return endpoint(*args, **kwargs)
+
+    # A route that does self.__dict__.update(endpoint.__dict__) copies whatever
+    # is in decorated.__dict__ onto the route instance. With the registry-based
+    # approach, decorated.__dict__ is clean, so deepcopy of the route succeeds.
     class Route:
-        """Minimal route-like container (e.g. Starlette APIRoute)."""
+        def __init__(self, f):
+            self.__dict__.update(f.__dict__)
 
-        def __init__(self, endpoint, ctx):
-            self.endpoint = endpoint
-            self.ctx = ctx
+    copy.deepcopy(Route(decorated))
 
-    route = Route(endpoint, wc)
-    route_copy = copy.deepcopy(route)
 
-    assert route_copy.ctx is not wc
-    assert hasattr(route_copy.ctx, "_storage")
-    assert hasattr(route_copy.ctx, "_trampoline_lock")
-    # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
-    # to run inside a wrapped call). This verifies the copied context's
-    # _storage is a new, working ContextVar.
-    BaseWrappingContext.__enter__(route_copy.ctx)
-    try:
-        route_copy.ctx.set("k", 99)
-        assert route_copy.ctx.get("k") == 99
-    finally:
-        BaseWrappingContext.__exit__(route_copy.ctx, None, None, None)
+def test_wrapping_context_no_memory_leak():
+    """Ephemeral functions wrapped with a wrapping context must be garbage-collected.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+
+    The registry must not keep functions alive via the value chain:
+      _registry -> _ContextRecord -> uwc -> uwc.__wrapped__ -> function
+    Wrapping-context metadata is stored as weak references so the cycle
+    function <-> uwc is isolated and collected by the cyclic GC.
+    """
+    import gc
+    import weakref as wr
+
+    dead_refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral)
+
+    for _ in range(5):
+        dead_refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive = sum(1 for r in dead_refs if r() is not None)
+    assert alive == 0, f"{alive} wrapped ephemeral function(s) were not garbage collected"
 
 
 def test_wrapping_context_exc():
@@ -1190,6 +1235,72 @@ def test_wrapping_context_lazy_unwrap_before_call():
         assert not _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == 0
+
+
+def test_wrapping_context_lazy_no_memory_leak_uncalled():
+    """Ephemeral functions lazily wrapped but never invoked (trampoline installed,
+    permanent wrapping never triggered) must not leak the function or its context
+    once all external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, never-invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, never-invoked context(s) leaked"
+
+
+@pytest.mark.xfail(
+    condition=PYTHON_VERSION_INFO >= (3, 14),
+    reason="LazyWrappingContext leaks on Python 3.14 only when coverage.py instrumentation is active "
+    "(e.g. via pytest-cov); it does not reproduce with --no-cov, suggesting a coverage/CPython 3.14 "
+    "interaction rather than a genuine production leak.",
+    strict=False,
+)
+def test_wrapping_context_lazy_no_memory_leak_invoked():
+    """Ephemeral functions lazily wrapped and then invoked (promoted to universal
+    wrapping) must still be garbage-collected, along with their context, once all
+    external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    refs = []
+
+    def make_wrap_and_call():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_wrap_and_call())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
 
 
 @pytest.mark.asyncio
