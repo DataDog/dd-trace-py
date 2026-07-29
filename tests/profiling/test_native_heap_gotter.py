@@ -49,7 +49,7 @@ def _only_arming_warning(err: str) -> bool:
     harness would otherwise reject as unexpected stderr. Runs in the parent test
     process against the subprocess's decoded stderr.
     """
-    lines = [line for line in err.splitlines() if line.strip()]
+    lines: list[str] = [line for line in err.splitlines() if line.strip()]
     return all("native heap ownership partition:" in line for line in lines)
 
 
@@ -248,24 +248,24 @@ def test_profiler_start_emits_partition_armed_gauge_when_armed() -> None:
 
     profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
 
-    client = mock.Mock()
+    client: mock.Mock = mock.Mock()
     with mock.patch.object(heap_gotter, "install", return_value=True):
         with mock.patch.object(heap_gotter, "live_heap_enabled", return_value=False):
             with mock.patch.object(ddtrace.internal.dogstatsd, "get_dogstatsd_client", return_value=client):
                 with mock.patch.object(profiler_mod.LOG, "warning") as warning:
-                    prof = profiler_mod.Profiler()
+                    prof: profiler_mod.Profiler = profiler_mod.Profiler()
                     prof.start()
                     try:
                         assert client.gauge.call_count == 1
                         args, kwargs = client.gauge.call_args
                         assert args[0] == "profiling.native_heap.partition_armed"
                         assert args[1] == 1, "gauge value must be 1 when armed"
-                        tags = kwargs["tags"]
+                        tags: list[str] = kwargs["tags"]
                         assert "domains:OBJ_MEM" in tags
                         assert "size_threshold_bytes:512" in tags
 
                         assert warning.called, "arming decision must be logged at WARNING"
-                        msg = warning.call_args[0][0]
+                        msg: str = warning.call_args[0][0]
                         assert "native heap ownership partition" in msg
                         assert warning.call_args[0][1] is True, "WARNING must report armed=True"
                     finally:
@@ -286,11 +286,11 @@ def test_profiler_start_emits_partition_armed_gauge_zero_when_not_armed() -> Non
 
     profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
 
-    client = mock.Mock()
+    client: mock.Mock = mock.Mock()
     with mock.patch.object(heap_gotter, "install", return_value=False):
         with mock.patch.object(ddtrace.internal.dogstatsd, "get_dogstatsd_client", return_value=client):
             with mock.patch.object(profiler_mod.LOG, "warning") as warning:
-                prof = profiler_mod.Profiler()
+                prof: profiler_mod.Profiler = profiler_mod.Profiler()
                 prof.start()
                 try:
                     assert client.gauge.call_count == 1
@@ -322,7 +322,7 @@ def test_profiler_start_survives_partition_armed_gauge_error() -> None:
             with mock.patch.object(
                 ddtrace.internal.dogstatsd, "get_dogstatsd_client", side_effect=RuntimeError("no agent")
             ):
-                prof = profiler_mod.Profiler()
+                prof: profiler_mod.Profiler = profiler_mod.Profiler()
                 prof.start()  # must not raise
                 try:
                     assert prof.status.value == "running"

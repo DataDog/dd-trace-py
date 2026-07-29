@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import json
 import logging
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Mapping
@@ -32,17 +33,21 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 
 
+if TYPE_CHECKING:
+    from ddtrace.vendor.dogstatsd import DogStatsd
+
+
 LOG = logging.getLogger(__name__)
 
 # pymalloc's small-request threshold (see CPython Objects/obmalloc.c). Requests
 # larger than this are delegated to glibc malloc, where the native-heap gotter
 # owns them, so the in-process sampler skips them when the partition is armed.
-_NATIVE_HEAP_SIZE_THRESHOLD_BYTES = 512
+_NATIVE_HEAP_SIZE_THRESHOLD_BYTES: int = 512
 # Dogstatsd gauge surfacing the native-heap ownership-partition arming decision
 # (1=armed, 0=not). Structured JSON loggers in real deploys drop ddtrace stdlib
 # records and pods/exec is RBAC-blocked, so the log line alone is not always
 # observable; this gauge gives an out-of-band, queryable signal at service start.
-_NATIVE_HEAP_PARTITION_ARMED_METRIC = "profiling.native_heap.partition_armed"
+_NATIVE_HEAP_PARTITION_ARMED_METRIC: str = "profiling.native_heap.partition_armed"
 
 
 class Profiler(object):
@@ -428,7 +433,7 @@ class _ProfilerInstance(service.Service):
             from ddtrace.internal.dogstatsd import get_dogstatsd_client
             from ddtrace.internal.settings._agent import config as agent_config
 
-            client = get_dogstatsd_client(agent_config.dogstatsd_url)
+            client: DogStatsd = get_dogstatsd_client(agent_config.dogstatsd_url)
             client.gauge(
                 _NATIVE_HEAP_PARTITION_ARMED_METRIC,
                 1 if armed else 0,
