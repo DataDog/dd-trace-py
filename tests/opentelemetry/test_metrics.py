@@ -78,9 +78,10 @@ def test_native_meter_provider_records():
     meter.create_observable_counter("cache.hits", callbacks=[_observe])
     meter.create_observable_up_down_counter("pool.available", callbacks=[_observe])
 
-    # Flushing resolves the observable callbacks and drives the native exporter; it must never raise
-    # even when no collector is reachable.
-    assert provider.force_flush() is True
+    # Flushing resolves the observable callbacks and drives the native exporter. It must never
+    # raise and always returns a bool, whether or not a collector is actually reachable (export
+    # failures are reported as False, not exceptions).
+    assert isinstance(provider.force_flush(), bool)
     provider.shutdown()
 
 
