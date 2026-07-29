@@ -195,8 +195,8 @@ def test_realtime_state_audio_turn_emits_phase_spans():
     _drive_turn(state)
 
     wf = {w["name"]: w for w in integration.workflows}
-    assert {"realtime turn", "user speech", "agent speech"} <= set(wf)
-    root, user, agent = wf["realtime turn"], wf["user speech"], wf["agent speech"]
+    assert {"realtime audio turn", "user speech", "agent speech"} <= set(wf)
+    root, user, agent = wf["realtime audio turn"], wf["user speech"], wf["agent speech"]
     llm = integration.responses[0]
 
     # Nesting: the root is parentless; user-speech, llm, and agent-speech all hang off the root span.
@@ -231,7 +231,7 @@ def test_realtime_state_text_only_turn_emits_no_speech_spans():
     state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
 
     names = [w["name"] for w in integration.workflows]
-    assert "realtime turn" in names
+    assert "realtime audio turn" in names
     assert "user speech" not in names
     assert "agent speech" not in names
 

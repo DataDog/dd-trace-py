@@ -5,7 +5,7 @@ the connection's send/parse_event/close methods (all typed sub-resource sends fu
 RealtimeConnection.send, and recv/iteration/recv_bytes() all funnel through parse_event) and feed
 each observed event into a _RealtimeState machine.
 
-Each conversation turn becomes its own trace rooted at a workflow "turn" span, with child spans that
+Each conversation turn becomes its own trace rooted at a workflow "realtime audio turn" span, with child spans that
 separate the phases by owner: a "user speech" workflow span (the human speaking window), an llm span
 for the model's work (generation - started at the end of user speech and finished at response.done,
 carrying the user/assistant transcripts, audio, and token usage), an "agent speech" workflow span
@@ -423,12 +423,18 @@ class _RealtimeState:
 
     def _tag_turn_root(self, turn: _ResponseTurn) -> None:
         """Tag the turn's workflow root (no parent; it is the root of this turn's trace). Carries the
-        turn's user/assistant transcripts as its input/output for a readable waterfall row."""
+        turn's user/assistant transcripts as its input/output for a readable waterfall row.
+
+        The name carries the ``audio turn`` marker (provider-agnostic: ``realtime audio turn`` here,
+        ``<provider> audio turn`` for future integrations) so the web-ui player and the backend TTFA
+        metric can gate on "is this a voice turn?" by name. This is a FE/BE consumer contract - keep
+        it in lockstep with them.
+        """
         if turn.root_span is None:
             return
         self._integration._llmobs_set_tags_from_realtime_workflow(
             turn.root_span,
-            name="realtime turn",
+            name="realtime audio turn",
             session_id=self._session_id,
             input_value=turn.input.transcript or turn.input.text or None,
             output_value=turn.transcript or turn.text or None,
