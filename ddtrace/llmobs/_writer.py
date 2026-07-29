@@ -37,6 +37,7 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._eval_metric import LLMObsEvaluationMetricEvent as LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
@@ -55,7 +56,6 @@ from ddtrace.version import __version__
 
 if TYPE_CHECKING:
     from ddtrace.llmobs.types import ExperimentConfigType
-    from ddtrace.llmobs.types import FeedbackSubmitter
     from ddtrace.llmobs.types import _SpanLink
 
 
@@ -101,31 +101,6 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     meta: _Meta
     metrics: dict[str, Any]
     _dd: dict[str, str]
-
-
-class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    event_kind: str
-    join_on: dict[str, dict[str, str]]
-    span_id: str
-    trace_id: str
-    session_id: str
-    feedback_join_key: str
-    submitter: "FeedbackSubmitter"
-    metric_type: str
-    label: str
-    categorical_value: str
-    numerical_value: float
-    score_value: float
-    boolean_value: bool
-    json_value: dict[str, JSONType]
-    text_value: str
-    ml_app: str
-    timestamp_ms: int
-    tags: list[str]
-    assessment: str
-    reasoning: str
-    eval_scope: str
-    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):

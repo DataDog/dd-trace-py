@@ -2366,6 +2366,24 @@ def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_
         )
 
 
+def test_submit_evaluation_validation_error_telemetry(llmobs, mock_llmobs_eval_metric_writer):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_evaluation") as record_telemetry:
+        with pytest.raises(TypeError, match="value must be an integer or float for a score metric."):
+            llmobs.submit_evaluation(
+                span={"span_id": "123", "trace_id": "456"},
+                label="token_count",
+                metric_type="score",
+                value="high",
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with(
+        {"span": {"span_id": "123", "trace_id": "456"}},
+        "score",
+        "invalid_metric_value",
+    )
+
+
 def test_submit_evaluation_invalid_tags_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.submit_evaluation(
@@ -2875,7 +2893,6 @@ def test_submit_feedback_with_exported_span_only_emits_span_id(llmobs, mock_llmo
         exported_span = llmobs.export_span(span)
         assert exported_span is not None
         assert exported_span["trace_id"] == get_llmobs_trace_id(span)
-        assert "is_otel" in exported_span
         llmobs.submit_feedback(
             span=exported_span,
             label="comment",

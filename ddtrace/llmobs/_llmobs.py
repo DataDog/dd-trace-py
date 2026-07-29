@@ -2,7 +2,6 @@ import csv
 from dataclasses import dataclass
 from dataclasses import field
 import inspect
-import json
 import math
 import sys
 import time
@@ -31,7 +30,6 @@ from ddtrace.ext import git
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -98,6 +96,9 @@ from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._context import LLMObsContextProvider
+from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
+from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
+from ddtrace.llmobs._eval_metric import _SubmissionTelemetryContext
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
 from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
@@ -173,7 +174,6 @@ from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
-from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -3239,148 +3239,34 @@ class LLMObs(Service):
             )
             return
 
-        error = None
-        join_on: dict[str, Any] = {}
+        telemetry_context = _SubmissionTelemetryContext(metric_type=metric_type)
         try:
-            has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
-
-            if not has_exactly_one_joining_key:
-                error = "provided_both_span_and_tag_joining_key"
-                raise ValueError(
-                    "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation metric."
-                )
-
-            if span is not None:
-                if (
-                    not isinstance(span, dict)
-                    or not isinstance(span.get("span_id"), str)
-                    or not isinstance(span.get("trace_id"), str)
-                ):
-                    error = "invalid_span"
-                    raise TypeError(
-                        "`span` must be a dictionary containing both span_id and trace_id keys. "
-                        "LLMObs.export_span() can be used to generate this dictionary from a given span."
-                    )
-                join_on["span"] = span
-            elif span_with_tag_value is not None:
-                if (
-                    not isinstance(span_with_tag_value, dict)
-                    or not isinstance(span_with_tag_value.get("tag_key"), str)
-                    or not isinstance(span_with_tag_value.get("tag_value"), str)
-                ):
-                    error = "invalid_joining_key"
-                    raise TypeError(
-                        "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' "
-                        "containing string values"
-                    )
-                join_on["tag"] = {
-                    "key": span_with_tag_value.get("tag_key"),
-                    "value": span_with_tag_value.get("tag_value"),
-                }
-
-            if eval_scope not in ("span", "trace"):
-                error = "invalid_eval_scope"
-                raise ValueError("eval_scope must be one of 'span' or 'trace'.")
-
-            timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
-
-            if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-                error = "invalid_timestamp"
-                raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
-
-            if not label:
-                error = "invalid_metric_label"
-                raise ValueError("label must be the specified name of the evaluation metric.")
-
-            if "." in label:
-                error = "invalid_label_value"
-                raise ValueError("label value must not contain a '.'.")
-
-            metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score", "boolean", "json"):
-                error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
-
-            if metric_type == "categorical" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a string for a categorical metric.")
-            if metric_type == "score" and not isinstance(value, (int, float)):
-                error = "invalid_metric_value"
-                raise TypeError("value must be an integer or float for a score metric.")
-            if metric_type == "boolean" and not isinstance(value, bool):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a boolean for a boolean metric.")
-            if metric_type == "json" and not isinstance(value, dict):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a dict for a json metric.")
-
-            if tags is not None and not isinstance(tags, dict):
-                raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
-
-            ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
-
-            evaluation_tags = {
-                "ddtrace.version": __version__,
-                "ml_app": ml_app,
-            }
-
-            if tags:
-                for k, v in tags.items():
-                    try:
-                        evaluation_tags[ensure_text(k)] = ensure_text(v)
-                    except TypeError:
-                        error = "invalid_tags"
-                        raise LLMObsSubmitEvaluationError(
-                            "Failed to parse tags. Tags for evaluation metrics must be strings."
-                        )
-
-            # Auto-add source:otel tag when OTel tracing is enabled
-            # This allows the backend to wait for OTel span conversion
-            if config._otel_trace_enabled:
-                evaluation_tags["source"] = "otel"
-
-            evaluation_metric: LLMObsEvaluationMetricEvent = {
-                "event_kind": "evaluation",
-                "join_on": join_on,
-                "label": str(label),
-                "metric_type": metric_type,
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
-                "eval_scope": eval_scope,
-            }
-
-            if assessment:
-                if not isinstance(assessment, str) or assessment not in (
-                    "pass",
-                    "fail",
-                ):
-                    error = "invalid_assessment"
-                    raise LLMObsSubmitEvaluationError(
-                        "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
-                    )
-                else:
-                    evaluation_metric["assessment"] = assessment
-            if reasoning:
-                if not isinstance(reasoning, str):
-                    error = "invalid_reasoning"
-                    raise LLMObsSubmitEvaluationError("Failed to parse reasoning. reasoning must be a string.")
-                else:
-                    evaluation_metric["reasoning"] = reasoning
-
-            if metadata:
-                if not isinstance(metadata, dict):
-                    error = "invalid_metadata"
-                    raise LLMObsSubmitEvaluationError("metadata must be json serializable dictionary.")
-                else:
-                    metadata = safe_json(metadata)
-                    if metadata and isinstance(metadata, str):
-                        evaluation_metric["metadata"] = json.loads(metadata)
-
+            evaluation_metric = _build_evaluation_metric_event(
+                label=label,
+                metric_type=metric_type,
+                value=value,
+                span=span,
+                span_with_tag_value=span_with_tag_value,
+                tags=tags,
+                ml_app=ml_app,
+                timestamp_ms=timestamp_ms,
+                metadata=metadata,
+                assessment=assessment,
+                reasoning=reasoning,
+                eval_scope=eval_scope,
+                agent_service=agent_service,
+                otel_trace_enabled=config._otel_trace_enabled,
+                resolve_agent_service=_resolve_agent_service,
+                submission_error_cls=LLMObsSubmitEvaluationError,
+                telemetry_context=telemetry_context,
+            )
             cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
         finally:
-            telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
+            telemetry.record_llmobs_submit_evaluation(
+                telemetry_context.join_on,
+                telemetry_context.metric_type,
+                telemetry_context.error,
+            )
 
     @classmethod
     def submit_feedback(
@@ -3434,153 +3320,35 @@ class LLMObs(Service):
             )
             return
 
-        error = None
-        target_type = "other"
+        telemetry_context = _SubmissionTelemetryContext(metric_type=metric_type)
         try:
-            targets = {
-                "span": span,
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "session_id": session_id,
-                "feedback_join_key": feedback_join_key,
-            }
-            provided_targets = [name for name, target in targets.items() if target is not None]
-            if len(provided_targets) != 1:
-                error = "invalid_target_count"
-                raise ValueError(
-                    "Exactly one of `span`, `span_id`, `trace_id`, `session_id`, or "
-                    "`feedback_join_key` must be specified to submit feedback."
-                )
-
-            target_name = provided_targets[0]
-            target_value: str
-            if target_name == "span":
-                target_type = "span_id"
-                if not isinstance(span, dict) or not isinstance(span.get("span_id"), str):
-                    error = "invalid_span"
-                    raise TypeError(
-                        "`span` must be a dictionary containing a string span_id. "
-                        "LLMObs.export_span() can be used to generate this dictionary from a given span."
-                    )
-                if not span["span_id"]:
-                    error = "invalid_span"
-                    raise ValueError("`span` must contain a non-empty string span_id.")
-                # AIDEV-NOTE: LLMObs.export_span() also returns trace_id and is_otel, but feedback
-                # targets must contain exactly one top-level identifier. span= intentionally emits
-                # only span_id so it is wire-equivalent to passing span_id= directly.
-                target_value = span["span_id"]
-            else:
-                target_type = target_name
-                direct_target = targets[target_name]
-                if not isinstance(direct_target, str):
-                    error = "invalid_{}".format(target_name)
-                    raise TypeError("`{}` must be a non-empty string.".format(target_name))
-                if not direct_target:
-                    error = "invalid_{}".format(target_name)
-                    raise ValueError("`{}` must be a non-empty string.".format(target_name))
-                target_value = direct_target
-
-            if not isinstance(submitter, dict) or not isinstance(submitter.get("id"), str):
-                error = "invalid_submitter"
-                raise TypeError("`submitter` must be a dictionary containing a non-empty string id.")
-            if not submitter["id"]:
-                error = "invalid_submitter"
-                raise ValueError("`submitter` must contain a non-empty string id.")
-            if "type" in submitter and not isinstance(submitter["type"], str):
-                error = "invalid_submitter"
-                raise TypeError("`submitter.type` must be a string.")
-
-            feedback_submitter = FeedbackSubmitter(id=submitter["id"])
-            if "type" in submitter:
-                feedback_submitter["type"] = submitter["type"]
-
-            timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
-            if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-                error = "invalid_timestamp"
-                raise ValueError("timestamp_ms must be a non-negative integer. Feedback data will not be sent")
-
-            if not label:
-                error = "invalid_metric_label"
-                raise ValueError("label must be the specified name of the feedback metric.")
-            if "." in label:
-                error = "invalid_label_value"
-                raise ValueError("label value must not contain a '.'.")
-
-            metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score", "boolean", "json", "text"):
-                error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', 'json', or 'text'.")
-
-            if metric_type == "categorical" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a string for a categorical metric.")
-            if metric_type == "score" and not isinstance(value, (int, float)):
-                error = "invalid_metric_value"
-                raise TypeError("value must be an integer or float for a score metric.")
-            if metric_type == "boolean" and not isinstance(value, bool):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a boolean for a boolean metric.")
-            if metric_type == "json" and not isinstance(value, dict):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a dict for a json metric.")
-            if metric_type == "text" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a string for a text metric.")
-
-            if tags is not None and not isinstance(tags, dict):
-                error = "invalid_tags"
-                raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
-
-            ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
-            feedback_tags = {
-                "ddtrace.version": __version__,
-                "ml_app": ml_app,
-            }
-            if tags:
-                for key, tag_value in tags.items():
-                    try:
-                        feedback_tags[ensure_text(key)] = ensure_text(tag_value)
-                    except TypeError:
-                        error = "invalid_tags"
-                        raise LLMObsSubmitEvaluationError(
-                            "Failed to parse tags. Tags for feedback metrics must be strings."
-                        )
-
-            feedback_metric: LLMObsEvaluationMetricEvent = {
-                "event_kind": "feedback",
-                "label": str(label),
-                "metric_type": metric_type,
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(key, tag_value) for key, tag_value in feedback_tags.items()],
-                "submitter": feedback_submitter,
-            }
-            if target_type == "span_id":
-                feedback_metric["span_id"] = target_value
-            elif target_type == "trace_id":
-                feedback_metric["trace_id"] = target_value
-            elif target_type == "session_id":
-                feedback_metric["session_id"] = target_value
-            else:
-                feedback_metric["feedback_join_key"] = target_value
-
-            if assessment:
-                if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
-                    error = "invalid_assessment"
-                    raise LLMObsSubmitEvaluationError(
-                        "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
-                    )
-                feedback_metric["assessment"] = assessment
-            if reasoning:
-                if not isinstance(reasoning, str):
-                    error = "invalid_reasoning"
-                    raise LLMObsSubmitEvaluationError("Failed to parse reasoning. reasoning must be a string.")
-                feedback_metric["reasoning"] = reasoning
-
+            feedback_metric = _build_feedback_metric_event(
+                label=label,
+                metric_type=metric_type,
+                value=value,
+                submitter=submitter,
+                span=span,
+                span_id=span_id,
+                trace_id=trace_id,
+                session_id=session_id,
+                feedback_join_key=feedback_join_key,
+                tags=tags,
+                ml_app=ml_app,
+                timestamp_ms=timestamp_ms,
+                assessment=assessment,
+                reasoning=reasoning,
+                agent_service=agent_service,
+                resolve_agent_service=_resolve_agent_service,
+                submission_error_cls=LLMObsSubmitEvaluationError,
+                telemetry_context=telemetry_context,
+            )
             cls._instance._llmobs_eval_metric_writer.enqueue(feedback_metric)
         finally:
-            telemetry.record_llmobs_submit_feedback(target_type, metric_type, error)
+            telemetry.record_llmobs_submit_feedback(
+                telemetry_context.target_type,
+                telemetry_context.metric_type,
+                telemetry_context.error,
+            )
 
     @classmethod
     def get_spans(
