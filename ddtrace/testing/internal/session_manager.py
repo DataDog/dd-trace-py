@@ -184,8 +184,19 @@ class SessionManager:
                 # Fetch settings again after uploading git data, as it may change ITR settings.
                 self.settings = self.api_client.get_settings()
                 self.override_settings_with_env_vars()
+            log.warning(
+                "ITR skippable fetch decision: atf_all_flaky_tests=%s, itr_enabled=%s, skipping_enabled=%s",
+                self.atf_all_flaky_tests,
+                self.settings.itr_enabled,
+                self.settings.skipping_enabled,
+            )
             if not self.atf_all_flaky_tests and self.settings.itr_enabled:
                 return self.api_client.get_skippable_tests()
+            log.warning(
+                "ITR skippable fetch skipped (atf_all_flaky_tests=%s, itr_enabled=%s)",
+                self.atf_all_flaky_tests,
+                self.settings.itr_enabled,
+            )
             return set(), None
 
         with ThreadPoolExecutor(max_workers=3) as executor:
@@ -768,7 +779,15 @@ class SessionManager:
         if not self.settings.skipping_enabled:
             return False
 
-        return test_ref in self.skippable_items or test_ref.suite in self.skippable_items
+        result = test_ref in self.skippable_items or test_ref.suite in self.skippable_items
+        if not result and self.skippable_items:
+            log.warning(
+                "ITR test not in skippable set: test_ref=%r, suite=%r (skippable_items count=%d)",
+                test_ref,
+                test_ref.suite,
+                len(self.skippable_items),
+            )
+        return result
 
     def is_skippable_suite_path(self, collection_path: Path, root_path: t.Optional[Path] = None) -> bool:
         """Return True if the entire suite (file) at collection_path is ITR-skippable.
@@ -844,6 +863,19 @@ class SessionManager:
 
         # Other overrides.
         # These variables default to false, and if explicitly given a true value, enable a feature.
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING", "false")):
+            if not self.settings.skipping_enabled:
+                log.warning(
+                    "TIA test skipping was NOT enabled by the backend (itr_enabled=%s, skipping_enabled=%s) "
+                    "but is being force-enabled via _DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING",
+                    self.settings.itr_enabled,
+                    self.settings.skipping_enabled,
+                )
+            else:
+                log.debug("TIA test skipping is force-enabled by environment variable (backend had already enabled it)")
+            self.settings.itr_enabled = True
+            self.settings.skipping_enabled = True
+
         if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True

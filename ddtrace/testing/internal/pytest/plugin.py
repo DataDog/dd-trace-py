@@ -1168,17 +1168,23 @@ class TestOptPlugin:
         if not self.manager.is_skippable_test(test_ref):
             return
 
+        log.warning("ITR: test_ref=%r is skippable", test_ref)
+
         if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE and test_ref.suite in self._itr_unskippable_suites:
+            log.warning("ITR: not skipping %r — suite is marked unskippable", test_ref)
             test.mark_forced_run()
             return
 
         if test.is_unskippable():
+            log.warning("ITR: not skipping %r — test is marked unskippable", test_ref)
             test.mark_forced_run()
             return
 
         if test.is_attempt_to_fix():
+            log.warning("ITR: not skipping %r — test is an attempt-to-fix", test_ref)
             return
 
+        log.warning("ITR: skipping test %r", test_ref)
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
 

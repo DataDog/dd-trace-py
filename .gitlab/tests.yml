@@ -62,14 +62,17 @@ include:
             if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
               export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
               export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
+              unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING
             else
               unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
+              export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING=true
             fi
           else
             unset DD_CIVISIBILITY_ITR_ENABLED
             unset _DD_COVERAGE_FILE_LEVEL
             unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
             unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
+            unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING
           fi
 
           echo "ITR gate debug:"
@@ -81,6 +84,7 @@ include:
           echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
           echo "  _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-}"
           echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
+          echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_SKIPPING:-}"
 
           export _CI_DD_TAGS="test.configuration.riot_hash:${hash},test.configuration.python:${riot_python_version}"
           ${RIOT_RUN_CMD} --python "${riot_python_version}" "${hash}" -- --ddtrace
