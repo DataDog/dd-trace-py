@@ -192,7 +192,7 @@ class Block_config:
         """
         if key == "content-type":
             key = "content_type"
-        return getattr(self, key, default)
+        return getattr(self, key, default)  # type: ignore[no-any-return]
 
     def __getitem__(self, key: str) -> Optional[Union[str, int]]:
         if key == "content-type":
@@ -316,7 +316,7 @@ class _UserInfoRetriever:
             "FIRST_NAME",
         ]
 
-    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[str]:
+    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[Any]:
         for field in possible_fields:
             value = getattr(self.user, field, None)
             if value is not None:

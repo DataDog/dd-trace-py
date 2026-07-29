@@ -51,7 +51,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
         except self.user_model.DoesNotExist:
             log.debug("try_load_user_model: could not load user model", exc_info=True)
 
-    def user_exists(self):
+    def user_exists(self) -> bool:
         return self.user is not None
 
     def get_username(self):

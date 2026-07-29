@@ -56,9 +56,9 @@ def _asm_manual_keep(span: Span) -> None:
     add_trace_source(span, TraceSource.ASM)
 
 
-def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
+def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) -> None:
     MAX_DEPTH = 6
-    stack = [(prefix, metadata, 1)]
+    stack: list[tuple[str, Any, int]] = [(prefix, metadata, 1)]
     while stack:
         current_prefix, data, level = stack.pop()
         if isinstance(data, list):
