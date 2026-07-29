@@ -34,6 +34,16 @@ from ddtrace.profiling.collector import threading
 
 LOG = logging.getLogger(__name__)
 
+# pymalloc's small-request threshold (see CPython Objects/obmalloc.c). Requests
+# larger than this are delegated to glibc malloc, where the native-heap gotter
+# owns them, so the in-process sampler skips them when the partition is armed.
+_NATIVE_HEAP_SIZE_THRESHOLD_BYTES = 512
+# Dogstatsd gauge surfacing the native-heap ownership-partition arming decision
+# (1=armed, 0=not). Structured JSON loggers in real deploys drop ddtrace stdlib
+# records and pods/exec is RBAC-blocked, so the log line alone is not always
+# observable; this gauge gives an out-of-band, queryable signal at service start.
+_NATIVE_HEAP_PARTITION_ARMED_METRIC = "profiling.native_heap.partition_armed"
+
 
 class Profiler(object):
     """Run profiling while code is executed.
@@ -406,6 +416,30 @@ class _ProfilerInstance(service.Service):
             LOG.debug("Failed to arm native heap profiling", exc_info=True)
         return False
 
+    def _emit_native_heap_partition_armed_gauge(self, armed: bool) -> None:
+        """Emit a one-shot dogstatsd gauge reporting the arming decision.
+
+        Value is 1 when the native-heap ownership partition is armed and 0
+        otherwise. Uses the same internal dogstatsd client and agent URL the
+        rest of ddtrace uses. Fail-safe: a missing or broken dogstatsd client
+        must never break profiler startup, so any error is swallowed.
+        """
+        try:
+            from ddtrace.internal.dogstatsd import get_dogstatsd_client
+            from ddtrace.internal.settings._agent import config as agent_config
+
+            client = get_dogstatsd_client(agent_config.dogstatsd_url)
+            client.gauge(
+                _NATIVE_HEAP_PARTITION_ARMED_METRIC,
+                1 if armed else 0,
+                tags=[
+                    "domains:OBJ_MEM",
+                    "size_threshold_bytes:%d" % _NATIVE_HEAP_SIZE_THRESHOLD_BYTES,
+                ],
+            )
+        except Exception:
+            LOG.debug("Failed to emit native heap partition arming gauge", exc_info=True)
+
     def _start_service(self) -> None:
         """Start the profiler."""
         native_heap_armed: bool = self._arm_native_heap()
@@ -440,17 +474,25 @@ class _ProfilerInstance(service.Service):
         # gotter did not arm, the partition is off and the in-process sampler keeps
         # sampling all sizes (no behavior change).
         memalloc.set_native_heap_partition(native_heap_armed)
-        # One-shot, unambiguous startup line reporting the arming/partition
-        # decision so it can be verified from pod logs without DEBUG. Emitted
-        # exactly once as the profiler starts (never per-sample). When
-        # armed=false the size split is inactive and the in-process sampler
-        # keeps sampling all sizes; the threshold is still reported as the
-        # configured value for clarity.
-        LOG.info(
-            "native heap ownership partition: armed=%s size_threshold_bytes=%d domains=OBJ|MEM",
-            native_heap_armed,
-            512,
-        )
+        # Surface the arming/partition decision so Phase 2 A/B validation can
+        # confirm armed=true|false at runtime. Gated on the feature being
+        # enabled so we never spam the WARNING/metric for the (default) majority
+        # of processes that don't use native-heap profiling. Emitted exactly
+        # once as the profiler starts (never per-sample). When armed=false the
+        # size split is inactive and the in-process sampler keeps sampling all
+        # sizes; the threshold is still reported as the configured value for
+        # clarity.
+        if profiling_config.native_heap.enabled:
+            # WARNING (not INFO) so it survives deploys whose structured JSON
+            # loggers filter out ddtrace INFO records.
+            LOG.warning(
+                "native heap ownership partition: armed=%s size_threshold_bytes=%d domains=OBJ|MEM",
+                native_heap_armed,
+                _NATIVE_HEAP_SIZE_THRESHOLD_BYTES,
+            )
+            # Also surface the decision as a dogstatsd gauge (1=armed, 0=not) for
+            # the deploys where even WARNING logs are unobservable.
+            self._emit_native_heap_partition_armed_gauge(native_heap_armed)
         if native_heap_armed:
             LOG.debug(
                 "Native heap profiling armed; in-process managed-heap (pymalloc OBJ/MEM) sampling "

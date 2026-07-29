@@ -41,6 +41,18 @@ except Exception:
     _GOTTER_TEST_HOOK_AVAILABLE = False
 
 
+def _only_arming_warning(err: str) -> bool:
+    """Allow the one-shot native-heap arming WARNING on stderr, nothing else.
+
+    Once native-heap profiling is enabled the arming decision is intentionally
+    logged at WARNING (so it survives prod log filtering), which the subprocess
+    harness would otherwise reject as unexpected stderr. Runs in the parent test
+    process against the subprocess's decoded stderr.
+    """
+    lines = [line for line in err.splitlines() if line.strip()]
+    return all("native heap ownership partition:" in line for line in lines)
+
+
 @pytest.mark.skipif(sys.platform != "linux", reason="native heap gotter is Linux-only")
 @pytest.mark.subprocess
 def test_native_heap_gotter_smoke() -> None:
@@ -72,7 +84,7 @@ def test_native_heap_gotter_smoke() -> None:
         assert len(blobs) == 200
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=_only_arming_warning)
 def test_profiler_start_arms_native_heap_when_enabled() -> None:
     """Starting the profiler with native heap enabled invokes the activator.
 
@@ -124,7 +136,7 @@ def test_profiler_start_skips_native_heap_when_disabled() -> None:
             prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=_only_arming_warning)
 def test_profiler_start_survives_native_heap_install_error() -> None:
     """A failure while arming native heap profiling must not break the profiler.
 
@@ -150,7 +162,7 @@ def test_profiler_start_survives_native_heap_install_error() -> None:
             prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=_only_arming_warning)
 def test_profiler_keeps_managed_heap_when_native_heap_armed() -> None:
     """Ownership partition (Phase 2 de-dup): the partition is by allocator domain.
 
@@ -192,7 +204,7 @@ def test_profiler_keeps_managed_heap_when_native_heap_armed() -> None:
                     prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=_only_arming_warning)
 def test_profiler_keeps_managed_heap_when_gotter_not_installed() -> None:
     """Fail-safe: if native heap is enabled but the gotter did NOT install
     (install() returned False), the in-process sampler must remain active so
@@ -219,6 +231,103 @@ def test_profiler_keeps_managed_heap_when_gotter_not_installed() -> None:
                 set_partition.assert_called_once_with(False)
             finally:
                 prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_start_emits_partition_armed_gauge_when_armed() -> None:
+    """Arming observability: when the gotter installs (armed=True), the profiler
+    emits the ``profiling.native_heap.partition_armed`` gauge with value 1 and
+    logs the arming decision at WARNING level.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    import ddtrace.internal.dogstatsd
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    import ddtrace.profiling.profiler as profiler_mod
+
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    client = mock.Mock()
+    with mock.patch.object(heap_gotter, "install", return_value=True):
+        with mock.patch.object(heap_gotter, "live_heap_enabled", return_value=False):
+            with mock.patch.object(ddtrace.internal.dogstatsd, "get_dogstatsd_client", return_value=client):
+                with mock.patch.object(profiler_mod.LOG, "warning") as warning:
+                    prof = profiler_mod.Profiler()
+                    prof.start()
+                    try:
+                        assert client.gauge.call_count == 1
+                        args, kwargs = client.gauge.call_args
+                        assert args[0] == "profiling.native_heap.partition_armed"
+                        assert args[1] == 1, "gauge value must be 1 when armed"
+                        tags = kwargs["tags"]
+                        assert "domains:OBJ_MEM" in tags
+                        assert "size_threshold_bytes:512" in tags
+
+                        assert warning.called, "arming decision must be logged at WARNING"
+                        msg = warning.call_args[0][0]
+                        assert "native heap ownership partition" in msg
+                        assert warning.call_args[0][1] is True, "WARNING must report armed=True"
+                    finally:
+                        prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_start_emits_partition_armed_gauge_zero_when_not_armed() -> None:
+    """Arming observability: when native heap is enabled but the gotter did NOT
+    install (armed=False), the gauge is still emitted, with value 0.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    import ddtrace.internal.dogstatsd
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    import ddtrace.profiling.profiler as profiler_mod
+
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    client = mock.Mock()
+    with mock.patch.object(heap_gotter, "install", return_value=False):
+        with mock.patch.object(ddtrace.internal.dogstatsd, "get_dogstatsd_client", return_value=client):
+            with mock.patch.object(profiler_mod.LOG, "warning") as warning:
+                prof = profiler_mod.Profiler()
+                prof.start()
+                try:
+                    assert client.gauge.call_count == 1
+                    args, _ = client.gauge.call_args
+                    assert args[0] == "profiling.native_heap.partition_armed"
+                    assert args[1] == 0, "gauge value must be 0 when not armed"
+                    assert warning.called
+                    assert warning.call_args[0][1] is False, "WARNING must report armed=False"
+                finally:
+                    prof.stop(flush=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=_only_arming_warning)
+def test_profiler_start_survives_partition_armed_gauge_error() -> None:
+    """Fail-safe: a broken/unavailable dogstatsd client must never break arming
+    or profiler startup.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    import ddtrace.internal.dogstatsd
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    import ddtrace.profiling.profiler as profiler_mod
+
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    with mock.patch.object(heap_gotter, "install", return_value=True):
+        with mock.patch.object(heap_gotter, "live_heap_enabled", return_value=False):
+            with mock.patch.object(
+                ddtrace.internal.dogstatsd, "get_dogstatsd_client", side_effect=RuntimeError("no agent")
+            ):
+                prof = profiler_mod.Profiler()
+                prof.start()  # must not raise
+                try:
+                    assert prof.status.value == "running"
+                finally:
+                    prof.stop(flush=False)
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
