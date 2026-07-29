@@ -23,7 +23,7 @@ This example shows how ``core.context_with_data`` might be used to create a node
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-        ) as ctx, ctx.span:
+        ) as ctx, span_from_context(ctx):
             return wrapped(*args, **kwargs)
 
 
@@ -119,9 +119,9 @@ after the ``with`` block exits. For example::
         return future
 """
 
+import contextvars
 import logging
 import types
-import typing
 from typing import Any  # noqa:F401
 from typing import Generic
 from typing import Optional  # noqa:F401
@@ -135,12 +135,6 @@ from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 from .events import EventType
-
-
-if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
-
-import contextvars
 
 
 _MISSING = object()
@@ -158,7 +152,6 @@ class ExecutionContext(Generic[EventType]):
         "_event",
         "_suppress_exceptions",
         "_parent",
-        "_inner_span",
         "_token",
         "_dispatch_end_event",
         "_end_event_dispatched",
@@ -178,7 +171,6 @@ class ExecutionContext(Generic[EventType]):
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
-        self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
@@ -322,25 +314,6 @@ class ExecutionContext(Generic[EventType]):
         return current
 
     @property
-    def span(self) -> "Span":
-        if self._inner_span is None:
-            log.warning(
-                "No span found in %s. "
-                "This may indicate the context.started event handler did not set a span. "
-                "Creating fallback 'default' span.",
-                self,
-            )
-            tracer = self.get_item("tracer")
-            self._inner_span = tracer.current_span() or tracer.trace("default")
-        return self._inner_span
-
-    @span.setter
-    def span(self, value: "Span") -> None:
-        self._inner_span = value
-        if "span_key" in self._data:
-            self._data[self._data["span_key"]] = value
-
-    @property
     def event(self) -> EventType:
         if self._event is None:
             raise AttributeError("ExecutionContext has no event. Use context_with_event(...)")
@@ -425,20 +398,3 @@ def discard_item(data_key: str) -> None:
 def discard_local_item(data_key: str) -> None:
     """Delete an item from the local context only, without traversing up the context tree."""
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
-
-
-def get_span() -> Optional["Span"]:
-    current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
-    while current is not None:
-        if current._inner_span is not None:
-            return current._inner_span
-        current = current._parent
-    return None
-
-
-def get_root_span() -> Optional["Span"]:
-    span = get_span()
-    tracer = _CURRENT_CONTEXT.get().root().get_item("tracer")
-    if span is None:
-        return None if tracer is None else tracer.current_root_span()
-    return span._local_root or span
