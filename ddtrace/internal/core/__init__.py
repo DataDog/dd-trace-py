@@ -345,7 +345,9 @@ def _reset_context():
     _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 
 
-def context_with_data(identifier, parent=None, **kwargs):
+def context_with_data(
+    identifier: str, parent: Optional[ExecutionContext[Any]] = None, **kwargs: Any
+) -> ExecutionContext[Any]:
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 

@@ -49,15 +49,14 @@ def patch():
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request_6D4E8B2A1F095C73 as _make_request
+        import ddtrace.appsec._contrib.urllib3.patch as urllib3_rasp_patch
 
-        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
+        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", urllib3_rasp_patch.wrapped_make_request)
         if hasattr(urllib3, "_request_methods"):
-            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
+            _w("urllib3._request_methods", "RequestMethods.request", urllib3_rasp_patch.wrapped_request)
         else:
             # Old version before https://github.com/urllib3/urllib3/pull/2398
-            _w("urllib3.request", "RequestMethods.request", _wrap_request)
+            _w("urllib3.request", "RequestMethods.request", urllib3_rasp_patch.wrapped_request)
 
 
 def unpatch():

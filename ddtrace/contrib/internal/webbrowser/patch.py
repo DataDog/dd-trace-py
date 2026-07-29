@@ -21,7 +21,7 @@ def patch():
     webbrowser.__datadog_patch = True
 
     if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_open
+        from ddtrace.appsec._contrib.urllib3.patch import wrapped_request as _wrap_open
 
         _w("webbrowser", "open", _wrap_open)
 

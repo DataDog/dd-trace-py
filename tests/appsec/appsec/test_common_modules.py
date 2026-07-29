@@ -5,12 +5,12 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import execute_4C9BAC8E228EB347
 from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
-from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
+from ddtrace.appsec._contrib.dbapi.patch import on_execute
+from ddtrace.appsec._contrib.urllib3.patch import wrapped_urlopen
+from ddtrace.appsec._patch_utils import try_unwrap
+from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal import core
 from ddtrace.internal.module import ModuleWatchdog
 
@@ -20,7 +20,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -33,7 +33,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -65,7 +65,7 @@ def test_patch_common_modules_unregisters_module_hooks():
 def test_patch_common_modules_unregisters_dbapi_listener():
     event = "asm.block.dbapi.execute"
     unpatch_common_modules()
-    core.reset_listeners(event, execute_4C9BAC8E228EB347)
+    core.reset_listeners(event, on_execute)
 
     try:
         patch_common_modules()
@@ -74,6 +74,21 @@ def test_patch_common_modules_unregisters_dbapi_listener():
         unpatch_common_modules()
 
     assert not core.has_listeners(event)
+
+
+def test_stripe_patch_lifecycle(mocker):
+    unpatch_common_modules()
+    stripe_patch = mocker.patch("ddtrace.appsec._common_module_patches.stripe_patch.patch")
+    stripe_unpatch = mocker.patch("ddtrace.appsec._common_module_patches.stripe_patch.unpatch")
+
+    try:
+        patch_common_modules()
+        stripe_patch.assert_called_once_with()
+
+        unpatch_common_modules()
+        stripe_unpatch.assert_called_once_with()
+    finally:
+        unpatch_common_modules()
 
 
 @pytest.mark.parametrize(
@@ -162,7 +177,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
@@ -210,7 +225,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
         return func(*args, **kwargs)
 
     core.discard_item("full_url")
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
+    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urlopen)
     try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request_recorder)
     try:
         pool_manager = urllib3.PoolManager(num_pools=1)
