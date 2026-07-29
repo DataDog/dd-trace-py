@@ -24,6 +24,23 @@ global pre-commit → dd-git-hooks (secrets) → run-local-hooks → autohook (l
 If you previously used `git config --local core.hooksPath .git/hooks`, re-run
 `hooks/autohook.sh install` or `hooks/scripts/ensure-dd-hook-chain.sh`.
 
+### Verifying the global hook chain (DD laptops)
+
+Unit tests cover `ensure-dd-hook-chain.sh` logic. To manually verify wiring and
+(optionally) secrets scanning on a Datadog laptop:
+
+```bash
+hooks/scripts/verify-dd-hook-chain.sh           # doctor + bypass/chain checks (+ repair if present)
+DD_HOOK_VERIFY_EXAMPLE_SECRET='...' hooks/scripts/verify-dd-hook-chain.sh --secrets
+```
+
+Or via hook tests: `DD_HOOK_CHAIN_INTEGRATION=1 bash scripts/run-hook-tests`
+
+For `--secrets`, set `DD_HOOK_VERIFY_EXAMPLE_SECRET` to a **non-production**
+test credential (e.g. a TruffleHog documentation example). The probe may **skip**
+if `dd-git-hooks` only blocks verified secrets or if the local scanner needs
+attention (`dd-git-hooks -doctor`).
+
 ### Telemetry (Datadog laptops)
 
 On laptops with `core.hooksPath=/usr/local/dd/global_hooks`, repo hooks emit
@@ -269,14 +286,16 @@ hooks/
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
-│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
-│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
     ├── check-native-changes # Native change and dependency detection logic
     ├── ensure-dd-hook-chain.sh # DD laptop global-hook chain guard
+    ├── run-ensure-dd-hook-chain-quiet.sh # Shared post-checkout/post-merge entrypoint
+    ├── verify-dd-hook-chain.sh # Manual DD laptop hook-chain verifier
     └── hook-telemetry.sh    # DogStatsd metrics for autohook / hook-chain repairs
 ```
 
