@@ -196,6 +196,10 @@ EVALUATED_SESSION_ID_TAG = "evaluated_session_id"
 EVAL_SOURCE_TYPE_TAG = "eval_source_type"
 JUDGE_TRACE_ID_KEY = "judge_trace_id"
 JUDGE_SPAN_ID_KEY = "judge_span_id"
+# Reserved join-tag key stamped by LLMObs.evaluated_span() and consumed by
+# submit_evaluation(span_with_tag_value=...). Dot-free (agentless export rewrites "." -> "_")
+# and "_dd_"-prefixed to avoid colliding with user tags.
+EVAL_JOIN_TAG_KEY = "_dd_eval_join_id"
 
 
 class LLMOBS_STRUCT:

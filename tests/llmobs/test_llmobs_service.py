@@ -12,6 +12,7 @@ import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import EVAL_JOIN_TAG_KEY
 from ddtrace.llmobs._constants import EVAL_NAME_TAG
 from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
@@ -726,6 +727,49 @@ def test_evaluation_invalid_args_raise_before_starting_span(llmobs, kwargs):
     with pytest.raises(ValueError):
         llmobs.evaluation(**kwargs)
     assert llmobs._instance._current_span() is None
+
+
+def test_evaluated_span_tags_inner_span_and_yields_ref(llmobs):
+    with llmobs.evaluated_span() as target:
+        with llmobs.llm(name="call", model_name="m", model_provider="p") as span:
+            pass
+    assert target["tag_key"] == EVAL_JOIN_TAG_KEY
+    assert target["tag_value"]  # non-empty id
+    # the span started inside the block carries the reserved join tag with the same value
+    assert get_llmobs_tags(span)[EVAL_JOIN_TAG_KEY] == target["tag_value"]
+
+
+def test_evaluated_span_ids_are_unique(llmobs):
+    with llmobs.evaluated_span() as a:
+        pass
+    with llmobs.evaluated_span() as b:
+        pass
+    assert a["tag_value"] != b["tag_value"]
+
+
+def test_evaluated_span_ref_joins_submit_evaluation(llmobs, mock_llmobs_eval_metric_writer):
+    with llmobs.evaluated_span() as target:
+        pass
+    llmobs.submit_evaluation(
+        label="relevance", metric_type="score", value=5, span_with_tag_value=target, ml_app="dummy"
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            tag_key=EVAL_JOIN_TAG_KEY,
+            tag_value=target["tag_value"],
+            label="relevance",
+            metric_type="score",
+            score_value=5,
+        )
+    )
+
+
+async def test_evaluated_span_async(llmobs):
+    async with llmobs.evaluated_span() as target:
+        with llmobs.llm(name="call", model_name="m", model_provider="p") as span:
+            pass
+    assert get_llmobs_tags(span)[EVAL_JOIN_TAG_KEY] == target["tag_value"]
 
 
 def test_embedding_span_no_model_sets_default(llmobs):

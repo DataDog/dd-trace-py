@@ -65,6 +65,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EVAL_JOIN_TAG_KEY
 from ddtrace.llmobs._constants import EVAL_NAME_TAG
 from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
@@ -152,6 +153,7 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
+from ddtrace.llmobs._utils import EvaluatedSpanContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
@@ -2735,8 +2737,6 @@ class LLMObs(Service):
                 "workflow", name="custom_evaluator.%s" % name, agent_service=EVALUATIONS_ML_APP, _decorator=_decorator
             )
 
-        # Validate every input BEFORE starting the span, so a bad argument can never leave a
-        # half-created judge span active in the trace (which would orphan the caller's later spans).
         # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
         if not name or "." in name:
             raise ValueError("name must be a non-empty string that does not contain a '.'.")
@@ -2755,10 +2755,6 @@ class LLMObs(Service):
                 "'trace_id' keys (use LLMObs.export_span())." % eval_scope
             )
 
-        # The judge trace is meant to be its own root trace. If evaluation() is called while another
-        # LLMObs span is active, the judge span nests under it (and the score would link back into the
-        # application trace instead of a standalone judge trace). Warn rather than do that silently;
-        # run evaluation() outside an active LLMObs span (e.g. after the turn or in a background task).
         if cls._instance._current_span() is not None:
             log.warning(
                 "LLMObs.evaluation() was called while another LLMObs span is active; the judge trace "
@@ -2785,6 +2781,29 @@ class LLMObs(Service):
             tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
         cls.annotate(span=span, tags=tags)
         return span
+
+    @classmethod
+    def evaluated_span(cls) -> EvaluatedSpanContext:
+        """
+        Mark the LLM span(s) created inside this block as an evaluation target.
+
+        Use this to evaluate an auto-instrumented span (e.g. an OpenAI/Anthropic call) that has no
+        ``export_span`` handle: it stamps a reserved join tag on spans started within the block and
+        returns a ``span_with_tag_value`` ref, so you don't manage a join id or tag key yourself.
+        Pass the yielded value straight to ``submit_evaluation``::
+
+            with LLMObs.evaluated_span() as target:
+                resp = client.chat.completions.create(...)   # the auto llm span is tagged
+            LLMObs.submit_evaluation(
+                label="relevance", metric_type="score", value=5, span_with_tag_value=target,
+            )
+
+        :returns: A context manager yielding a ``{'tag_key': str, 'tag_value': str}`` dict, usable
+                  directly as the ``span_with_tag_value`` argument to ``submit_evaluation``.
+        """
+        join_id = "%016x" % rand64bits()
+        target = {"tag_key": EVAL_JOIN_TAG_KEY, "tag_value": join_id}
+        return EvaluatedSpanContext(cls.annotation_context(tags={EVAL_JOIN_TAG_KEY: join_id}), target)
 
     @classmethod
     def embedding(

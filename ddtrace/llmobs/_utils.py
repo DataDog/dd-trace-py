@@ -218,6 +218,33 @@ class AnnotationContext:
         self._deregister_annotator()
 
 
+class EvaluatedSpanContext:
+    """Context manager returned by ``LLMObs.evaluated_span()``.
+
+    Delegates to an :class:`AnnotationContext` that stamps the reserved eval-join tag on spans
+    created within the block, and returns the ``span_with_tag_value`` ref on enter (this is the
+    only difference from ``AnnotationContext``, whose ``__enter__`` returns ``None``).
+    """
+
+    def __init__(self, annotation_context, target):
+        self._annotation_context = annotation_context
+        self._target = target
+
+    def __enter__(self):
+        self._annotation_context.__enter__()
+        return self._target
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._annotation_context.__exit__(exc_type, exc_val, exc_tb)
+
+    async def __aenter__(self):
+        await self._annotation_context.__aenter__()
+        return self._target
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return await self._annotation_context.__aexit__(exc_type, exc_val, exc_tb)
+
+
 def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):
