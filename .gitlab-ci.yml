@@ -643,6 +643,79 @@ profiling_native:
       - PYTHON_VERSION: ["3.12", "3.14"]
         SANITIZER: ["valgrind"]
 
+# Deterministic Phase-2 ownership-handoff proof. Builds the gotter cdylib with the
+# test-support cargo feature (hook-hit counter) and runs the end-to-end pytest.
+# Intentionally outside riot/build_base_venvs: shipped wheels must not bake
+# test-support, so the build knobs are job-scoped here.
+.profiling_native_heap_gotter_e2e_base:
+  extends: .testrunner
+  needs: []
+  stage: tests
+  timeout: 30m
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
+    DD_PROFILING_NATIVE_HEAP_BUILD: "1"
+    DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT: "1"
+    DD_PROFILING_NATIVE_TESTS: "1"
+    DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
+    DD_PROFILING_ENABLE_ASSERTS: "1"
+    DD_USE_SCCACHE: "1"
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: "true"
+  before_script:
+    - !reference [.testrunner, before_script]
+    - export PYENV_VERSION=${PYTHON_VERSION}
+  script:
+    - python --version
+    - riot -P -v generate --python=${PYTHON_VERSION} profile-native-heap-gotter
+    - riot -v run -s --pass-env --python=${PYTHON_VERSION} profile-native-heap-gotter
+
+profiling_native_heap_gotter_e2e:
+  extends: .profiling_native_heap_gotter_e2e_base
+  retry: 2
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.12"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - riotfile.py
+        - tests/profiling/test_native_heap_gotter.py
+        - tests/profiling/collector/test_memalloc.py
+        - ddtrace/internal/datadog/profiling/heap_gotter/**/*
+        - ddtrace/profiling/collector/memalloc.py
+        - ddtrace/profiling/collector/_memalloc_heap.*
+        # Native build graph (same as profiling_native)
+        - ddtrace/internal/datadog/profiling/**/*.cpp
+        - ddtrace/internal/datadog/profiling/**/*.cc
+        - ddtrace/internal/datadog/profiling/**/*.h
+        - ddtrace/internal/datadog/profiling/**/*.hpp
+        - ddtrace/internal/datadog/profiling/**/*.pyx
+        - ddtrace/internal/datadog/profiling/**/*.cmake
+        - ddtrace/profiling/**/*.cpp
+        - ddtrace/profiling/**/*.h
+        - ddtrace/profiling/**/*.hpp
+        - ddtrace/profiling/**/*.pxd
+        - ddtrace/profiling/**/*.pyx
+        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+        - ddtrace/internal/datadog/profiling/**/*.sh
+        - ddtrace/internal/datadog/profiling/**/*.supp
+        - ddtrace/profiling/**/CMakeLists.txt
+        - src/native/**/*.rs
+        - src/native/**/*.toml
+        - src/native/**/*.txt
+        - src/native/**/Cargo.lock
+        - src/native_heap_gotter/**/*.rs
+        - src/native_heap_gotter/**/*.toml
+        - src/native_heap_gotter/**/Cargo.lock
+        - setup.py
+        - pyproject.toml
+
 test-dd-sts:
   stage: tests
   needs: []
