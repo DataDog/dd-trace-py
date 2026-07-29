@@ -340,10 +340,9 @@ class DataDogProvider(AbstractProvider):
         if self._configuration_source is not None:
             return
 
-        from ddtrace.internal.openfeature._native import process_ffe_configuration
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
-        source = create_agentless_source(ffe_config, process_ffe_configuration)
+        source = create_agentless_source(ffe_config, _apply_agentless_configuration)
         if source is None:
             return
 
@@ -679,6 +678,22 @@ class DataDogProvider(AbstractProvider):
         """
         self._exposure_cache.clear()
         logger.debug("Exposure cache cleared")
+
+
+def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> None:
+    """Apply a UFC payload delivered by the agentless source.
+
+    ``process_ffe_configuration`` reports a payload the native evaluator refused
+    by returning False rather than raising, which the agentless source would
+    otherwise read as success and advance its ETag past a configuration it never
+    loaded (the next poll would then get a 304 and keep the stale config
+    indefinitely). Translate a rejection into an error so the source keeps
+    last-known-good and retries the payload on the next poll.
+    """
+    from ddtrace.internal.openfeature._native import process_ffe_configuration
+
+    if not process_ffe_configuration(configuration):
+        raise ValueError("Feature Flagging configuration was rejected by the evaluator")
 
 
 # Module-level registry for active provider instances

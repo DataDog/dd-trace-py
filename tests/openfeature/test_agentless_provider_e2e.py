@@ -10,8 +10,10 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 import ddtrace.internal.openfeature._agentless_source as source_mod
+from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._provider import _apply_agentless_configuration
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.openfeature import DataDogProvider
@@ -113,6 +115,58 @@ def test_provider_lifecycle_starts_and_stops_source(mock_cdn):
             provider.shutdown()
 
         assert provider._configuration_source is None
+
+
+# Attributes that pass JSON:API validation (``createdAt`` is a string) but that the
+# native evaluator refuses because the timestamp is unparseable. Note the evaluator
+# tolerates malformed individual flags, so an invalid timestamp is the realistic way
+# a delivered payload gets rejected.
+_REJECTED_ATTRIBUTES = {
+    "format": "SERVER",
+    "createdAt": "not-a-timestamp",
+    "environment": {"name": "production"},
+    "flags": {},
+}
+
+
+def test_evaluator_rejection_is_reported_as_failure():
+    """A payload the native evaluator refuses must not report success.
+
+    ``process_ffe_configuration`` returns False instead of raising, so the
+    agentless apply wrapper turns that into an error; otherwise the source would
+    advance its ETag past a configuration it never loaded.
+    """
+    assert process_ffe_configuration(_REJECTED_ATTRIBUTES) is False
+    with pytest.raises(ValueError):
+        _apply_agentless_configuration(_REJECTED_ATTRIBUTES)
+
+
+def test_etag_not_advanced_when_evaluator_rejects_payload(monkeypatch):
+    """Regression: a rejected payload must leave the ETag (and config) untouched.
+
+    Otherwise the next poll sends If-None-Match, receives 304, and the stale
+    configuration is kept indefinitely.
+    """
+    body = json.dumps(
+        {"data": {"id": "1", "type": "universal-flag-configuration", "attributes": _REJECTED_ATTRIBUTES}}
+    ).encode("utf-8")
+    monkeypatch.setattr(
+        source_mod,
+        "get_connection",
+        lambda url, timeout=None: _FakeConn(_FakeResponse(200, body, {"ETag": '"rejected"'})),
+    )
+
+    src = source_mod.AgentlessConfigurationSource(
+        endpoint="https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server",
+        apply_configuration=_apply_agentless_configuration,
+        api_key="secret",
+    )
+    monkeypatch.setattr(src, "_retry_delay", lambda attempt: 0.0)
+
+    src.periodic()
+
+    assert src._etag is None  # not advanced
+    assert _get_ffe_config() is None  # nothing applied
 
 
 def test_disabled_provider_starts_no_source():
