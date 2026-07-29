@@ -145,7 +145,7 @@ BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0"
 # glibc-malloc tail the in-process sampler drops) without a live eBPF attach.
 # Never set for shipped wheels — it is strictly a test build knob and only has
 # any effect when BUILD_NATIVE_HEAP_GOTTER is also on.
-BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
+BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
     "1",
     "yes",
     "on",

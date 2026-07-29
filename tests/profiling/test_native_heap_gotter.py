@@ -15,8 +15,14 @@ counter) and is validated in the staging dogfood, not here.
 """
 
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
+
+
+if TYPE_CHECKING:
+    # We need the pyright: ignore because pprof_pb2 does not exist as a real module, only as a pyi.
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
 # Evaluated in the PARENT interpreter (subprocess bodies cannot express a skip:
@@ -170,11 +176,11 @@ def test_profiler_keeps_managed_heap_when_native_heap_armed() -> None:
             with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
                 from ddtrace.profiling.profiler import Profiler
 
-                prof = Profiler()
+                prof: Profiler = Profiler()
                 prof.start()
                 try:
                     assert install.called, "the gotter must still be armed when native heap is enabled"
-                    has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                    has_mem: bool = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
                     assert has_mem, (
                         "in-process managed-heap (OBJ/MEM) collector must stay active when the gotter is armed; "
                         "the gotter owns only the native/raw glibc malloc domain"
@@ -204,10 +210,10 @@ def test_profiler_keeps_managed_heap_when_gotter_not_installed() -> None:
         with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
             from ddtrace.profiling.profiler import Profiler
 
-            prof = Profiler()
+            prof: Profiler = Profiler()
             prof.start()
             try:
-                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                has_mem: bool = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
                 assert has_mem, "in-process memory collector must stay active when the gotter fails to install"
                 # Not armed -> partition off so ALL sizes keep being sampled.
                 set_partition.assert_called_once_with(False)
@@ -234,11 +240,11 @@ def test_profiler_keeps_managed_heap_when_native_heap_disabled() -> None:
         with mock.patch.object(memalloc, "set_native_heap_partition") as set_partition:
             from ddtrace.profiling.profiler import Profiler
 
-            prof = Profiler()
+            prof: Profiler = Profiler()
             prof.start()
             try:
                 assert not install.called
-                has_mem = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
+                has_mem: bool = any(isinstance(c, memalloc.MemoryCollector) for c in prof._profiler._collectors)
                 assert has_mem, "in-process memory collector must run when native heap is disabled"
                 # Feature off -> partition off (all sizes sampled).
                 set_partition.assert_called_once_with(False)
@@ -313,8 +319,8 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
     assert heap_gotter.install() is True
     assert heap_gotter.is_installed() is True
 
-    prefix = os.path.join(tempfile.mkdtemp(), "handoff")
-    output_filename = prefix + "." + str(os.getpid())
+    prefix: str = os.path.join(tempfile.mkdtemp(), "handoff")
+    output_filename: str = prefix + "." + str(os.getpid())
     ddup.config(
         service="test_native_heap_ownership_handoff",
         version="test",
@@ -324,7 +330,7 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
     ddup.start()
 
     store: list[object] = []
-    mc = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
     memalloc.set_native_heap_partition(True)
     try:
         with mc:
@@ -333,19 +339,19 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
             # raw malloc (it is NOT sampling-gated), so background allocations
             # can only inflate the delta — never shrink it below the number of
             # large buffers we deliberately allocate.
-            hits_before = heap_gotter.test_hook_hits()
+            hits_before: "int | None" = heap_gotter.test_hook_hits()
             _allocate_large_buffers(store)
-            hits_after = heap_gotter.test_hook_hits()
+            hits_after: "int | None" = heap_gotter.test_hook_hits()
 
             _allocate_small_objects(store)
             mc.snapshot()
         ddup.upload()
 
-        profile = pprof_utils.parse_newest_profile(output_filename)
-        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+        heap_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "heap-space")
 
         # (a) In-process producer dropped the > 512B tail ...
-        large_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
+        large_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
         assert large_count == 0, (
             f"partition ON: > 512B managed allocations must NOT be sampled in-process (got {large_count})"
         )
@@ -354,7 +360,7 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
         # is a single raw malloc routed through the patched GOT, so the hook-hit
         # counter must advance by at least the number of large buffers.
         assert hits_before is not None and hits_after is not None
-        delta = hits_after - hits_before
+        delta: int = hits_after - hits_before
         assert delta >= _PARTITION_LARGE_ALLOC_COUNT, (
             "native gotter must capture the > 512B raw-malloc tail the in-process sampler dropped "
             f"(hook-hit delta {delta} < {_PARTITION_LARGE_ALLOC_COUNT} large allocations)"
@@ -362,7 +368,7 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
 
         # Control: <= 512B pool-served allocations are invisible to the gotter
         # and must still be sampled in-process — the partition splits by size.
-        small_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
+        small_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
         assert small_count > 0, "partition ON: <= 512B managed allocations must still be sampled in-process"
     finally:
         # Reset the process-global flag so it cannot bleed into other tests
