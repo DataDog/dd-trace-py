@@ -1474,10 +1474,10 @@ class RemoteConfigProduct:
     AsmData: RemoteConfigProduct
     AsmDd: RemoteConfigProduct
     AsmFeatures: RemoteConfigProduct
+    Debug: RemoteConfigProduct
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
-    Debug: RemoteConfigProduct
     ApmProfiling: RemoteConfigProduct
 
     def __int__(self) -> int: ...
