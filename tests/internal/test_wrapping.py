@@ -1236,6 +1236,68 @@ def test_wrapping_context_lazy_unwrap_before_call():
     assert wc.count == 0
 
 
+def test_wrapping_context_lazy_no_memory_leak_uncalled():
+    """Ephemeral functions lazily wrapped but never invoked (trampoline installed,
+    permanent wrapping never triggered) must not leak the function or its context
+    once all external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, never-invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, never-invoked context(s) leaked"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_lazy_no_memory_leak_invoked():
+    """Ephemeral functions lazily wrapped and then invoked (promoted to universal
+    wrapping) must still be garbage-collected, along with their context, once all
+    external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    refs = []
+
+    def make_wrap_and_call():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_wrap_and_call())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
+
+
 @pytest.mark.asyncio
 async def test_async_wrapper_frames_have_valid_linenos():
     """Regression test: async wrapping must not inject instructions with lineno=None.
