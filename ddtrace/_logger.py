@@ -138,7 +138,7 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
     """
     # Collect handlers up the hierarchy, honoring propagate.
     handlers = []
-    cur = logger
+    cur: Optional[logging.Logger] = logger
     while cur:
         handlers.extend(cur.handlers)
         if not cur.propagate:
