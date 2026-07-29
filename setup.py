@@ -116,7 +116,7 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 NATIVE_CRATE = HERE / "src" / "native"
 # Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
 # crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
-NATIVE_HEAP_GOTTER_CRATE = HERE / "src" / "native_heap_gotter"
+NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
@@ -131,7 +131,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
 # mainline wheels don't ship the artifact until it GA's.
-BUILD_NATIVE_HEAP_GOTTER = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
+BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -1021,7 +1021,7 @@ class CustomBuildExt(build_ext):
         else:
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
 
-    def build_heap_gotter(self):
+    def build_heap_gotter(self) -> None:
         """Build the native heap-gotter cdylib via cargo and stage it for packaging.
 
         Produces ``libdd_heap_gotter<EXT_SUFFIX>.so`` under
@@ -1030,17 +1030,18 @@ class CustomBuildExt(build_ext):
         same EXT_SUFFIX logic). The wrapper crate has no Python linkage, so a
         single ``target/`` dir is shared across interpreter versions.
         """
-        suffix = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
-        gotter_name = f"libdd_heap_gotter{suffix}"
+        suffix: str = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
+        gotter_name: str = f"libdd_heap_gotter{suffix}"
 
+        output_dir: Path
         if IS_EDITABLE or getattr(self, "inplace", False):
             output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
         else:
             output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
         output_dir.mkdir(parents=True, exist_ok=True)
-        gotter_library = output_dir / gotter_name
+        gotter_library: Path = output_dir / gotter_name
 
-        cargo_cmd = [
+        cargo_cmd: list[str] = [
             "cargo",
             "build",
             "--release",
@@ -1052,7 +1053,9 @@ class CustomBuildExt(build_ext):
             # render to stderr in human form.
             "--message-format=json-render-diagnostics",
         ] + DD_CARGO_ARGS
-        proc = subprocess.run(cargo_cmd, check=True, stdout=subprocess.PIPE, text=True)
+        proc: subprocess.CompletedProcess[str] = subprocess.run(
+            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
+        )
 
         # Locate the produced cdylib from cargo's own artifact output rather than
         # assuming a fixed `target/release` path: cargo honors CARGO_TARGET_DIR
@@ -1060,11 +1063,12 @@ class CustomBuildExt(build_ext):
         # either of which moves the artifact out from under a hard-coded lookup.
         # Each "compiler-artifact" message lists the absolute output paths in
         # "filenames"; we take the crate's cdylib (.so/.dylib).
-        built = None
+        built: t.Optional[Path] = None
         for line in proc.stdout.splitlines():
             line = line.strip()
             if not line:
                 continue
+            msg: dict[str, t.Any]
             try:
                 msg = json.loads(line)
             except json.JSONDecodeError:
@@ -1089,11 +1093,11 @@ class CustomBuildExt(build_ext):
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
 
-    def _clean_stale_heap_gotter(self):
+    def _clean_stale_heap_gotter(self) -> None:
         """Remove any previously staged heap-gotter artifacts so a default wheel
         does not accidentally ship the opt-in cdylib.
         """
-        candidates = [Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"]
+        candidates: list[Path] = [Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"]
         if hasattr(self, "build_lib") and self.build_lib:
             candidates.append(
                 Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
