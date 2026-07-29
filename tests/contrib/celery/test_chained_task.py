@@ -45,10 +45,10 @@ def test_task_chain_task_call_task():
         cwd=current_directory,
     )
 
-    task_runner_process.wait()
+    task_runner_process.communicate()
     # Kill the process so it starts to send traces to the Trace Agent
     worker_process.kill()
-    worker_logs = worker_process.stderr.read()
+    _, worker_logs = worker_process.communicate()
 
     # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
     # Some versions of python seem to require escaping when using `re.search`:
