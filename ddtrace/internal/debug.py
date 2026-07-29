@@ -57,12 +57,8 @@ def collect() -> dict[str, Any]:
     elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
         writer = tracer._span_aggregator.writer
         agent_url = writer.intake_url
-        try:
-            agent_info = agent.info(agent_url)  # type: ignore[no-untyped-call]
-        except Exception as e:
-            agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
-        else:
-            agent_error = None if agent_info is not None else "Agent not reachable at %s" % agent_url
+        reachable = agent.is_reachable(agent_url)  # type: ignore[no-untyped-call]
+        agent_error = None if reachable else "Agent not reachable at %s" % agent_url
     else:
         agent_url = "CUSTOM"
         agent_error = None
