@@ -60,7 +60,7 @@ def _iter_observations(callback: Any, options: CallbackOptions) -> Iterable[Any]
     result = callback(options) if callable(callback) else callback
     if result is None:
         return []
-    return result
+    return list(result)
 
 
 class _NativeCounter(Counter):
@@ -134,7 +134,7 @@ class _ObservableScheduler(PeriodicService):
     def periodic(self) -> None:
         self._collect()
 
-    def on_shutdown(self) -> None:
+    def on_shutdown(self) -> None:  # type: ignore[override]  # base hook is a no-op staticmethod
         self._collect()
 
     def _collect(self) -> None:
@@ -159,7 +159,7 @@ class NativeMeter(Meter):
         self._scheduler = scheduler
 
     def _register(self, name, kind, unit, description) -> int:
-        return self._aggregator.register_instrument(name, kind, unit or None, description or None)
+        return int(self._aggregator.register_instrument(name, kind, unit or None, description or None))
 
     def create_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "counter", unit, description)
