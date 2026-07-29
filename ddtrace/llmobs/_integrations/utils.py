@@ -223,17 +223,24 @@ def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
 
     OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
     every response. Returns an empty dict for responses without a cost (e.g. other providers).
+
+    BYOK (bring-your-own-key): when the customer calls the provider with their own credentials,
+    OpenRouter's billed ``cost`` covers only its own fee (often 0) while the provider inference
+    cost is incurred upstream and reported under ``cost_details.upstream_inference_cost``. In that
+    case (flagged by ``usage.is_byok``) add the upstream cost so the span reflects the cost the
+    customer actually incurred. For non-BYOK responses ``cost`` already includes the provider cost,
+    so the upstream figure is not added.
     """
     cost = _get_attr(token_usage, "cost", None)
     if not isinstance(cost, (int, float)):
         return {}
     total_cost = float(cost)
-    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
-    # Only emit the input/output breakdown when it reconciles with the billed total: the
-    # upstream_inference_* costs are wholesale and can diverge from `cost` (e.g. BYOK surcharge).
-    # Reconcile at nanodollar precision (how the backend stores cost) so binary-float noise in the
-    # decimal components doesn't spuriously reject a breakdown that actually sums to the total.
     cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    if _get_attr(token_usage, "is_byok", False):
+        upstream_cost = _get_attr(cost_details, "upstream_inference_cost", None)
+        if isinstance(upstream_cost, (int, float)):
+            total_cost += upstream_cost
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
     input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
     output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
     if (
