@@ -17,6 +17,7 @@ import pytest
 import ddtrace
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.internal.span_bus import span_from_context
 
 
 PROPAGATION_HEADERS = {
@@ -156,7 +157,7 @@ def test_subscriber_skips_injection_when_propagation_suppressed():
     event.integration_config = mock.MagicMock()
     event.integration_config.distributed_tracing_enabled = True
     ctx.event = event
-    ctx.span.context = mock.MagicMock()
+    span_from_context(ctx).context = mock.MagicMock()
 
     token = _http_propagation_suppressed.set(True)
     try:
@@ -177,7 +178,7 @@ def test_subscriber_injects_when_propagation_not_suppressed():
     event.integration_config = mock.MagicMock()
     event.integration_config.distributed_tracing_enabled = True
     ctx.event = event
-    ctx.span.context = mock.MagicMock()
+    span_from_context(ctx).context = mock.MagicMock()
 
     with (
         mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject,
