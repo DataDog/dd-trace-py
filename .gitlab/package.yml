@@ -1,7 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-  ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
+  ALPINE_BUILD_IMAGE_TAG: "v126532003-233089d-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -23,11 +23,11 @@ variables:
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v113741357-d2b8243-manylinux2014_aarch64"
-  - "v113741589-d2b8243-musllinux_1_2_aarch64"
+  - "v126532182-233089d-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
-  - "v113741491-d2b8243-musllinux_1_2_x86_64"
+  - "v126532274-233089d-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package

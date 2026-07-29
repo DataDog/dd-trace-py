@@ -54,22 +54,26 @@ fn activate_contextvar(py: Python<'_>, ctx: Option<&Bound<'_, PyAny>>) -> PyResu
 
 const ACTIVATE_EVENT: &str = "ddtrace.context_provider.activate";
 
-/// `core.dispatch("ddtrace.context_provider.activate", (ctx,))` -- called
+/// `core.dispatch("ddtrace.context_provider.activate", (self, ctx))` -- called
 /// directly instead of importing `ddtrace.internal.core`, since that module's
 /// `dispatch` is itself a re-export of `event_hub::dispatch`.
 ///
 /// `activate()` runs on every span start/finish, but the only listener
 /// (profiling's stack sampler) is rarely registered, so check first to skip
 /// the tuple allocation on the common no-listener path.
-fn dispatch_activate(py: Python<'_>, ctx: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+fn dispatch_activate(
+    py: Python<'_>,
+    slf: &Bound<'_, PyAny>,
+    ctx: Option<&Bound<'_, PyAny>>,
+) -> PyResult<()> {
     if !event_hub::has_listeners(ACTIVATE_EVENT) {
         return Ok(());
     }
-    let value = match ctx {
+    let ctx_value = match ctx {
         Some(v) => v.clone(),
         None => py.None().into_bound(py),
     };
-    let args = PyTuple::new(py, [value])?;
+    let args = PyTuple::new(py, [slf.clone(), ctx_value])?;
     event_hub::dispatch(py, ACTIVATE_EVENT, Some(args.into_any().unbind()), false)
 }
 
@@ -153,8 +157,12 @@ impl BaseContextProvider {
     }
 
     #[pyo3(signature = (ctx))]
-    fn activate(&self, py: Python<'_>, ctx: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        dispatch_activate(py, ctx.as_ref())
+    fn activate(
+        slf: &Bound<'_, Self>,
+        py: Python<'_>,
+        ctx: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        dispatch_activate(py, slf.as_any(), ctx.as_ref())
     }
 
     fn active(&self) -> PyResult<Option<Py<PyAny>>> {
@@ -206,9 +214,10 @@ impl DefaultContextProvider {
         activate_contextvar(py, ctx.as_ref())?;
         // `super(DefaultContextProvider, self).activate(ctx)` -- calls
         // BaseContextProvider's dispatch directly (not via `call_method`,
-        // which would just re-resolve back to this same override).
+        // which would just re-resolve back to this same override). `as_super()`
+        // upcasts by reference, so `base` still points at the same `self`.
         let base = slf.as_super();
-        BaseContextProvider::activate(&base.borrow(), py, ctx)
+        BaseContextProvider::activate(base, py, ctx)
     }
 
     /// Returns the active span or context for the current execution.
