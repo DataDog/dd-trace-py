@@ -103,6 +103,13 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     bint ddup_upload() nogil
 
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bint referrers_enabled,
+                               int max_depth)
+    void ddup_stop_gc_monitor()
+
 
 cdef extern from "code_provenance_interface.hpp":
     void code_provenance_set_file_path(string_view file_path)
@@ -406,6 +413,24 @@ def start() -> None:
 
 def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
+def start_gc_monitor(interval_ms: int,
+                     survivor_threshold: int,
+                     top_n: int,
+                     referrers_enabled: bool,
+                     max_depth: int) -> None:
+    ddup_start_gc_monitor(
+        clamp_to_uint64_unsigned(interval_ms),
+        survivor_threshold,
+        top_n,
+        referrers_enabled,
+        max_depth,
+    )
+
+
+def stop_gc_monitor() -> None:
+    ddup_stop_gc_monitor()
 
 
 def _get_endpoint(tracer)-> str:

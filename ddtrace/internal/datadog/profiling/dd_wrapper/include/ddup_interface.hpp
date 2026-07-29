@@ -55,6 +55,14 @@ extern "C"
       std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
 
     bool ddup_upload();
+
+    // GC monitor controls
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bool referrers_enabled,
+                               int max_depth);
+    void ddup_stop_gc_monitor();
 #ifdef __cplusplus
 } // extern "C"
 #endif
