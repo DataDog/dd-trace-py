@@ -30,7 +30,7 @@ include:
       echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_fmt\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:gotter_cargo_clippy[collapsed=true]\r\e[0Kheap-gotter cargo clippy"
-      cargo clippy --all-features -- -D warnings
+      cargo clippy --locked --all-features -- -D warnings
       echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_clippy\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:gotter_cargo_test[collapsed=true]\r\e[0Kheap-gotter cargo test"
