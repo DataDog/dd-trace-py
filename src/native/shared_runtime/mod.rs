@@ -1,6 +1,7 @@
 use libdd_shared_runtime::SharedRuntime;
 use pyo3::prelude::*;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 mod exceptions;
@@ -48,6 +49,23 @@ impl SharedRuntimePy {
         self.inner
             .clone()
             .shutdown(timeout)
+            .map_err(shared_runtime_error_to_pyerr)
+    }
+
+    /// Shutdown the runtime in a new thread.
+    /// This is can be used when thread local storage have been destroyed.
+    fn shutdown_in_thread(&self, timeout_ms: Option<u64>) -> PyResult<()> {
+        let timeout = timeout_ms.map(Duration::from_millis);
+        let inner = self.inner.clone();
+        thread::Builder::new()
+            .spawn(move || inner.shutdown(timeout))
+            .map_err(|_| {
+                pyo3::exceptions::PyRuntimeError::new_err("Failed to start shutdown thread")
+            })?
+            .join()
+            .map_err(|_| {
+                pyo3::exceptions::PyRuntimeError::new_err("Failed to join shutdown thread")
+            })?
             .map_err(shared_runtime_error_to_pyerr)
     }
 
