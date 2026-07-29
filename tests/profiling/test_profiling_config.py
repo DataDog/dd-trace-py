@@ -215,12 +215,12 @@ class TestNativeHeapConfig:
 
     def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
-        config = ProfilingConfig()
+        config: ProfilingConfig = ProfilingConfig()
         assert config.native_heap.enabled is False
 
     def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "true")
-        config = ProfilingConfig()
+        config: ProfilingConfig = ProfilingConfig()
         assert config.native_heap.enabled is True
 
     def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
