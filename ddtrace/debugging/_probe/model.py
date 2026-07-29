@@ -104,7 +104,8 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
+        """Whether this probe takes part in coordinated sampling."""
         return False
 
     def __hash__(self) -> int:
@@ -288,13 +289,13 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
