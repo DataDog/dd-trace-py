@@ -398,7 +398,7 @@ class _ProfilerInstance(service.Service):
                 # live-heap (ddheap:free + retain flagging) is a build-time
                 # property of the cdylib, not a runtime toggle; report which
                 # mode was actually armed for observability.
-                mode = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
                 LOG.debug("Native heap profiling armed (GOT overrides installed, %s)", mode)
                 return True
             LOG.debug("Native heap profiling requested but GOT overrides were not installed")
@@ -408,7 +408,7 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
-        native_heap_armed = self._arm_native_heap()
+        native_heap_armed: bool = self._arm_native_heap()
 
         # Native-heap de-duplication (Phase 2 ownership partition): a process
         # must have exactly ONE producer per allocator domain, otherwise the same

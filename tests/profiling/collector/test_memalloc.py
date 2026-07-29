@@ -1585,12 +1585,12 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
 
 # Each buffer is far larger than pymalloc's 512B threshold, so it is served by
 # the raw allocator (glibc malloc).
-_PARTITION_LARGE_ALLOC_BYTES = 1024 * 1024
+_PARTITION_LARGE_ALLOC_BYTES: int = 1024 * 1024
 # Kept <= 256 so the ``range()`` loop variables stay in CPython's small-int
 # cache: ``_allocate_large_buffers`` then makes *only* > 512B allocations, which
 # makes the "large allocations are skipped" assertion deterministic.
-_PARTITION_LARGE_ALLOC_COUNT = 64
-_PARTITION_SMALL_ALLOC_COUNT = 200_000
+_PARTITION_LARGE_ALLOC_COUNT: int = 64
+_PARTITION_SMALL_ALLOC_COUNT: int = 200_000
 
 
 def _allocate_large_buffers(store: list[object]) -> None:
@@ -1605,10 +1605,10 @@ def _allocate_small_objects(store: list[object]) -> None:
 
 def test_native_heap_partition_skips_large_managed_allocations(tmp_path: Path) -> None:
     """With the partition on, > 512B OBJ allocations are skipped but <= 512B kept."""
-    output_filename = _setup_profiling_prelude(tmp_path, "test_native_heap_partition_skips_large")
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_native_heap_partition_skips_large")
 
     store: list[object] = []
-    mc = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
     memalloc.set_native_heap_partition(True)
     try:
         with mc:
@@ -1617,17 +1617,17 @@ def test_native_heap_partition_skips_large_managed_allocations(tmp_path: Path) -
             mc.snapshot()
         ddup.upload()
 
-        profile = pprof_utils.parse_newest_profile(output_filename)
-        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+        heap_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "heap-space")
 
         # Small pool-served allocations (<= 512B) are invisible to the gotter, so
         # the in-process sampler must keep sampling them.
-        small_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
+        small_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
         assert small_count > 0, "small (<=512B) managed allocations must still be sampled when the partition is on"
 
         # Large allocations (> 512B) hit glibc malloc and are owned by the gotter,
         # so the in-process sampler must skip them entirely.
-        large_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
+        large_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
         assert large_count == 0, (
             f"large (>512B) managed allocations must be skipped when the partition is on (got {large_count})"
         )
@@ -1640,10 +1640,10 @@ def test_native_heap_partition_skips_large_managed_allocations(tmp_path: Path) -
 
 def test_native_heap_partition_disabled_samples_all_sizes(tmp_path: Path) -> None:
     """With the partition off (default, fail-safe), all sizes are sampled."""
-    output_filename = _setup_profiling_prelude(tmp_path, "test_native_heap_partition_disabled")
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_native_heap_partition_disabled")
 
     store: list[object] = []
-    mc = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
     # Default is off; set explicitly in case a prior test left it on.
     memalloc.set_native_heap_partition(False)
     with mc:
@@ -1652,12 +1652,12 @@ def test_native_heap_partition_disabled_samples_all_sizes(tmp_path: Path) -> Non
         mc.snapshot()
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+    heap_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "heap-space")
 
-    large_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
+    large_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_large_buffers")
     assert large_count > 0, "large (>512B) allocations must be sampled when the partition is off"
-    small_count = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
+    small_count: int = _count_heap_samples_with_function(profile, heap_samples, "_allocate_small_objects")
     assert small_count > 0, "small (<=512B) allocations must be sampled when the partition is off"
 
     del store
