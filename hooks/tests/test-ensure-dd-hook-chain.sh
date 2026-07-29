@@ -14,6 +14,7 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 GLOBAL_CFG="$TMPDIR_TEST/global.gitconfig"
+METRICS_FILE="$TMPDIR_TEST/metrics.log"
 export GIT_CONFIG_GLOBAL="$GLOBAL_CFG"
 export GIT_CONFIG_SYSTEM=/dev/null
 
@@ -76,8 +77,24 @@ run_ensure
 assert_equals "" "$(local_hooks_path)" "global only: local still unset"
 
 setup_repo "/usr/local/dd/global_hooks" ".git/hooks"
+: >"$METRICS_FILE"
+export DD_HOOK_TELEMETRY=1
+export DD_HOOK_TELEMETRY_FILE="$METRICS_FILE"
 run_ensure
 assert_equals "" "$(local_hooks_path)" "local .git/hooks override removed"
+if ! grep -Fq "dd.trace.repo_hooks.hook_chain.bypass" "$METRICS_FILE"; then
+    echo "FAIL: repair emits bypass metric" >&2
+    FAIL=$((FAIL + 1))
+else
+    PASS=$((PASS + 1))
+fi
+if ! grep -Fq "dd.trace.repo_hooks.hook_chain.repair" "$METRICS_FILE"; then
+    echo "FAIL: repair emits repair metric" >&2
+    FAIL=$((FAIL + 1))
+else
+    PASS=$((PASS + 1))
+fi
+unset DD_HOOK_TELEMETRY DD_HOOK_TELEMETRY_FILE
 
 setup_repo "/usr/local/dd/global_hooks" "/tmp/custom-hooks"
 run_ensure

@@ -24,6 +24,48 @@ global pre-commit → dd-git-hooks (secrets) → run-local-hooks → autohook (l
 If you previously used `git config --local core.hooksPath .git/hooks`, re-run
 `hooks/autohook.sh install` or `hooks/scripts/ensure-dd-hook-chain.sh`.
 
+### Verifying the global hook chain (DD laptops)
+
+Unit tests cover `ensure-dd-hook-chain.sh` logic. To manually verify wiring and
+(optionally) secrets scanning on a Datadog laptop:
+
+```bash
+hooks/scripts/verify-dd-hook-chain.sh           # doctor + bypass/chain checks (+ repair if present)
+DD_HOOK_VERIFY_EXAMPLE_SECRET='...' hooks/scripts/verify-dd-hook-chain.sh --secrets
+```
+
+Or via hook tests: `DD_HOOK_CHAIN_INTEGRATION=1 bash scripts/run-hook-tests`
+
+For `--secrets`, set `DD_HOOK_VERIFY_EXAMPLE_SECRET` to a **non-production**
+test credential (e.g. a TruffleHog documentation example). The probe may **skip**
+if `dd-git-hooks` only blocks verified secrets or if the local scanner needs
+attention (`dd-git-hooks -doctor`).
+
+### Telemetry (Datadog laptops)
+
+On laptops with `core.hooksPath=/usr/local/dd/global_hooks`, repo hooks emit
+best-effort DogStatsd counters (via the local Agent) so you can measure autohook
+usage and hook-chain repairs after [#19326](https://github.com/DataDog/dd-trace-py/pull/19326).
+
+| Metric | When |
+|--------|------|
+| `dd.trace.repo_hooks.autohook.executions` | Autohook runs a hook (`pre-commit`, `post-merge`, …) |
+| `dd.trace.repo_hooks.hook_chain.bypass` | `ensure-dd-hook-chain` detects local `.git/hooks` override |
+| `dd.trace.repo_hooks.hook_chain.repair` | Override removed (`git config --local --unset-all core.hooksPath`) |
+
+Common tags: `github_repo`, `github_org`, `username`, `hook_chain_fix:ensure-dd-hook-chain-v1`.
+
+Example queries:
+
+```
+sum:dd.trace.repo_hooks.autohook.executions{github_repo:dd-trace-py}.as_count()
+sum:dd.trace.repo_hooks.hook_chain.repair{github_repo:dd-trace-py,hook_chain_fix:ensure-dd-hook-chain-v1}.as_count()
+sum:dd.trace.repo_hooks.hook_chain.bypass{github_repo:dd-trace-py}.as_count()
+```
+
+Set `DD_HOOK_TELEMETRY=1` to force emission outside DD laptops (tests use
+`DD_HOOK_TELEMETRY_FILE` to capture payloads).
+
 ## Available Hooks
 
 ### pre-commit (blocking)
@@ -244,14 +286,17 @@ hooks/
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
-│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
-│   ├── 00-ensure-dd-hook-chain # Unset local hooksPath that skips DD secrets scan
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
     ├── check-native-changes # Native change and dependency detection logic
-    └── ensure-dd-hook-chain.sh # DD laptop global-hook chain guard
+    ├── ensure-dd-hook-chain.sh # DD laptop global-hook chain guard
+    ├── run-ensure-dd-hook-chain-quiet.sh # Shared post-checkout/post-merge entrypoint
+    ├── verify-dd-hook-chain.sh # Manual DD laptop hook-chain verifier
+    └── hook-telemetry.sh    # DogStatsd metrics for autohook / hook-chain repairs
 ```
 
 ## For Contributors
