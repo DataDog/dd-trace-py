@@ -63,7 +63,7 @@ def test_profiler_start_arms_native_heap_when_enabled() -> None:
     with mock.patch.object(heap_gotter, "install", return_value=True) as install:
         from ddtrace.profiling.profiler import Profiler
 
-        prof = Profiler()
+        prof: Profiler = Profiler()
         prof.start()
         try:
             assert install.called, "profiler start should arm native heap profiling when enabled"
@@ -88,7 +88,7 @@ def test_profiler_start_skips_native_heap_when_disabled() -> None:
     with mock.patch.object(heap_gotter, "install", return_value=True) as install:
         from ddtrace.profiling.profiler import Profiler
 
-        prof = Profiler()
+        prof: Profiler = Profiler()
         prof.start()
         try:
             assert not install.called, "profiler must not arm native heap profiling when disabled"
@@ -113,7 +113,7 @@ def test_profiler_start_survives_native_heap_install_error() -> None:
     with mock.patch.object(heap_gotter, "install", side_effect=RuntimeError("boom")) as install:
         from ddtrace.profiling.profiler import Profiler
 
-        prof = Profiler()
+        prof: Profiler = Profiler()
         prof.start()  # must not raise
         try:
             assert install.called

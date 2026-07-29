@@ -128,9 +128,12 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
-# Opt-in build of the native heap-gotter cdylib.
-# Off by default so normal builds don't pay the extra cargo fetch/compile and
-# mainline wheels don't ship the artifact until it GA's.
+# Opt-in build of the native heap-gotter cdylib (Phase 1: allocation-only native
+# heap profiling via GOT rewriting, driven at runtime by the FH eBPF profiler).
+# Off by default so mainline wheels are not pinned to a moving libdatadog `main`
+# SHA and normal builds don't pay the extra cargo fetch/compile. The staging A/B
+# harness sets this to bake the artifact into its custom wheels; runtime install
+# is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
