@@ -851,7 +851,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        old_exporter = self._exporter
         self._exporter = self._create_exporter()
+        try:
+            old_exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def recreate(
         self,
@@ -864,9 +869,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
-            pass
+            try:
+                # Writers like AgentWriter may not start until the first trace is encoded.
+                # Stopping them before that will raise a ServiceStatusError.
+                # Shut down the exporter as it's started on init.
+                self._exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
@@ -890,7 +899,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
+            old_exporter = self._exporter
             self._exporter = self._create_exporter()
+            try:
+                old_exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
