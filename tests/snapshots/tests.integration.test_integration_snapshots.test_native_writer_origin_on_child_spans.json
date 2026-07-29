@@ -1,0 +1,63 @@
+[[
+  {
+    "name": "root",
+    "service": "my-svc",
+    "resource": "root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.integration",
+      "_dd.origin": "synthetics",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a55027d00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
+      "language": "python",
+      "runtime-id": "afaf8c79a6cf4b7d8fbd978d7f29274c"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 477.0
+    },
+    "duration": 67473,
+    "start": 1783956093281546743
+  },
+     {
+       "name": "child",
+       "service": "my-svc",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.integration",
+         "_dd.origin": "synthetics",
+         "_dd.svc_src": "m"
+       },
+       "duration": 25880,
+       "start": 1783956093281585168
+     },
+        {
+          "name": "grandchild",
+          "service": "my-svc",
+          "resource": "grandchild",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.integration",
+            "_dd.origin": "synthetics",
+            "_dd.svc_src": "m"
+          },
+          "duration": 5626,
+          "start": 1783956093281597129
+        }]]

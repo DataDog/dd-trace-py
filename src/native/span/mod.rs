@@ -6,6 +6,7 @@ mod span_event;
 mod span_link;
 pub mod utils;
 
+pub(crate) use span_data::traverse_v04_span;
 pub use span_data::SpanData;
 pub use span_event::SpanEvent;
 pub use span_link::SpanLink;

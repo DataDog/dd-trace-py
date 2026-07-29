@@ -93,6 +93,31 @@ def test_set_tag_metric():
     assert s.get_metrics() == dict(test=1)
 
 
+def test_tag_metric_mutual_exclusion():
+    # A key lives in exactly one of meta/metrics; re-setting with the other type moves it.
+    s = Span(name="test.span")
+
+    # str -> meta, then numeric on the same key: moves meta -> metrics.
+    s.set_tag("k", "value")
+    assert s.get_tag("k") == "value"
+    assert s.get_metric("k") is None
+    s.set_metric("k", 7)  # ast-grep-ignore: span-set-metric
+    assert s.get_metric("k") == 7
+    assert s.get_tag("k") is None
+    assert s.get_tags() == {}
+    assert s.get_metrics() == {"k": 7}
+
+    # numeric -> metrics, then str on the same key: moves metrics -> meta (the reverse).
+    s.set_metric("n", 3.5)  # ast-grep-ignore: span-set-metric
+    assert s.get_metric("n") == 3.5
+    assert s.get_tag("n") is None
+    s.set_tag("n", "now-a-string")
+    assert s.get_tag("n") == "now-a-string"
+    assert s.get_metric("n") is None
+    assert s.get_tags() == {"n": "now-a-string"}
+    assert s.get_metrics() == {"k": 7}
+
+
 def test_set_valid_metrics():
     s = Span(name="test.span")
     s.set_metric("a", 0)  # ast-grep-ignore: span-set-metric

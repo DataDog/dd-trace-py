@@ -307,6 +307,86 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
             span.set_tag(key="å" * 25001, value="ä" * 2000)
 
 
+@pytest.mark.snapshot()
+def test_native_writer_span_events():
+    # Default v0.5 output has no span_events wire field, so events get JSON-encoded into
+    # meta["events"] instead. Native v0.4 field output is covered by
+    # test_native_writer_links_events_v04_output. See ENCODER_DIFFERENCES.md.
+    from ddtrace import tracer
+
+    with tracer.trace("operation", service="my-svc") as span:
+        span._add_event(
+            "my_event",
+            attributes={"str_attr": "value", "int_attr": 1, "bool_attr": True},
+            time_unix_nano=1700000000000000000,
+        )
+
+
+@pytest.mark.snapshot()
+def test_native_writer_span_links():
+    # Default v0.5 output has no span_links wire field, so links get JSON-encoded into
+    # meta["_dd.span_links"] instead. See ENCODER_DIFFERENCES.md.
+    from ddtrace import tracer
+
+    with tracer.trace("operation", service="my-svc") as span:
+        span._set_link(
+            trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+            span_id=0x1122334455667788,
+            attributes={"link.name": "linked"},
+        )
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4", "DD_TRACE_NATIVE_SPAN_EVENTS": "true"})
+def test_native_writer_links_events_v04_output():
+    # v0.4 output has native span_links/span_events fields (vs the v0.5 JSON-into-meta
+    # fallback above). span_events additionally requires opting into
+    # DD_TRACE_NATIVE_SPAN_EVENTS, since v0.4 span_links have always been native but
+    # span_events are still JSON-encoded into meta by default. See ENCODER_DIFFERENCES.md.
+    from ddtrace.trace import tracer
+
+    with tracer.trace("operation", service="my-svc") as span:
+        span._set_link(
+            trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+            span_id=0x1122334455667788,
+            attributes={"link.name": "linked"},
+        )
+        span._add_event("my_event", attributes={"k": "v"}, time_unix_nano=1700000000000000000)
+    tracer.flush()
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.4", "DD_TRACE_NATIVE_SPAN_EVENTS": "true"})
+def test_native_writer_span_link_event_attribute_truncation():
+    # An oversized span-link/event attribute value must be truncated the same way meta/name/
+    # service/resource/type already are. Requires DD_TRACE_NATIVE_SPAN_EVENTS to exercise the
+    # native (non-JSON-fallback) span_events truncation path.
+    from ddtrace.trace import tracer
+
+    long_value = "a" * 30000
+
+    with tracer.trace("operation", service="my-svc") as span:
+        span._set_link(
+            trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+            span_id=0x1122334455667788,
+            attributes={"link.name": long_value},
+        )
+        span._add_event("my_event", attributes={"attr": long_value}, time_unix_nano=1700000000000000000)
+    tracer.flush()
+
+
+@pytest.mark.snapshot()
+def test_native_writer_origin_on_child_spans():
+    # Regression guard: `_dd.origin` must appear on EVERY span in the chunk, including
+    # non-root children. See ENCODER_DIFFERENCES.md.
+    from ddtrace import tracer
+
+    with tracer.trace("root", service="my-svc") as root:
+        root.context.dd_origin = "synthetics"
+        with tracer.trace("child", service="my-svc"):
+            tracer.trace("grandchild", service="my-svc").finish()
+
+
 @pytest.mark.snapshot
 @pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
 def test_aggregator_partial_flush_finished_counter_out_of_sync():

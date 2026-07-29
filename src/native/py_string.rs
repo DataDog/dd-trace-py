@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     ops::Deref as _,
     ptr::{self, NonNull},
 };
@@ -10,8 +11,6 @@ use pyo3::{
 };
 
 use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
-use serde::Serialize;
-use std::borrow::Borrow;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
 /// that can be put in a libdatadog span.
@@ -26,6 +25,18 @@ use std::borrow::Borrow;
 /// When converting back to Python via `IntoPyObject`:
 /// - `Some(py_obj)` returns the stored Python object (zero-copy)
 /// - `None` creates an interned Python string (cached by Python for repeated access)
+///
+/// ## Footprint is load-bearing — keep `storage` one word
+///
+/// AIDEV-NOTE: this is the hottest type in the span path (every span field, every meta/metrics key),
+/// so its width shows up directly in throughput. `storage` is deliberately `Option<Py<PyAny>>`, which
+/// is 8 bytes because `Py` is non-null and `None` uses that niche — 24 bytes total, 32 per `meta`
+/// entry. A previous attempt added a third storage state for Rust-owned heap strings (`Box<str>`, so
+/// truncation could skip allocating a `PyString`); that widened `storage` to 24 bytes and the struct
+/// to 40, and an interleaved loadtest measured **−1.3% throughput, +2% p99, +1% RSS**. Don't
+/// reintroduce a heap-owned variant: dynamic Rust strings are only needed on the rare truncation
+/// path, which doesn't justify widening every instance. Rust-sourced *static* text is already
+/// supported via `from_static_str`, so a wire map can still mix Rust and Python sources.
 pub struct PyBackedString {
     /// memory view over the python object bytes, or static data
     data: ptr::NonNull<str>,
@@ -35,6 +46,7 @@ pub struct PyBackedString {
 }
 
 impl PyBackedString {
+    /// Cheap clone: a refcount bump for Python-backed data, a bare pointer copy for `'static`.
     pub fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
         Self {
             data: self.data,
@@ -53,8 +65,7 @@ impl PyBackedString {
 
     pub fn py_none<'py>(py: Python<'py>) -> Self {
         Self {
-            // SAFETY: "" is a non-null 'static str literal
-            data: unsafe { ptr::NonNull::new_unchecked("" as *const str as *mut _) },
+            data: ptr::NonNull::from(""),
             storage: Some(py.None()),
         }
     }
@@ -162,8 +173,7 @@ impl TryFrom<pyo3::Bound<'_, pyo3::types::PyBytes>> for PyBackedString {
 impl From<pyo3::Bound<'_, PyNone>> for PyBackedString {
     fn from(value: pyo3::Bound<'_, PyNone>) -> Self {
         Self {
-            // SAFETY: "" is a non-null 'static str literal
-            data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
+            data: NonNull::from(""),
             storage: Some(value.to_owned().unbind().into_any()),
         }
     }
@@ -193,7 +203,13 @@ impl serde::Serialize for PyBackedString {
     }
 }
 
-impl std::borrow::Borrow<str> for PyBackedString {
+impl AsRef<str> for PyBackedString {
+    fn as_ref(&self) -> &str {
+        self
+    }
+}
+
+impl Borrow<str> for PyBackedString {
     fn borrow(&self) -> &str {
         self.deref()
     }
@@ -207,6 +223,22 @@ impl PartialEq for PyBackedString {
 
 impl Eq for PyBackedString {}
 
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        match &self.storage {
+            // Static data holds no Python object, so cloning needs no GIL.
+            None => Self {
+                data: self.data,
+                storage: None,
+            },
+            // Bumping a Python refcount needs Python<'_>. We acquire the GIL here rather than
+            // enabling the `py-clone` pyo3 feature (which also panics without the GIL, but hides
+            // the requirement inside the standard Clone trait).
+            Some(_) => Python::attach(|py| self.clone_ref(py)),
+        }
+    }
+}
+
 impl Default for PyBackedString {
     fn default() -> Self {
         Self::from_static_str("")
@@ -219,34 +251,81 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
-impl From<String> for PyBackedString {
-    fn from(_s: String) -> Self {
-        todo!()
-    }
-}
-
 impl SpanText for PyBackedString {
+    /// Wrap a `'static` Rust string, holding no Python object. Safe to surface to Python: `as_py`
+    /// interns it, which is cheap and returns a stable object across reads.
+    ///
+    /// This is also how *Rust-sourced* text goes into a wire map alongside Python-backed entries —
+    /// `Eq`/`Hash`/`Borrow` compare the payload, not the backing. Dynamic (heap) Rust strings are
+    /// deliberately unsupported; see the footprint note on [`PyBackedString`].
     fn from_static_str(value: &'static str) -> Self {
         Self {
-            // SAFETY: value is a 'static str reference, guaranteed to be non-null
-            data: unsafe { ptr::NonNull::new_unchecked(value as *const str as *mut _) },
+            data: ptr::NonNull::from(value),
             storage: None,
         }
     }
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct Bytes(Vec<u8>);
+/// Opaque bytes for a span's `meta_struct`.
+///
+/// Always Rust-owned: `meta_struct` values are msgpacked natively (see `span::msgpack`), so unlike
+/// [`PyBackedString`] this never views a Python buffer — no raw pointer, no `unsafe`, no
+/// `unsafe impl Send`/`Sync`, and no GIL needed to drop. Instances are rare (one per `meta_struct`
+/// key, which only appsec/LLMObs set), so its width doesn't matter the way `PyBackedString`'s does.
+#[derive(Clone, Default, PartialEq, Eq, Hash)]
+pub struct Bytes(Box<[u8]>);
+
+impl Bytes {
+    /// Wrap natively-packed msgpack bytes.
+    pub(crate) fn from_owned_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes.into_boxed_slice())
+    }
+
+    /// No-op — holds no Python reference. Kept so `traverse_v04_span` can visit every span field
+    /// uniformly.
+    #[inline(always)]
+    pub(crate) fn traverse(&self, _visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        Ok(())
+    }
+}
 
 impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
-        Self(value.to_vec())
+        Self(Box::from(value))
+    }
+}
+
+impl std::ops::Deref for Bytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for Bytes {
+    fn as_ref(&self) -> &[u8] {
+        self
     }
 }
 
 impl Borrow<[u8]> for Bytes {
     fn borrow(&self) -> &[u8] {
-        &self.0
+        self
+    }
+}
+
+impl std::fmt::Debug for Bytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl serde::Serialize for Bytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.deref())
     }
 }
 
