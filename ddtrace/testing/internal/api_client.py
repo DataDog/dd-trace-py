@@ -417,6 +417,11 @@ class APIClient:
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
+        # The skippable-tests endpoint can be slow on the first call (backend computes the list on demand),
+        # so give it a longer timeout than the global default while the proper per-endpoint timeout solution lands.
+        _prev_timeout = self.connector.conn.timeout
+        self.connector.conn.close()
+        self.connector.conn.timeout = 10.0
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
@@ -425,6 +430,9 @@ class APIClient:
             log.warning("Error getting skippable tests from API: %s", e)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
+        finally:
+            self.connector.conn.close()
+            self.connector.conn.timeout = _prev_timeout
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
