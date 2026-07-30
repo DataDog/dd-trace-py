@@ -852,10 +852,11 @@ class SessionManager:
         # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE), force skipping on
         # so that tests are actually skipped once the skippable list is populated.
 
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+        _itr_enabled_env = env.get("DD_CIVISIBILITY_ITR_ENABLED")
+        if _itr_enabled_env is not None and not asbool(_itr_enabled_env):
             log.debug("Test Impact Analysis is disabled by environment variable")
             self.settings.itr_enabled = False
-        elif self.service == "dd-trace-py":
+        elif _itr_enabled_env is not None and self.service == "dd-trace-py":
             log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
 

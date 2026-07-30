@@ -423,7 +423,7 @@ class APIClient:
         _extend_timeout = self.service == "dd-trace-py"
         if _extend_timeout:
             self.connector.conn.close()
-            self.connector.conn.timeout = 10.0
+            self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
