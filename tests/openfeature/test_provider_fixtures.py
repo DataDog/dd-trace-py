@@ -96,3 +96,8 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
         f"context (targetingKey='{targeting_key}', attributes={attributes}) "
         f"returned {result.value}, expected {expected_value}"
     )
+    assert result.reason is not None
+    assert result.reason.value == expected_result["reason"], (
+        f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned reason "
+        f"{result.reason.value}, expected {expected_result['reason']}"
+    )

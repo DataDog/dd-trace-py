@@ -197,9 +197,11 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError
-                | EvaluationError::FlagConfigurationInvalid => {
+                EvaluationError::ConfigurationParseError => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
+                }
+                EvaluationError::FlagConfigurationInvalid => {
+                    ResolutionDetails::empty(Reason::Default)
                 }
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
                     ErrorCode::ProviderNotReady,
