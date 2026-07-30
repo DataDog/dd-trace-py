@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    AI Guard redaction feature, you can enable it for each service in the UI, see
-    https://docs.datadoghq.com/security/ai_guard/setup/sdk/ for more info
+    AI Guard: Added a redaction feature, which can be enabled in the UI.
+    For more info, see https://docs.datadoghq.com/security/ai_guard/setup/sdk/
