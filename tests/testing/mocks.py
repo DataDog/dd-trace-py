@@ -528,6 +528,7 @@ class BackendConnectorMockBuilder:
         mock_connector.get_json.side_effect = mock_get_json
         mock_connector.request.side_effect = mock_request
         mock_connector.post_files.side_effect = mock_post_files
+        mock_connector.with_timeout.side_effect = lambda _timeout: contextlib.nullcontext()
 
         return mock_connector
 
