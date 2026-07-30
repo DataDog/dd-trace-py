@@ -192,6 +192,28 @@ def _(asyncio: ModuleType) -> None:
 
         base_event_loop_class = sys.modules["asyncio.base_events"].BaseEventLoop
 
+        @partial(wrap, base_event_loop_class.run_forever)
+        def _(
+            f: typing.Callable[..., None],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> None:
+            # Runner(loop_factory=...) and direct run_until_complete() can execute a loop that was never registered
+            # through an event-loop policy. Track it only while it is running so stopped loops are not retained.
+            loop = typing.cast("aio.AbstractEventLoop", args[0])
+            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            try:
+                stack.track_asyncio_loop(thread_id, loop)
+            except Exception:  # nosec B110
+                pass
+            try:
+                return f(*args, **kwargs)
+            finally:
+                try:
+                    stack.track_asyncio_loop(thread_id, None)
+                except Exception:  # nosec B110
+                    pass
+
         @partial(wrap, base_event_loop_class.create_task)
         def _(
             f: typing.Callable[..., aio.Task[typing.Any]],
@@ -208,6 +230,33 @@ def _(asyncio: ModuleType) -> None:
                 had_custom_task_factory,
             )
             return task
+
+        def _publish_ensured_future(
+            f: typing.Callable[..., aio.Future[typing.Any]],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> aio.Future[typing.Any]:
+            awaitable = get_argument_value(args, kwargs, 0, "coro_or_future")
+            loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
+            if loop is None:
+                loop = globals()["get_running_loop"]()
+            if loop is None and awaitable is not None:
+                try:
+                    loop = awaitable.get_loop()
+                except Exception:  # nosec B110
+                    pass
+            had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
+            future = f(*args, **kwargs)
+            if future is not awaitable:
+                _publish_task_span(typing.cast("aio.Task[typing.Any]", future), None, had_custom_task_factory)
+            return future
+
+        wrap(sys.modules["asyncio"].tasks.ensure_future, _publish_ensured_future)
+        # Python 3.10 and 3.11 gather() call the private helper directly. Wrapping both also covers third-party event
+        # loops whose create_task implementation does not inherit BaseEventLoop.create_task.
+        private_ensure_future = getattr(sys.modules["asyncio"].tasks, "_ensure_future", None)
+        if private_ensure_future is not None:
+            wrap(private_ensure_future, _publish_ensured_future)
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
@@ -306,7 +355,15 @@ def _(asyncio: ModuleType) -> None:
                         args: tuple[typing.Any, ...],
                         kwargs: dict[str, typing.Any],
                     ) -> aio.Task[typing.Any]:
+                        task_group = args[0]
+                        loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", getattr(task_group, "_loop", None))
+                        had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
                         result: aio.Task[typing.Any] = f(*args, **kwargs)
+                        _publish_task_span(
+                            result,
+                            typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")),
+                            had_custom_task_factory,
+                        )
 
                         parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
                         if parent is not None and result is not None:
@@ -327,7 +384,14 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> aio.Task[typing.Any]:
             # kwargs will typically contain context (Python 3.11+ only) and eager_start (Python 3.14+ only)
+            loop = globals()["get_running_loop"]()
+            had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
             task: aio.Task[typing.Any] = f(*args, **kwargs)
+            _publish_task_span(
+                task,
+                typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")),
+                had_custom_task_factory,
+            )
             parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
 
             if parent is not None:

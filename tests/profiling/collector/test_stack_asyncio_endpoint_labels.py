@@ -2,6 +2,8 @@ import sys
 
 import pytest
 
+from tests.profiling.collector import test_utils
+
 
 @pytest.mark.subprocess(
     env={
@@ -203,6 +205,103 @@ def test_stack_respects_explicit_empty_child_task_context():
         assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in child_samples)
         assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in child_samples)
         assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in child_samples)
+
+
+@pytest.mark.skipif(not test_utils.uvloop_available(), reason="uvloop is not installed in this environment")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_uvloop_raw_gather_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
+    import asyncio
+    import os
+    import time
+
+    import uvloop
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "uvloop-gather-endpoint"
+
+    def uvloop_raw_gather_work():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def cpu_child():
+        uvloop_raw_gather_work()
+
+    async def sleeping_child():
+        await asyncio.sleep(0.6)
+
+    async def parent_task():
+        with tracer.trace("uvloop.parent.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
+            await asyncio.gather(cpu_child(), sleeping_child())
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    uvloop.run(parent_task())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    child_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "uvloop_raw_gather_work")
+
+    assert child_samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in child_samples)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_unregistered_asyncio_loop",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_tracks_asyncio_loop_without_set_event_loop():
+    import asyncio
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "unregistered-loop-endpoint"
+
+    def unregistered_loop_task_work():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def main():
+        with tracer.trace("unregistered.loop.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
+            unregistered_loop_task_work()
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "unregistered_loop_task_work")
+
+    assert samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio task context requires Python 3.11+")
