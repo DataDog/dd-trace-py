@@ -224,6 +224,9 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         entry_span = span._service_entry_span
+        if (previous_ctx := _asm_request_context.get_active_asm_context()) and previous_ctx.entry_span == entry_span:
+            return
+
         entry_span._set_attribute(APPSEC.ENABLED, 1.0)
         entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 
