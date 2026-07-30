@@ -256,14 +256,14 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
     _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
     and every mapping key stringified. The original structure is never mutated.
-    A warning is logged for each stringified field, including its dotted path.
+    A debug log is emitted for each stringified field, including its dotted path.
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
         if not isinstance(node, (dict, list)):
             return node
         if depth >= _MAX_NESTED_META_DEPTH:
-            log.warning(
+            log.debug(
                 "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
                 "stringified to avoid backend parsing errors.",
                 path,

@@ -108,7 +108,7 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
     """When neither agent_service nor ml_app is set, service is used as the ml app."""
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
         with llmobs_service.workflow() as span:
             pass

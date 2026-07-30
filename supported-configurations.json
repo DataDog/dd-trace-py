@@ -5769,9 +5769,9 @@
     ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
@@ -6028,14 +6028,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
-      {
-        "implementation": "A",
-        "type": "map",
-        "default": null,
         "internal": true
       }
     ],

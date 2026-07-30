@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_import_normal():
     """Namespace packages are correctly covered when imported normally"""
     import os
@@ -58,7 +58,7 @@ def test_coverage_namespace_package_import_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_import_late():
     """Namespace packages are correctly covered when they are imported late"""
     import os
@@ -130,7 +130,7 @@ def test_coverage_namespace_package_import_late():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_nsa_import_parent_normal():
     """Namespac packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -181,7 +181,7 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_nsa_import_parent_late():
     """Namespace packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -235,7 +235,7 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_nsa_import_dot_normal():
     """Namespace packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -290,7 +290,7 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_namespace_package_nsa_import_dot_late():
     """Namespace packages are correctly covered when imported normally when using a nested package"""
     import os

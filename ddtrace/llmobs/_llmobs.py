@@ -32,7 +32,6 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -114,6 +113,7 @@ from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
+from ddtrace.llmobs._experiment import ExperimentSummary
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
@@ -187,7 +187,6 @@ from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
-from ddtrace.llmobs.types import SpanWithTagValue
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -1215,6 +1214,63 @@ class LLMObs(Service):
             inner_exp._dataset_version = experiment_meta._dataset._version
 
         return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
+
+    @classmethod
+    def list_experiments(
+        cls,
+        experiment_name: Optional[str] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
+        parent_experiment_ids: Optional[list[str]] = None,
+        project_name: Optional[str] = None,
+        page_limit: int = 100,
+        max_results: Optional[int] = None,
+    ) -> "list[ExperimentSummary]":
+        """List experiments, optionally filtered by name, metadata, or parent experiment.
+
+        Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
+        costs) and ``status``, which together support CI/CD gating: pick the most recent
+        ``completed`` run for the baseline commit and compare it against the current one.
+
+        :param experiment_name: Filter by logical experiment name.
+        :param metadata_filter: Filter by metadata containment, e.g. ``{"tags": ["git.commit.sha:abc123"]}``.
+            Experiments created by this SDK store only ``tags`` under metadata; ``git.commit.sha`` and
+            ``git.repository_url`` tags are captured automatically at experiment creation.
+        :param parent_experiment_ids: Filter by parent experiment UUID(s).
+        :param project_name: Project to query (defaults to the configured project).
+        :param page_limit: Page size for backend requests (1–5000, default: 100).
+        :param max_results: Stop after collecting this many experiments; must be at least 1.
+            ``None`` (default) fetches every page; since results are ordered newest first, pass e.g.
+            ``max_results=20`` to look at only recent runs instead of walking the project's whole
+            experiment history.
+        :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
+        :raises ValueError: If LLMObs is not enabled, ``max_results`` is less than 1, the project
+            cannot be resolved, or the backend request fails.
+        """
+        if cls._instance is None or not cls.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling list_experiments().")
+        # Pass None for the default project so the client can serve it from its cached
+        # _default_project instead of issuing a create-or-get request on every call.
+        try:
+            project = cls._instance._dne_client.project_create_or_get(project_name or None)
+        except Exception as e:
+            # Listing without a project_id would silently widen the query to every project in the
+            # org, which a CI/CD comparison would then read as the baseline. Fail instead.
+            raise ValueError(
+                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+            ) from e
+        project_id = project.get("_id")
+        if not project_id:
+            raise ValueError(
+                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+            )
+        return cls._instance._dne_client.experiment_list(
+            experiment_name=experiment_name,
+            metadata_filter=metadata_filter,
+            parent_experiment_ids=parent_experiment_ids,
+            project_id=project_id,
+            page_limit=page_limit,
+            max_results=max_results,
+        )
 
     @classmethod
     def create_dataset(
@@ -2340,7 +2396,6 @@ class LLMObs(Service):
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
-                is_otel=span._span_api == SPAN_API_OTEL,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -3141,8 +3196,8 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[ExportedLLMObsSpan] = None,
-        span_with_tag_value: Optional[SpanWithTagValue] = None,
+        span: Optional[dict] = None,
+        span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -3159,10 +3214,10 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param ExportedLLMObsSpan span: Span identifier. Use ``LLMObs.export_span()`` to generate.
-                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
-        :param SpanWithTagValue span_with_tag_value: Tag-based span identifier.
-                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
+        :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
+                            the span associated with this evaluation.
+        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
+                            uniquely identifying the span associated with this evaluation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service for this evaluation metric.
@@ -3205,7 +3260,7 @@ class LLMObs(Service):
                         "`span` must be a dictionary containing both span_id and trace_id keys. "
                         "LLMObs.export_span() can be used to generate this dictionary from a given span."
                     )
-                join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
+                join_on["span"] = span
             elif span_with_tag_value is not None:
                 if (
                     not isinstance(span_with_tag_value, dict)
@@ -3278,9 +3333,9 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
-            if (span is not None and span.get("is_otel")) or (
-                span_with_tag_value is not None and span_with_tag_value.get("is_otel")
-            ):
+            # Auto-add source:otel tag when OTel tracing is enabled
+            # This allows the backend to wait for OTel span conversion
+            if config._otel_trace_enabled:
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
