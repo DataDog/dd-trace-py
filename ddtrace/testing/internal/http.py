@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+import contextlib
 from dataclasses import dataclass
 from enum import Enum
 import gzip
@@ -261,8 +262,6 @@ class BackendConnector(threading.local):
         use_gzip: bool = False,
     ):
         parsed_url = urlparse(url)
-        self._parsed_url = parsed_url
-        self._default_timeout_seconds = timeout_seconds
         self.conn = self._make_connection(parsed_url, timeout_seconds)
         self.default_headers = default_headers or {}
         self.base_path = base_path if base_path is not None else parsed_url.path.rstrip("/")
@@ -278,6 +277,20 @@ class BackendConnector(threading.local):
             self.conn.close()
         except AttributeError:
             pass
+
+    @contextlib.contextmanager
+    def with_timeout(self, timeout_seconds: float) -> t.Iterator[None]:
+        """Context manager that temporarily overrides the connection timeout."""
+        prev = self.conn.timeout
+        if timeout_seconds != prev:
+            self.conn.close()
+            self.conn.timeout = timeout_seconds
+        try:
+            yield
+        finally:
+            if timeout_seconds != prev:
+                self.conn.close()
+                self.conn.timeout = prev
 
     def _make_connection(self, parsed_url: ParseResult, timeout_seconds: float) -> http.client.HTTPConnection:
         if parsed_url.scheme == "http":
@@ -403,65 +416,47 @@ class BackendConnector(threading.local):
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
-        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
-        if timeout_seconds is not None and timeout_seconds != self.conn.timeout:
-            self.conn.close()
-            self.conn.timeout = timeout_seconds
-
         attempts_so_far = 0
 
-        try:
-            while True:
-                attempts_so_far += 1
-                result = self._do_single_request(
-                    method=method,
-                    path=path,
-                    data=data,
-                    headers=headers,
-                    send_gzip=send_gzip,
-                    is_json_response=is_json_response,
+        while True:
+            attempts_so_far += 1
+            result = self._do_single_request(
+                method=method,
+                path=path,
+                data=data,
+                headers=headers,
+                send_gzip=send_gzip,
+                is_json_response=is_json_response,
+            )
+
+            if telemetry:
+                telemetry.record_request(
+                    seconds=result.elapsed_seconds,
+                    response_bytes=result.response_length,
+                    compressed_response=result.is_gzip_response,
+                    error=result.error_type,
+                    request_bytes=result.request_length,
                 )
 
-                if telemetry:
-                    telemetry.record_request(
-                        seconds=result.elapsed_seconds,
-                        response_bytes=result.response_length,
-                        compressed_response=result.is_gzip_response,
-                        error=result.error_type,
-                        request_bytes=result.request_length,
-                    )
-
-                if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
-                    if result.retry_after_seconds is not None:
-                        delay_seconds = result.retry_after_seconds
-                    else:
-                        delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
-                    log.debug(
-                        "Retrying %s %s in %.3f seconds (%d attempts so far)",
-                        method,
-                        path,
-                        delay_seconds,
-                        attempts_so_far,
-                    )
-                    time.sleep(delay_seconds)
+            if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
+                if result.retry_after_seconds is not None:
+                    delay_seconds = result.retry_after_seconds
                 else:
-                    break
-
-            if result.error_type:
-                log.warning(
-                    "Request %s %s failed after %d attempt(s): %s",
-                    method,
-                    path,
-                    attempts_so_far,
-                    result.error_description,
+                    delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
+                log.debug(
+                    "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
+                time.sleep(delay_seconds)
+            else:
+                break
 
-            return result
-        finally:
-            if timeout_seconds is not None and timeout_seconds != self._default_timeout_seconds:
-                self.conn.close()
-                self.conn.timeout = self._default_timeout_seconds
+        if result.error_type:
+            log.warning(
+                "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
+            )
+
+        return result
 
     def get_json(
         self,
@@ -490,7 +485,6 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
-        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         headers = {"Content-Type": "application/json"} | (headers or {})
         encoded_data = json.dumps(data).encode("utf-8")
@@ -503,7 +497,6 @@ class BackendConnector(threading.local):
             is_json_response=True,
             telemetry=telemetry,
             max_attempts=max_attempts,
-            timeout_seconds=timeout_seconds,
         )
 
     def post_files(
