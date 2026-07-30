@@ -10,7 +10,6 @@ from ddtrace.internal.native._native import DefaultContextProvider
 ActiveTrace = Union[Span, Context]
 
 __all__ = [
-    "ActiveTrace",
     "BaseContextProvider",
     "DefaultContextProvider",
     "_DD_CONTEXTVAR",
