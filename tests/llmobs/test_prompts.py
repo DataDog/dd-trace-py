@@ -33,7 +33,7 @@ TEXT_PROMPT_RESPONSE = {
     "prompt_uuid": "prompt-uuid-123",
     "prompt_version_uuid": "version-uuid-456",
     "version": "v1",
-    "label": "production",
+    "labels": ["development", "production"],
     "template": "Hello {name}!",
 }
 
@@ -42,7 +42,7 @@ CHAT_PROMPT_RESPONSE = {
     "prompt_uuid": "chat-uuid-123",
     "prompt_version_uuid": "chat-version-uuid-456",
     "version": "v2",
-    "label": "production",
+    "labels": ["production"],
     "template": [
         {"role": "system", "content": "You are {{persona}}."},
         {"role": "user", "content": "{{question}}"},
@@ -54,7 +54,7 @@ DEV_PROMPT_RESPONSE = {
     "prompt_uuid": "dev-prompt-uuid-789",
     "prompt_version_uuid": "dev-version-uuid-012",
     "version": "dev-v1",
-    "label": "development",
+    "labels": ["development"],
     "template": "DEBUG: Hello {name}!",
 }
 
