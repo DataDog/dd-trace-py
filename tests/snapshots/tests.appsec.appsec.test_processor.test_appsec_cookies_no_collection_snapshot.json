@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.18.0",
+      "_dd.appsec.event_rules.version": "1.18.2",
       "_dd.appsec.fp.http.header": "hdr-0000000000--0-",
       "_dd.appsec.fp.http.network": "net-0-0000000000",
       "_dd.appsec.fp.session": "ssn--3fd6b904-1f57cef4-",
