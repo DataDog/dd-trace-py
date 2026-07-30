@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes incorrect trace and endpoint attribution when concurrent asyncio tasks
+    share one event-loop thread.

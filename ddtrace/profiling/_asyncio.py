@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
 from __future__ import annotations
 
+import contextvars
 from functools import partial
 import sys
 from types import ModuleType
 import typing
+import weakref
 
 
 if typing.TYPE_CHECKING:
@@ -20,6 +22,59 @@ from ddtrace.internal.wrapping import wrap
 
 
 ASYNCIO_IMPORTED: bool = False
+_task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
+
+
+def _finalize_task_span(task_id: int) -> None:
+    try:
+        _task_span_finalizers.pop(task_id, None)
+        stack.clear_logical_span(task_id)
+    except Exception:  # nosec B110
+        # Weakref callbacks can run while module globals are being cleared during interpreter shutdown.
+        pass
+
+
+def _ensure_task_span_finalizer(task: asyncio.Task[typing.Any]) -> bool:
+    task_id = id(task)
+    if task_id in _task_span_finalizers:
+        return True
+    try:
+        finalizer = weakref.finalize(task, _finalize_task_span, task_id)
+    except TypeError:
+        return False
+    finalizer.atexit = False
+    _task_span_finalizers[task_id] = finalizer
+    return True
+
+
+def _current_task_span_id() -> typing.Optional[int]:
+    if get_running_loop() is None:
+        return None
+    try:
+        task = current_task()
+    except RuntimeError:
+        return None
+    if task is None or not _ensure_task_span_finalizer(task):
+        return None
+    return id(task)
+
+
+def _publish_task_span(task: asyncio.Task[typing.Any], requested_context: typing.Optional[contextvars.Context]) -> None:
+    task_context = requested_context
+    get_context = getattr(task, "get_context", None)
+    if get_context is not None:
+        try:
+            task_context = typing.cast("contextvars.Context", get_context())
+        except Exception:
+            return
+
+    task_id = id(task)
+    try:
+        published = stack.link_logical_span_context(task_id, task_context)
+        if published and not _ensure_task_span_finalizer(task):
+            stack.clear_logical_span(task_id)
+    except Exception:
+        return
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -116,6 +171,20 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack:
+        # Asyncio tasks take precedence over gevent when both schedulers run on one physical thread.
+        stack.register_logical_span_provider(_current_task_span_id, priority=20)
+
+        base_event_loop_class = sys.modules["asyncio.base_events"].BaseEventLoop
+
+        @partial(wrap, base_event_loop_class.create_task)
+        def _(
+            f: typing.Callable[..., aio.Task[typing.Any]],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> aio.Task[typing.Any]:
+            task = f(*args, **kwargs)
+            _publish_task_span(task, typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")))
+            return task
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
