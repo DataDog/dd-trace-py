@@ -404,6 +404,13 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Failed to start GC monitor", exc_info=True)
 
+        try:
+            from ddtrace.profiling import _gc_monitor_rc
+
+            _gc_monitor_rc.start()
+        except Exception:
+            LOG.debug("Failed to subscribe GC monitor to remote config", exc_info=True)
+
         if self._scheduler is not None:
             self._scheduler.start()
 
@@ -429,6 +436,13 @@ class _ProfilerInstance(service.Service):
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
+
+        try:
+            from ddtrace.profiling import _gc_monitor_rc
+
+            _gc_monitor_rc.stop()
+        except Exception:
+            LOG.debug("Failed to unsubscribe GC monitor from remote config", exc_info=True)
 
         # Signal the GC monitor to stop. This is a fire-and-forget stop -- no
         # final snapshot is taken and we do not block waiting for the thread.
