@@ -1086,10 +1086,18 @@ class CustomBuildExt(build_ext):
         # deterministic single-process test can prove the patched GOT actually
         # ran. This is additive (default features stay on) and is never enabled
         # for shipped wheels.
+        cargo_env: dict[str, str] = dict(os.environ)
         if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
             cargo_cmd += ["--features", "test-support"]
+            # Isolate the test-support artifact from the default gotter target dir.
+            # CI may reuse a cached non-test-support cdylib (sccache/cargo) that
+            # exports test_hook_hits() but whose gotter_malloc never increments
+            # HOOK_HITS, yielding hook-hit delta 0 in the ownership-handoff E2E.
+            cargo_env["CARGO_TARGET_DIR"] = str(NATIVE_HEAP_GOTTER_CRATE / "target-test-support")
+            cargo_env.pop("RUSTC_WRAPPER", None)
+            cargo_env.pop("DD_SCCACHE_PATH", None)
         proc: subprocess.CompletedProcess[str] = subprocess.run(
-            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
+            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True, env=cargo_env
         )
 
         # Locate the produced cdylib from cargo's own artifact output rather than

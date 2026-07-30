@@ -3901,6 +3901,8 @@ venv = Venv(
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_native_heap_gotter.py::test_native_heap_ownership_handoff_end_to_end",  # noqa: E501
                     pys=["3.12"],
                     env={
+                        "DD_PROFILING_NATIVE_HEAP_BUILD": "1",
+                        "DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT": "1",
                         "DD_PROFILING_ENABLE_ASSERTS": "1",
                         "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                     },

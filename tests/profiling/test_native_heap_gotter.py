@@ -343,6 +343,26 @@ def test_native_heap_ownership_handoff_end_to_end() -> None:
     assert heap_gotter.install() is True
     assert heap_gotter.is_installed() is True
 
+    import ctypes
+
+    # Sanity: prove patched GOT hooks intercept libc malloc before we assert on
+    # managed-OBJ allocations. Separates "install did not patch malloc" from
+    # "bytes() did not route through the patched symbol".
+    libc: ctypes.CDLL = ctypes.CDLL(None, use_errno=True)
+    libc.malloc.argtypes = [ctypes.c_size_t]
+    libc.malloc.restype = ctypes.c_void_p
+    libc.free.argtypes = [ctypes.c_void_p]
+    libc.free.restype = None
+    probe_before: "int | None" = heap_gotter.test_hook_hits()
+    probe_ptr: int = libc.malloc(64)
+    assert probe_ptr, "libc.malloc probe failed after gotter install"
+    probe_after: "int | None" = heap_gotter.test_hook_hits()
+    assert probe_before is not None and probe_after is not None
+    assert probe_after > probe_before, (
+        f"gotter install must intercept libc malloc (probe hook-hit delta {probe_after - probe_before})"
+    )
+    libc.free(probe_ptr)
+
     prefix: str = os.path.join(tempfile.mkdtemp(), "handoff")
     output_filename: str = prefix + "." + str(os.getpid())
     ddup.config(

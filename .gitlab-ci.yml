@@ -660,7 +660,6 @@ profiling_native:
     DD_PROFILING_NATIVE_TESTS: "1"
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
     DD_PROFILING_ENABLE_ASSERTS: "1"
-    DD_USE_SCCACHE: "1"
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
@@ -670,7 +669,7 @@ profiling_native:
     - export PYENV_VERSION=${PYTHON_VERSION}
   script:
     - python --version
-    - riot -P -v generate --python=${PYTHON_VERSION} profile-native-heap-gotter
+    - riot -P -v generate -r --python=${PYTHON_VERSION} profile-native-heap-gotter
     - riot -v run -s --pass-env --python=${PYTHON_VERSION} profile-native-heap-gotter
 
 profiling_native_heap_gotter_e2e:
