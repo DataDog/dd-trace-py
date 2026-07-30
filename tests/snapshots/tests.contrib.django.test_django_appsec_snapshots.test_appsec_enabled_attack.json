@@ -50,7 +50,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
-      "_dd.appsec.event_rules.loaded": 199.0,
+      "_dd.appsec.event_rules.loaded": 204.0,
       "_dd.appsec.rasp.duration": 67.166,
       "_dd.appsec.rasp.duration_ext": 146.45799819845706,
       "_dd.appsec.rasp.rule.eval": 3.0,
