@@ -42,7 +42,7 @@ class ManagedPrompt:
             deprecate(  # type: ignore[no-untyped-call]
                 prefix="The 'label' property of ManagedPrompt is deprecated",
                 category=DDTraceDeprecationWarning,
-            )  # type: ignore[no-untyped-call]
+            )
         return object.__getattribute__(self, name)
 
     def format(self, **variables: str) -> Union[str, list[Message]]:
