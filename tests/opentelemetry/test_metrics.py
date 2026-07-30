@@ -1,101 +1,94 @@
-import os
-
 from opentelemetry import version
 import pytest
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
-
-def skipif(
-    exporter_installed: bool = False, exporter_not_installed: bool = False, unsupported_otel_version: bool = False
-):
-    """
-    Returns a pytest skip marker based on OpenTelemetry version and exporter installation.
-    Parameters:
-    - exporter_installed: If True, skip tests that require OpenTelemetry exporters.
-    - exporter_not_installed: If True, skip tests that do not require OpenTelemetry exporters.
-    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.12 or higher.
-      - v1.12.0 is the first version that exposes metrics in the public API
-    """
-    if unsupported_otel_version and OTEL_VERSION < (1, 12):
-        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.12 or higher is required for these tests")
-
-    has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
-    if exporter_installed and has_exporter:
-        return pytest.mark.skipif(True, reason="Tests not compatible with the opentelemetry exporters")
-    elif exporter_not_installed and not has_exporter:
-        return pytest.mark.skipif(True, reason="Tests only compatible with the opentelemetry exporters")
-    return pytest.mark.skipif(False, reason="No skip condition met for OpenTelemetry logs exporter tests")
+# v1.15.0 is the minimum opentelemetry-api version ddtrace supports for metrics.
+requires_metrics_api = pytest.mark.skipif(
+    OTEL_VERSION < (1, 15, 0),
+    reason="opentelemetry-api 1.15.0 or higher is required for these tests",
+)
 
 
-@skipif(exporter_installed=True, unsupported_otel_version=True)
-def test_otel_metrics_sdk_not_installed_by_default():
-    """
-    Test that the OpenTelemetry metrics exporter can be set up correctly.
-    """
-    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-    # This should not raise an ImportError
-    set_otel_meter_provider()
-
-    # If the OpenTelemetry SDK is not installed
-    with pytest.raises(ImportError):
-        from opentelemetry.sdk.resources import Resource  # noqa: F401
-
-
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess()
-def test_otel_metrics_exporter_installed():
-    """
-    Test that the OpenTelemetry metrics exporter can be set up correctly.
-    """
-    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-    # This should not raise an ImportError
-    set_otel_meter_provider()
-
-    # Check if the GRPC/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-
-        assert OTLPMetricExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPMetricExporter for gRPC protobuf should be available")
-
-    # Check if HTTP/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-
-        assert OTLPMetricExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPMetricExporter for HTTP/protobuf should be available")
-
-
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"})
+@requires_metrics_api
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"}, err=None)
 def test_otel_metrics_enabled():
-    """
-    Test that the OpenTelemetry metrics exporter is automatically configured when DD_METRICS_OTEL_ENABLED is set.
-    """
-    from opentelemetry.metrics import get_meter_provider
+    """The native MeterProvider is installed automatically when DD_METRICS_OTEL_ENABLED is set.
 
-    meter_provider = get_meter_provider()
-    assert meter_provider, "OpenTelemetry metrics exporter should be configured automatically."
-
-
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]})
-def test_otel_metrics_disabled_and_unset():
-    """
-    Test that the OpenTelemetry metrics exporter is NOT automatically configured when DD_METRICS_OTEL_ENABLED is set.
+    It does not require the opentelemetry-sdk or opentelemetry-exporter-otlp packages: metrics are
+    aggregated and exported by libdatadog behind the opentelemetry-api surface.
     """
     from opentelemetry.metrics import get_meter_provider
 
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
     meter_provider = get_meter_provider()
-    assert (meter_provider is None) or (type(meter_provider).__name__ == "_ProxyMeterProvider"), (
-        "OpenTelemetry mterics exporter should not be configured automatically."
+    assert isinstance(meter_provider, MeterProvider), (
+        "DD_METRICS_OTEL_ENABLED should install the native MeterProvider, got %r" % type(meter_provider).__name__
     )
+
+
+@requires_metrics_api
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]}, err=None)
+def test_otel_metrics_disabled_and_unset():
+    """The native MeterProvider is NOT installed when DD_METRICS_OTEL_ENABLED is unset or false."""
+    from opentelemetry.metrics import get_meter_provider
+
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
+    meter_provider = get_meter_provider()
+    assert not isinstance(meter_provider, MeterProvider), (
+        "OpenTelemetry metrics should not be configured automatically."
+    )
+
+
+@requires_metrics_api
+@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "true"}, err=None)
+def test_native_meter_provider_records():
+    """Every instrument kind can be created and recorded through the native path.
+
+    OTLP metrics aggregation and export are bundled in libdatadog, so the path works with only
+    opentelemetry-api installed and behaves identically whether or not the opentelemetry-sdk
+    happens to be present.
+    """
+    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+    set_otel_meter_provider()
+
+    from opentelemetry.metrics import CallbackOptions
+    from opentelemetry.metrics import Observation
+    from opentelemetry.metrics import get_meter_provider
+
+    from ddtrace.internal.opentelemetry._native_metrics_provider import MeterProvider
+
+    provider = get_meter_provider()
+    assert isinstance(provider, MeterProvider)
+
+    meter = provider.get_meter("ddtrace.test")
+
+    counter = meter.create_counter("requests", unit="1", description="request count")
+    counter.add(1, {"route": "/health"})
+
+    updown = meter.create_up_down_counter("queue.size")
+    updown.add(5)
+    updown.add(-2)
+
+    histogram = meter.create_histogram("latency", unit="ms")
+    histogram.record(12.5, {"route": "/health"})
+
+    def _observe(options: CallbackOptions):
+        return [Observation(42, {"pool": "default"})]
+
+    meter.create_observable_gauge("pool.depth", callbacks=[_observe])
+    meter.create_observable_counter("cache.hits", callbacks=[_observe])
+    meter.create_observable_up_down_counter("pool.available", callbacks=[_observe])
+
+    # Flushing resolves the observable callbacks and drives the native exporter. It must never
+    # raise and always returns a bool, whether or not a collector is actually reachable (export
+    # failures are reported as False, not exceptions).
+    assert isinstance(provider.force_flush(), bool)
+    provider.shutdown()
 
 
 @pytest.mark.subprocess(

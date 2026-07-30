@@ -26,26 +26,34 @@ libc = { version = "0.2", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"
 serde = "1.0"
-datadog-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true, version = "1.0.0", features = ["pyo3"] }
+datadog-ffe = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", optional = true, version = "1.0.0", features = ["pyo3"] }
 serde_json = "1.0"
-datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = ["one_way_shm_futex"] }
-libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true }
-libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = [
+# All libdatadog git deps point at `munir/otel-telemetry-libdatadog-v37`, which is the released
+# `v37.0.0` tag plus the additive `libdd-otel-telemetry` crate (DataDog/libdatadog#2292).
+# Every other crate on that branch is byte-identical to `v37.0.0`, so this pulls in no
+# unrelated changes; using a single git ref for all of them avoids duplicate copies of shared
+# crates (e.g. libdd-shared-runtime) that would otherwise break trait bounds across the graph.
+# TODO: pin all of these back to `rev = "v38.0.0"` (or later) once libdatadog cuts a release
+# containing `libdd-otel-telemetry`.
+datadog-ipc = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = ["one_way_shm_futex"] }
+libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", optional = true }
+libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", optional = true }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-log = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-otel-telemetry = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = [
   "stats-obfuscation"
 ] }
-libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", optional = true, features = [
+libdd-http-client = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
-libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
@@ -53,12 +61,12 @@ tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = ["otel-thread-ctx"]}
-libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0" }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = ["otel-thread-ctx"]}
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
 
 [build-dependencies]
 pyo3-build-config = "0.28"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v37.0.0", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = [
     "cbindgen",
 ] }
 
