@@ -15,6 +15,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
+use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
 use libdd_common::tag::Tag;
 use libdd_common::Endpoint;
 use libdd_remote_config::fetch::{
@@ -87,16 +88,17 @@ impl ChangeRecord {
     }
 }
 
-fn tags_from(pairs: Option<Vec<(String, String)>>) -> Vec<Tag> {
+fn tags_from(pairs: Option<Vec<(String, String)>>) -> Vec<String> {
     pairs
         .unwrap_or_default()
         .into_iter()
         .filter_map(|(k, v)| Tag::new(k, v).ok())
+        .map(|tag| tag.to_string())
         .collect()
 }
 
 struct Inner {
-    fetcher: SingleChangesFetcher<ShmStorage>,
+    fetcher: SingleChangesFetcher<ShmStorage, NativeCapabilities>,
     capabilities: HashSet<RemoteConfigCapabilitiesNative>,
 }
 
@@ -168,18 +170,24 @@ impl RemoteConfigClient {
             capabilities: Vec::new(),
         };
 
-        let target = Target {
+        let target = Target::new(
             service,
             env,
             app_version,
-            tags: tags_from(tags),
-            process_tags: tags_from(process_tags),
-        };
+            tags_from(tags),
+            tags_from(process_tags),
+        );
 
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
-        let fetcher = SingleChangesFetcher::new(ShmStorage::new(), target, runtime_id, options)
-            .with_client_id(client_id);
+        let fetcher = SingleChangesFetcher::new(
+            ShmStorage::new(),
+            target,
+            runtime_id,
+            options,
+            NativeCapabilities::new_client(),
+        )
+        .with_client_id(client_id);
 
         Ok(RemoteConfigClient {
             inner: Mutex::new(Inner {
