@@ -225,7 +225,7 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
-            headers["DD-Api-Key-Fingerprint"] = _api_key_fingerprint(self._api_key)
+            headers["DD-API-KEY-FINGERPRINT"] = _api_key_fingerprint(self._api_key)
         if self._etag:
             headers["If-None-Match"] = self._etag
         return headers
