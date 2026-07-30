@@ -426,6 +426,8 @@ def _expected_llmobs_eval_metric_event(
     assessment=None,
     reasoning=None,
     eval_scope="span",
+    status=None,
+    error=None,
 ):
     eval_metric_event = {
         "join_on": {},
@@ -464,6 +466,10 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["ml_app"] = ml_app
     if metadata is not None:
         eval_metric_event["metadata"] = metadata
+    if status is not None:
+        eval_metric_event["status"] = status
+    if error is not None:
+        eval_metric_event["error"] = error
     return eval_metric_event
 
 

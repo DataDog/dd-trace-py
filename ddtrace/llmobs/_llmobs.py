@@ -6,6 +6,7 @@ import json
 import math
 import sys
 import time
+import traceback
 from typing import Any
 from typing import Callable
 from typing import Literal
@@ -2801,14 +2802,18 @@ class LLMObs(Service):
         def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
             cls.submit_evaluation(
                 label=name,
-                metric_type="categorical",
-                value="error",
+                metric_type="categorical",  # required by the API; no value is sent for an errored eval
+                status="ERROR",
+                error={
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                    "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+                },
                 span=evaluated_span,
                 eval_scope=eval_scope,
                 reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
-                tags={"eval_error": type(exc).__name__},
                 judge_span=_ref,
-                agent_service=evaluated_ml_app,  
+                agent_service=evaluated_ml_app,
             )
 
         return EvaluationContext(span, _emit_error_metric)
@@ -3289,7 +3294,7 @@ class LLMObs(Service):
         cls,
         label: str,
         metric_type: str,
-        value: Union[str, int, float, bool],
+        value: Optional[Union[str, int, float, bool]] = None,
         span: Optional[ExportedLLMObsSpan] = None,
         span_with_tag_value: Optional[SpanWithTagValue] = None,
         tags: Optional[dict[str, str]] = None,
@@ -3301,6 +3306,8 @@ class LLMObs(Service):
         eval_scope: str = "span",
         agent_service: Optional[str] = None,
         judge_span: Optional[ExportedLLMObsSpan] = None,
+        status: Optional[str] = None,
+        error: Optional[dict] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
@@ -3329,6 +3336,12 @@ class LLMObs(Service):
                                 LLMObs.export_span of a span opened with LLMObs.evaluation). When provided,
                                 its ids are recorded in the metric metadata (judge_trace_id/judge_span_id) so
                                 the score deep-links to the judge trace.
+        :param str status: The status of the evaluation: "OK", "WARN", or "ERROR". "WARN" (skipped) or
+                            "ERROR" (failed) mark a run with no typed value — the evaluated span shows
+                            that state instead of a value, so no ``value`` is required but an ``error``
+                            is. Passing an ``error`` without a status defaults it to "ERROR".
+        :param dict error: Structured error details, e.g. {'type': str, 'message': str, 'stack': str}.
+                            Required when ``status`` is "WARN" or "ERROR".
         """
         if cls.enabled is False:
             log.debug(
@@ -3337,6 +3350,8 @@ class LLMObs(Service):
             )
             return
 
+        # Preserve the caller's `error` payload: `error` is reused below as a telemetry status code.
+        error_details = error
         error = None
         join_on: dict[str, Any] = {}
         try:
@@ -3399,18 +3414,36 @@ class LLMObs(Service):
                 error = "invalid_metric_type"
                 raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
 
-            if metric_type == "categorical" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a string for a categorical metric.")
-            if metric_type == "score" and not isinstance(value, (int, float)):
-                error = "invalid_metric_value"
-                raise TypeError("value must be an integer or float for a score metric.")
-            if metric_type == "boolean" and not isinstance(value, bool):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a boolean for a boolean metric.")
-            if metric_type == "json" and not isinstance(value, dict):
-                error = "invalid_metric_value"
-                raise TypeError("value must be a dict for a json metric.")
+            # A WARN/ERROR evaluation is a skipped/failed run: it carries a structured `error` and no
+            # typed value (matches the managed-eval + backend contract, which requires an `error` for
+            # both statuses). Validate that, default the status from an `error` payload, then skip the
+            # value-type checks + value emission for it.
+            if error_details is not None and not isinstance(error_details, dict):
+                error = "invalid_error"
+                raise TypeError("`error` must be a dict with optional string 'type'/'message'/'stack' keys.")
+            if status is not None and status not in ("OK", "WARN", "ERROR"):
+                error = "invalid_status"
+                raise ValueError("status must be one of 'OK', 'WARN', or 'ERROR'.")
+            if error_details is not None and status is None:
+                status = "ERROR"
+            is_error = status in ("ERROR", "WARN") or error_details is not None
+            if status in ("ERROR", "WARN") and error_details is None:
+                error = "missing_error_for_status"
+                raise ValueError("`error` is required when status is 'ERROR' or 'WARN'.")
+
+            if not is_error:
+                if metric_type == "categorical" and not isinstance(value, str):
+                    error = "invalid_metric_value"
+                    raise TypeError("value must be a string for a categorical metric.")
+                if metric_type == "score" and not isinstance(value, (int, float)):
+                    error = "invalid_metric_value"
+                    raise TypeError("value must be an integer or float for a score metric.")
+                if metric_type == "boolean" and not isinstance(value, bool):
+                    error = "invalid_metric_value"
+                    raise TypeError("value must be a boolean for a boolean metric.")
+                if metric_type == "json" and not isinstance(value, dict):
+                    error = "invalid_metric_value"
+                    raise TypeError("value must be a dict for a json metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
@@ -3442,11 +3475,16 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
                 "eval_scope": eval_scope,
             }
+            if not is_error:
+                evaluation_metric["{}_value".format(metric_type)] = value  # type: ignore
+            if status is not None:
+                evaluation_metric["status"] = status
+            if error_details is not None:
+                evaluation_metric["error"] = error_details
 
             if assessment:
                 if not isinstance(assessment, str) or assessment not in (

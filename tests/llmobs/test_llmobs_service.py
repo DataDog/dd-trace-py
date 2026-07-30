@@ -730,8 +730,9 @@ def test_evaluation_invalid_args_raise_before_starting_span(llmobs, kwargs):
 
 
 def test_evaluation_auto_error_metric_on_exception(llmobs, mock_llmobs_eval_metric_writer):
-    # An unhandled exception inside the judge block auto-submits a categorical "error" eval metric on
-    # the evaluated span, linked back to the judge trace — no user try/except required.
+    # An unhandled exception inside the judge block auto-submits a first-class errored eval metric
+    # (status="ERROR" + structured error, no value) on the evaluated span, linked back to the judge
+    # trace — no user try/except required.
     judge_ref = {}
     with pytest.raises(ValueError):
         with llmobs.evaluation(
@@ -746,8 +747,9 @@ def test_evaluation_auto_error_metric_on_exception(llmobs, mock_llmobs_eval_metr
             trace_id="222",
             label="relevance",
             metric_type="categorical",
-            categorical_value="error",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:ValueError"],
+            status="ERROR",
+            error={"type": "ValueError", "message": "boom", "stack": mock.ANY},
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
             reasoning="evaluator raised ValueError: boom",
             metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
         )
@@ -772,9 +774,10 @@ def test_evaluation_auto_error_metric_trace_scope(llmobs, mock_llmobs_eval_metri
             trace_id="8",
             label="relevance",
             metric_type="categorical",
-            categorical_value="error",
+            status="ERROR",
+            error={"type": "RuntimeError", "message": "kaboom", "stack": mock.ANY},
             eval_scope="trace",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:RuntimeError"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
             reasoning="evaluator raised RuntimeError: kaboom",
             metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
         )
@@ -821,8 +824,9 @@ async def test_evaluation_auto_error_metric_async(llmobs, mock_llmobs_eval_metri
             trace_id="2",
             label="relevance",
             metric_type="categorical",
-            categorical_value="error",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:ValueError"],
+            status="ERROR",
+            error={"type": "ValueError", "message": "boom", "stack": mock.ANY},
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
             reasoning="evaluator raised ValueError: boom",
             metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
         )
@@ -2715,6 +2719,80 @@ def test_submit_evaluation_invalid_judge_span_raises(llmobs):
             ml_app="dummy",
             judge_span={"span_id": "j-span"},  # missing trace_id
         )
+
+
+def test_submit_evaluation_error_status_omits_value(llmobs, mock_llmobs_eval_metric_writer):
+    # An errored eval carries no value — only status="ERROR" + the structured error dict.
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="categorical",
+        ml_app="dummy",
+        error={"type": "ValueError", "message": "boom"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="categorical",
+            status="ERROR",  # defaulted from the error payload
+            error={"type": "ValueError", "message": "boom"},
+        )
+    )
+    # No value key of any type is emitted for an errored eval.
+    enqueued = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert not any(k.endswith("_value") for k in enqueued)
+
+
+def test_submit_evaluation_invalid_status_raises(llmobs):
+    with pytest.raises(ValueError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="categorical",
+            value="ok",
+            ml_app="dummy",
+            status="typo",
+        )
+
+
+def test_submit_evaluation_error_status_without_error_raises(llmobs):
+    # The backend requires a structured error for WARN/ERROR — fail fast client-side.
+    with pytest.raises(ValueError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="categorical",
+            ml_app="dummy",
+            status="ERROR",  # no error payload
+        )
+
+
+def test_submit_evaluation_warn_status_omits_value(llmobs, mock_llmobs_eval_metric_writer):
+    # A skipped (WARN) eval is value-less too, and carries a structured error.
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="categorical",
+        ml_app="dummy",
+        status="WARN",
+        error={"type": "skipped", "message": "no ground truth available"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="categorical",
+            status="WARN",
+            error={"type": "skipped", "message": "no ground truth available"},
+        )
+    )
+    enqueued = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert not any(k.endswith("_value") for k in enqueued)
 
 
 def test_submit_evaluation_span_with_tag_value_enqueues_writer_with_categorical_metric(

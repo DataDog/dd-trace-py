@@ -116,6 +116,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     reasoning: str
     eval_scope: str
     metadata: dict[str, Any]
+    status: str
+    error: Optional[dict[str, str]]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
