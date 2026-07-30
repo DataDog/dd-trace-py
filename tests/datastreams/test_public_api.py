@@ -62,12 +62,13 @@ def test_additional_tags_behavior():
     from ddtrace.data_streams import set_produce_checkpoint
     from ddtrace.internal.datastreams import data_streams_processor
 
-    headers = {}
     processor = data_streams_processor()
 
-    # Additional tags are appended on top of the automatic ones for both directions.
-    with mock.patch.object(processor, "set_checkpoint", wraps=processor.set_checkpoint) as mock_set_checkpoint:
-        set_produce_checkpoint("eventbridge", "my-detail", headers.setdefault, tags=["exchange:my-bus"])
+    # set_checkpoint is mocked (no wraps) so no real checkpoint is created and no stats are
+    # flushed on shutdown; we only assert the tags forwarded to the processor. Fresh empty
+    # carriers keep decode_pathway_b64/encode_b64 off the mocked return value.
+    with mock.patch.object(processor, "set_checkpoint") as mock_set_checkpoint:
+        set_produce_checkpoint("eventbridge", "my-detail", {}.setdefault, tags=["exchange:my-bus"])
         produce_tags = mock_set_checkpoint.call_args[0][0]
         assert "type:eventbridge" in produce_tags
         assert "topic:my-detail" in produce_tags
@@ -76,7 +77,7 @@ def test_additional_tags_behavior():
         assert "exchange:my-bus" in produce_tags
 
         mock_set_checkpoint.reset_mock()
-        set_consume_checkpoint("eventbridge", "my-detail", headers.get, tags=["exchange:my-bus"])
+        set_consume_checkpoint("eventbridge", "my-detail", {}.get, tags=["exchange:my-bus"])
         consume_tags = mock_set_checkpoint.call_args[0][0]
         assert "exchange:my-bus" in consume_tags
         assert "direction:in" in consume_tags
