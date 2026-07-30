@@ -71,7 +71,7 @@ class StackInfo
     // correlate stack and lock samples on the timeline.
     uint64_t task_id;
     bool on_cpu;
-    std::optional<Datadog::Span> span_context;
+    Datadog::LogicalSpanContext logical_span_context;
     FrameStack stack;
 
     // Per-task override wall-time to use in reservoir sampling.
