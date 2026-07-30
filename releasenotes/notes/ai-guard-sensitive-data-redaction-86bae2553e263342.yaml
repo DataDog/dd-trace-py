@@ -3,3 +3,11 @@ features:
   - |
     AI Guard: Added a redaction feature, which can be enabled in the UI.
     For more info, see https://docs.datadoghq.com/security/ai_guard/setup/sdk/
+upgrade:
+  - |
+    AI Guard: the ``Evaluation`` returned by ``AIGuardClient.evaluate`` now carries a ``messages``
+    key holding the evaluated conversation, redacted when the AI Guard service asked for it. The
+    conversation is elided when an evaluation is printed or logged, so code that logs a whole result
+    does not write it out; ``evaluation["messages"]`` still returns it in full. To make that possible
+    ``Evaluation`` is now a ``dict`` subclass rather than a ``TypedDict``: it behaves at runtime
+    exactly like the ``dict`` it always was, but type checkers no longer infer per-key types for it.

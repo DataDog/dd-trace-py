@@ -3,7 +3,6 @@
 from copy import deepcopy
 import json
 from typing import Any
-from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from typing import Union
@@ -61,15 +60,27 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
 
 
-class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
-    reason: str
-    tags: list[str]
-    sds: list[Any]
-    tag_probs: dict[str, float]
-    # The evaluated messages, redacted when the AI Guard service asked for it. Otherwise the very same
-    # list that was passed to evaluate, so `result["messages"] is messages` means nothing was redacted.
-    messages: list[Message]
+class Evaluation(dict[str, Any]):
+    """Result of an evaluate call, read by key: action, reason, tags, sds, tag_probs and messages.
+
+    messages is the evaluated conversation, redacted when the AI Guard service asked for it and
+    otherwise the very same list passed to evaluate, so result["messages"] is messages means
+    nothing was redacted.
+
+    AIDEV-NOTE: a dict subclass rather than a TypedDict so __repr__ below actually runs. A
+    TypedDict has no instances of its own -- Evaluation(...) would build a plain dict and any
+    magic method declared on it would be silently dead code.
+    """
+
+    def __repr__(self) -> str:
+        """Elide the messages: printing or logging a result must not write the conversation out."""
+        messages = self.get("messages")
+        if messages is None:
+            return super().__repr__()
+        elided = dict(self)
+        count = len(messages) if isinstance(messages, list) else "?"
+        elided["messages"] = f"<{count} message(s) not shown>"
+        return repr(elided)
 
 
 class Options(TypedDict, total=False):
@@ -114,15 +125,14 @@ class AIGuardAbortError(DDBlockException):
         tags: Optional[list[str]] = None,
         sds: Optional[list[Any]] = None,
         tag_probs: Optional[dict[str, float]] = None,
-        messages: Optional[list[Message]] = None,
     ):
         self.action = action
         self.reason = reason
         self.tags = tags
         self.sds = sds or []
         self.tag_probs = tag_probs
-        # Redacted when the evaluation asked for it, so handlers report the same content as the UI.
-        self.messages = messages if messages is not None else []
+        # AIDEV-NOTE: deliberately no messages attribute. The evaluated conversation can carry
+        # sensitive data and be arbitrarily large, and errors get logged; read it from the span instead.
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
@@ -156,11 +166,9 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _messages_for_meta_struct(messages: list[Message], emit_telemetry: bool = True) -> list[Message]:
-        # emit_telemetry is disabled when re-running this on the redacted messages of an evaluation
-        # that already reported its truncation, so a single call is never counted twice.
+    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
         max_messages_length = aiguard_config._ai_guard_max_messages_length
-        if len(messages) > max_messages_length and emit_telemetry:
+        if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
             )
@@ -189,7 +197,7 @@ class AIGuardClient:
             return new_message
 
         result = [truncate_message(message) for message in messages]
-        if content_truncated and emit_telemetry:
+        if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
@@ -373,7 +381,6 @@ class AIGuardClient:
                         tags=tags,
                         sds=sds_findings,
                         tag_probs=tag_probs,
-                        messages=redacted_messages,
                     )
 
                 return Evaluation(

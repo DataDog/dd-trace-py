@@ -13,6 +13,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard import Evaluation
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import _resolve_writable_string
 from ddtrace.aiguard._redaction import _split_segments
@@ -202,18 +203,23 @@ def test_redacted_content_is_truncated_in_meta_struct(
 @pytest.mark.parametrize("action", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_blocked_evaluation_carries_redacted_messages(
+def test_blocked_evaluation_reports_redacted_messages(
     mock_execute_request, telemetry_mock, ai_guard_client, test_spans, action
 ):
-    """A block returns no evaluation, so the redacted messages ride on the abort error instead."""
+    """A block still redacts what it reports, and the abort error carries no conversation.
+
+    The messages can be sensitive and arbitrarily large, and errors get logged, so the span is
+    the only place they are reported on the block path.
+    """
     messages = deepcopy(SIMPLE)
     mock_execute_request.return_value = mock_evaluate_response(action, redaction_replacements=REPLACEMENTS)
 
     with pytest.raises(AIGuardAbortError) as exc_info:
         ai_guard_client.evaluate(messages)
 
-    assert exc_info.value.messages == REDACTED
     assert _meta_struct(test_spans)["messages"] == REDACTED
+    assert not hasattr(exc_info.value, "messages")
+    assert "123-45-6789" not in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -315,3 +321,38 @@ def test_malformed_response_does_not_break_evaluate(mock_execute_request, teleme
 
     assert result["action"] == "ALLOW"
     assert result["messages"] == SIMPLE
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_printing_an_evaluation_elides_the_messages(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+    """Printing or logging an evaluation must not write the conversation out.
+
+    Integrations debug-log the whole result, so the messages are elided by the result itself
+    rather than at each call site. Both %s (via __str__) and repr() go through __repr__.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
+
+    result = ai_guard_client.evaluate(deepcopy(SIMPLE))
+
+    assert isinstance(result, Evaluation)
+    for printed in (repr(result), str(result), "%s" % (result,), f"{result}"):
+        assert "helpful assistant" not in printed
+        assert "<REDACTED>" not in printed
+        assert "<2 message(s) not shown>" in printed
+        assert "'action': 'ALLOW'" in printed
+    # Elided only when printed: the messages themselves are untouched.
+    assert result["messages"] == REDACTED
+    assert dict(result)["messages"] == REDACTED
+    assert "<REDACTED>" in json.dumps(result)
+
+
+def test_evaluation_stays_dict_compatible():
+    """Evaluation must keep behaving like the plain dict callers have always received."""
+    evaluation = Evaluation(action="ALLOW", reason="", tags=[], sds=[], tag_probs={}, messages=[])
+
+    assert isinstance(evaluation, dict)
+    assert evaluation == {"action": "ALLOW", "reason": "", "tags": [], "sds": [], "tag_probs": {}, "messages": []}
+    assert sorted(evaluation.keys()) == ["action", "messages", "reason", "sds", "tag_probs", "tags"]
+    # A partial construction still works at runtime, as it did when this was a TypedDict.
+    assert repr(Evaluation(action="ALLOW")) == "{'action': 'ALLOW'}"
