@@ -1,4 +1,6 @@
-x = {}
+# fmt: off
+x = {}  # type: ignore[var-annotated]
+
 
 def g(*args, **kwargs):
     pass
