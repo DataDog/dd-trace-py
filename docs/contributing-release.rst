@@ -1,3 +1,41 @@
+Release Philosophy
+==================
+Our customers run dd-trace-py in their production environments.
+They rely on the stability, correctness, and performance of every release we make.
+The reason customers install dd-trace-py is that it offers them features that help them solve critical business problems.
+The faster and more reliability we can deliver and iterate on these features, the more value we can provide.
+
+These dual responsibilities to our customers drive three goals of our release process, described in priority order.
+
+1. **A stable, correct, and performant release.**
+   We fully validate every release before making it available to customers.
+   For a new minor release, this means that all automated tests pass, long-running integration tests have successfully completed, and we have successfully deployed the release candidate internally without incident.
+   This is our top priority.
+   If a release cannot be validated, we WILL roll-back or disable new features until we find a set of features that can successfully pass all validation, including internal dogfooding.
+   The release manager MAY declare a code-freeze speed the process of stabilizing a release.
+
+2. **Timely release to enable rapid customer-centric iteration.**
+   We aim to release on a predictable, frequent cadence.
+   Given the time necessary to validate a release including full dogfooding, we currently target a 2 week release cadence.
+   We prefer to delay the release of a particular feature to the next release rather than delaying the entire release to fix one broken feature.
+   If a change does not make the current release train, there is another train just around the corner.
+
+3. **Releasing customer-ready improvements as quickly as possible.**
+   A release will include as many customer improvements as are possible, given the validation and timely release requirements.
+   When a change cannot be validated in time, it should be disabled or rolled-back until a subsequent release.
+
+How to handle regressions
+-------------------------
+
+1. **Revert the change(s) that contributed the most to the regression.**
+   This should be considered if the regression is not acceptable, but the fix will take longer than a day to merge to the release branch.
+2. **Merge a fix to resolve the  regression.**
+   If the author(s) for the change(s) that introduced significant regression(s) consider the change to be of high priority, and are willing and able to commit to merging a fix within one day, the release manager can consider merging the change and restarting the RC process.
+3. **Bump the SLO(s) to accommodate for the regressions.**
+   This should only be considered if the regressions are reasonable for the change(s) introduced (ex - new feature with expected overhead, crash fixes, major security issues, etc.).
+   When updating the SLO thresholds, authors must add a comment to their PR justifying the trade offs.
+   See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
+
 Release Process
 ===============
 
@@ -118,6 +156,7 @@ that comes next on that minor release line. For example:
 
 If ever you discover that one of these guarantees is not upheld, please open a pull request adjusting the version string accordingly.
 
+5. Declare an internal Sev5 incident to track release progress.
 
 Pre-Release Performance Gates
 -----------------------------
@@ -128,23 +167,28 @@ On ``main`` or the ``major.minor`` release branch, verify that the latest CI pip
 If any SLO is breached, the release pipeline on GitLab will be blocked.
 See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml>`_ and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml>`_.
 
-There are a few ways to resolve this and unblock the release.
-
-**Prerequisite**
+**If release gates fail**
 
 Find the change(s) that contributed the most to performance regression.
 You can check from the `Benchmarking Platform - Benchmarks tab <https://benchmarking.us1.prod.dog/benchmarks?projectId=3&ciJobDateStart=1753290587498&ciJobDateEnd=1753895387498&gitBranch=main>`_ and filter by project and branch to see these commits.
 Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/archives/C04MK6NNDG9>`_ to see if there are any easy fixes (less than a day of work) that can be pushed to the release branch.
+Follow the revert/fix/allow policy dercribed above to remediate the issue.
+See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
 
-1. **Merge a fix to resolve the performance regression.**
-   This should be considered first, and owned by the author(s) for the change(s) that introduced significant performance regression(s).
-2. **Revert the change(s) that contributed the most to performance regression.**
-   This should be considered if the regression is not acceptable, but the fix will take longer than a day to merge to the release branch.
-3. **Bump the SLO(s) to accommodate for the regressions.**
-   This should only be considered if the regressions are reasonable for the change(s) introduced (ex - new feature with expected overhead, crash fixes, major security issues, etc.).
-   When updating the SLO thresholds, authors must add a comment to their PR justifying the trade offs.
-   See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
+Pre-Release dogfooding
+----------------------
 
+Following the example of dd-trace-go, all release candidates must be successfully deployed
+
+1. In **staging** for **24 hours**.
+
+2. In **prod** for **three days**.
+   This means all relevant internal services (Rapid, Dogweb, McNulty etc) have successfully deployed and run the new RC without incident for that time.
+   Given the nature of services internal deployment pipelines, etc, there may be some services where it is infeasible to upgrade during the release window.
+   These services should be noted, the guild should sign-off on not dogfooding them for the current release, and an action item should be created on the tracking incident to schedule and monitor the upgrade as soon as possible.
+
+**If pre-release dogfooding fails**
+Follow the revert/fix/allow policy dercribed above to remediate the issue.
 
 Generating Release Notes
 ------------------------
