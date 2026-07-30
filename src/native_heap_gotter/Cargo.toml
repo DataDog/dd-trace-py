@@ -60,5 +60,7 @@ live-heap = ["libdd-profiling-heap-gotter/live-heap"]
 
 [dependencies]
 # Pinned to the published crates.io release (Phase 1.5 migration off the
-# libdatadog `main` git pin). `default-features = false` keeps the
+# libdatadog `main` git pin).
 libdd-profiling-heap-gotter = { version = "1.0.0", default-features = false, features = ["live-heap"] }
+# Test-only malloc/free probes call through this cdylib's PLT.
+libc = "0.2"

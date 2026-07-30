@@ -146,6 +146,10 @@ try:
     try:
         _lib.ddtrace_heap_gotter_test_hook_hits.argtypes = []
         _lib.ddtrace_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+        _lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
+        _lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
+        _lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
+        _lib.ddtrace_heap_gotter_test_free_probe.restype = None
         _test_hook_available = True
     except AttributeError:
         _test_hook_available = False
@@ -211,3 +215,31 @@ def test_hook_hits() -> int | None:
         return int(_lib.ddtrace_heap_gotter_test_hook_hits())
     except Exception:
         return None
+
+
+def test_malloc_probe(size: int) -> int | None:
+    """Test-only: allocate via malloc through the gotter cdylib's PLT/GOT.
+
+    Unlike ``ctypes.CDLL(None).malloc``, which resolves libc with ``dlsym`` and
+    bypasses patched GOT entries, this routes through the same relocation the
+    interposer patches, so hook-hit counters advance when install succeeded.
+
+    Returns the raw pointer as an integer, or ``None`` when unavailable.
+    """
+    if not is_available or _lib is None or not _test_hook_available:
+        return None
+    try:
+        ptr = _lib.ddtrace_heap_gotter_test_malloc_probe(size)
+        return int(ptr) if ptr else 0
+    except Exception:
+        return None
+
+
+def test_free_probe(ptr: int) -> None:
+    """Test-only: free a pointer from :func:`test_malloc_probe`."""
+    if not is_available or _lib is None or not _test_hook_available or not ptr:
+        return
+    try:
+        _lib.ddtrace_heap_gotter_test_free_probe(ptr)
+    except Exception:
+        return

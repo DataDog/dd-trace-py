@@ -862,6 +862,43 @@ SHARED_DEPS: list[SharedDep] = [
 ]
 
 
+def _verify_test_support_heap_gotter(library_path: Path) -> None:
+    """Fail the build if a test-support gotter cdylib does not increment HOOK_HITS.
+
+    Runs in a child process so GOT patching during verification cannot leak into
+    the setuptools/pip build interpreter.
+    """
+    verify_script = f"""
+import ctypes
+import os
+import sys
+
+path = {str(library_path)!r}
+lib = ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL | getattr(os, "RTLD_NOW", 0))
+lib.ddtrace_heap_gotter_install.argtypes = []
+lib.ddtrace_heap_gotter_install.restype = ctypes.c_bool
+lib.ddtrace_heap_gotter_test_hook_hits.argtypes = []
+lib.ddtrace_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
+lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
+lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
+lib.ddtrace_heap_gotter_test_free_probe.restype = None
+
+if not lib.ddtrace_heap_gotter_install():
+    raise SystemExit("test-support gotter install() returned False during build verification")
+before = int(lib.ddtrace_heap_gotter_test_hook_hits())
+ptr = lib.ddtrace_heap_gotter_test_malloc_probe(64)
+after = int(lib.ddtrace_heap_gotter_test_hook_hits())
+if not ptr or after <= before:
+    raise SystemExit(
+        "test-support gotter HOOK_HITS did not advance after malloc probe "
+        f"(before={{before}}, after={{after}})"
+    )
+lib.ddtrace_heap_gotter_test_free_probe(ptr)
+"""
+    subprocess.run([sys.executable, "-c", verify_script], check=True)
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
@@ -1074,9 +1111,6 @@ class CustomBuildExt(build_ext):
             # render to stderr in human form.
             "--message-format=json-render-diagnostics",
         ]
-        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
-            cargo_cmd.extend(["--features", "test-support"])
-        cargo_cmd.extend(DD_CARGO_ARGS)
         # `live-heap` is a default cargo feature (see Cargo.toml), so the built
         # cdylib always emits both the `ddheap:alloc` and `ddheap:free` USDTs
         # (verifiable via `readelf -n`) and stamps per-allocation retain flags.
@@ -1087,15 +1121,23 @@ class CustomBuildExt(build_ext):
         # ran. This is additive (default features stay on) and is never enabled
         # for shipped wheels.
         cargo_env: dict[str, str] = dict(os.environ)
+        test_support_target: Path = NATIVE_HEAP_GOTTER_CRATE / "target-test-support"
         if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
             cargo_cmd += ["--features", "test-support"]
             # Isolate the test-support artifact from the default gotter target dir.
             # CI may reuse a cached non-test-support cdylib (sccache/cargo) that
             # exports test_hook_hits() but whose gotter_malloc never increments
             # HOOK_HITS, yielding hook-hit delta 0 in the ownership-handoff E2E.
-            cargo_env["CARGO_TARGET_DIR"] = str(NATIVE_HEAP_GOTTER_CRATE / "target-test-support")
-            cargo_env.pop("RUSTC_WRAPPER", None)
+            if test_support_target.exists():
+                shutil.rmtree(test_support_target)
+            cargo_env["CARGO_TARGET_DIR"] = str(test_support_target)
+            cargo_env["CARGO_INCREMENTAL"] = "0"
+            cargo_env["RUSTC_WRAPPER"] = ""
             cargo_env.pop("DD_SCCACHE_PATH", None)
+            # DD_CARGO_ARGS may pass --target-dir, which overrides CARGO_TARGET_DIR.
+            cargo_cmd += [arg for arg in DD_CARGO_ARGS if not arg.startswith("--target-dir")]
+        else:
+            cargo_cmd += DD_CARGO_ARGS
         proc: subprocess.CompletedProcess[str] = subprocess.run(
             cargo_cmd, check=True, stdout=subprocess.PIPE, text=True, env=cargo_env
         )
@@ -1152,6 +1194,9 @@ class CustomBuildExt(build_ext):
                     "wheel will ship the unstripped artifact",
                     flush=True,
                 )
+
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT and CURRENT_OS == "Linux":
+            _verify_test_support_heap_gotter(gotter_library)
 
     def _clean_stale_heap_gotter(self) -> None:
         """Remove any previously staged heap-gotter artifacts so a default wheel
