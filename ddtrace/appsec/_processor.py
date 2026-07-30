@@ -19,7 +19,7 @@ from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import ddwaf_context_capsule
+from ddtrace.appsec._ddwaf import DDWafContext
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
@@ -257,7 +257,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def _waf_action(
         self,
         entry_span: Span,
-        ctx: ddwaf_context_capsule,
+        ctx: DDWafContext,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
