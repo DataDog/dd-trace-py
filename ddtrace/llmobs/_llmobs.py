@@ -2007,7 +2007,7 @@ class LLMObs(Service):
 
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
-        :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
+        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
@@ -2092,7 +2092,7 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: Deprecated; set DD_ENV instead. Must be ``production`` or ``development``.
+            label: Deprecated; set DD_ENV instead. Deployment label selecting a version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
@@ -2122,7 +2122,7 @@ class LLMObs(Service):
             title: Optional human-readable title.
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
             env_ids: Optional feature-flag environment IDs to deploy the first version to.
 
         Returns:
@@ -2163,7 +2163,7 @@ class LLMObs(Service):
             template: List of chat messages defining the new version's template.
             description: Optional description of this version.
             user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
             env_ids: Optional feature-flag environment IDs to deploy this version to.
 
         Returns:
@@ -2227,7 +2227,7 @@ class LLMObs(Service):
         Args:
             prompt_id: The prompt identifier.
             version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
-            labels: New labels for the version. Values must be ``production`` and/or ``development``.
+            labels: New labels for the version.
             description: New description for the version.
             env_ids: Feature-flag environment IDs to deploy this version to.
 

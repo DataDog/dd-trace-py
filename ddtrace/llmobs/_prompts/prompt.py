@@ -24,11 +24,12 @@ class ManagedPrompt:
         - to_annotation_dict(**vars) -> dict[str, Any]
 
     INTERNAL (may change):
-        - All fields (id, version, source, template)
+        - All fields (id, version, label, source, template)
     """
 
     id: str
     version: str
+    label: Optional[str]
     source: Literal["registry", "cache", "fallback", "ff", "resolve"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
@@ -73,6 +74,8 @@ class ManagedPrompt:
         }
         if variables:
             result["variables"] = variables
+        if self.label:
+            result["label"] = self.label
         if self._uuid:
             result["prompt_uuid"] = self._uuid
         if self._version_uuid:
@@ -86,13 +89,14 @@ class ManagedPrompt:
         return result
 
     def __repr__(self) -> str:
-        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, source={self.source!r})"
+        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={self.label!r}, source={self.source!r})"
 
     def _serialize(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
             "version": self.version,
+            "label": self.label,
             "source": self.source,
             "template": self.template,
             "_uuid": self._uuid,
@@ -105,6 +109,7 @@ class ManagedPrompt:
         return cls(
             id=data["id"],
             version=data["version"],
+            label=data["label"],
             source=data.get("source", "cache"),
             template=data["template"],
             _uuid=data.get("_uuid"),
@@ -130,7 +135,7 @@ class ManagedPrompt:
             fallback: A string, message list, Prompt dict, or callable returning any of those.
 
         Returns:
-            A ManagedPrompt with source="fallback".
+            A ManagedPrompt with source="fallback" and label=None.
         """
         template: Union[str, list[Message]] = ""
         version = "fallback"
@@ -146,6 +151,7 @@ class ManagedPrompt:
         return cls(
             id=prompt_id,
             version=version,
+            label=None,
             source="fallback",
             template=template,
         )
