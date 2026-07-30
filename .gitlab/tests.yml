@@ -64,7 +64,6 @@ include:
               export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
             else
               unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
-              unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
             fi
           else
             unset DD_CIVISIBILITY_ITR_ENABLED
