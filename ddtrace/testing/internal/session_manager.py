@@ -808,12 +808,10 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
-            log.debug("Test Impact Analysis is disabled by environment variable")
-            self.settings.itr_enabled = False
-        elif self.service == "dd-trace-py" and asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "false")):
-            log.warning("Test Impact Analysis is ENABLED by environment variable")
-            self.settings.itr_enabled = True
+        ITR_FORCE_ENABLE_COVERAGE = asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
+        if ITR_FORCE_ENABLE_COVERAGE:
+            log.debug("TIA code coverage collection is enabled by environment variable")
+            self.settings.coverage_enabled = True
 
         if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
@@ -835,10 +833,14 @@ class SessionManager:
         if _coverage_upload_env.lower() in ("false", "0"):
             log.debug("Coverage report upload is disabled by environment variable")
             self.settings.coverage_report_upload_enabled = False
+        elif asbool(_coverage_upload_env):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+        ITR_PREVENT_TEST_SKIPPING = asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false"))
+        if ITR_PREVENT_TEST_SKIPPING:
             log.debug("TIA test skipping is disabled by environment variable")
             self.settings.skipping_enabled = False
 
@@ -849,26 +851,21 @@ class SessionManager:
         # service has not yet built up enough test history), and we are not in coverage-only mode
         # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE), force skipping on
         # so that tests are actually skipped once the skippable list is populated.
-        if (
-            asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "false"))
-            and not asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false"))
-            and not asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
-        ):
-            if not self.settings.skipping_enabled:
-                log.warning(
-                    "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
-                    "forcing skipping_enabled=True"
-                )
+
+        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+            log.debug("Test Impact Analysis is disabled by environment variable")
+            self.settings.itr_enabled = False
+        elif self.service == "dd-trace-py":
+            log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
-            self.settings.skipping_enabled = True
 
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
-            log.debug("TIA code coverage collection is enabled by environment variable")
-            self.settings.coverage_enabled = True
-
-        if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
-            log.debug("Code coverage report upload is enabled by environment variable")
-            self.settings.coverage_report_upload_enabled = True
+            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE:
+                if not self.settings.skipping_enabled:
+                    log.warning(
+                        "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
+                        "forcing skipping_enabled=True"
+                    )
+                self.settings.skipping_enabled = True
 
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)
