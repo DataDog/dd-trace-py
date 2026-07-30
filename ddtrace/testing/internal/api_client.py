@@ -418,7 +418,9 @@ class APIClient:
             return set(), None
 
         try:
-            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
+            result = self.connector.post_json(
+                "/api/v2/ci/tests/skippable", request_data, telemetry=telemetry, timeout_seconds=10.0
+            )
             result.on_error_raise_exception()
 
         except Exception as e:
@@ -448,21 +450,6 @@ class APIClient:
             return set(), None
 
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
-
-        log.warning(
-            "ITR skippable tests fetched: %d items (level=%s, correlation_id=%s)",
-            len(skippable_items),
-            self.itr_skipping_level,
-            correlation_id,
-        )
-        if skippable_items:
-            sample = list(skippable_items)[:5]
-            log.warning("ITR skippable items sample (first %d): %s", len(sample), sample)
-        else:
-            log.warning(
-                "ITR skippable items: none returned by API (raw data count=%d)",
-                len(result.parsed_response.get("data", [])),
-            )
 
         return skippable_items, correlation_id
 
