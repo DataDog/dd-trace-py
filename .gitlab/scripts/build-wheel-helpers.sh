@@ -99,8 +99,44 @@ build_wheel() {
 repair_wheel() {
   # Extract debug symbols
   section_start "extract_debug_symbols" "Extracting debug symbols"
-  uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" --output-dir "${DEBUG_WHEEL_DIR}"
+  uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" \
+    --output-dir "${DEBUG_WHEEL_DIR}" \
+    --ignore-patterns "libddwaf*,libdd_heap_gotter*"
   section_end "extract_debug_symbols"
+
+  # Heap-gotter cdylib debug symbols are extracted in setup.py (build_heap_gotter);
+  # merge any staged .debug sidecars into the debug-symbols package.
+  section_start "merge_heap_gotter_debug_symbols" "Merging heap-gotter debug symbols"
+  uv run --no-project python - <<'PY'
+import glob
+import os
+import zipfile
+from pathlib import Path
+
+project_dir = os.environ["PROJECT_DIR"]
+debug_dir = os.environ["DEBUG_WHEEL_DIR"]
+sidecars = sorted(Path(project_dir, "build").rglob("libdd_heap_gotter*.debug"))
+if not sidecars:
+    print("No heap-gotter debug sidecars found")
+    raise SystemExit(0)
+packages = glob.glob(os.path.join(debug_dir, "*-debug-symbols.zip"))
+if not packages:
+    print("WARNING: no debug-symbols package to merge heap-gotter sidecars into")
+    raise SystemExit(0)
+pkg = packages[0]
+with zipfile.ZipFile(pkg, "a", zipfile.ZIP_DEFLATED) as zf:
+    existing = set(zf.namelist())
+    for sidecar in sidecars:
+        parts = sidecar.parts
+        try:
+            arc = str(Path(*parts[parts.index("ddtrace") :]))
+        except ValueError:
+            arc = sidecar.name
+        if arc not in existing:
+            zf.write(sidecar, arc)
+            print(f"Added heap-gotter debug symbols: {arc}")
+PY
+  section_end "merge_heap_gotter_debug_symbols"
 
   # Strip wheel
   section_start "strip_wheel" "Stripping unneeded files"
