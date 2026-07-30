@@ -39,7 +39,7 @@ class ManagedPrompt:
 
     def __getattribute__(self, name: str) -> Any:
         if name == "label":
-            deprecate(
+            deprecate(  # type: ignore[no-untyped-call]
                 prefix="The 'label' property of ManagedPrompt is deprecated",
                 category=DDTraceDeprecationWarning,
             )
