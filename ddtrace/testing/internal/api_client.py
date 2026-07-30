@@ -419,9 +419,9 @@ class APIClient:
 
         # The skippable-tests endpoint can be slow on the first call for dd-trace-py (backend computes the list on
         # demand), so give it a longer timeout than the global default while the proper per-endpoint timeout lands.
-        _prev_timeout = self.connector.conn.timeout
         _extend_timeout = self.service == "dd-trace-py"
         if _extend_timeout:
+            _prev_timeout = self.connector.conn.timeout
             self.connector.conn.close()
             self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
         try:
