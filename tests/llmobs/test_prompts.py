@@ -358,7 +358,7 @@ class TestPrompts:
                 prompt_data = get_llmobs_input_prompt(span)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
-                assert prompt_data["label"] == "production"
+                assert "label" not in prompt_data
                 assert prompt_data["variables"] == {"name": "Alice"}
                 assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
                 assert prompt_data["prompt_version_uuid"] == "version-uuid-456"
