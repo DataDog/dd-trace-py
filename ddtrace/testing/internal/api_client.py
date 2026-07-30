@@ -418,9 +418,7 @@ class APIClient:
             return set(), None
 
         try:
-            result = self.connector.post_json(
-                "/api/v2/ci/tests/skippable", request_data, telemetry=telemetry, timeout_seconds=10.0
-            )
+            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
 
         except Exception as e:
