@@ -653,3 +653,81 @@ for an application serving inference with an LLM through PyTorch:
 .. image:: pytorch_metric.png
   :width: 600
   :alt: Alternative text
+
+
+LLM Observability
+-----------------
+
+Datadog's `LLM Observability`_ SDK ships with ``ddtrace``. See the
+`LLM Observability SDK documentation`_ for installation, configuration, and the
+full annotation API. This section documents advanced message features that are
+exposed through the SDK but not covered on the setup pages.
+
+.. _`LLM Observability`: https://docs.datadoghq.com/llm_observability/
+.. _`LLM Observability SDK documentation`: https://docs.datadoghq.com/llm_observability/instrumentation/sdk/?code-lang=python
+
+Audio and image message parts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+LLM spans can represent multimodal conversations. In addition to textual
+``content``, a message passed to ``LLMObs.annotate`` as ``input_data`` or
+``output_data`` may carry inline audio or image segments through the optional
+``audio_parts`` and ``image_parts`` keys. These render as playable audio and
+inline images in the LLM Observability trace view.
+
+Each entry in ``audio_parts`` (or ``image_parts``) is a dictionary with:
+
+- ``mime_type`` (required): the media type of the segment, for example
+  ``audio/wav``, ``audio/pcm``, or ``image/png``.
+- exactly one of:
+
+  - ``content``: the base64-encoded media, carried inline on the message.
+  - ``attachment_key``: a reference to media stored outside the span payload.
+
+A message may combine textual ``content`` with one or more ``audio_parts`` or
+``image_parts``. The example below annotates a voice turn with both the input
+and output audio alongside the transcribed text::
+
+    import base64
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs.decorators import llm
+
+
+    @llm(model_name="gpt-realtime", model_provider="openai")
+    def voice_turn(user_audio_bytes, model):
+        response = model.respond(user_audio_bytes)  # your application logic
+        LLMObs.annotate(
+            input_data=[
+                {
+                    "role": "user",
+                    "content": "Hey, how are you?",
+                    "audio_parts": [
+                        {
+                            "mime_type": "audio/wav",
+                            "content": base64.b64encode(user_audio_bytes).decode("utf-8"),
+                        }
+                    ],
+                }
+            ],
+            output_data=[
+                {
+                    "role": "assistant",
+                    "content": response.transcript,
+                    "audio_parts": [
+                        {
+                            "mime_type": "audio/wav",
+                            "content": base64.b64encode(response.audio_bytes).decode("utf-8"),
+                        }
+                    ],
+                }
+            ],
+        )
+        return response
+
+.. note::
+
+    Inline ``content`` counts toward the per-event size limit configured with
+    ``DD_LLMOBS_EVENT_SIZE_BYTES`` (5 MB by default). When an event exceeds that
+    limit, its entire input and output are replaced with a placeholder, so keep
+    inline media small or offload larger media with ``attachment_key``.
