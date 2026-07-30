@@ -378,10 +378,6 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     res_pid, res_status = os.waitpid(parent_pid, 0)
     print("")
     print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
-    assert res_pid == parent_pid
-    assert not os.WIFSIGNALED(res_status), (
-        f"uWSGI worker {parent_pid} crashed with signal {os.WTERMSIG(res_status)} and raw wait status {res_status}"
-    )
 
     # Attempt to kill worker proc once
     worker_pid: int = worker_pids[1]
@@ -394,6 +390,11 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
         print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
     except OSError:
         print(f"INFO: Worker {worker_pid} was successfully killed.")
+
+    assert res_pid == parent_pid
+    assert not os.WIFSIGNALED(res_status), (
+        f"uWSGI worker {parent_pid} crashed with signal {os.WTERMSIG(res_status)} and raw wait status {res_status}"
+    )
 
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
