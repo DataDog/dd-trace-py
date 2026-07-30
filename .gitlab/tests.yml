@@ -45,7 +45,7 @@ include:
         for riot_python_version in "${riot_python_versions[@]}"
         do
           case "${SUITE_NAME:-}" in
-            *iast*|*testing*|*ci_visibility*|*coverage*|*pytest*|*asynctest*|*profile*|*crashtracker*|*google_adk*)
+            *testing*|*ci_visibility*|*coverage*|*pytest*|*asynctest*)
               export DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false
               ;;
             *)
