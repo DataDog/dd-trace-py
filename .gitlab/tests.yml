@@ -57,7 +57,7 @@ include:
             && [[ "${riot_python_version:-}" =~ ^3\.(12|13|14|15)$ ]]; then
             export DD_CIVISIBILITY_ITR_ENABLED=true
             export _DD_COVERAGE_FILE_LEVEL=true
-            #export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
+            export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
 
             if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
               export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
