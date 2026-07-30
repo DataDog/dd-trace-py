@@ -3669,6 +3669,7 @@ venv = Venv(
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
                 "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "false",
             },
             pkgs={
                 "gunicorn": latest,
