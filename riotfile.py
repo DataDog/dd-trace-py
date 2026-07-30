@@ -87,6 +87,7 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
 _nightly_build = os.environ.get("NIGHTLY_BUILD") == "true"
 _base_env = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "1",
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     "DD_INJECTION_ENABLED": "1",
@@ -107,6 +108,7 @@ if _nightly_build:
 
 # Common env configurations for appsec threats testing without/with IAST
 _appsec_threats_no_iast_env = {
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
     "DD_IAST_ENABLED": "false",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     "DD_APPSEC_ENABLED": "true",
@@ -3134,6 +3136,9 @@ venv = Venv(
         Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "vcrpy": latest,
@@ -3159,6 +3164,9 @@ venv = Venv(
         Venv(
             name="llama_index",
             command="pytest {cmdargs} tests/contrib/llama_index",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(min_version="3.10", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
@@ -3598,6 +3606,9 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             venvs=[
                 Venv(
                     command="pytest -n auto {cmdargs} tests/llmobs",
@@ -3641,6 +3652,9 @@ venv = Venv(
         Venv(
             name="vllm",
             command="pytest {cmdargs} tests/contrib/vllm",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
@@ -3652,6 +3666,9 @@ venv = Venv(
         Venv(
             name="valkey",
             command="pytest {cmdargs} tests/contrib/valkey",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "valkey": latest,
                 "pytest-randomly": latest,
@@ -3907,6 +3924,7 @@ venv = Venv(
             command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
             },
             venvs=[
                 Venv(
@@ -4490,6 +4508,9 @@ venv = Venv(
         Venv(
             name="ai_guard_api",
             command="pytest {cmdargs} tests/aiguard/api/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "requests": latest,
             },
@@ -4498,6 +4519,9 @@ venv = Venv(
         Venv(
             name="ai_guard_langchain",
             command="pytest {cmdargs} tests/aiguard/langchain/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4534,6 +4558,9 @@ venv = Venv(
         Venv(
             name="ai_guard_openai",
             command="pytest {cmdargs} tests/aiguard/openai/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
@@ -4565,6 +4592,9 @@ venv = Venv(
         Venv(
             name="ai_guard_anthropic",
             command="pytest {cmdargs} tests/aiguard/anthropic/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4585,6 +4615,9 @@ venv = Venv(
         Venv(
             name="claude_agent_sdk",
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "claude-agent-sdk": ["==0.0.23", "==0.1.29", "==0.1.49", latest],
@@ -4594,6 +4627,9 @@ venv = Venv(
         Venv(
             name="ai_guard_strands",
             command="pytest {cmdargs} tests/aiguard/strands_hooks/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "strands-agents": ">=1.29.0",
             },
@@ -4602,6 +4638,9 @@ venv = Venv(
         Venv(
             name="ai_guard_litellm_guardrail",
             command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pkgs={
                 "pytest-asyncio": latest,
             },
@@ -4623,6 +4662,9 @@ venv = Venv(
         Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(),
         ),
     ],
