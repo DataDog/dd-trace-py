@@ -59,7 +59,19 @@ def _current_task_span_id() -> typing.Optional[int]:
     return id(task)
 
 
-def _publish_task_span(task: asyncio.Task[typing.Any], requested_context: typing.Optional[contextvars.Context]) -> None:
+def _has_custom_task_factory(loop: asyncio.AbstractEventLoop) -> bool:
+    try:
+        return loop.get_task_factory() is not None
+    except Exception:
+        # Publication is best effort and must never make application task creation fail.
+        return True
+
+
+def _publish_task_span(
+    task: asyncio.Task[typing.Any],
+    requested_context: typing.Optional[contextvars.Context],
+    had_custom_task_factory: bool,
+) -> None:
     task_context = requested_context
     get_context = getattr(task, "get_context", None)
     if get_context is not None:
@@ -67,6 +79,10 @@ def _publish_task_span(task: asyncio.Task[typing.Any], requested_context: typing
             task_context = typing.cast("contextvars.Context", get_context())
         except Exception:
             return
+    elif had_custom_task_factory:
+        # Before Python 3.12 there is no API for reading the Task's actual Context. A custom factory can replace the
+        # creator's Context, so omit attribution rather than publishing unverifiable inherited metadata.
+        return
 
     task_id = id(task)
     try:
@@ -182,8 +198,15 @@ def _(asyncio: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> aio.Task[typing.Any]:
+            loop = typing.cast("aio.AbstractEventLoop", args[0])
+            # Capture this before creation because a one-shot custom factory can remove itself before returning.
+            had_custom_task_factory = _has_custom_task_factory(loop)
             task = f(*args, **kwargs)
-            _publish_task_span(task, typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")))
+            _publish_task_span(
+                task,
+                typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")),
+                had_custom_task_factory,
+            )
             return task
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)

@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -126,3 +128,126 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     assert all(
         pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in untraced_task_samples
     )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio task context requires Python 3.11+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_explicit_empty_task_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_respects_explicit_empty_child_task_context():
+    import asyncio
+    import contextvars
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "outer-thread-endpoint"
+
+    def explicit_empty_context_work():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    def custom_factory_empty_context_work():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def explicit_context_child():
+        explicit_empty_context_work()
+
+    async def custom_factory_child():
+        custom_factory_empty_context_work()
+
+    async def main():
+        child = asyncio.create_task(
+            explicit_context_child(), name="explicit-empty-context-child", context=contextvars.Context()
+        )
+        await child
+
+        loop = asyncio.get_running_loop()
+
+        def empty_context_task_factory(loop, coro, **kwargs):
+            # One-shot factories can clear themselves before returning. Publication must use the factory state captured
+            # before creation, not the loop's state after this callback.
+            loop.set_task_factory(None)
+            return asyncio.Task(coro, loop=loop, context=contextvars.Context())
+
+        loop.set_task_factory(empty_context_task_factory)
+        try:
+            await asyncio.create_task(custom_factory_child(), name="custom-factory-empty-context-child")
+        finally:
+            loop.set_task_factory(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("outer.thread.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
+        asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+
+    for function_name in ("explicit_empty_context_work", "custom_factory_empty_context_work"):
+        child_samples = pprof_utils.get_samples_with_function(profile, wall_samples, function_name)
+        assert child_samples, function_name
+        assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in child_samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in child_samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in child_samples)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio task context requires Python 3.11+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_rejects_finished_copied_task_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_rejects_finished_span_from_copied_task_context():
+    import asyncio
+    import contextvars
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    def work_from_finished_context():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def child():
+        work_from_finished_context()
+
+    async def main(copied_context):
+        await asyncio.create_task(child(), name="finished-copied-context", context=copied_context)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("finished.copied.request", resource="finished-copied-endpoint", span_type=ext.SpanTypes.WEB):
+        copied_context = contextvars.copy_context()
+    asyncio.run(main(copied_context))
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "work_from_finished_context")
+
+    assert samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)

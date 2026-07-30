@@ -7,6 +7,7 @@ failure_msg = ""
 try:
     import contextvars
     import typing
+    import weakref
 
     from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
@@ -28,6 +29,7 @@ try:
     class _SpanLinkContext(typing.NamedTuple):
         generation: int
         span_info: _SpanInfo
+        span_ref: typing.Optional[typing.Callable[[], typing.Optional[ddspan.Span]]]
 
     _LogicalSpanProvider = typing.Callable[[], typing.Optional[int]]
 
@@ -158,7 +160,8 @@ try:
             _active_span_link.set(None)
             _clear_target(target)
         else:
-            _active_span_link.set(_SpanLinkContext(_span_link_generation, span_info))
+            span_ref = weakref.ref(span) if isinstance(span, ddspan.Span) else None
+            _active_span_link.set(_SpanLinkContext(_span_link_generation, span_info, span_ref))
             _publish_target_span(target, span_info)
 
     def link_logical_span(
@@ -182,6 +185,10 @@ try:
         linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
         target = _SpanLinkTarget(True, logical_id)
         if linked_span is None or linked_span.generation != _span_link_generation:
+            _clear_target(target)
+            return False
+        source_span = linked_span.span_ref() if linked_span.span_ref is not None else None
+        if linked_span.span_ref is not None and (source_span is None or source_span.finished):
             _clear_target(target)
             return False
         _publish_target_span(target, linked_span.span_info)
