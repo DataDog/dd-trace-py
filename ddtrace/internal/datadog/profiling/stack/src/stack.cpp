@@ -215,6 +215,37 @@ stack_clear_span(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_get_thread_id(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+    if (!state) {
+        return nullptr;
+    }
+    return PyLong_FromUnsignedLongLong(state->thread_id);
+}
+
+static PyObject*
+stack_unlink_thread_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t thread_id;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "KK", &thread_id, &expected_span_id)) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
@@ -1072,6 +1103,11 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "get_thread_id", stack_get_thread_id, METH_NOARGS, "Return the current PyThreadState thread ID" },
+    { "unlink_thread_span",
+      stack_unlink_thread_span,
+      METH_VARARGS,
+      "Clear a thread span only if its ID matches the expected span ID" },
     { "link_logical_span",
       reinterpret_cast<PyCFunction>(stack_link_logical_span),
       METH_VARARGS | METH_KEYWORDS,

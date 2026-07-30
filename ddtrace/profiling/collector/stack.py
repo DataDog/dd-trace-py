@@ -1,5 +1,6 @@
 """Simple wrapper around stack native extension module."""
 
+import functools
 import logging
 import sys
 from types import ModuleType
@@ -21,10 +22,12 @@ LOG = logging.getLogger(__name__)
 
 
 def _link_span(
-    _provider: BaseContextProvider,
+    tracer: Tracer,
+    provider: BaseContextProvider,
     span: typing.Optional[typing.Union[Context, Span]],
 ) -> None:
-    stack.link_span(span)
+    if provider is tracer.context_provider:
+        stack.link_span(span)
 
 
 class StackCollector(collector.Collector):
@@ -34,6 +37,8 @@ class StackCollector(collector.Collector):
         "nframes",
         "tracer",
         "_native_call_monitor",
+        "_span_link_callback",
+        "_span_finish_callback",
     )
 
     def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
@@ -42,6 +47,8 @@ class StackCollector(collector.Collector):
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
         self._native_call_monitor: typing.Optional[ModuleType] = None
+        self._span_link_callback: typing.Optional[typing.Callable[..., None]] = None
+        self._span_finish_callback: typing.Optional[typing.Callable[..., None]] = None
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -81,11 +88,6 @@ class StackCollector(collector.Collector):
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable
 
-        # Register the span-link hook only after the sampler has started successfully,
-        # so we never leave a stale listener behind if startup fails.
-        if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", _link_span)
-
         # Start native C function call tracking (Python 3.12+ only)
         if sys.version_info >= (3, 12) and config.stack.native_frames:
             try:
@@ -99,6 +101,22 @@ class StackCollector(collector.Collector):
         # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
+
+        # Register only after every fallible initialization step. A failed collector is dropped without
+        # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
+        if self.tracer is not None:
+            self._span_link_callback = functools.partial(_link_span, self.tracer)
+            self._span_finish_callback = stack.unlink_finished_span
+            try:
+                core.on("ddtrace.context_provider.activate", self._span_link_callback)
+                core.on("trace.span_finish", self._span_finish_callback)
+                stack.enable_span_linking()
+            except Exception:
+                core.reset_listeners("ddtrace.context_provider.activate", self._span_link_callback)
+                core.reset_listeners("trace.span_finish", self._span_finish_callback)
+                self._span_link_callback = None
+                self._span_finish_callback = None
+                raise
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -114,8 +132,13 @@ class StackCollector(collector.Collector):
             except Exception:
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
-        if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", _link_span)
+        if self._span_link_callback is not None:
+            core.reset_listeners("ddtrace.context_provider.activate", self._span_link_callback)
+            self._span_link_callback = None
+        if self._span_finish_callback is not None:
+            core.reset_listeners("trace.span_finish", self._span_finish_callback)
+            self._span_finish_callback = None
+        stack.disable_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
