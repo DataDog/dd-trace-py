@@ -118,7 +118,7 @@ def test_provider_lifecycle_starts_and_stops_source(mock_cdn):
 
 
 # Attributes that pass JSON:API validation (``createdAt`` is a string) but that the
-# native evaluator refuses because the timestamp is unparseable. Note the evaluator
+# native evaluator refuses because the timestamp is unparsable. Note the evaluator
 # tolerates malformed individual flags, so an invalid timestamp is the realistic way
 # a delivered payload gets rejected.
 _REJECTED_ATTRIBUTES = {

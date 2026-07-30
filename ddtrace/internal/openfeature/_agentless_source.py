@@ -12,6 +12,7 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 """
 
 from collections import namedtuple
+import hashlib
 import os
 import random
 import threading
@@ -46,6 +47,9 @@ SECOND_RETRY_MIN_S = 5.0
 SECOND_RETRY_MAX_S = 30.0
 RETRY_JITTER = 0.2
 
+BASE62_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+CLIFFORD_SHA256_BASE62_LENGTH = 43
+
 # Upper bound (seconds) on the randomized delay before the FIRST poll in a
 # forked child, so pre-fork workers (gunicorn/uWSGI) don't hit the CDN in
 # lockstep. The origin process is never delayed.
@@ -54,6 +58,16 @@ FIRST_POLL_JITTER_MAX_S = 5.0
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
 _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
+
+
+def _api_key_fingerprint(api_key: str) -> str:
+    digest = hashlib.sha256(api_key.encode("utf-8")).digest()
+    value = int.from_bytes(digest, "big")
+    encoded = ""
+    while value:
+        value, remainder = divmod(value, 62)
+        encoded = BASE62_ALPHABET[remainder] + encoded
+    return "rijn_" + encoded.rjust(CLIFFORD_SHA256_BASE62_LENGTH, "0")
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
@@ -211,6 +225,7 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
+            headers["DD-Api-Key-Fingerprint"] = _api_key_fingerprint(self._api_key)
         if self._etag:
             headers["If-None-Match"] = self._etag
         return headers
