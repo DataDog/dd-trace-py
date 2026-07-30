@@ -665,7 +665,7 @@ AI Guard
      type: Boolean
      default: True
      description: |
-       Global kill switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
+       Global switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
        AI Guard service asks for redaction, the tracer replaces the affected message content with the
        redacted values returned by the AI Guard, and reports the redacted messages instead of the
        originals. Set to ``False`` to disable the transformation without a tracer rollback: evaluations
