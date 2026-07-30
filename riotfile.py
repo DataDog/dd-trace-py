@@ -3668,6 +3668,7 @@ venv = Venv(
                 "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
             },
             pkgs={
                 "gunicorn": latest,
