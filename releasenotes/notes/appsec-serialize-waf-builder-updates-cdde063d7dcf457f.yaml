@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: A rare crash that could happen when rules were updated concurrently has been fixed.
