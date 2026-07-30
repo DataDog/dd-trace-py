@@ -906,6 +906,13 @@ Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
     echion->greenlet_thread_map()[native_id] = greenlet_id;
 }
 
+bool
+Sampler::is_greenlet_tracked(uintptr_t greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+    return echion->greenlet_info_map().contains(greenlet_id);
+}
+
 void
 Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {

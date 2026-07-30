@@ -602,6 +602,19 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 static PyObject*
+is_greenlet_tracked(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uint64_t greenlet_id;
+    if (!PyArg_ParseTuple(args, "K", &greenlet_id))
+        return nullptr;
+
+    if (Sampler::get().is_greenlet_tracked(static_cast<uintptr_t>(greenlet_id))) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 untrack_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t greenlet_id;
@@ -1156,6 +1169,7 @@ static PyMethodDef stack_methods[] = {
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
+    { "is_greenlet_tracked", is_greenlet_tracked, METH_VARARGS, "Return whether a greenlet is tracked" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },

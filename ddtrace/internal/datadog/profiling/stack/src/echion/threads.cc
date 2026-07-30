@@ -768,6 +768,9 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
         auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
+        // Snapshot attribution with the frame pointers so deferred rendering cannot observe a newer span activation.
+        stack_info->span_context = Datadog::ThreadSpanLinks::get_instance().get_active_span_from_logical_id(
+          Datadog::SpanLinkDomain::GeventGreenlet, snap.greenlet_id);
         auto& stack = stack_info->stack;
         if (snap_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns_g;
@@ -835,8 +838,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           greenlet_stack->on_cpu,
+                                           greenlet_stack->task_id,
+                                           greenlet_stack->walltime_ns,
+                                           &greenlet_stack->span_context);
             });
 
             auto& stack = greenlet_stack->stack;
