@@ -17,6 +17,7 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
 from ddtrace.internal.wrapping import get_function_code
@@ -642,7 +643,12 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 if self.is_wrapped(f):
                     raise ValueError("Function already wrapped")
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+                code = get_function_code(f)
+                if is_obfuscated_code(code):
+                    log.warning("Cannot wrap %r: code object appears to be obfuscated (e.g. by PyArmor)", code.co_name)
+                    return
+
+                bc = Bytecode.from_code(code)
 
                 # Prefix every return
                 i = 0
@@ -797,7 +803,12 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 if self.is_wrapped(f):
                     raise ValueError("Function already wrapped")
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+                code = get_function_code(f)
+                if is_obfuscated_code(code):
+                    log.warning("Cannot wrap %r: code object appears to be obfuscated (e.g. by PyArmor)", code.co_name)
+                    return
+
+                bc = Bytecode.from_code(code)
 
                 # Prefix every return
                 i = 0

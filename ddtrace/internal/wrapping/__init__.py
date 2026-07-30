@@ -14,10 +14,14 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
 
+
+log = get_logger(__name__)
 
 PY = sys.version_info[:2]
 
@@ -304,6 +308,10 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
+    if is_obfuscated_code(f.__code__):
+        log.warning("Cannot wrap %r: code object appears to be obfuscated (e.g. by PyArmor)", f.__code__.co_name)
+        return cast(WrappedFunction, f)
+
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,
