@@ -1195,7 +1195,7 @@ class HttpIoError(HttpClientError):
 
 def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
 
-DD_CONTEXTVAR: contextvars.ContextVar[Any]
+DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
 
 class BaseContextProvider(abc.ABC):
     """A ``ContextProvider`` is an interface that provides the blueprint
