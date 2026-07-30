@@ -135,6 +135,7 @@ class Sampler
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
+    bool is_greenlet_tracked(uintptr_t greenlet_id);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void record_greenlet_switch(uintptr_t origin_id,

@@ -244,3 +244,100 @@ def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
         )
     finally:
         child_greenlet.kill()
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_logical_provider_requires_native_greenlet_tracking() -> None:
+    from unittest.mock import patch
+
+    import gevent
+    from gevent import thread
+
+    from ddtrace.profiling import _gevent as _gevent_module
+    from ddtrace.profiling import _span_links
+
+    current_id = thread.get_ident(gevent.getcurrent())
+    with patch.object(_gevent_module.stack, "is_greenlet_tracked", return_value=False):
+        assert _gevent_module._current_greenlet_span_target() is None
+
+    with patch.object(_gevent_module.stack, "is_greenlet_tracked", return_value=True):
+        assert _gevent_module._current_greenlet_span_target() == _span_links.LogicalSpanTarget(
+            _span_links.SpanLinkDomain.GEVENT_GREENLET, current_id
+        )
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_late_origin_discovery_seeds_active_context_not_construction_context() -> None:
+    from unittest.mock import patch
+
+    import gevent
+    from gevent import thread
+
+    from ddtrace.profiling import _gevent as _gevent_module
+
+    candidate = gevent.Greenlet(lambda: None)
+    candidate.trace_context = object()
+    candidate_id = thread.get_ident(candidate)
+    domain = _gevent_module._span_links.SpanLinkDomain.GEVENT_GREENLET
+    with (
+        patch.object(_gevent_module.stack, "track_greenlet") as track,
+        patch("ddtrace.profiling.collector.stack._link_logical_span") as link_inherited,
+        patch.object(_gevent_module._span_links, "link_logical_span_context") as link_active,
+    ):
+        _gevent_module.track_gevent_greenlet(
+            candidate,
+            _from_tracer=True,
+            _seed_context=False,
+        )
+
+    track.assert_called_once()
+    link_inherited.assert_not_called()
+    link_active.assert_called_once_with(domain, candidate_id)
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_fork_reset_drops_python_greenlet_tracking_state() -> None:
+    from ddtrace.profiling import _gevent as _gevent_module
+
+    _gevent_module._tracked_greenlets.add(101)
+    _gevent_module._greenlet_parent_map[102] = 101
+    _gevent_module._parent_greenlet_count[101] = 1
+
+    _gevent_module._reset_gevent_state_after_fork()
+
+    assert not _gevent_module._tracked_greenlets
+    assert not _gevent_module._greenlet_parent_map
+    assert not _gevent_module._parent_greenlet_count
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_unpatch_untracks_native_greenlets() -> None:
+    from unittest.mock import patch
+
+    from ddtrace.profiling import _gevent as _gevent_module
+
+    _gevent_module._tracked_greenlets.update({101, 102})
+    with (
+        patch.object(_gevent_module.stack, "untrack_greenlet") as untrack,
+        patch.object(_gevent_module._span_links, "clear_logical_span"),
+    ):
+        _gevent_module.unpatch()
+
+    assert {args[0] for args, _ in untrack.call_args_list} == {101, 102}
+    assert not _gevent_module._tracked_greenlets

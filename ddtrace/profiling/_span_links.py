@@ -175,6 +175,21 @@ def clear_thread_span() -> None:
         stack.clear_span()
 
 
+def link_logical_span(
+    domain: SpanLinkDomain,
+    logical_id: int,
+    span_info: typing.Optional[_SpanInfo],
+) -> None:
+    """Seed or update attribution for a native-tracked logical execution context."""
+    if not _span_linking_enabled:
+        return
+    target = LogicalSpanTarget(domain, logical_id)
+    if span_info is None:
+        _clear_span(target)
+    else:
+        _publish_span(target, span_info)
+
+
 def link_logical_span_context(
     domain: SpanLinkDomain,
     logical_id: int,

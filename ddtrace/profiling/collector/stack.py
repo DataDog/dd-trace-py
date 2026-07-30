@@ -42,6 +42,14 @@ def _span_info(span: typing.Optional[typing.Union[Context, Span]]) -> typing.Opt
     return None
 
 
+def _link_logical_span(
+    domain: _span_links.SpanLinkDomain,
+    logical_id: int,
+    span: typing.Optional[typing.Union[Context, Span]],
+) -> None:
+    _span_links.link_logical_span(domain, logical_id, _span_info(span))
+
+
 def _unlink_finished_span(span: Span) -> None:
     _span_links.unlink_finished_span(span.span_id)
 
