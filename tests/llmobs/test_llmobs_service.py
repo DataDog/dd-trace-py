@@ -729,6 +729,106 @@ def test_evaluation_invalid_args_raise_before_starting_span(llmobs, kwargs):
     assert llmobs._instance._current_span() is None
 
 
+def test_evaluation_auto_error_metric_on_exception(llmobs, mock_llmobs_eval_metric_writer):
+    # An unhandled exception inside the judge block auto-submits a categorical "error" eval metric on
+    # the evaluated span, linked back to the judge trace — no user try/except required.
+    judge_ref = {}
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "111", "trace_id": "222"}, evaluated_ml_app="my-app"
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))  # capture the judge ids while the span is live
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="111",
+            trace_id="222",
+            label="relevance",
+            metric_type="categorical",
+            categorical_value="error",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:ValueError"],
+            reasoning="evaluator raised ValueError: boom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
+
+
+def test_evaluation_auto_error_metric_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
+    judge_ref = {}
+    with pytest.raises(RuntimeError):
+        with llmobs.evaluation(
+            name="relevance",
+            evaluated_span={"span_id": "9", "trace_id": "8"},
+            evaluated_ml_app="my-app",
+            eval_scope="trace",
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))
+            raise RuntimeError("kaboom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="9",
+            trace_id="8",
+            label="relevance",
+            metric_type="categorical",
+            categorical_value="error",
+            eval_scope="trace",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:RuntimeError"],
+            reasoning="evaluator raised RuntimeError: kaboom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
+
+
+def test_evaluation_no_error_metric_on_success(llmobs, mock_llmobs_eval_metric_writer):
+    # A clean judge block submits nothing automatically — the score is the user's to submit.
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}):
+        pass
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+def test_evaluation_error_metric_opt_out(llmobs, mock_llmobs_eval_metric_writer):
+    # emit_error_metric=False -> bare span; a crash is recorded on the judge span but NOT auto-metric'd.
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, emit_error_metric=False
+        ):
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+def test_evaluation_session_scope_no_error_metric(llmobs, mock_llmobs_eval_metric_writer):
+    # session scope has no span to join a metric on -> no auto error metric even on failure.
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(name="relevance", eval_scope="session", evaluated_session_id="s-1"):
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+async def test_evaluation_auto_error_metric_async(llmobs, mock_llmobs_eval_metric_writer):
+    judge_ref = {}
+    with pytest.raises(ValueError):
+        async with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="1",
+            trace_id="2",
+            label="relevance",
+            metric_type="categorical",
+            categorical_value="error",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app", "eval_error:ValueError"],
+            reasoning="evaluator raised ValueError: boom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
+
+
 def test_evaluated_span_tags_inner_span_and_yields_ref(llmobs):
     with llmobs.evaluated_span() as target:
         with llmobs.llm(name="call", model_name="m", model_provider="p") as span:

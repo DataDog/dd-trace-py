@@ -245,6 +245,46 @@ class EvaluatedSpanContext:
         return await self._annotation_context.__aexit__(exc_type, exc_val, exc_tb)
 
 
+class EvaluationContext:
+    """Context manager returned by ``LLMObs.evaluation()``.
+
+    Wraps the judge root :class:`Span`: it yields the span on enter (``as judge``) and finishes it
+    on exit exactly as the bare span would. The only added behavior is on the unhappy path — if the
+    block exits with an unhandled exception, it invokes ``on_error(exc)`` *after* the judge span has
+    recorded the error, so an evaluator crash is surfaced on the evaluated span automatically (via a
+    failed eval metric) without the user writing a ``try/except``. A failure inside ``on_error`` is
+    logged and swallowed so it never masks the user's original exception, and the user's exception is
+    never suppressed.
+    """
+
+    def __init__(self, span, on_error=None):
+        self._span = span
+        self._on_error = on_error
+
+    def _finish(self, exc_type, exc_val, exc_tb):
+        suppress = self._span.__exit__(exc_type, exc_val, exc_tb)
+        if exc_type is not None and not suppress and self._on_error is not None:
+            try:
+                self._on_error(exc_val)
+            except Exception:
+                log.warning("LLMObs.evaluation(): failed to emit evaluation error metric", exc_info=True)
+        return suppress
+
+    def __enter__(self):
+        self._span.__enter__()
+        return self._span
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._finish(exc_type, exc_val, exc_tb)
+
+    async def __aenter__(self):
+        self._span.__enter__()
+        return self._span
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return self._finish(exc_type, exc_val, exc_tb)
+
+
 def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):

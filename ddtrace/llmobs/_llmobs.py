@@ -154,6 +154,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import EvaluatedSpanContext
+from ddtrace.llmobs._utils import EvaluationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
@@ -2702,12 +2703,13 @@ class LLMObs(Service):
     def evaluation(
         cls,
         name: str,
-        evaluated_span: Optional[dict] = None,
+        evaluated_span: Optional[ExportedLLMObsSpan] = None,
         evaluated_ml_app: Optional[str] = None,
         eval_scope: str = "span",
         evaluated_session_id: Optional[str] = None,
+        emit_error_metric: bool = True,
         _decorator: bool = False,
-    ) -> Span:
+    ) -> Union[Span, EvaluationContext]:
         """
         Open a judge trace for an external (SDK-run) evaluator.
 
@@ -2728,8 +2730,17 @@ class LLMObs(Service):
                                "session". "span"/"trace" require ``evaluated_span``; "session"
                                requires ``evaluated_session_id``.
         :param str evaluated_session_id: The id of the session being judged, for "session" scope.
+        :param bool emit_error_metric: If True (default), when the ``with`` block raises an unhandled
+                                       exception the judge span is recorded as errored AND a failed
+                                       eval metric (categorical "error", linked to the judge trace)
+                                       is submitted for the evaluated span — so an evaluator crash is
+                                       surfaced on the evaluated span's Evaluation tab without a
+                                       user ``try/except``. Applies to "span"/"trace" scope only
+                                       (the metric joins on ``evaluated_span``). Set False to opt out.
 
-        :returns: The judge root Span. Use it with ``with LLMObs.evaluation(...) as judge:``.
+        :returns: The judge root span, wrapped so ``with LLMObs.evaluation(...) as judge:`` yields the
+                  span. (When ``emit_error_metric`` is disabled, "session" scope, or LLMObs is
+                  disabled, the bare span is returned; it is also a valid ``with`` target.)
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
@@ -2742,18 +2753,23 @@ class LLMObs(Service):
             raise ValueError("name must be a non-empty string that does not contain a '.'.")
         if eval_scope not in ("span", "trace", "session"):
             raise ValueError("eval_scope must be one of 'span', 'trace', or 'session'.")
+        scope_tags: dict[str, str] = {}
         if eval_scope == "session":
             if not evaluated_session_id:
                 raise ValueError("eval_scope='session' requires a non-empty evaluated_session_id.")
-        elif (
-            not isinstance(evaluated_span, dict)
-            or not isinstance(evaluated_span.get("span_id"), str)
-            or not isinstance(evaluated_span.get("trace_id"), str)
-        ):
-            raise ValueError(
-                "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
-                "'trace_id' keys (use LLMObs.export_span())." % eval_scope
-            )
+            scope_tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
+        else:  # "span" or "trace" (for "trace", evaluated_span is the trace's root span)
+            if (
+                not isinstance(evaluated_span, dict)
+                or not isinstance(evaluated_span.get("span_id"), str)
+                or not isinstance(evaluated_span.get("trace_id"), str)
+            ):
+                raise ValueError(
+                    "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
+                    "'trace_id' keys (use LLMObs.export_span())." % eval_scope
+                )
+            scope_tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
+            scope_tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
 
         if cls._instance._current_span() is not None:
             log.warning(
@@ -2774,13 +2790,28 @@ class LLMObs(Service):
         }
         if evaluated_ml_app:
             tags[EVALUATED_ML_APP_TAG] = evaluated_ml_app
-        if eval_scope == "session":
-            tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
-        else:  # "span" or "trace" (for "trace", evaluated_span is the trace's root span)
-            tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
-            tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
+        tags.update(scope_tags)
         cls.annotate(span=span, tags=tags)
-        return span
+
+        if _decorator or not emit_error_metric or eval_scope == "session":
+            return span
+
+        judge_ref = cls.export_span(span)  # capture while the judge span is live (correct trace id)
+
+        def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
+            cls.submit_evaluation(
+                label=name,
+                metric_type="categorical",
+                value="error",
+                span=evaluated_span,
+                eval_scope=eval_scope,
+                reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
+                tags={"eval_error": type(exc).__name__},
+                judge_span=_ref,
+                agent_service=evaluated_ml_app,  
+            )
+
+        return EvaluationContext(span, _emit_error_metric)
 
     @classmethod
     def evaluated_span(cls) -> EvaluatedSpanContext:
@@ -3269,7 +3300,7 @@ class LLMObs(Service):
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
         agent_service: Optional[str] = None,
-        judge_span: Optional[dict] = None,
+        judge_span: Optional[ExportedLLMObsSpan] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
