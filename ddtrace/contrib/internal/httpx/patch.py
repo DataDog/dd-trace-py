@@ -64,9 +64,7 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
 def _set_response(event: HttpClientRequestEvent, response: httpx.Response) -> None:
     event.set_response(response)
 
-    # HTTPX has already buffered a non-streaming response by this point. Keep
-    # body parsing here rather than in the shared event so requests, urllib3,
-    # and aiohttp responses are never read by instrumentation.
+    # Preserve HTTPX response JSON for AppSec SSRF analysis without retaining the response.
     if not response.is_closed or not response.content:
         return
     try:
