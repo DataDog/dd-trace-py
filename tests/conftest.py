@@ -37,7 +37,7 @@ _CI_ITR_ROLLOUT_ENV_VARS = (
     "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
     "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
 )
-_CI_ITR_ROLLOUT_ENV_SUITES = ("coverage", "dd_coverage", "pytest", "testing")
+_CI_ITR_ROLLOUT_ENV_SUITES = ("coverage", "dd_coverage", "pytest", "testing", "ci_visibility")
 
 
 def _should_clear_ci_itr_rollout_env() -> bool:
