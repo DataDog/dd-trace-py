@@ -116,6 +116,11 @@ def crashtracker_on_fork(
 ) -> None: ...
 def crashtracker_status() -> CrashtrackerStatus: ...
 def crashtracker_receiver() -> None: ...
+def crashtracker_report_unhandled_exception(
+    exception_type: Optional[str],
+    exception_message: Optional[str],
+    frames: list[dict[str, Optional[str]]],
+) -> None: ...
 
 class PyTracerMetadata:
     """
@@ -389,6 +394,28 @@ class TraceExporterBuilder:
         :param headers: A list of (key, value) header pairs.
         """
         ...
+    def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace-metrics export.
+        When set, client-computed span stats are exported as the traces.span.sdk.metrics.duration
+        OTLP histogram to this endpoint instead of the Datadog agent /v0.6/stats endpoint.
+        Requires stats computation to be enabled via enable_stats.
+        :param url: The full URL of the OTLP metrics endpoint (e.g. "http://localhost:4318/v1/metrics").
+        """
+        ...
+    def set_otlp_metrics_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace-metrics export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
+        """
+        Enable OTel trace semantics, which does not add DD-specific per-span attributes
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload. Driven by the
+        DD_TRACE_OTEL_SEMANTICS_ENABLED environment variable.
+        """
+        ...
     def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
         """
         Set the connection timeout in milliseconds for trace export requests.
@@ -574,6 +601,8 @@ class ffe:
         def flag_metadata(self) -> dict[str, str]: ...
         @property
         def do_log(self) -> bool: ...
+        @property
+        def serial_id(self) -> Optional[int]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...

@@ -22,6 +22,6 @@ do
 done
 
 echo "Generating supported versions from requirements lockfiles"
-${PYTHON:-python} scripts/integration_registry/generate_supported_versions.py
+scripts/integration_registry/generate_supported_versions.py
 
 echo "All done!"

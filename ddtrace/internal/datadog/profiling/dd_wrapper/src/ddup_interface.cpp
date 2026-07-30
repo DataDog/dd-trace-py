@@ -235,7 +235,7 @@ ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunctio
 }
 
 void
-ddup_push_task_id(Datadog::Sample* sample, int64_t task_id) // cppcheck-suppress unusedFunction
+ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id) // cppcheck-suppress unusedFunction
 {
     sample->push_task_id(task_id);
 }
@@ -305,12 +305,6 @@ void
 ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
 {
     sample->push_pyframes(frame);
-}
-
-void
-ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb) // cppcheck-suppress unusedFunction
-{
-    sample->push_pytraceback(tb);
 }
 
 void

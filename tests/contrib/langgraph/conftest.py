@@ -93,6 +93,44 @@ def simple_graph(langgraph):
 
 
 @pytest.fixture
+def interrupt_graph(langgraph):
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import interrupt
+
+    def node_with_interrupt(state):
+        interrupt({"question": "approve?"})
+        return {"a_list": ["done"]}
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("interrupt_node", node_with_interrupt)
+    graph_builder.add_edge(START, "interrupt_node")
+    graph_builder.add_edge("interrupt_node", END)
+    graph = graph_builder.compile(checkpointer=MemorySaver())
+
+    yield graph
+
+
+@pytest.fixture
+def async_interrupt_graph(langgraph):
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import interrupt
+
+    # Async node so interrupt() runs in the runnable context under astream(); a sync node is
+    # dispatched to an executor thread on async runs, where get_config() is unavailable.
+    async def node_with_interrupt(state):
+        interrupt({"question": "approve?"})
+        return {"a_list": ["done"]}
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("interrupt_node", node_with_interrupt)
+    graph_builder.add_edge(START, "interrupt_node")
+    graph_builder.add_edge("interrupt_node", END)
+    graph = graph_builder.compile(checkpointer=MemorySaver())
+
+    yield graph
+
+
+@pytest.fixture
 def conditional_graph(langgraph):
     def which(state):
         if state["which"] not in ("b", "c"):

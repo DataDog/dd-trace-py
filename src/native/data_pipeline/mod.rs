@@ -3,6 +3,7 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod agent_response;
@@ -16,11 +17,11 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder>,
+    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
-    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder> {
+    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder<ForkSafeRuntime>> {
         self.builder
             .as_mut()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -188,6 +189,24 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_otlp_metrics_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_metrics_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn enable_otel_trace_semantics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_otel_trace_semantics();
+        Ok(slf.into())
+    }
+
     fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
         Ok(slf.into())
@@ -222,7 +241,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter<NativeCapabilities>>,
+    inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
 }
 
 #[pymethods]

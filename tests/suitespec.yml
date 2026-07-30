@@ -224,6 +224,14 @@ suites:
       - tests/cache/*
       - tests/snapshots/tests.internal.*
     snapshot: true
+  wrapping:
+    venvs_per_job: 6
+    paths:
+      - '@core'
+      - '@tracing'
+      - ddtrace/internal/wrapping/*
+      - ddtrace/_trace/tracer.py
+      - tests/wrapping/*
   lib_injection:
     paths:
       - '@bootstrap'

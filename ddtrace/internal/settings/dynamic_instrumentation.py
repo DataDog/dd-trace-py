@@ -142,6 +142,22 @@ class DynamicInstrumentationConfig(DDConfig):
         help="List of identifiers to exclude from redaction",
     )
 
+    capture_timeout_ms = DDConfig.v(
+        int,
+        "capture.timeout_ms",
+        default=150,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for snapshot capture and serialization per probe invocation",
+    )
+
+    evaluation_timeout_ms = DDConfig.v(
+        int,
+        "evaluation.timeout_ms",
+        default=50,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for condition and template expression evaluation per probe invocation",
+    )
+
     probe_file = DDConfig.v(
         t.Optional[Path],
         "probe_file",

@@ -173,25 +173,28 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
             operation_id = instance.operation_identifier.operation_id
             checkpoint = instance.state.get_checkpoint_result(operation_id)
-            is_succeeded = checkpoint.is_succeeded()
-            event.replayed = is_succeeded
+            # A terminal checkpoint (SUCCEEDED or FAILED) is served from the checkpoint on
+            # replay rather than executed: the SDK reloads a succeeded result or re-raises a
+            # failed error without running the user function, so both count as a replay.
+            is_replayed = checkpoint.is_succeeded() or checkpoint.is_failed()
+            event.replayed = is_replayed
             event.id = operation_id
             # AIDEV-NOTE: report operation_attempt 0-indexed (0 = original, 1 =
             # first retry) so a fresh execution and its replay agree. The
             # server-maintained step_details.attempt is read at two points: a
             # pending checkpoint holds the prior-failure count (already the
-            # 0-indexed index of the attempt about to run), while a succeeded
+            # 0-indexed index of the attempt about to run), while a terminal
             # checkpoint (read on a replay) holds the 1-indexed attempt that
-            # succeeded -- observed, not SDK-enforced; pinned by the unit test.
+            # reached that state -- observed, not SDK-enforced; pinned by the unit test.
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
                     attempt = operation.step_details.attempt
                     # AIDEV-NOTE: the `attempt > 0` guard is purely defensive;
-                    # we have NOT observed attempt == 0 on success. It avoids
-                    # emitting operation_attempt = -1 if a succeeded StepDetails
+                    # we have NOT observed attempt == 0 on a terminal checkpoint. It
+                    # avoids emitting operation_attempt = -1 if a terminal StepDetails
                     # ever lacks "Attempt" (from_dict defaults it to 0).
-                    event.operation_attempt = (attempt - 1 if attempt > 0 else 0) if is_succeeded else attempt
+                    event.operation_attempt = (attempt - 1 if attempt > 0 else 0) if is_replayed else attempt
                 else:
                     event.operation_attempt = 0
     return wrapped(*args, **kwargs)

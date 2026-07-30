@@ -352,7 +352,7 @@ class TestContextEventsApi(unittest.TestCase):
         assert issubclass(BlockingException, DDBlockException)
 
         # AIGuardAbortError inherits from DDBlockException
-        from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+        from ddtrace.aiguard._api_client import AIGuardAbortError
 
         assert issubclass(AIGuardAbortError, DDBlockException)
         assert not issubclass(AIGuardAbortError, Exception)

@@ -262,6 +262,67 @@ def test_messages_audio_parts_invalid():
         Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": 123}]}])
 
 
+def test_messages_with_image_parts():
+    """Test that messages can include image parts with inline base64 content."""
+    messages = Messages(
+        [
+            {
+                "content": "Here is the image.",
+                "role": "user",
+                "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Here is the image.",
+            "role": "user",
+            "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_image_parts_attachment_key():
+    """Test that an image part may reference an offloaded attachment instead of inline content."""
+    messages = Messages(
+        [{"content": "", "role": "user", "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}]}]
+    )
+    expected = [
+        {"content": "", "role": "user", "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}]}
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_image_parts_invalid():
+    """Test that image_parts raise errors when malformed."""
+    # image_parts not a list
+    with pytest.raises(TypeError, match="image_parts must be a list"):
+        Messages([{"content": "test", "image_parts": {"mime_type": "image/png", "content": "AAAA"}}])
+
+    # each image_part must be a dict
+    with pytest.raises(TypeError, match="Each image_part must be a dictionary"):
+        Messages([{"content": "test", "image_parts": ["not-a-dict"]}])
+
+    # missing mime_type
+    with pytest.raises(TypeError, match="ImagePart mime_type must be a non-empty string"):
+        Messages([{"content": "test", "image_parts": [{"content": "AAAA"}]}])
+
+    # neither content nor attachment_key
+    with pytest.raises(TypeError, match="ImagePart must have either 'content' or 'attachment_key'"):
+        Messages([{"content": "test", "image_parts": [{"mime_type": "image/png"}]}])
+
+    # both content and attachment_key (backend expects exactly one)
+    with pytest.raises(TypeError, match="ImagePart must have only one of 'content' or 'attachment_key', not both"):
+        Messages(
+            [{"content": "test", "image_parts": [{"mime_type": "image/png", "content": "AAAA", "attachment_key": "k"}]}]
+        )
+
+    # invalid content type
+    with pytest.raises(TypeError, match="ImagePart content must be a base64-encoded string"):
+        Messages([{"content": "test", "image_parts": [{"mime_type": "image/png", "content": 123}]}])
+
+
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]

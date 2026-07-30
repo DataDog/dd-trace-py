@@ -41,7 +41,7 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from tests.utils import TracerTestCase

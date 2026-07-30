@@ -42,7 +42,7 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
+- **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
 
@@ -78,9 +78,10 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 |--------|-------|-------|
 | Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
 | IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
-| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/appsec/ai_guard/`, `ddtrace/appsec/_ai_guard/`, `tests/appsec/ai_guard/` |
+| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/aiguard/`, `tests/aiguard/` |
 | Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
+| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
 | Testing | `.cursor/rules/testing.mdc` | — |

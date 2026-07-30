@@ -8,7 +8,7 @@ from ddtrace.internal import core
 
 # a global tracer instance with integration settings
 tracer = Tracer()
-core.tracer = tracer  # type: ignore
+core.root.set_item("tracer", tracer)
 
 
 __all__ = [

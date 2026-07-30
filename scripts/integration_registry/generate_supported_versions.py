@@ -1,3 +1,13 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "packaging>=23.1,<24",
+#     "pyyaml>=6,<7",
+#     "riot>=0.22.0",
+# ]
+# ///
 import ast
 from collections import defaultdict
 from dataclasses import dataclass

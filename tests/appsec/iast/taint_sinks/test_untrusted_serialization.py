@@ -55,6 +55,29 @@ def test_untrusted_serialization_yaml_load(iast_context_defaults):
     _assert_one_untrusted_vuln()
 
 
+def test_untrusted_serialization_yaml_load_safe_loader(iast_context_defaults):
+    yaml = pytest.importorskip("yaml")
+
+    payload = "key: value"
+    tainted = taint_pyobject(payload, source_name="path", source_value=payload, source_origin=OriginType.PATH)
+
+    yaml.load(tainted, Loader=yaml.SafeLoader)
+
+    _assert_no_untrusted_vuln()
+
+
+def test_untrusted_serialization_yaml_safe_load(iast_context_defaults):
+    # Airflow calls yaml.safe_load, which delegates to the wrapped yaml.load with SafeLoader.
+    yaml = pytest.importorskip("yaml")
+
+    payload = "key: value"
+    tainted = taint_pyobject(payload, source_name="path", source_value=payload, source_origin=OriginType.PATH)
+
+    yaml.safe_load(tainted)
+
+    _assert_no_untrusted_vuln()
+
+
 def test_untrusted_serialization_pickle_loads(iast_context_defaults):
     import pickle
 

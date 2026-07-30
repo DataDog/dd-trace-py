@@ -84,10 +84,45 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
 
 
+def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
+    """Endpoint for the native OTLP trace-metrics exporter (client-computed span stats).
+
+    libdatadog only supports HTTP/JSON for this exporter, so — unlike the SDK's protocol-aware
+    ``METRICS_ENDPOINT`` (which defaults to the gRPC endpoint with no ``/v1/metrics`` path) — this
+    always resolves an HTTP ``/v1/metrics`` endpoint, mirroring ``_derive_traces_endpoint``.
+    """
+    # Signal-specific endpoint takes precedence (full URL, no path appended).
+    if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+        return metrics_endpoint
+    # Global endpoint is a base URL; append the metrics signal path.
+    global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if global_endpoint:
+        return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
+    # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json here.
+    return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.METRICS_PATH}"
+
+
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+
+
+def _is_otlp_trace_metrics_enabled(
+    exporter_config: "ExporterConfig",
+    explicit_enabled: t.Optional[bool],
+    otel_metrics_enabled: bool,
+) -> bool:
+    """Whether client-computed span stats should be exported as OTLP metrics.
+
+    Tri-state ``explicit_enabled`` (``OTEL_TRACES_SPAN_METRICS_ENABLED``) takes precedence; when
+    ``None``, the feature auto-enables only if both OTLP trace export and OTel metrics export are
+    enabled. The two config flags are passed in by the caller so this module stays free of the
+    top-level ``ddtrace.internal.settings._config`` singleton (avoids an import cycle).
+    """
+    if explicit_enabled is not None:
+        return explicit_enabled
+    return _is_otlp_traces_exporter_enabled(exporter_config) and otel_metrics_enabled
 
 
 class OpenTelemetryConfig(DDConfig):
@@ -133,6 +168,10 @@ class ExporterConfig(DDConfig):
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
     TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)
     TRACES_TIMEOUT = DDConfig.d(int, _derive_traces_timeout)
+
+    # Endpoint for the native (libdatadog) OTLP trace-metrics exporter. Distinct from the SDK's
+    # protocol-aware METRICS_ENDPOINT because the native exporter is HTTP/JSON only.
+    TRACE_METRICS_ENDPOINT = DDConfig.d(str, _derive_trace_metrics_endpoint)
 
     @staticmethod
     def _get_default_endpoint(protocol: str, endpoint: str = ""):

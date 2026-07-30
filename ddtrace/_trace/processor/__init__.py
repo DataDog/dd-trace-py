@@ -250,7 +250,8 @@ class TraceTagsProcessor(TraceProcessor):
         for span in spans_to_tag:
             span._update_tags_from_context()
             self._set_git_metadata(span)
-            span._set_attribute("language", "python")
+            if not config._otel_trace_semantics_enabled:
+                span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids

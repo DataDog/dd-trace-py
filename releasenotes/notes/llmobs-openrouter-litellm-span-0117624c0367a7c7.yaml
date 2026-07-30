@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where OpenRouter requests made through the LiteLLM integration produced no span when the OpenAI integration was also enabled.

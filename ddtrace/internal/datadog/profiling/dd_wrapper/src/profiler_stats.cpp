@@ -129,7 +129,11 @@ Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
 void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
-    asyncio_task_count = count;
+    // Track the peak (max) asyncio task count observed across sampling cycles
+    // within a profile period
+    if (!asyncio_task_count.has_value() || count > *asyncio_task_count) {
+        asyncio_task_count = count;
+    }
 }
 
 std::optional<size_t>
