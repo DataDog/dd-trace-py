@@ -47,6 +47,12 @@ class ThreadSpanLinks
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
     void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
+
+    void link_logical_span(uint64_t logical_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
+    const std::optional<Span> get_active_span_from_logical_id(uint64_t logical_id);
+    void unlink_logical_span(uint64_t logical_id);
+    void unlink_logical_span(uint64_t logical_id, uint64_t expected_span_id);
+
     void reset();
 
     static void postfork_child();
@@ -54,6 +60,9 @@ class ThreadSpanLinks
   private:
     std::mutex mtx;
     std::unordered_map<uint64_t, std::unique_ptr<Span>> thread_id_to_span;
+    // Python object addresses are unique while objects are alive, so asyncio tasks and greenlets can share one logical
+    // ID namespace. Integration-specific lifecycle checks protect against address reuse after object destruction.
+    std::unordered_map<uint64_t, std::unique_ptr<Span>> logical_id_to_span;
 
     // Private Constructor/Destructor
     ThreadSpanLinks() = default;

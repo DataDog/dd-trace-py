@@ -214,6 +214,72 @@ stack_clear_span(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t logical_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    static const char* const_kwlist[] = { "logical_id", "span_id", "local_root_span_id", "span_type", nullptr };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "KKKz", kwlist, &logical_id, &span_id, &local_root_span_id, &span_type)) {
+        return nullptr;
+    }
+
+    static const std::string empty_string = "";
+    if (span_type == nullptr) {
+        span_type = empty_string.c_str();
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().link_logical_span(logical_id, span_id, local_root_span_id, std::string(span_type));
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_logical_span = cast_to_pycfunction(stack_link_logical_span_impl);
+
+static PyObject*
+stack_unlink_logical_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t logical_id;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "KK", &logical_id, &expected_span_id)) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_logical_span(logical_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_clear_logical_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t logical_id;
+
+    if (!PyArg_ParseTuple(args, "K", &logical_id)) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_logical_span(logical_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
 // worker thread), matching how stack_link_span_impl resolves it.
@@ -1006,6 +1072,15 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "link_logical_span",
+      reinterpret_cast<PyCFunction>(stack_link_logical_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to an asyncio task or greenlet" },
+    { "unlink_logical_span",
+      stack_unlink_logical_span,
+      METH_VARARGS,
+      "Clear a logical span only if its ID matches the expected span ID" },
+    { "clear_logical_span", stack_clear_logical_span, METH_VARARGS, "Clear a logical span" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,

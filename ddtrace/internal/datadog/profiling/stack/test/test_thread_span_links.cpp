@@ -58,6 +58,56 @@ TEST(ThreadSpanLinks, UnlinkOnlyMatchingSpan)
     EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
 }
 
+TEST(ThreadSpanLinks, LogicalSpanLifecycle)
+{
+    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    constexpr uint64_t logical_id = 44;
+
+    links.link_logical_span(logical_id, 101, 100, "web");
+    EXPECT_EQ(links.get_active_span_from_logical_id(logical_id), Datadog::Span(101, 100, "web"));
+
+    links.link_logical_span(logical_id, 102, 100, "web");
+    EXPECT_EQ(links.get_active_span_from_logical_id(logical_id), Datadog::Span(102, 100, "web"));
+
+    links.unlink_logical_span(logical_id, 101);
+    EXPECT_EQ(links.get_active_span_from_logical_id(logical_id), Datadog::Span(102, 100, "web"));
+
+    links.unlink_logical_span(logical_id, 102);
+    EXPECT_EQ(links.get_active_span_from_logical_id(logical_id), std::nullopt);
+}
+
+TEST(ThreadSpanLinks, LogicalAndThreadSpansAreIndependent)
+{
+    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    constexpr uint64_t shared_id = 45;
+
+    links.link_span(shared_id, 201, 200, "thread");
+    links.link_logical_span(shared_id, 301, 300, "logical");
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
+    EXPECT_EQ(links.get_active_span_from_logical_id(shared_id), Datadog::Span(301, 300, "logical"));
+
+    links.unlink_logical_span(shared_id);
+    EXPECT_EQ(links.get_active_span_from_logical_id(shared_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
+
+    links.unlink_span(shared_id);
+}
+
+TEST(ThreadSpanLinks, ResetClearsThreadAndLogicalSpans)
+{
+    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    constexpr uint64_t thread_id = 46;
+    constexpr uint64_t logical_id = 47;
+
+    links.link_span(thread_id, 401, 400, "thread");
+    links.link_logical_span(logical_id, 501, 500, "logical");
+    links.reset();
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_logical_id(logical_id), std::nullopt);
+}
+
 TEST(ThreadSpanLinks, ClearFinished)
 {
     unsigned int num_thread_ids = 100;
