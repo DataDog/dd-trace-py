@@ -202,7 +202,7 @@ def test_threadsafe():
         assert ids & new_ids == set()
         ids = ids | new_ids
 
-    assert len(ids) > 0
+    assert len(ids) > 0  # pyright: ignore[reportUnknownArgumentType]
 
 
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
@@ -246,6 +246,67 @@ def _get_ids():
     # Don't use tracer.trace since we don't need to encode/flush these spans
     s = Span("s")
     return s.span_id, s.trace_id
+
+
+_MICROVM_ENV = {"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}
+
+
+@pytest.mark.subprocess(env=_MICROVM_ENV)
+def test_microvm_produces_unique_ids():
+    """AWS_LAMBDA_MICROVM_IMAGE_ARN set -> OsRng activated -> IDs must have high diversity."""
+    from ddtrace.internal.native import rand64bits
+
+    ids = {rand64bits() for _ in range(1000)}
+    assert len(ids) > 990, f"Expected high ID diversity under OsRng, got {len(ids)} distinct IDs"
+
+
+@pytest.mark.subprocess(env=_MICROVM_ENV)
+def test_microvm_thread_safe():
+    """With MicroVM detection active, concurrent trace ID generation must not collide."""
+    from queue import Queue
+    import threading
+
+    from ddtrace._trace.span import Span
+
+    def _generate(q):
+        barrier.wait(timeout=5)
+        q.put(Span("s").trace_id)
+
+    barrier = threading.Barrier(10)
+    q = Queue()
+    threads = [threading.Thread(target=_generate, args=(q,)) for _ in range(10)]
+    for t in threads:
+        t.start()
+
+    ids = [q.get(timeout=5) for _ in threads]
+
+    for t in threads:
+        t.join(timeout=1)
+        assert not t.is_alive()
+
+    assert len(set(ids)) == len(ids)
+
+
+@pytest.mark.subprocess(env={**_MICROVM_ENV, "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_microvm_fork_no_collisions():
+    """With MicroVM detection active, parent and child must not share IDs after fork."""
+    import os
+
+    from ddtrace.internal.native import rand64bits
+    from tests.tracer.test_rand import MPQueue
+
+    q = MPQueue()
+    pid = os.fork()
+
+    if pid > 0:
+        parent_ids = {rand64bits() for _ in range(100)}
+        child_ids = q.get()
+        assert parent_ids & child_ids == set(), "Collision between parent and child under OsRng"
+    else:
+        try:
+            q.put({rand64bits() for _ in range(100)})
+        finally:
+            os._exit(0)
 
 
 def _test_tracer_usage_multiprocess_target(q):

@@ -317,8 +317,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
-        "sensitive": true
+        "default": ""
       }
     ],
     "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING": [
@@ -622,6 +621,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_BOTOCORE_DISTRIBUTED_TRACING": [
@@ -1475,6 +1481,13 @@
         ]
       }
     ],
+    "DD_DYNAMIC_INSTRUMENTATION_CAPTURE_TIMEOUT_MS": [
+      {
+        "implementation": "C",
+        "type": "int",
+        "default": "150"
+      }
+    ],
     "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL": [
       {
         "implementation": "A",
@@ -1487,6 +1500,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_DYNAMIC_INSTRUMENTATION_EVALUATION_TIMEOUT_MS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50"
       }
     ],
     "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE": [
@@ -5691,6 +5711,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED": [
       {
         "implementation": "A",
@@ -5741,9 +5769,9 @@
     ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
@@ -6000,14 +6028,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
-      {
-        "implementation": "A",
-        "type": "map",
-        "default": null,
         "internal": true
       }
     ],

@@ -6,6 +6,7 @@ from typing import Iterable
 from typing import Optional
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -395,7 +396,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
                 tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
                 integration_config=self._config,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             return start_response(status, environ, exc_info)
 

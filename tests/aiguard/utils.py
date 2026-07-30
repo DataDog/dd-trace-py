@@ -10,8 +10,8 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard._api_client import Message
-from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.utils import TracerSpanContainer
 
 
@@ -99,11 +99,11 @@ def override_ai_guard_config(values):
         "_dd_app_key",
     ]
 
-    ai_guard_config_keys = ai_guard_config._ai_guard_config_keys
+    ai_guard_config_keys = aiguard_config._ai_guard_config_keys
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    ai_guard_originals = dict((key, getattr(ai_guard_config, key)) for key in ai_guard_config_keys)
+    ai_guard_originals = dict((key, getattr(aiguard_config, key)) for key in ai_guard_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -112,7 +112,7 @@ def override_ai_guard_config(values):
     # rebuild ai guard config from env vars and global config
     for key, value in values.items():
         if key in ai_guard_config_keys:
-            setattr(ai_guard_config, key, value)
+            setattr(aiguard_config, key, value)
 
     try:
         yield
@@ -121,8 +121,8 @@ def override_ai_guard_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
 
-        ai_guard_config.reset()
+        aiguard_config.reset()
         for key, value in ai_guard_originals.items():
-            setattr(ai_guard_config, key, value)
+            setattr(aiguard_config, key, value)
 
         ddtrace.config._reset()

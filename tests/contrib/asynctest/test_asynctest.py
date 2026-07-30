@@ -1,12 +1,44 @@
 import sys
-from unittest.mock import patch
 
 import pytest
 
-from ddtrace.ext import test
+
+# AIDEV-NOTE: This plugin installs mocks at import time so they are active before the
+# child process initializes the Datadog pytest plugin. Keep this test out of inline_run:
+# nested in-process pytest-cov sessions can corrupt the outer session's coverage state.
+_INFRA_PLUGIN = """\
+import pytest
+from unittest.mock import patch
+
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
+
+
+_api_client_patch = patch(
+    "ddtrace.testing.internal.session_manager.APIClient",
+    return_value=mock_api_client_settings(),
+)
+_api_client_patch.start()
+_standard_mocks = setup_standard_mocks()
+_standard_mocks.__enter__()
+_event_capture_context = EventCapture.capture()
+_event_capture = _event_capture_context.__enter__()
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session):
+    events = list(_event_capture.events())
+    assert sorted(event["type"] for event in events) == [
+        "test",
+        "test_module_end",
+        "test_session_end",
+        "test_suite_end",
+    ]
+
+    test_event = _event_capture.event_by_test_name("test_asynctest")
+    assert test_event["content"]["meta"]["test.status"] == "pass"
+"""
 
 
 class TestPytest:
@@ -26,7 +58,7 @@ class TestPytest:
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
         py_file = self.testdir.makepyfile(
-            """
+            test_asynctest="""
         import asynctest
         asynctest.CoroutineMock()
 
@@ -34,24 +66,10 @@ class TestPytest:
             assert 1 == 1
         """
         )
+        self.testdir.makepyfile(asynctest_infra=_INFRA_PLUGIN)
         file_name = py_file.strpath
         self.monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "0")
 
-        with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
-            setup_standard_mocks(),
-            EventCapture.capture() as event_capture,
-        ):
-            rec = self.testdir.inline_run("--ddtrace", file_name)
+        rec = self.testdir.runpytest_subprocess("--ddtrace", "-p", "asynctest_infra", file_name)
 
-        rec.assertoutcome(passed=1)
-        events = list(event_capture.events())
-        assert sorted(event["type"] for event in events) == [
-            "test",
-            "test_module_end",
-            "test_session_end",
-            "test_suite_end",
-        ]
-
-        test_event = event_capture.event_by_test_name("test_asynctest")
-        assert test_event["content"]["meta"][test.STATUS] == test.Status.PASS.value
+        rec.assert_outcomes(passed=1)

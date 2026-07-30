@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: fixed an issue where setting ``DD_LLMOBS_OVERRIDE_ORIGIN`` had no effect
+    when the resolved export mode routed events alongside the APM trace (``APM_AGENTLESS`` or
+    ``APM_AGENT``). Setting this variable now always routes LLM Observability events directly
+    through the LLM Observability writer so the override is respected.

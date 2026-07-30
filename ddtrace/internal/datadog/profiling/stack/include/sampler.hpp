@@ -45,6 +45,14 @@ class Sampler
     // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
     // where stop() could miss the notification and hang forever (or until timeout).
     std::atomic<bool> thread_running{ false };
+    // Whether the sampler is currently active. Unlike thread_running (which tracks
+    // the thread's actual lifecycle) this is set synchronously in start/stop, so
+    // it is not subject to the sampling-thread startup race.
+    // It becomes false in stop and also when the sampling thread aborts on an
+    // unexpected exception, since the sampler is then no longer active.
+    // prefork reads this to decide whether to restart the sampler after fork,
+    // ensuring a sampler that stopped due to an error is not silently restarted.
+    std::atomic<bool> sampler_active_{ false };
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
 
@@ -74,6 +82,10 @@ class Sampler
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
+    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
+    // when max_threads_per_sample is set).
+    void capture_samples(microsecond_t wall_time_us);
+
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
     // that doesn't collapse to zero during brief idle periods.
@@ -87,6 +99,9 @@ class Sampler
 
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
+
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
 
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
@@ -151,6 +166,8 @@ class Sampler
     // Set the percentile (0–100) used to compute p_stable from the rolling window.
     void set_p_stable_percentile(double percentile) { p_stable_percentile_frac = percentile / 100.0; }
 
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
+
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
 
@@ -164,5 +181,8 @@ class Sampler
     // Returns true if start() was invoked and succeeded.
     bool restart_after_fork();
 };
+
+void
+seed_fast_copy_profiler_stats();
 
 } // namespace Datadog
