@@ -17,6 +17,41 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
 13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+
+## Docstrings and Comments
+
+Guild-agreed convention. It splits on **whether Sphinx renders the docstring**, not on whether the
+module is private. Rendered means: the public interface of `ddtrace` (reachable through a
+non-underscored import path), plus anything an `automodule` directive under `docs/` points at — which
+includes the `ddtrace/contrib/internal/<integration>/__init__.py` integration docstrings listed in
+`docs/integrations.rst` (required by `docs/contributing-integrations.rst`). When in doubt, grep
+`docs/` for the module.
+
+**Rendered docstrings** — write them in reStructuredText, because they reach customers:
+
+```python
+def enable(self, flush_interval: float = 1.0) -> None:
+    """Start the writer thread, flushing every ``flush_interval`` seconds.
+
+    :param flush_interval: Seconds between flushes.
+    :raises RuntimeError: If the writer is already running.
+    """
+```
+
+**Everything else** (`_`-prefixed helpers, private modules nothing under `docs/` points at, tests,
+inline comments) — plain text prose optimized for reading in an editor. Nothing renders it, so rST
+inline markup is noise:
+
+- No rST emphasis around parameter names — write the name as-is. For example, a parameter named
+  `path` should appear as `path`, not as `*path*` (rST's emphasis syntax, which renders as italics
+  in Sphinx but is just stray asterisks everywhere else).
+- No double backticks for inline literals (see the code style rules); plain text reads better.
+- Field lists (`:param:`, `:returns:`) are optional here; a one-line summary is usually enough.
+
+Either way, aim for **good documentation**: say why the code exists or what invariant it upholds,
+not what the next line already says. Keep it short — a one-line summary covers most helpers.
+Do not add a comment if the comment simply states what the code does, and not why.
 
 ## Key Architecture
 
