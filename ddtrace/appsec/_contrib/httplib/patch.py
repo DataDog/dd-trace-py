@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import json
 from typing import Any
 from typing import Callable
+from typing import Mapping
 from typing import TypeVar
 from typing import cast
 
@@ -46,7 +49,7 @@ def wrapped_request(original: Callable[..., T], instance: object, args: tuple[An
     environment = _get_asm_context()
     if get_rasp_capability("ssrf") and full_url is not None and environment is not None:
         body = args[2] if len(args) > 2 else kwargs.get("body")
-        headers = cast(dict[str, Any], args[3] if len(args) > 3 else kwargs.get("headers", {}))
+        headers = cast(Mapping[str, object], args[3] if len(args) > 3 else kwargs.get("headers", {}))
         addresses: dict[str, object] = {
             EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
             "DOWN_REQ_METHOD": args[0] if args else kwargs.get("method"),
@@ -75,15 +78,10 @@ def wrapped_request(original: Callable[..., T], instance: object, args: tuple[An
 
 def wrapped_response(original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> T:
     response = original(*args, **kwargs)
-    dynamic_response = cast(Any, response)
     environment = _get_asm_context()
     try:
-        if (
-            get_rasp_capability("ssrf")
-            and dynamic_response.__class__.__name__ == "HTTPResponse"
-            and environment is not None
-        ):
-            typed_response = cast(HTTPResponse, dynamic_response)
+        if get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and environment is not None:
+            typed_response = cast(HTTPResponse, response)
             status = typed_response.getcode()
             if 300 <= status < 400:
                 call_waf_callback(

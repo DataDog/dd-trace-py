@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -35,7 +36,8 @@ def on_execute(instrument_self: object, query: object, args: tuple[Any, ...], kw
     if not (get_rasp_capability("sqli") and isinstance(query, str) and query):
         return
     config = getattr(instrument_self, "_self_config", {})
-    dialect = _DIALECTS.get(config.get("_dbapi_span_name_prefix", ""), "") if isinstance(config, dict) else ""
+    span_name_prefix = config.get("_dbapi_span_name_prefix", "") if isinstance(config, Mapping) else ""
+    dialect = _DIALECTS.get(span_name_prefix, "") if isinstance(span_name_prefix, str) else ""
     if in_asm_context():
         result = call_waf_callback(
             {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: dialect},
