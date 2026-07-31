@@ -253,10 +253,11 @@ Sampler::adapt_sampling_interval()
     sampler_thread_count = new_sampler_thread_count;
 }
 
-void
+size_t
 Sampler::capture_samples(const microsecond_t wall_time_us)
 {
     auto* const runtime = &_PyRuntime;
+    size_t successful_samples = 0;
 
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
@@ -266,7 +267,7 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
-                    Sample::profile_borrow().stats().increment_sample_count();
+                    ++successful_samples;
                 }
             });
         });
@@ -344,10 +345,12 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
             }
             auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
             if (success) {
-                Sample::profile_borrow().stats().increment_sample_count();
+                ++successful_samples;
             }
         }
     }
+
+    return successful_samples;
 }
 
 void
@@ -472,7 +475,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         echion->reset_asyncio_task_count();
 
         try {
-            capture_samples(wall_time_us);
+            const size_t successful_samples = capture_samples(wall_time_us);
 
             // Collect greenlet count before acquiring the profile lock to avoid
             // holding two locks simultaneously (greenlet lock then profile lock).
@@ -504,6 +507,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
             {
                 auto borrow = Sample::profile_borrow();
 
+                borrow.stats().increment_sample_count(successful_samples);
                 borrow.stats().increment_sampling_event_count();
                 borrow.stats().set_string_table_count(echion->string_table().size());
                 update_fast_copy_stats(borrow.stats());

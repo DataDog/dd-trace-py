@@ -83,8 +83,9 @@ class Sampler
     void adapt_sampling_interval();
 
     // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
-    // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
+    // when max_threads_per_sample is set). Returns the number of successful thread samples
+    // in this cycle.
+    size_t capture_samples(microsecond_t wall_time_us);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
