@@ -313,7 +313,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     if custom_data is not None and custom_data.get(key) is not None:
                         value = custom_data.get(key)
                     elif key in SPAN_DATA_NAMES:
-                        value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
+                        value = _asm_request_context.get_waf_address(SPAN_DATA_NAMES[key])
                     # if value is a callable, it's a lazy value for api security that should not be sent now
                     if value is not None and not hasattr(value, "__call__"):
                         data[waf_name] = _serialize_address_values(waf_name, value)
