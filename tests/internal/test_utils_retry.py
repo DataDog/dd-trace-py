@@ -2,6 +2,7 @@ from itertools import count
 
 import pytest
 
+import ddtrace.internal.utils.retry as retry_module
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils.retry import retry
@@ -94,37 +95,34 @@ def test_retry_sleep_func_not_called_after_success():
     assert waits == [0]
 
 
-def test_retry_sleep_func_defaults_to_time_sleep():
-    """Callers that do not pass sleep_func keep the blocking time.sleep behavior."""
-    import ddtrace.internal.utils.retry as retry_module
+def test_retry_without_sleep_func_uses_module_sleep(monkeypatch):
+    """Callers that omit sleep_func wait through the module-level sleep."""
+    waits = []
+    monkeypatch.setattr(retry_module, "sleep", waits.append)
+    n = count()
 
-    calls = []
-    original = retry_module.sleep
-    retry_module.sleep = calls.append
-    try:
-        # The default is bound at definition time, so rebinding the module
-        # attribute must not change an already-imported default.
-        assert retry_module.retry.__defaults__[-1] is original
-    finally:
-        retry_module.sleep = original
+    @retry(after=[1, 2], initial_wait=0.5)
+    def f():
+        return next(n)
 
-    assert calls == []
+    with pytest.raises(RetryError):
+        f()
+
+    assert waits == [0.5, 1, 2]
+    assert next(n) == 3
 
 
-def test_retry_interruptible_sleep_func_can_stop_retrying():
-    """An event-style wait lets a caller abandon the remaining attempts."""
-    import threading
-
-    shutdown = threading.Event()
+def test_retry_sleep_func_can_stop_retrying():
+    """A flag flipped during the wait lets a caller abandon the remaining attempts."""
+    state = {"stop": False}
     attempts = count()
 
     def wait(delay):
-        # Only a real backoff signals shutdown; the zero initial wait must not.
+        # Only a real backoff requests the stop; the zero initial wait must not.
         if delay:
-            shutdown.set()
-        return shutdown.wait(0)
+            state["stop"] = True
 
-    @retry(after=[1, 2], until=lambda r: shutdown.is_set(), sleep_func=wait)
+    @retry(after=[1, 2], until=lambda r: state["stop"], sleep_func=wait)
     def f():
         return next(attempts)
 
