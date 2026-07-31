@@ -94,6 +94,8 @@ def clear_ci_itr_rollout_env() -> None:
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
+ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
 
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
@@ -530,19 +532,16 @@ def run_function_from_file(item, params=None):
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(session, config, items):
     """
-    Don't let ITR skip tests that use the subprocess marker
-    because coverage collection in subprocesses is broken.
+    Don't let ITR skip tests that use markers that require execution in dd-trace-py's CI.
+
+    Subprocess coverage collection is broken, and snapshot tests must run to validate test-agent output.
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
-        if item.get_closest_marker("subprocess"):
-            if item.get_closest_marker("skipif"):
-                # Respect any existing skipif marker because they preempt ITR's decision-making
-                continue
-            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
-            item.add_marker(unskippable)
+        if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
+            item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
         # Store original name and nodeid before modification
         if StashKey:
