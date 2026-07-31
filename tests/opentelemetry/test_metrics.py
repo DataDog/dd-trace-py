@@ -77,6 +77,11 @@ def test_native_meter_provider_records():
     histogram = meter.create_histogram("latency", unit="ms")
     histogram.record(12.5, {"route": "/health"})
 
+    # Synchronous gauge (parametric apps use meter.create_gauge().set(...)); must not be a no-op.
+    gauge = meter.create_gauge("pool.inuse")
+    assert gauge is not None
+    gauge.set(7, {"pool": "default"})
+
     def _observe(options: CallbackOptions):
         return [Observation(42, {"pool": "default"})]
 

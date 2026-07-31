@@ -103,21 +103,20 @@ class ObservableUpDownCounter(otel.ObservableUpDownCounter):
         self._id = instrument_id
 
 
-# Synchronous Gauge was added to opentelemetry-api in 1.23; guard so we still import on older API.
-_SYNC_GAUGE = getattr(otel, "Gauge", None)
+# Synchronous Gauge: subclass opentelemetry's `Gauge` when the running API exports it, otherwise a
+# plain object. `Meter.create_gauge` exists as a base no-op from ~1.22, but some versions don't
+# re-export the `Gauge` class from `opentelemetry.metrics`, so never depend on it being importable —
+# the caller only needs `.set()`.
+_GaugeBase = getattr(otel, "Gauge", object)
 
-if _SYNC_GAUGE is not None:
 
-    class Gauge(_SYNC_GAUGE):  # type: ignore[misc,valid-type]
-        def __init__(self, aggregator, instrument_id, name, unit="", description=""):
-            self._aggregator = aggregator
-            self._id = instrument_id
+class Gauge(_GaugeBase):  # type: ignore[misc,valid-type]
+    def __init__(self, aggregator, instrument_id, name, unit="", description=""):
+        self._aggregator = aggregator
+        self._id = instrument_id
 
-        def set(self, amount, attributes=None, context=None):
-            self._aggregator.observe_gauge(self._id, float(amount), _attrs(attributes))
-
-else:
-    Gauge = None  # type: ignore[assignment,misc]
+    def set(self, amount, attributes=None, context=None):
+        self._aggregator.observe_gauge(self._id, float(amount), _attrs(attributes))
 
 
 class _ObservableCallbackReader(PeriodicService):
@@ -199,12 +198,9 @@ class Meter(otel.Meter):
         return Histogram(self._aggregator, instrument_id, name, unit, description)
 
     def create_gauge(self, name, unit="", description=""):
-        # Synchronous gauge (opentelemetry-api >= 1.23). Backed by the same SDK Gauge handle as an
-        # observable gauge; set() pushes the value via observe_gauge. On older API (no sync Gauge)
-        # fall back to the base no-op.
-        if Gauge is None:
-            # None only on opentelemetry-api < 1.23 (no sync Gauge); mypy checks a newer API.
-            return super().create_gauge(name, unit=unit, description=description)  # type: ignore[unreachable]
+        # Synchronous gauge, backed by the same SDK gauge handle as an observable gauge; set()
+        # pushes the value via observe_gauge. Always return our implementation (never the API's
+        # base no-op), regardless of whether the running API re-exports the Gauge class.
         instrument_id = self._register(name, "observable_gauge", unit, description)
         return Gauge(self._aggregator, instrument_id, name, unit, description)
 
