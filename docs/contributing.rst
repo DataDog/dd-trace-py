@@ -100,7 +100,7 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
 #. Push that exact reviewed head commit to a new branch in this repository, e.g.
    ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``.
 #. Open a draft shadow PR from that branch into ``main`` with a title that ends with
-   ``[DO NOT MERGE]``. This gives the commit a repository-owned PR context, which is required for
+   ``[DO NOT MERGE]`` and follows conventional commits. This gives the commit a repository-owned PR context, which is required for
    CI to authenticate correctly while making the shadow PR's purpose clear.
 #. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
    it does not mean both PRs run in the same context or establish that the code is safe. That
