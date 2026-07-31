@@ -93,6 +93,25 @@ def test_set_tag_metric():
     assert s.get_metrics() == dict(test=1)
 
 
+def test_remove_tag():
+    s = Span(name="test.span")
+    s.set_tag("a", "a")
+    s.set_tag("b", "b")
+
+    s.remove_tag("a")
+
+    assert s.get_tags() == dict(b="b")
+    assert s.get_tag("a") is None
+
+
+def test_remove_tag_missing_key():
+    s = Span(name="test.span")
+
+    s.remove_tag("does-not-exist")
+
+    assert s.get_tags() == dict()
+
+
 def test_set_valid_metrics():
     s = Span(name="test.span")
     s.set_metric("a", 0)  # ast-grep-ignore: span-set-metric
@@ -119,6 +138,25 @@ def test_set_invalid_metric():
         k = str(i)
         s.set_metric(k, m)  # ast-grep-ignore: span-set-metric
         assert s.get_metric(k) is None
+
+
+def test_remove_metric():
+    s = Span(name="test.span")
+    s.set_metric("a", 1)  # ast-grep-ignore: span-set-metric
+    s.set_metric("b", 2)  # ast-grep-ignore: span-set-metric
+
+    s.remove_metric("a")
+
+    assert s.get_metrics() == dict(b=2)
+    assert s.get_metric("a") is None
+
+
+def test_remove_metric_missing_key():
+    s = Span(name="test.span")
+
+    s.remove_metric("does-not-exist")
+
+    assert s.get_metrics() == dict()
 
 
 def test_set_numpy_metric():
