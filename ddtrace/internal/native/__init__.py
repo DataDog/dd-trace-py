@@ -13,6 +13,7 @@ from ._native import HttpIoError  # noqa: F401
 from ._native import HttpResponse  # noqa: F401
 from ._native import InvalidConfigError  # noqa: F401
 from ._native import IoError  # noqa: F401
+from ._native import NativeTraceBuffer  # noqa: F401
 from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
