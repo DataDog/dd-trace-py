@@ -921,6 +921,59 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
+    async def test_llmobs_partial_messages_correct_output_tokens(
+        self, claude_agent_sdk, mock_internal_client_partial_messages, claude_agent_sdk_llmobs, test_spans
+    ):
+        """The llm/step spans should carry the TRUE per-turn output tokens from the
+        message_delta stream, not the pre-generation message_start snapshot, and the
+        forced-on StreamEvent/status chunks must not leak to the caller's stream.
+        """
+        prompt = "What is 2+2?"
+        caller_msgs = []
+        async for msg in claude_agent_sdk.query(prompt=prompt):
+            caller_msgs.append(msg)
+
+        caller_type_names = [type(m).__name__ for m in caller_msgs]
+
+        # The integration force-enables include_partial_messages, so it must filter the
+        # extra StreamEvent and SystemMessage(status) chunks back out — the caller sees
+        # only what it would have without the flag.
+        assert "StreamEvent" not in caller_type_names
+        system_subtypes = [getattr(m, "subtype", None) for m in caller_msgs if type(m).__name__ == "SystemMessage"]
+        assert "status" not in system_subtypes
+        # Only the init SystemMessage survives; the status ping was swallowed.
+        assert system_subtypes == ["init"]
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+
+        # Snapshot output was 1; true per-turn output from the delta is 120. Input (10)
+        # and total (10 + 120) are derived from the corrected output.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [{"content": "The answer is 4.", "role": "assistant"}]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(output_msgs),
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+
     async def test_llmobs_tool_error_marks_tool_span_as_error(
         self, claude_agent_sdk, mock_internal_client_tool_error, claude_agent_sdk_llmobs, test_spans
     ):

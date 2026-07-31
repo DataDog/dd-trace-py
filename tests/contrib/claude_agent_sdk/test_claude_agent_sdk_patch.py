@@ -19,15 +19,18 @@ class TestClaudeAgentSdkPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, claude_agent_sdk):
         self.assert_wrapped(claude_agent_sdk.query)
+        self.assert_wrapped(claude_agent_sdk.ClaudeSDKClient.__init__)
         self.assert_wrapped(claude_agent_sdk.ClaudeSDKClient.query)
         self.assert_wrapped(claude_agent_sdk.ClaudeSDKClient.receive_messages)
 
     def assert_not_module_patched(self, claude_agent_sdk):
         self.assert_not_wrapped(claude_agent_sdk.query)
+        self.assert_not_wrapped(claude_agent_sdk.ClaudeSDKClient.__init__)
         self.assert_not_wrapped(claude_agent_sdk.ClaudeSDKClient.query)
         self.assert_not_wrapped(claude_agent_sdk.ClaudeSDKClient.receive_messages)
 
     def assert_not_module_double_patched(self, claude_agent_sdk):
         self.assert_not_double_wrapped(claude_agent_sdk.query)
+        self.assert_not_double_wrapped(claude_agent_sdk.ClaudeSDKClient.__init__)
         self.assert_not_double_wrapped(claude_agent_sdk.ClaudeSDKClient.query)
         self.assert_not_double_wrapped(claude_agent_sdk.ClaudeSDKClient.receive_messages)

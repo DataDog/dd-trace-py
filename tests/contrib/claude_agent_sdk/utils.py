@@ -13,6 +13,15 @@ from claude_agent_sdk import ToolUseBlock
 from claude_agent_sdk import UserMessage
 
 
+# StreamEvent (partial-message streaming) is only re-exported from the package root in
+# newer SDKs (>=0.1.49); on older matrix versions (0.0.23, 0.1.29) it lives only in
+# claude_agent_sdk.types. Import defensively so this module still loads everywhere.
+try:
+    from claude_agent_sdk import StreamEvent
+except ImportError:
+    from claude_agent_sdk.types import StreamEvent
+
+
 # Real model name from captured SDK responses
 MOCK_MODEL = "claude-sonnet-4-5-20250929"
 
@@ -249,6 +258,57 @@ MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE_WITH_USAGE,
     MOCK_RESULT_MESSAGE,
+]
+
+
+def create_mock_stream_event(event: dict) -> StreamEvent:
+    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict."""
+    return StreamEvent(
+        uuid="test-uuid",
+        session_id="test-session-id",
+        event=event,
+    )
+
+
+def create_mock_status_message(status: str = "requesting") -> SystemMessage:
+    """A ``SystemMessage(subtype="status")`` — a lifecycle ping the CLI only emits when
+    partial streaming is on. The integration filters these back out when it enabled the flag.
+    """
+    return SystemMessage(
+        subtype="status",
+        data={"type": "system", "subtype": "status", "status": status, "session_id": "test-session-id"},
+    )
+
+
+# Simulates what the SDK stream looks like once include_partial_messages is on:
+# the AssistantMessage.usage carries only the message_start snapshot (output_tokens=1),
+# while the true per-turn output (120) shows up in the message_delta StreamEvent. The
+# ResultMessage reports the same cumulative total (120).
+MOCK_PARTIAL_TURN_MESSAGE_ID = "msg_01PartialTurnAaaaaaaaaaaa"
+MOCK_PARTIAL_SNAPSHOT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 1,  # message_start snapshot — pre-generation
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+}
+MOCK_PARTIAL_TRUE_OUTPUT_TOKENS = 120
+MOCK_PARTIAL_RESULT_USAGE = {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS,
+}
+MOCK_PARTIAL_MESSAGES_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {"type": "message_start", "message": {"id": MOCK_PARTIAL_TURN_MESSAGE_ID, "usage": {"output_tokens": 1}}}
+    ),
+    create_mock_assistant_message(
+        "The answer is 4.", usage=MOCK_PARTIAL_SNAPSHOT_USAGE, message_id=MOCK_PARTIAL_TURN_MESSAGE_ID
+    ),
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
 ]
 
 

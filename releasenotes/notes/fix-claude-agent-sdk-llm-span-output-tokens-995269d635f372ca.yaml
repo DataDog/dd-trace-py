@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the ``output_tokens`` metric reported on
+    per-turn LLM and step spans for the Claude Agent SDK integration was inaccurate
+    (reflecting a pre-generation snapshot rather than the tokens actually produced).
+    The integration now reads the accurate per-turn output token count from the SDK's
+    streaming events, leaving the caller's message stream unchanged.

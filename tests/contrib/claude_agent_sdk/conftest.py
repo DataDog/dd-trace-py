@@ -18,6 +18,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_PARALLEL_TOOL_USE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_MESSAGES_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE
@@ -144,6 +145,12 @@ def mock_internal_client_tool_error(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_with_usage(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_partial_messages(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_PARTIAL_MESSAGES_SEQUENCE):
         yield
 
 

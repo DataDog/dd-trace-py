@@ -9,6 +9,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
+from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_output
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -90,18 +91,26 @@ def wrap_prompt_if_async_iterable(args, kwargs):
     return args, kwargs, None
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None):
+def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None, filter_partial=False):
     return make_traced_stream(
         resp,
-        ClaudeAgentSdkAsyncStreamHandler(integration, span, args, kwargs, operation=operation, instance=instance),
+        ClaudeAgentSdkAsyncStreamHandler(
+            integration, span, args, kwargs, operation=operation, instance=instance, filter_partial=filter_partial
+        ),
     )
 
 
 class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
-    def __init__(self, integration, span, args, kwargs, operation, instance=None):
+    def __init__(self, integration, span, args, kwargs, operation, instance=None, filter_partial=False):
         super().__init__(integration, span, args, kwargs)
         self.operation = operation
         self.instance = instance
+        # When True, we enabled include_partial_messages ourselves — swallow the
+        # StreamEvent / status SystemMessage chunks so the caller's stream is unchanged.
+        self._filter_partial = filter_partial
+        # True per-turn output tokens read from message_delta events, keyed by message_id.
+        self._partial_output_by_id: dict[str, int] = {}
+        self._partial_current_id: Optional[str] = None
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
         self.current_step_span = None
@@ -122,9 +131,50 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_tool_span_refs: list[_SpanRef] = []
         self._create_step_span()
 
+    def _is_forced_partial_noise(self, chunk, chunk_type: str) -> bool:
+        """Chunks we turned on ourselves and must not surface to the caller or store.
+
+        The ``StreamEvent`` partials and the per-turn ``SystemMessage`` status pings
+        only appear because we set ``include_partial_messages``; they would otherwise
+        never reach the caller, and storing the status message in ``self.chunks`` would
+        corrupt agent-span output (it flows through ``_extract_output_data``).
+        """
+        if not self._filter_partial:
+            return False
+        if chunk_type == "StreamEvent":
+            return True
+        if chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status":
+            return True
+        return False
+
+    def _capture_partial_output(self, chunk) -> None:
+        """Record true per-turn output tokens from a StreamEvent's raw Anthropic event."""
+        signal = extract_partial_message_output(getattr(chunk, "event", None))
+        if signal is None:
+            return
+        message_id, output_tokens = signal
+        if message_id is not None:
+            self._partial_current_id = message_id
+        elif output_tokens is not None and self._partial_current_id is not None:
+            # message_delta: last one seen for this turn is the true cumulative output.
+            self._partial_output_by_id[self._partial_current_id] = output_tokens
+
+    def should_yield_chunk(self, chunk) -> bool:
+        return not self._is_forced_partial_noise(chunk, type(chunk).__name__)
+
     async def process_chunk(self, chunk, iterator=None):
-        self.chunks.append(chunk)
         chunk_type = type(chunk).__name__
+
+        # Always mine StreamEvents for per-turn output, even if the caller opted into
+        # partial messages themselves (then filter_partial is False and we don't hide them).
+        if chunk_type == "StreamEvent":
+            self._capture_partial_output(chunk)
+
+        # Keep the events we injected out of chunk storage so span extraction is unaffected.
+        if self._is_forced_partial_noise(chunk, chunk_type):
+            return
+
+        self.chunks.append(chunk)
 
         if chunk_type == "ResultMessage":
             if self.instance and self.context is None:
@@ -386,6 +436,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
         response = self._merge_assistant_chunks(chunks)
+        response = self._apply_partial_output(response, getattr(chunks[0], "message_id", None))
 
         self._finalize_llm_span(response)
 
@@ -394,6 +445,33 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._step_response_chunk = response
         else:
             self._finalize_step_span(response)
+
+    def _apply_partial_output(self, response: Any, message_id: Optional[str]) -> Any:
+        """Replace the turn's snapshot output_tokens with the true value from the deltas.
+
+        ``AssistantMessage.usage.output_tokens`` is the pre-generation message_start
+        snapshot (~1). The accurate per-turn output only appears in the message_delta
+        stream, captured in ``self._partial_output_by_id``. Input/cache tokens are left
+        as-is since they are already final on the snapshot. Returns a corrected response
+        object without mutating the SDK's original message.
+        """
+        if message_id is None or not self._partial_output_by_id:
+            return response
+        true_output = self._partial_output_by_id.get(message_id)
+        if true_output is None:
+            return response
+        usage = getattr(response, "usage", None)
+        if not isinstance(usage, dict) or not usage:
+            return response
+        corrected_usage = dict(usage)
+        corrected_usage["output_tokens"] = true_output
+        return _MergedAssistantMessage(
+            content=getattr(response, "content", []) or [],
+            model=getattr(response, "model", "") or "",
+            usage=corrected_usage,
+            error=getattr(response, "error", None),
+            message_id=message_id,
+        )
 
     def _merge_assistant_chunks(self, chunks: list) -> Any:
         """Combine AssistantMessage chunks sharing a message_id into one response object."""

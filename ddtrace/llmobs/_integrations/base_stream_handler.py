@@ -59,6 +59,17 @@ class BaseStreamHandler(ABC):
         """
         pass
 
+    def should_yield_chunk(self, chunk) -> bool:
+        """Whether a processed chunk should be surfaced to the caller.
+
+        Default is to yield every chunk. Override to transparently swallow
+        chunks the handler consumes for instrumentation but that the caller
+        never asked to see (e.g. streaming events the integration enabled on
+        the caller's behalf). ``process_chunk`` still runs for every chunk;
+        only the yield is suppressed.
+        """
+        return True
+
     @abstractmethod
     def finalize_stream(self, exception=None):
         """
@@ -160,7 +171,8 @@ class TracedStream(wrapt.ObjectProxy):
         try:
             for chunk in self._self_stream_iter:
                 self._self_handler.process_chunk(chunk, self._self_stream_iter)
-                yield chunk
+                if self._self_handler.should_yield_chunk(chunk):
+                    yield chunk
         except Exception as e:
             exc = e
             self._self_handler.handle_exception(e)
@@ -170,17 +182,19 @@ class TracedStream(wrapt.ObjectProxy):
 
     def __next__(self):
         self._ensure_started()
-        try:
-            chunk = self._self_stream_iter.__next__()
-            self._self_handler.process_chunk(chunk, self._self_stream_iter)
-            return chunk
-        except StopIteration:
-            self._self_handler.finalize_stream()
-            raise
-        except Exception as e:
-            self._self_handler.handle_exception(e)
-            self._self_handler.finalize_stream(e)
-            raise
+        while True:
+            try:
+                chunk = self._self_stream_iter.__next__()
+                self._self_handler.process_chunk(chunk, self._self_stream_iter)
+            except StopIteration:
+                self._self_handler.finalize_stream()
+                raise
+            except Exception as e:
+                self._self_handler.handle_exception(e)
+                self._self_handler.finalize_stream(e)
+                raise
+            if self._self_handler.should_yield_chunk(chunk):
+                return chunk
 
     def __enter__(self):
         """
@@ -244,7 +258,8 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         try:
             async for chunk in self._self_async_stream_iter:
                 await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
-                yield chunk
+                if self._self_handler.should_yield_chunk(chunk):
+                    yield chunk
         except Exception as e:
             exc = e
             self._self_handler.handle_exception(e)
@@ -254,17 +269,19 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 
     async def __anext__(self):
         self._ensure_started()
-        try:
-            chunk = await self._self_async_stream_iter.__anext__()
-            await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
-            return chunk
-        except StopAsyncIteration:
-            self._self_handler.finalize_stream()
-            raise
-        except Exception as e:
-            self._self_handler.handle_exception(e)
-            self._self_handler.finalize_stream(e)
-            raise
+        while True:
+            try:
+                chunk = await self._self_async_stream_iter.__anext__()
+                await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
+            except StopAsyncIteration:
+                self._self_handler.finalize_stream()
+                raise
+            except Exception as e:
+                self._self_handler.handle_exception(e)
+                self._self_handler.finalize_stream(e)
+                raise
+            if self._self_handler.should_yield_chunk(chunk):
+                return chunk
 
     async def __aenter__(self):
         """
