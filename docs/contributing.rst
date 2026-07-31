@@ -102,9 +102,9 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
 #. Open a draft shadow PR from that branch into ``main`` with a title that begins
    ``[DO NOT MERGE]``. This gives the commit a repository-owned PR context, which is required for
    CI to authenticate correctly while making the shadow PR's purpose clear.
-#. Wait for the shadow PR's checks to pass. The identical commit SHA establishes parity between
-   the shadow and the original PR; it does not establish that the code is safe. That assurance
-   comes from the review before mirroring.
+#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
+   it does not mean both PRs run in the same context or establish that the code is safe. That
+   assurance comes from the review before mirroring.
 #. Comment ``/merge`` on the *original* fork PR once its checks are green.
 #. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
 
