@@ -107,10 +107,9 @@ if _nightly_build:
 
 
 # Some suites opt into ITR test skipping by overriding _base_env's skip-prevention default. Preserve an externally
-# exported prevention value (GitLab sets this on protected branches for coverage-only rollout), otherwise allow skipping.
-_itr_prevent_skipping_override = os.environ.get(
-    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "0"
-)
+# exported prevention value (GitLab sets this on protected branches for coverage-only rollout), otherwise allow
+# skipping.
+_itr_prevent_skipping_override = os.environ.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "0")
 
 
 # Common env configurations for appsec threats testing without/with IAST
