@@ -81,10 +81,10 @@ At this time, do not use the merge queue option.
 Merging Pull Requests from Forks
 ---------------------------------
 
-Pull requests opened from a fork (i.e. by an external contributor) cannot run our internal
-CI pipeline directly: our GitLab pipeline and system tests only issue credentials to pipelines
-tied to a pull request owned by this repository, and GitLab never mirrors branches from
-external forks.
+Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
+directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
+branch in this repository can start GitLab, but it does not trigger the required System Tests
+workflow; that requires a pull request owned by this repository.
 
 If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
 access to credentials. The reviewer owns that trust decision. Follow this process:
@@ -98,17 +98,20 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
 #. Immediately before mirroring, verify that the original PR's head SHA is still the SHA you
    reviewed. If it changed, review the updates and repeat this check.
 #. Push that exact reviewed head commit to a new branch in this repository, e.g.
-   ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``.
-#. Open a draft shadow PR from that branch into ``main`` with a title that ends with
-   ``[DO NOT MERGE]`` and follows conventional commits. This gives the commit a repository-owned PR context, which is required for
-   CI to authenticate correctly while making the shadow PR's purpose clear.
+   ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``. The branch name does not
+   need to match the contributor's branch.
+#. Open a draft shadow PR from that branch into ``main``. Its title must follow `Conventional
+   Commits <https://www.conventionalcommits.org/en/v1.0.0/>`_ and end with ``[DO NOT MERGE]``, for
+   example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. State in its description that
+   the shadow PR exists only to run CI and must not be merged.
 #. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
    it does not mean both PRs run in the same context or establish that the code is safe. That
    assurance comes from the review before mirroring.
-#. Comment ``/merge`` on the *original* fork PR once its checks are green.
+#. Once the checks are green, verify that the original PR's head SHA still matches the tested
+   shadow PR, then comment ``/merge`` on the *original* fork PR.
 #. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
 
-Never mirror speculative, partially reviewed, or code that has not been reviewed just to obtain CI results.
+Never mirror speculative or partially reviewed code merely to obtain CI results.
 
 Backporting
 -----------

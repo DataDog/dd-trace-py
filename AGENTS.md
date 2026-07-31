@@ -77,7 +77,21 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Fork PRs** (external contributors) never get `dd-gitlab/default-pipeline` or `system-tests finished` — GitLab/`dd-octo-sts` only vend credentials to pipelines tied to a PR owned by this repo. Before mirroring, complete the normal code review on the original fork PR. The reviewer owns the trust decision and must be willing to merge the exact current head SHA pending final CI. Scrutinize everything CI can execute, especially workflows, scripts, tests, build/install configuration, dependency changes, network calls, artifact uploads, and code that accesses credentials or changes permissions; involve code owners or security reviewers where appropriate. Verify that the reviewed head SHA has not changed immediately before mirroring, and repeat the review if it has. Only then push that exact SHA to a repo-owned branch (e.g. `<you>/mirror-<PR#>`) and open a draft shadow PR from that branch into `main` to trigger CI with full credentials. Start its title with `[DO NOT MERGE]`. Once the shadow PR's checks go green, `/merge` the original fork PR, then close the shadow PR without merging it after the original lands. Never mirror speculative or unreviewed code just to obtain CI results: an identical SHA proves source-commit parity, not that the code is safe or that both PRs run in the same context.
+- **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
+  GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the
+  fork's code into a credentialed CI context, so the reviewer owns the trust decision. Before
+  mirroring, complete the normal review on the original PR and be willing to merge its exact head
+  SHA pending final CI. Scrutinize everything CI can execute, especially workflows, scripts, tests,
+  build/install configuration, dependency changes, network calls, artifact uploads, and code that
+  accesses credentials or changes permissions; involve code owners or security reviewers where
+  appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
+  repeat the review if it changed; the branch name need not match the contributor's branch. Give
+  the shadow PR a Conventional Commit
+  title ending in `[DO NOT MERGE]`, and state in its description that it exists only to run CI and
+  must not be merged. Once its checks pass, verify that the original PR still has the tested SHA,
+  then `/merge` the original. After it lands, close the shadow PR without merging it and delete its
+  branch. Never mirror speculative or partially reviewed code merely to obtain CI results: an
+  identical SHA proves source-commit parity, not safety or identical execution context.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
