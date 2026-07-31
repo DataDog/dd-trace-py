@@ -705,7 +705,7 @@ def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in
     events = test_agent_session.get_events("app-endpoints")
     assert len(events) == 1, events
     payload = events[0]["payload"]
-    assert payload["is_first"] is True
+    assert payload["is-first"] is True
     endpoints = payload["endpoints"]
     assert len(endpoints) == 2, endpoints
     # The mini_app view has no @require_http_methods, so its method is unknown/unconstrained.
@@ -879,13 +879,13 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         # (by seq_id). The native worker serializes every config value as a string.
         assert received_configurations[0]["name"] == "product_enabled"
         assert received_configurations[0]["origin"] == "env_var"
-        assert received_configurations[0]["value"] == "True"
+        assert received_configurations[0]["value"] == "true"
         assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
         assert received_configurations[1]["origin"] == "default"
         assert received_configurations[1]["value"] == "datadog"
         assert received_configurations[2]["name"] == "product_enabled"
         assert received_configurations[2]["origin"] == "code"
-        assert received_configurations[2]["value"] == "False"
+        assert received_configurations[2]["value"] == "false"
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -941,10 +941,10 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     assert len(events) == 1, events
     products = events[0]["payload"]["products"]
     assert products == {
-        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version, "error": None},
     }
     test_agent_session.clear()
 
@@ -955,7 +955,7 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     events = test_agent_session.get_events("app-product-change")
     assert len(events) == 1
     assert events[0]["payload"]["products"] == {
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
     }
     test_agent_session.clear()
 
@@ -968,8 +968,8 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     assert events[0]["request_type"] == "app-product-change"
     products = events[0]["payload"]["products"]
     assert products == {
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version, "error": None},
     }
 
 

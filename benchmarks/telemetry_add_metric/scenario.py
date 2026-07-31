@@ -71,8 +71,8 @@ class TelemetryAddMetric(Scenario):
     # Override `_pyperf` instead of `run` so we get better control over how we run/time the
     # scenario. This way we only time the actual metric recording (or flush), not the setup.
     def _pyperf(self, loops: int) -> float:
-        if self.name.startswith("flush-"):
-            return self.run_flush(loops)
+        if self.name.startswith("record-"):
+            return self.run_record(loops)
         return self.run_add_metric(loops)
 
     def run_add_metric(self, loops: int) -> float:
@@ -99,13 +99,13 @@ class TelemetryAddMetric(Scenario):
             total += time.perf_counter() - st
         return total
 
-    def run_flush(self, loops: int) -> float:
-        if HAS_OLD_API:
-            return self._run_flush_old(loops)
-        return self._run_flush_new(loops)
-
-    def _run_flush_old(self, loops: int) -> float:
-        # Pool of metrics to use for adding
+    def run_record(self, loops: int) -> float:
+        # Record ``num_metrics`` distinct metrics (a count/gauge/distribution/rate mix), once
+        # each. This measures the per-metric RECORDING cost on both revisions — deliberately
+        # NOT a flush: the native worker aggregates and flushes off-thread, so there is no
+        # cheap, I/O-free Python-side flush to benchmark on the candidate. Timing the same
+        # "record N metrics" operation on both sides keeps the candidate-vs-baseline
+        # comparison meaningful.
         pool = (
             [("count-%d" % i, "count") for i in range(250)]
             + [("gauge-%d" % i, "gauge") for i in range(250)]
@@ -113,40 +113,21 @@ class TelemetryAddMetric(Scenario):
             + [("rate-%d" % i, "rate") for i in range(250)]
         )
         step = len(pool) // self.num_metrics
-        total = 0.0
-
-        # Pre-fill a dummy namespace with metrics
-        dummy_namespace = _OldNamespace()
-        for i in range(0, len(pool), step):
-            name, mtype = pool[i]
-            _old_add(dummy_namespace, mtype, name)
-
-        for _ in range(loops):
-            namespace = _OldNamespace()
-            # Copy the dummy metrics to the new namespace, this saves time on adding metrics
-            namespace._metrics_data = dummy_namespace._metrics_data.copy()
-            st = time.perf_counter()
-            namespace.flush()
-            total += time.perf_counter() - st
-        return total
-
-    def _run_flush_new(self, loops: int) -> float:
-        # On this branch metric aggregation and flushing happen in the native worker,
-        # off the Python hot path — there is no cheap Python-side "serialize" step to
-        # isolate, and forcing a real flush would block on the endpoint I/O. So measure
-        # the Python-side cost of recording a heartbeat's worth of metrics instead.
-        pool = (
-            [("count-%d" % i, telemetry_writer.add_count_metric) for i in range(250)]
-            + [("gauge-%d" % i, telemetry_writer.add_gauge_metric) for i in range(250)]
-            + [("distribution-%d" % i, telemetry_writer.add_distribution_metric) for i in range(250)]
-            + [("rate-%d" % i, telemetry_writer.add_rate_metric) for i in range(250)]
-        )
-        step = len(pool) // self.num_metrics
         subset = pool[0 : len(pool) : step]
         total = 0.0
+
+        if HAS_OLD_API:
+            for _ in range(loops):
+                namespace = _OldNamespace()
+                st = time.perf_counter()
+                for name, mtype in subset:
+                    _old_add(namespace, mtype, name)
+                total += time.perf_counter() - st
+            return total
+
         for _ in range(loops):
             st = time.perf_counter()
-            for name, add in subset:
-                add(_NS, name, 10, _TAGS)
+            for name, mtype in subset:
+                _NEW_ADDERS[mtype](_NS, name, 10, _TAGS)
             total += time.perf_counter() - st
         return total

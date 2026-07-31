@@ -247,6 +247,7 @@ class TelemetryWorker:
         runtime_id: str,
         runtime_name: Optional[str],
         runtime_version: Optional[str],
+        process_tags: Optional[str],
         hostname: str,
         os: Optional[str],
         os_version: Optional[str],
@@ -338,22 +339,28 @@ class TelemetryWorker:
         :param tags: a pre-formatted tag string (e.g. ``"k:v,k2:v2"``) or ``None``.
         """
         ...
-    def add_metric_point(
+    def register_metric_context(
         self,
         namespace: "MetricNamespace",
         name: str,
         metric_type: "MetricType",
-        value: float,
         tags: list[str],
         common: bool,
-    ) -> None:
-        """Add a metric point, registering/reusing a context per ``(namespace, name, type, tags)``.
+    ) -> "MetricContext":
+        """Register a metric context and return an opaque handle for :meth:`add_point`.
+
+        Call ONCE per unique ``(namespace, name, type, tags)`` — the caller caches the
+        returned handle; registering the same metric twice creates a duplicate context.
+        The handle is only valid for this worker instance.
 
         :param namespace: a :class:`MetricNamespace`.
         :param metric_type: a :class:`MetricType`. ``MetricType.rate`` aggregates
             as a count sum; the backend divides by the flush interval.
         :param tags: a list of ``"key:value"`` strings.
         """
+        ...
+    def add_point(self, context: "MetricContext", value: float) -> None:
+        """Add ``value`` to a context returned by :meth:`register_metric_context`."""
         ...
     def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
         """Record a product enable/disable change (app-product-change).
@@ -1024,6 +1031,15 @@ class MetricType:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
+
+class MetricContext:
+    """Opaque handle for a registered metric context.
+
+    Returned by :meth:`TelemetryWorker.register_metric_context` and passed to
+    :meth:`TelemetryWorker.add_point`. Valid only for the worker that produced it.
+    """
+
+    ...
 
 class ConfigurationOrigin:
     env_var: "ConfigurationOrigin"

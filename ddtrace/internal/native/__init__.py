@@ -15,6 +15,7 @@ from ._native import HttpResponse  # noqa: F401
 from ._native import InvalidConfigError  # noqa: F401
 from ._native import IoError  # noqa: F401
 from ._native import LogLevel  # noqa: F401
+from ._native import MetricContext  # noqa: F401
 from ._native import MetricNamespace  # noqa: F401
 from ._native import MetricType  # noqa: F401
 from ._native import NetworkError  # noqa: F401

@@ -4,6 +4,7 @@ import os
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -16,6 +17,7 @@ from ddtrace.internal.settings._telemetry import config
 from ...internal import atexit
 from ...internal import excepthook
 from ...internal import forksafe
+from ..periodic import PeriodicService
 from ..runtime import get_ancestor_runtime_id
 from ..runtime import get_parent_runtime_id
 from ..runtime import get_runtime_id
@@ -33,6 +35,7 @@ from .logging import DDTelemetryErrorHandler
 
 
 if TYPE_CHECKING:
+    from ddtrace.internal.native import MetricContext
     from ddtrace.internal.native import TelemetryWorker
 
 
@@ -118,6 +121,26 @@ def _native_telemetry_enums() -> dict:
     return _NATIVE_TELEMETRY_ENUMS
 
 
+class _TelemetryDependencyCollector(PeriodicService):
+    """Periodically discovers newly imported packages and reports them to the native worker.
+
+    Python has no cheap "module imported" event, so dependency discovery is inherently a
+    poll: ``_report_dependencies`` diffs ``sys.modules`` against what has already been
+    reported. Everything else the telemetry writer sends is now change-driven (metrics,
+    endpoints, configuration), so this is the only remaining reason to run a periodic
+    thread. It is fork-safe (``autorestart=True``): the underlying ``PeriodicThread``
+    auto-resumes in forked children, where ``_report_dependencies`` no-ops until the child
+    rebuilds its worker.
+    """
+
+    def __init__(self, report: "Callable[[], None]", interval: float) -> None:
+        super().__init__(interval, autorestart=True)
+        self._report = report
+
+    def periodic(self) -> None:
+        self._report()
+
+
 class TelemetryWriter:
     """
     Submits Instrumentation Telemetry events to the datadog agent.
@@ -151,6 +174,17 @@ class TelemetryWriter:
 
         # The native worker, lazily built in enable() once the native runtime exists.
         self._worker: Optional["TelemetryWorker"] = None
+        # Cache of registered native metric contexts, keyed by (namespace, name, type, tags).
+        # Lets the hot metric-add path skip re-marshalling name/tags into the native worker on
+        # every point. ContextKeys are worker-specific, so this is cleared on every worker
+        # rebuild (see enable()).
+        self._metric_contexts: dict[tuple, "MetricContext"] = {}
+        # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
+        # once in enable(); forked children inherit and auto-resume it (see the class docstring).
+        self._deps_collector: Optional[PeriodicService] = None
+        # Test-only: when set, the worker points at a file:// endpoint that dumps each
+        # telemetry request to its own file under this directory (offline/Bazel replay).
+        self._payload_file_dir: Optional[str] = None
         self._test_session_token: Optional[str] = get_test_session_token()
         self.started = False
 
@@ -185,7 +219,14 @@ class TelemetryWriter:
         application = get_application(config.SERVICE, config.VERSION, config.ENV)
         host = get_host_info()
 
-        if self._agentless:
+        if self._payload_file_dir is not None:
+            # Payload-files mode (offline replay / Bazel): redirect telemetry to a local
+            # directory via a file:// endpoint. libdatadog's dump server writes each request
+            # body to its own file when the endpoint path ends in a separator. os.path.join
+            # with "" guarantees that trailing separator.
+            endpoint_url = "file://" + os.path.join(self._payload_file_dir, "")
+            api_key = None
+        elif self._agentless:
             endpoint_url = _agentless_endpoint_url(config.SITE)
             api_key = config.API_KEY
         else:
@@ -203,6 +244,7 @@ class TelemetryWriter:
             runtime_id=get_runtime_id(),
             runtime_name=application.get("runtime_name"),
             runtime_version=application.get("runtime_version"),
+            process_tags=application.get("process_tags") or None,
             hostname=host["hostname"],
             os=host.get("os") or None,
             os_version=host.get("os_version") or None,
@@ -246,6 +288,8 @@ class TelemetryWriter:
             log.debug("Failed to build the native telemetry worker", exc_info=True)
             return False
         self._worker = worker
+        # A fresh worker has an empty metric registry; drop context handles from any prior one.
+        self._metric_contexts.clear()
 
         # Every process starts its worker so it heartbeats with its own session id.
         # app-started is emitted only by the root process; this is enforced inside the
@@ -257,6 +301,15 @@ class TelemetryWriter:
         # add_configurations() call above.
         worker.start()
         self.started = True
+
+        # Drain any endpoints buffered before the worker existed (ASM API security), then
+        # start the dependency-discovery periodic. The periodic is created once (root process);
+        # forked children inherit it and auto-resume (autorestart=True), so only create it when
+        # it does not already exist.
+        self._report_endpoints()
+        if config.DEPENDENCY_COLLECTION and self._deps_collector is None:
+            self._deps_collector = _TelemetryDependencyCollector(self._report_dependencies, config.HEARTBEAT_INTERVAL)
+            self._deps_collector.start()
 
         return True
 
@@ -276,6 +329,12 @@ class TelemetryWriter:
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        if self._deps_collector is not None:
+            try:
+                self._deps_collector.stop()
+            except Exception:
+                log.debug("Failed to stop the telemetry dependency collector", exc_info=True)
+            self._deps_collector = None
         if self._worker is not None:
             try:
                 self._worker.stop(send_app_closing=get_parent_runtime_id() is None)
@@ -375,22 +434,38 @@ class TelemetryWriter:
                 metadata = None
             self._worker.add_dependency(name, version, metadata)
 
-    def _report_endpoints(self) -> None:
-        """Forward collected HTTP endpoints to the worker (ASM API security)."""
+    def _record_endpoint(self, method: str, path: str, resource_name: str, operation_name: str) -> None:
+        """Forward a single newly-registered HTTP endpoint to the worker (ASM API security).
+
+        No-op until the worker exists; ``_report_endpoints`` (called from ``enable()``) replays
+        the endpoint collection once it does. The native worker dedupes endpoints, so a replay
+        overlapping with an eager forward cannot create duplicates.
+        """
         from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
         if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
             return
-        if self._worker is None or not endpoint_collection.endpoints:
+        worker = self._worker
+        if worker is None:
             return
+        worker.add_endpoint(method, path, operation_name or None, resource_name or None)
 
-        payload = endpoint_collection.flush(appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT)
-        for ep in payload.get("endpoints", []):
-            self._worker.add_endpoint(
-                ep.get("method", ""),
-                ep.get("path", ""),
-                ep.get("operation_name") or None,
-                ep.get("resource_name") or None,
+    def _report_endpoints(self) -> None:
+        """Replay every collected HTTP endpoint to the worker (ASM API security).
+
+        Called from ``enable()`` to forward endpoints registered before the worker existed;
+        endpoints registered afterwards are forwarded eagerly by ``_record_endpoint``.
+        """
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+
+        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
+            return
+        worker = self._worker
+        if worker is None:
+            return
+        for endpoint in endpoint_collection.endpoints:
+            worker.add_endpoint(
+                endpoint.method, endpoint.path, endpoint.operation_name or None, endpoint.resource_name or None
             )
 
     def product_activated(self, product: str, status: bool) -> None:
@@ -546,19 +621,34 @@ class TelemetryWriter:
         value: float,
         tags: Optional[MetricTagType],
     ) -> None:
-        if not self.enable() or self._worker is None:
-            return
-        enums = _native_telemetry_enums()
-        self._worker.add_metric_point(
-            enums["namespace"][namespace],
-            str(name),  # Some callers use a class E(str, enum.Enum) for the name.
-            enums["metric_type"][metric_type],
-            float(value),
-            _convert_metric_tags(tags),
-            # ``common`` marks language-shared metrics; the previous Cython aggregator
-            # reported these as common, so preserve that for backend/dashboard parity.
-            common=True,
-        )
+        # Hot path: avoid the idempotent enable() call and the native name/tag marshalling
+        # once the worker exists. A metric context is registered with the native worker once
+        # per unique (namespace, name, type, tags) and cached; subsequent points are a cheap
+        # ``add_point(context, value)``.
+        worker = self._worker
+        if worker is None:
+            if not self.enable():
+                return
+            worker = self._worker
+            if worker is None:
+                return
+        # ``name`` may be an ``E(str, enum.Enum)``; str-enum members hash/compare equal to
+        # their string value, so keying on the raw name still dedupes against plain strings.
+        key = (namespace, name, metric_type, tags)
+        context = self._metric_contexts.get(key)
+        if context is None:
+            enums = _native_telemetry_enums()
+            context = worker.register_metric_context(
+                enums["namespace"][namespace],
+                str(name),
+                enums["metric_type"][metric_type],
+                _convert_metric_tags(tags),
+                # ``common`` marks language-shared metrics; the previous Cython aggregator
+                # reported these as common, so preserve that for backend/dashboard parity.
+                True,
+            )
+            self._metric_contexts[key] = context
+        worker.add_point(context, float(value))
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
@@ -593,27 +683,20 @@ class TelemetryWriter:
         self._add_metric_point("distribution", namespace, name, value, tags)
 
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
-        """Discover dependencies/endpoints and force a flush of the native worker.
+        """Run a final dependency discovery and force a flush of the native worker.
 
-        The native worker manages its own heartbeat scheduling on the shared runtime;
-        this method exists for API compatibility and to drive the Python-side discovery
-        (dependencies, endpoints) and dispatch hook.
+        Everything but dependencies is reported immediately to the native worker.
+        Only dependencies need to be polled, so they're explicitly reported here.
 
         Args:
             force_flush: If True, force an immediate data flush.
             shutting_down: If True, the worker app-closing is driven by ``app_shutdown``.
         """
-        from ddtrace.internal import core
-
         if self._worker is None:
             return
 
-        # Discover dependencies/endpoints (Python side) and forward to the worker.
         if config.DEPENDENCY_COLLECTION:
             self._report_dependencies()
-        self._report_endpoints()
-
-        core.dispatch("telemetry.periodic")
 
         if force_flush:
             try:
@@ -646,6 +729,27 @@ class TelemetryWriter:
                 self._worker.stop(send_app_closing=False)
             except Exception:
                 log.debug("Failed to stop the native telemetry worker while setting test token", exc_info=True)
+            self._worker = None
+            self.started = False
+        self.enable()
+
+    def set_payload_file_dir(self, output_dir: str) -> None:
+        """Test-only: redirect telemetry to payload files under ``output_dir``.
+
+        Points the native worker at a ``file://`` endpoint so libdatadog's dump server
+        writes each telemetry request to its own file (offline replay / Bazel). The worker
+        is rebuilt to apply the endpoint and ``started`` is reset so the next flush re-emits
+        app-started with full content. app-closing is captured when the worker later stops
+        (``app_shutdown``), which still points at the same file:// endpoint.
+        """
+        self._payload_file_dir = output_dir
+        if not self._enabled:
+            return
+        if self._worker is not None:
+            try:
+                self._worker.stop(send_app_closing=False)
+            except Exception:
+                log.debug("Failed to stop the native telemetry worker while enabling payload files", exc_info=True)
             self._worker = None
             self.started = False
         self.enable()

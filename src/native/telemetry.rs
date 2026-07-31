@@ -1,6 +1,5 @@
 //! Native instrumentation-telemetry worker.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -27,14 +26,15 @@ use pyo3::prelude::*;
 
 use crate::shared_runtime::SharedRuntimePy;
 
-/// Cache key for a registered metric context.
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct MetricKey {
-    namespace: MetricNamespaceNative,
-    name: String,
-    metric_type: MetricTypeNative,
-    tags: Vec<String>,
-}
+/// An opaque, registered metric context handle returned by
+/// [`TelemetryWorkerPy::register_metric_context`] and passed back to
+/// [`TelemetryWorkerPy::add_point`]. Caching this on the Python side lets the hot add path
+/// skip re-marshalling the metric name/tags (and the register-or-lookup) on every point.
+///
+/// A `ContextKey` is only valid for the worker that produced it, so the Python cache is
+/// cleared whenever the worker is rebuilt (fork, test-token/payload-file reconfigure).
+#[pyclass(frozen, name = "MetricContext")]
+pub struct MetricContextPy(ContextKey);
 
 /// Metric namespace, exposed to Python as `MetricNamespace.<Variant>`.
 #[pyclass(eq, hash, frozen, from_py_object)]
@@ -85,8 +85,6 @@ pub struct TelemetryWorkerPy {
     // Held to keep the worker registered on the SharedRuntime; dropping it
     // would leak the worker until the runtime shuts down. `stop()` consumes it.
     worker_handle: Mutex<Option<WorkerHandle>>,
-    // ContextKey cache: register-once per (namespace, name, type, tags).
-    metric_contexts: Mutex<HashMap<MetricKey, ContextKey>>,
 }
 
 #[pymethods]
@@ -105,6 +103,7 @@ impl TelemetryWorkerPy {
         runtime_id,
         runtime_name,
         runtime_version,
+        process_tags,
         hostname,
         os,
         os_version,
@@ -138,6 +137,7 @@ impl TelemetryWorkerPy {
         runtime_id: String,
         runtime_name: Option<String>,
         runtime_version: Option<String>,
+        process_tags: Option<String>,
         hostname: String,
         os: Option<String>,
         os_version: Option<String>,
@@ -177,6 +177,7 @@ impl TelemetryWorkerPy {
         builder.application.env = env;
         builder.application.runtime_name = runtime_name;
         builder.application.runtime_version = runtime_version;
+        builder.application.process_tags = process_tags;
 
         builder.host = Host {
             hostname,
@@ -232,7 +233,6 @@ impl TelemetryWorkerPy {
             handle,
             shared_runtime,
             worker_handle: Mutex::new(Some(worker_handle)),
-            metric_contexts: Mutex::new(HashMap::new()),
         })
     }
 
@@ -254,18 +254,17 @@ impl TelemetryWorkerPy {
         if send_app_closing {
             // Flush the app-closing batch first (clears data.started).
             let _ = self.handle.send_stop();
-            if let Some(wh) = worker_handle {
-                // Release the GIL while the async teardown runs on the shared
-                // runtime. `wh.stop()` pauses the worker then shuts it down.
-                py.detach(|| {
-                    let _ = self.shared_runtime.block_on(async {
-                        let _ = wh.stop().await;
-                    });
-                });
-            }
         } else {
-            // Flush pending data without shutting the worker down.
-            self.flush(py)?;
+            let _ = self.flush(py);
+        }
+        if let Some(wh) = worker_handle {
+            // Release the GIL while the async teardown runs on the shared
+            // runtime. `wh.stop()` pauses the worker then shuts it down.
+            py.detach(|| {
+                let _ = self.shared_runtime.block_on(async {
+                    let _ = wh.stop().await;
+                });
+            });
         }
         Ok(())
     }
@@ -394,57 +393,33 @@ impl TelemetryWorkerPy {
         Ok(())
     }
 
-    /// Register-or-reuse a `ContextKey` for `(namespace, name, type, tags)`,
-    /// then add `value`. Never re-registers an already-seen context.
-    #[pyo3(signature = (namespace, name, metric_type, value, tags, common))]
-    fn add_metric_point(
+    /// Register a metric context for `(namespace, name, type, tags)` and return an opaque
+    /// handle. Call ONCE per unique metric (the caller — the Python writer — caches the
+    /// handle); calling twice for the same metric registers a duplicate context. The hot
+    /// add path then uses [`add_point`], skipping the per-point name/tag marshalling.
+    #[pyo3(signature = (namespace, name, metric_type, tags, common))]
+    fn register_metric_context(
         &self,
         namespace: MetricNamespace,
         name: String,
         metric_type: MetricType,
-        value: f64,
         tags: Vec<String>,
         common: bool,
-    ) -> PyResult<()> {
-        let ns = namespace.0;
-        let mtype = metric_type.0;
+    ) -> MetricContextPy {
+        let parsed_tags = parse_tag_list(&tags);
+        let key =
+            self.handle
+                .register_metric_context(name, parsed_tags, metric_type.0, common, namespace.0);
+        MetricContextPy(key)
+    }
 
-        // Build the cache key by MOVING `name`/`tags` (not cloning): on the hot path
-        // (cache hit) this avoids re-allocating a `String` + `Vec<String>` per add. On a
-        // miss we only need to clone `name` once for `register_metric_context`.
-        let key = MetricKey {
-            namespace: ns,
-            name,
-            metric_type: mtype,
-            tags,
-        };
-
-        let context_key = {
-            let mut cache = self
-                .metric_contexts
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(k) = cache.get(&key) {
-                *k
-            } else {
-                let parsed_tags = parse_tag_list(&key.tags);
-                let k = self.handle.register_metric_context(
-                    key.name.clone(),
-                    parsed_tags,
-                    mtype,
-                    common,
-                    ns,
-                );
-                cache.insert(key, k);
-                k
-            }
-        };
-
+    /// Add `value` to a metric context previously returned by [`register_metric_context`].
+    /// Cheap hot path: no string/tag marshalling, just a channel send of the point.
+    fn add_point(&self, context: &MetricContextPy, value: f64) {
         drop_on_err(
             "metric point",
-            self.handle.add_point(value, &context_key, Vec::new()),
+            self.handle.add_point(value, &context.0, Vec::new()),
         );
-        Ok(())
     }
 
     #[pyo3(signature = (product, enabled, version))]
@@ -513,6 +488,7 @@ impl TelemetryWorkerPy {
 
 pub fn register_telemetry(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TelemetryWorkerPy>()?;
+    m.add_class::<MetricContextPy>()?;
     MetricNamespace::register(m)?;
     MetricType::register(m)?;
     ConfigurationOrigin::register(m)?;
