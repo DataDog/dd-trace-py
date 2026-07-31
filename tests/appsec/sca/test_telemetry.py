@@ -283,6 +283,9 @@ def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
     writer = TelemetryWriter.__new__(TelemetryWriter)
     writer._service_lock = MagicMock()
     writer._enabled = enabled
+    # The native worker is mocked: _report_dependencies() forwards to worker.add_dependency and
+    # returns the reported records, which is what these tests assert on.
+    writer._worker = MagicMock()
     tracker = DependencyTracker()
     if deps:
         tracker._imported_dependencies = deps

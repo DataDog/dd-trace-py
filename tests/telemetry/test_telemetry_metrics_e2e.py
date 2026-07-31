@@ -69,7 +69,10 @@ def parse_payload(data):
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="Gunicorn doesn't yet work with Python 3.14")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
-    token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
+    # Must be the fixture's token, not a hand-written one: the telemetry worker now propagates
+    # the session token, so a mismatched token files the child's payloads under a session this
+    # test never queries.
+    token = test_agent_session.token
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 

@@ -228,7 +228,8 @@ def write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
     """
     Write a payload dict as a JSON file under ``output_dir``.
 
-    Files are named ``{kind}-{ts}-{pid}-{seq}.json``, matching the Go implementation.
+    Files are named ``{kind}-{seq:020d}-{pid}-{ts}.json`` — ordinal first (zero-padded) so a
+    lexicographic sort of the directory reproduces emission order for deterministic replay.
     (Telemetry payloads are written directly by libdatadog's file:// dump server, not
     through this function.)
 
@@ -240,7 +241,7 @@ def write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
         seq = next(_payload_file_counter)
         import time
 
-        name = f"{kind}-{time.time_ns()}-{os.getpid()}-{seq}.json"
+        name = f"{kind}-{seq:020d}-{os.getpid()}-{time.time_ns()}.json"
         dest = os.path.join(output_dir, name)
         tmp = dest + ".tmp"
         with open(tmp, "w") as f:

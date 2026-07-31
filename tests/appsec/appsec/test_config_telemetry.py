@@ -31,7 +31,8 @@ def test_app_started_event_configuration_override(
 
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
-    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
+    expected_wire_value = str(expected_value).lower() if isinstance(expected_value, bool) else str(expected_value)
+    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_wire_value}
 
 
 def test_app_started_event_fleet_config_id(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -57,7 +58,7 @@ apm_configuration_default:
         {
             "name": "DD_APPSEC_SCA_ENABLED",
             "origin": "fleet_stable_config",
-            "value": True,
+            "value": "true",
             "config_id": "sca-policy",
         }
     ]
@@ -69,7 +70,7 @@ apm_configuration_default:
         {
             "name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED",
             "origin": "default",
-            "value": True,
+            "value": "true",
         }
     ]
 

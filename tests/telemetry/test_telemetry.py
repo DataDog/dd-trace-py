@@ -554,16 +554,17 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     seq_ids = [c["seq_id"] for c in sorted_configs]
     assert seq_ids == sorted(seq_ids) and len(set(seq_ids)) == 4, seq_ids
 
-    assert sorted_configs[0]["value"] == "True"
+    # Booleans serialize to lowercase "true"/"false" (telemetry wire format; see _config_value_to_str).
+    assert sorted_configs[0]["value"] == "true"
     assert sorted_configs[0]["origin"] == "default"
 
     assert sorted_configs[1]["value"] == "none"
     assert sorted_configs[1]["origin"] == "otel_env_var"
 
-    assert sorted_configs[2]["value"] == "False"
+    assert sorted_configs[2]["value"] == "false"
     assert sorted_configs[2]["origin"] == "env_var"
 
-    assert sorted_configs[3]["value"] == "True"
+    assert sorted_configs[3]["value"] == "true"
     assert sorted_configs[3]["origin"] == "code"
 
 

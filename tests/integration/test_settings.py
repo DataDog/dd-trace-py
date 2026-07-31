@@ -36,7 +36,7 @@ with tracer.trace("test") as span:
         "origin": "env_var",
     } in configurations
 
-    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in configurations
+    assert {"name": "DD_LOGS_INJECTION", "value": "true", "origin": "env_var"} in configurations
 
     assert {
         "name": "DD_TRACE_HEADER_TAGS",
@@ -46,7 +46,7 @@ with tracer.trace("test") as span:
 
     assert {"name": "DD_TAGS", "value": "team:apm,component:web", "origin": "env_var"} in configurations
 
-    assert {"name": "DD_TRACE_ENABLED", "value": True, "origin": "env_var"} in configurations
+    assert {"name": "DD_TRACE_ENABLED", "value": "true", "origin": "env_var"} in configurations
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -79,7 +79,7 @@ config._tracing_enabled = False
 
     assert {
         "name": "DD_LOGS_INJECTION",
-        "value": False,
+        "value": "false",
         "origin": "code",
     } in configurations
 
@@ -97,7 +97,7 @@ config._tracing_enabled = False
 
     assert {
         "name": "DD_TRACE_ENABLED",
-        "value": False,
+        "value": "false",
         "origin": "code",
     } in configurations
 
