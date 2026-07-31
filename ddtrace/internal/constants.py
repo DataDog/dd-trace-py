@@ -174,6 +174,7 @@ class SamplingMechanism(object):
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
     AI_GUARD = 13
+    SYNTHETICS_BILLING_EXCLUSION = 15
 
 
 class TraceSource(object):
