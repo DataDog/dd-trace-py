@@ -235,7 +235,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
+        // Must match _task.task_object_address() so lock and stack samples correlate.
+        auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
         auto& stack = stack_info->stack;
 
         // Safety: prevent infinite loops from cycles in task chain maps
@@ -667,7 +669,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     // copy_type() which returns non-zero on failure.
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
-        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
         auto& stack = stack_info->stack;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
@@ -708,6 +710,47 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 }
 
 // ----------------------------------------------------------------------------
+void
+ThreadInfo::render_unwound_stacks(EchionSampler& echion)
+{
+    auto& renderer = echion.renderer();
+
+    // Render in this order of priority
+    // 1. asyncio Tasks stacks (if any)
+    // 2. Greenlets stacks (if any)
+    // 3. The normal thread stack (if no asyncio tasks or greenlets)
+    if (!current_tasks.empty()) {
+        for (auto& task_stack_info : current_tasks) {
+            task_stack_info->task_name.visit_string([&](std::string_view task_name) {
+                renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id);
+            });
+
+            task_stack_info->stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+
+        current_tasks.clear();
+    } else if (!current_greenlets.empty()) {
+        for (auto& greenlet_stack : current_greenlets) {
+            greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
+                renderer.render_task_begin(task_name, greenlet_stack->on_cpu, greenlet_stack->task_id);
+            });
+
+            auto& stack = greenlet_stack->stack;
+            stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+
+        current_greenlets.clear();
+    } else {
+        python_stack.render(echion);
+        renderer.render_stack_end();
+    }
+}
+
+// ----------------------------------------------------------------------------
 Result<void>
 ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
@@ -723,38 +766,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
     this->unwind(echion, tstate);
-
-    // Render in this order of priority
-    // 1. asyncio Tasks stacks (if any)
-    // 2. Greenlets stacks (if any)
-    // 3. The normal thread stack (if no asyncio tasks or greenlets)
-    if (!current_tasks.empty()) {
-        for (auto& task_stack_info : current_tasks) {
-            task_stack_info->task_name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, task_stack_info->on_cpu); });
-
-            task_stack_info->stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_tasks.clear();
-    } else if (!current_greenlets.empty()) {
-        for (auto& greenlet_stack : current_greenlets) {
-            greenlet_stack->task_name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
-
-            auto& stack = greenlet_stack->stack;
-            stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_greenlets.clear();
-    } else {
-        python_stack.render(echion);
-        renderer.render_stack_end();
-    }
+    this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
 }

@@ -4,6 +4,8 @@ import pytest
 from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.grpc import utils
 
+from .common import GrpcBaseTestCase
+
 
 def test_parse_method_path_with_package():
     method_path = "/package.service/method"
@@ -129,3 +131,21 @@ def test_set_grpc_method_meta(method, method_kind, expected_tags):
     utils.set_grpc_method_meta(span, method, method_kind)
     for key, value in expected_tags.items():
         assert span._get_attribute(key) == value, f"Expected tag {key}={value!r}, got {span._get_attribute(key)!r}"
+
+
+@mock.patch("tests.contrib.grpc.common.add_HelloServicer_to_server")
+@mock.patch("tests.contrib.grpc.common.logging_pool.pool")
+@mock.patch("tests.contrib.grpc.common.grpc.server")
+def test_start_server_binds_ephemeral_port(mock_server, mock_pool, mock_add_servicer):
+    # The server binds an ephemeral port ("[::]:0") with SO_REUSEPORT disabled and stores the
+    # OS-assigned port, so xdist workers never contend for a fixed port (no rebind retries needed).
+    fake_server = mock_server.return_value
+    fake_server.add_insecure_port.return_value = 54321
+
+    instance = GrpcBaseTestCase.__new__(GrpcBaseTestCase)
+    instance._start_server()
+
+    mock_server.assert_called_once_with(mock_pool.return_value, options=(("grpc.so_reuseport", 0),))
+    fake_server.add_insecure_port.assert_called_once_with("[::]:0")
+    assert instance._grpc_port == 54321
+    fake_server.start.assert_called_once()

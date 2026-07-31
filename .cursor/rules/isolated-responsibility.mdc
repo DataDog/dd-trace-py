@@ -64,7 +64,7 @@ The contrib layer knows **nothing** about who (if anyone) is listening.
 ### Consumer — inside the security product
 
 Register listeners with `core.on(...)`. The canonical example is
-`ddtrace/appsec/_ai_guard/_listener.py`:
+`ddtrace/aiguard/_listener.py`:
 
 ```python
 from functools import partial
@@ -82,7 +82,7 @@ def ai_guard_listen():
 ```
 
 Listeners are only registered when the product is **enabled** (e.g. AI Guard's
-`init_ai_guard()` is gated on `DD_AI_GUARD_ENABLED`). When disabled, the events
+`load_ai_guard()` is gated on `DD_AI_GUARD_ENABLED`). When disabled, the events
 are still dispatched but have no subscribers — a cheap no-op.
 
 ## Mental model

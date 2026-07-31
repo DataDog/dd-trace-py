@@ -1,10 +1,10 @@
-import enum
 import json
 import typing as t
 
 from envier import En
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
@@ -71,13 +71,14 @@ def skip_exit():
     return True
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_SAMPLE_RATE = 1 << 12
-    APM_TRACING_LOGS_INJECTION = 1 << 13
-    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
-    APM_TRACING_CUSTOM_TAGS = 1 << 15
-    APM_TRACING_ENABLED = 1 << 19
-    APM_TRACING_SAMPLE_RULES = 1 << 29
+APMCapabilities = (
+    RemoteConfigCapabilities.ApmTracingSampleRate,
+    RemoteConfigCapabilities.ApmTracingLogsInjection,
+    RemoteConfigCapabilities.ApmTracingHttpHeaderTags,
+    RemoteConfigCapabilities.ApmTracingCustomTags,
+    RemoteConfigCapabilities.ApmTracingEnabled,
+    RemoteConfigCapabilities.ApmTracingSampleRules,
+)
 
 
 def _remove_invalid_rules(rc_rules: list) -> list:

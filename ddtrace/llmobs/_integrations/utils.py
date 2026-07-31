@@ -16,16 +16,34 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+
+# Audio helpers were moved to audio_utils.py to keep this module manageable; re-export the
+# public names here so existing ``from ...utils import <helper>`` imports keep working.
+from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_variant  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
@@ -34,6 +52,7 @@ from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import AudioPart
+from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -199,6 +218,41 @@ def parse_llmobs_metric_args(metrics):
     return usage
 
 
+def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
+    """Extract OpenRouter's returned cost (USD) from an OpenAI-compatible ``usage`` object.
+
+    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
+    every response. Returns an empty dict for responses without a cost (e.g. other providers).
+
+    BYOK (bring-your-own-key): when the customer calls the provider with their own credentials,
+    OpenRouter's billed ``cost`` covers only its own fee (often 0) while the provider inference
+    cost is incurred upstream and reported under ``cost_details.upstream_inference_cost``. In that
+    case (flagged by ``usage.is_byok``) add the upstream cost so the span reflects the cost the
+    customer actually incurred. For non-BYOK responses ``cost`` already includes the provider cost,
+    so the upstream figure is not added.
+    """
+    cost = _get_attr(token_usage, "cost", None)
+    if not isinstance(cost, (int, float)):
+        return {}
+    total_cost = float(cost)
+    cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    if _get_attr(token_usage, "is_byok", False):
+        upstream_cost = _get_attr(cost_details, "upstream_inference_cost", None)
+        if isinstance(upstream_cost, (int, float)):
+            total_cost += upstream_cost
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
+    input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
+    output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
+    if (
+        isinstance(input_cost, (int, float))
+        and isinstance(output_cost, (int, float))
+        and round((input_cost + output_cost) * 1e9) == round(total_cost * 1e9)
+    ):
+        metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
+        metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
+
+
 LANGCHAIN_ROLE_MAPPING = {
     "human": "user",
     "ai": "assistant",
@@ -335,22 +389,10 @@ def openai_set_meta_tags_from_completion(
     )
 
 
-def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
-    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
+def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
+    """Build an ``ImagePart`` from raw image bytes (base64-encoded) or an existing base64 string."""
     content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
-    return AudioPart(mime_type=mime_type, content=content)
-
-
-# OpenAI audio ``format`` values that don't map to ``audio/<format>``.
-_OPENAI_AUDIO_MIME_TYPES = {
-    "mp3": "audio/mpeg",
-}
-
-
-def audio_mime_type_from_format(fmt: str) -> str:
-    """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
-    fmt = (fmt or "").strip().lower()
-    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
+    return ImagePart(mime_type=mime_type, content=content)
 
 
 def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
@@ -1143,7 +1185,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     if function_call_chunk:
         if not stored_tool_calls:
             stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
+        # so coerce to "" — getattr's default only applies when the attribute is absent.
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
         return
     if not tool_call_chunk:
         return
@@ -1171,9 +1215,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls.append(call_dict)
         list_idx = -1
     if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
+        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
     elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
+        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
 
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:

@@ -16,7 +16,7 @@ from ddtrace.contrib.internal.requests.connection import _extract_query_string
 from ddtrace.contrib.internal.requests.patch import patch
 from ddtrace.contrib.internal.requests.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -535,9 +535,9 @@ session.get("http://httpbin.org/status/200")
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
     )
-    p.wait()
-    assert p.stderr.read() == b""
-    assert p.stdout.read() == b""
+    stdout, stderr = p.communicate()
+    assert stderr == b""
+    assert stdout == b""
     assert p.returncode == 0
 
 

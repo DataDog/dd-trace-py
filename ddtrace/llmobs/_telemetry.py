@@ -7,6 +7,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -28,6 +29,7 @@ class LLMObsTelemetryMetrics:
     DROPPED_EVAL_EVENTS = "dropped_eval_events"
     ANNOTATIONS = "annotations"
     EVALS_SUBMITTED = "evals_submitted"
+    FEEDBACK_SUBMITTED = "feedback_submitted"
     SPANS_EXPORTED = "spans_exported"
     USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
@@ -35,6 +37,7 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_CRUD_ERROR = "prompt.crud.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
@@ -233,6 +236,19 @@ def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, e
     )
 
 
+def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Optional[str]):
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json", "text") else "other"
+    _target_type = target_type if target_type in ("span_id", "trace_id", "session_id", "feedback_join_key") else "other"
+    tags = _base_tags(error)
+    tags.extend([("metric_type", _metric_type), ("target_type", _target_type)])
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.FEEDBACK_SUBMITTED,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
 def record_span_exported(span: Optional[Span], error: Optional[str]):
     tags = _base_tags(error)
     span_kind = "N/A"
@@ -267,9 +283,9 @@ def record_activate_distributed_headers(error: Optional[str]):
     )
 
 
-def record_prompt_source(source: str):
-    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
-    tags = [("from", source)]
+def record_prompt_source(source: PromptSource):
+    """Record the source of a prompt fetch."""
+    tags = [("from", source.value)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
@@ -284,6 +300,17 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_crud_error(method: str, error_type: str, status: int):
+    """Record a prompt CRUD API error."""
+    tags = [("method", method), ("error_type", error_type), ("status", str(status))]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_CRUD_ERROR,
         value=1,
         tags=tuple(tags),
     )

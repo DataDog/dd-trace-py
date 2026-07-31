@@ -67,5 +67,7 @@ ddup_failure_msg: Optional[str]
 ddup_is_available: bool
 stack_v2_failure_msg: Optional[str]
 stack_v2_is_available: bool
+exception_failure_msg: str
+exception_is_available: bool
 
 def config_str(config: ProfilingConfig) -> str: ...

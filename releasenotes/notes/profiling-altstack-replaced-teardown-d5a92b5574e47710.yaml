@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixes the stack profiler disabling another component's alternate signal stack at
+    thread teardown when that stack had replaced the profiler's own.

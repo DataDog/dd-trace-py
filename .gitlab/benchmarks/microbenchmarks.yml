@@ -18,7 +18,7 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
+  BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
 
 .benchmarks:
   stage: test
@@ -209,6 +209,8 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen

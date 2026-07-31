@@ -56,9 +56,9 @@ def pytest_configure(config):
     # hook fires), but they only start background threads and make HTTP calls when
     # start() is called in pytest_sessionstart (after this hook).  Swapping them here
     # prevents any network I/O and CI Visibility data leakage.
-    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if session_manager is not None:
         session_manager.writer = Mock()
         session_manager.coverage_writer = Mock()
@@ -76,9 +76,9 @@ def pytest_configure(config):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
 
-    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if session_manager is not None:
         session_manager.writer = Mock()
         session_manager.coverage_writer = Mock()

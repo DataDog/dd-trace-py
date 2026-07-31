@@ -353,6 +353,14 @@ class TestSuite(TestItem["TestModule", "Test"]):
     def __str__(self) -> str:
         return f"{self.parent.name}/{self.name}"
 
+    def mark_skipped_by_itr(self) -> None:
+        self.set_status(TestStatus.SKIP)
+        self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
+        try:
+            TelemetryAPI.get().record_itr_skipped(EventType.SUITE)
+        except RuntimeError:
+            pass
+
     def set_final_tags(self) -> None:
         super().set_final_tags()
         self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
@@ -384,6 +392,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def __init__(self, name: str):
         super().__init__(name=name, parent=None)  # type: ignore
         self.tests_skipped_by_itr = 0
+        self.itr_correlation_id: t.Optional[str] = None
         self.itr_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
