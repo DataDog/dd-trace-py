@@ -1,7 +1,10 @@
 import json
 from typing import Any
 from typing import Callable
+from typing import Iterable
+from typing import Mapping
 from typing import TypeVar
+from typing import Union
 from typing import cast
 from urllib.parse import urlunparse
 
@@ -12,6 +15,7 @@ from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._contrib.urllib3.types import HTTPConnectionPool
+from ddtrace.appsec._contrib.urllib3.types import Response
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
@@ -22,6 +26,7 @@ from ddtrace.internal._exceptions import BlockingException
 
 
 T = TypeVar("T")
+HeaderSource = Union[Mapping[object, object], Iterable[tuple[object, object]]]
 
 
 def patch() -> None:
@@ -40,7 +45,7 @@ def unpatch() -> None:
 
 def _parse_headers(headers: object) -> dict[object, object]:
     try:
-        return dict(cast(Any, headers))
+        return dict(cast(HeaderSource, headers))
     except Exception:
         return {}
 
@@ -121,15 +126,18 @@ def wrapped_request(original: Callable[..., T], instance: object, args: tuple[An
     with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
         open_rasp_subcontext_scope()
         response = original(*args, **kwargs)
-        dynamic_response = cast(Any, response)
-        if dynamic_response.__class__.__name__ == "Response" and not (300 <= dynamic_response.status_code < 400):
+        if response.__class__.__name__ == "Response":
+            typed_response = cast(Response, response)
+        else:
+            typed_response = None
+        if typed_response is not None and not (300 <= typed_response.status_code < 400):
             addresses: dict[str, object] = {
-                "DOWN_RES_STATUS": str(dynamic_response.status_code),
-                "DOWN_RES_HEADERS": dict(dynamic_response.headers),
+                "DOWN_RES_STATUS": str(typed_response.status_code),
+                "DOWN_RES_HEADERS": dict(typed_response.headers),
             }
             if use_body:
                 try:
-                    addresses["DOWN_RES_BODY"] = dynamic_response.json()
+                    addresses["DOWN_RES_BODY"] = typed_response.json()
                 except Exception:
                     pass  # nosec
             call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
