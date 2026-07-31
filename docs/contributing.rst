@@ -81,21 +81,24 @@ At this time, do not use the merge queue option.
 Merging Pull Requests from Forks
 ---------------------------------
 
-Pull requests opened from a fork (i.e. by an external contributor) cannot run our internal
-CI pipeline directly: our GitLab pipeline and system tests only issue credentials to pipelines
-tied to a pull request owned by this repository, and GitLab never mirrors branches from
-external forks.
+Pull requests opened from a fork (i.e. by an external contributor) cannot run all required
+CI directly. GitLab does not mirror branches from external forks, and the System Tests
+workflow does not run when an arbitrary branch is merely pushed to this repository.
 
 If you're a maintainer merging a fork PR, you'll need to mirror it into the repository first:
 
 #. Push the fork PR's exact head commit to a new branch in this repository, e.g.
    ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``.
-#. Open a pull request from that branch into ``main``. This gives the commit a
-   repository-owned PR context, which is required for CI to authenticate correctly.
+#. Open a mirror pull request from that branch into ``main``. Its branch name does not need
+   to match the contributor's branch. Use a `Conventional Commit
+   <https://www.conventionalcommits.org/en/v1.0.0/>`_ title and state in the description that
+   this PR exists only to run CI and must not be merged.
+#. Add ``Closes #<mirror-PR>`` to the *original* PR's description. When the original merges,
+   GitHub will close the mirror PR automatically.
 #. Wait for the mirror PR's checks to pass. Since it's the same commit SHA, the original
    fork PR's checks will reflect the same results.
 #. Comment ``/merge`` on the *original* fork PR once its checks are green.
-#. Close the mirror PR without merging it, and delete its branch.
+#. After the original merges, verify that the mirror closed and delete its branch.
 
 Backporting
 -----------

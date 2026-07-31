@@ -77,7 +77,7 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Fork PRs** (external contributors) never get `dd-gitlab/default-pipeline` or `system-tests finished` — GitLab/`dd-octo-sts` only vend credentials to pipelines tied to a PR owned by this repo. A maintainer must push the fork's exact commit to a repo-owned branch (e.g. `<you>/mirror-<PR#>`) and open a real PR from that branch into `main` to trigger CI with full credentials. Once the mirror PR's checks go green (same commit SHA), `/merge` the original fork PR, then close the mirror PR without merging it.
+- **Fork PR CI** — Push the fork's exact head SHA to a repo-owned branch and open a mirror PR into `main`; a bare branch push does not trigger the required System Tests workflow. Use a Conventional Commit title, add `Closes #<mirror-PR>` to the original PR description, and `/merge` the original once checks pass. Its merge closes the mirror; then delete the mirror branch.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
