@@ -14,18 +14,17 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
     # The span's display name, carried so LLMObs.evaluation() can surface it as
     # evaluated_span_name on the judge trace. Optional for backward compatibility.
     name: NotRequired[str]
 
 
-class SpanWithTagValue(TypedDict):
-    tag_key: str
-    tag_value: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
 
 
 class Document(TypedDict, total=False):
