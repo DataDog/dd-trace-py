@@ -108,6 +108,20 @@ def test_rank_span_job_id_from_torchelastic_env(monkeypatch, test_spans):
     assert span.get_tag("training_job.id") == "elastic-run-99"
 
 
+def test_rank_ctx_defers_end_event_dispatch():
+    from ddtrace.internal import core
+
+    fired = []
+    core.on("context.ended.pytorch.rank", lambda ctx, exc_info: fired.append(ctx))
+    try:
+        ctx = core.context_with_data("pytorch.rank", _dispatch_end_event=False)
+        ctx.__enter__()
+        ctx.__exit__(None, None, None)
+        assert not fired
+    finally:
+        core.reset_listeners("context.ended.pytorch.rank")
+
+
 def test_fsdp_not_eagerly_imported():
     """patch(pytorch=True) must NOT cause torch.distributed.fsdp to land in
     sys.modules. Eagerly importing it pulls _dynamo + sympy (~1.3 s startup
