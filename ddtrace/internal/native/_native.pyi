@@ -839,6 +839,59 @@ class TraceExporterBuilder:
         """
         ...
 
+class NativeTraceBuffer:
+    """Trace buffer owned by libdatadog: it holds built v0.4 spans, bounds itself by bytes, and
+    exports them from its own worker thread.
+
+    Construct it from a configured TraceExporterBuilder, which it consumes.
+    """
+
+    def __init__(
+        self,
+        builder: TraceExporterBuilder,
+        shared_runtime: SharedRuntime,
+        max_buffered_bytes: Optional[int] = None,
+        flush_threshold_bytes: Optional[int] = None,
+        max_flush_interval_ns: Optional[int] = None,
+    ) -> None:
+        """
+        :param builder: The exporter configuration. Cannot be reused afterwards.
+        :param shared_runtime: The runtime that drives the export worker.
+        :param max_buffered_bytes: Drop new chunks above this size. None keeps libdatadog's default.
+        :param flush_threshold_bytes: Export once the buffer holds this many bytes. None keeps the default.
+        :param max_flush_interval_ns: Export at least this often. None keeps the default.
+        """
+        ...
+    def write(self, spans: list[Span], dd_origin: Optional[str] = None) -> Optional[str]:
+        """Build one trace chunk and enqueue it.
+
+        Never raises, because Span.finish() calls it on an application thread. Returns None when the
+        buffer accepted every span, else a reason describing what it dropped.
+        :param spans: The spans of one trace chunk.
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span. A value that
+            is not a string is ignored.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Ask the worker to export what is buffered. Returns before the export completes."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Flush, stop the worker, and wait up to timeout_ns for it to report shutdown.
+
+        timeout_ns bounds only that report. A second call does nothing.
+        """
+        ...
+    def take_agent_response(self) -> Optional[str]:
+        """Return the last agent response body, and clear it.
+
+        The response arrives on a worker thread that must not touch Python, so the buffer parks it for
+        a Python thread to collect.
+        """
+        ...
+    def queue_metrics(self) -> tuple[int, int]:
+        """Return (spans_dropped_full_buffer, spans_queued), and reset both counters."""
+        ...
+
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
 

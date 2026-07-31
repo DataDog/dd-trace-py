@@ -1,4 +1,5 @@
 use libdd_capabilities_impl::NativeCapabilities;
+use libdd_data_pipeline::trace_buffer::TraceBufferConfig;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
@@ -8,8 +9,10 @@ use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
+mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
+use trace_buffer::NativeTraceBuffer;
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -17,7 +20,10 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
+    pub(super) builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
+    /// Mirrors the output format set on `builder`, which does not expose it back.
+    /// `build_trace_buffer` reads it to pick the span-link `flags` convention.
+    pub(super) output_format: TraceExporterOutputFormat,
 }
 
 impl TraceExporterBuilderPy {
@@ -34,6 +40,7 @@ impl TraceExporterBuilderPy {
     fn new() -> Self {
         TraceExporterBuilderPy {
             builder: Some(TraceExporterBuilder::default()),
+            output_format: TraceExporterOutputFormat::default(),
         }
     }
 
@@ -141,6 +148,7 @@ impl TraceExporterBuilderPy {
             _ => Err(PyValueError::new_err("Invalid trace format")),
         }?;
         slf.try_as_mut()?.set_output_format(output_format);
+        slf.output_format = output_format;
         Ok(slf.into())
     }
 
@@ -275,6 +283,19 @@ impl TraceExporterBuilderPy {
         Ok(exporter)
     }
 
+    /// Consumes the wrapped builder and returns a trace buffer that exports through it.
+    ///
+    /// The builder shouldn't be reused.
+    ///
+    /// Each size and interval argument left as None keeps libdatadog's default: 5MB buffered, a
+    /// 1.5MB flush threshold, and a 2s maximum interval between flushes.
+    #[pyo3(signature = (
+        shared_runtime,
+        max_buffered_bytes = None,
+        flush_threshold_bytes = None,
+        max_flush_interval_ns = None,
+    ))]
+
     fn debug(&self) -> String {
         format!("{:?}", self.builder)
     }
@@ -349,6 +370,7 @@ impl TraceExporterPy {
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
+    m.add_class::<NativeTraceBuffer>()?;
     exceptions::register_exceptions(m)?;
     agent_response::register_agent_response(m)?;
 

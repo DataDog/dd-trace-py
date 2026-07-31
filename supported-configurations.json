@@ -6232,6 +6232,14 @@
         "internal": true
       }
     ],
+    "_DD_TRACE_NATIVE_BUFFER_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_TRACE_STATS_WRITER_INTERVAL": [
       {
         "implementation": "A",

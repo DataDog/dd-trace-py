@@ -22,6 +22,7 @@ from ._native import LogLevel  # noqa: F401
 from ._native import MetricContext  # noqa: F401
 from ._native import MetricNamespace  # noqa: F401
 from ._native import MetricType  # noqa: F401
+from ._native import NativeTraceBuffer  # noqa: F401
 from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401

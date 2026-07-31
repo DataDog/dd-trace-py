@@ -1177,6 +1177,153 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
+class NativeTraceBuffer(TraceWriter):
+    """Trace writer backed by libdatadog's own bounded trace buffer.
+
+    Opt in with ``_DD_TRACE_NATIVE_BUFFER_ENABLED``. Where NativeWriter buffers spans and drives
+    flushing from a Python periodic thread, this writer hands both to libdatadog: the native buffer
+    owns the byte bounds, the flush cadence and the drop policy, and a libdatadog worker performs the
+    send. There is no periodic thread and no Python-side flush scheduling.
+
+    This class owns configuration and lifecycle only. Every span goes straight through to the native
+    buffer, which is why there is no Python-side accounting here: health metrics come from libdatadog,
+    not from this writer.
+    """
+
+    def __init__(
+        self,
+        intake_url: str,
+        compute_stats_enabled: bool = False,
+        client_side_stats_obfuscation: bool = False,
+        api_version: Optional[str] = None,
+        response_callback: Optional[Callable[[AgentResponse], None]] = None,
+        test_session_token: Optional[str] = None,
+        stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
+        otlp_metrics_endpoint: Optional[str] = None,
+    ) -> None:
+        self.intake_url = intake_url
+        self._api_version = _resolve_api_version(api_version)
+        self._compute_stats_enabled = compute_stats_enabled
+        self._client_side_stats_obfuscation = client_side_stats_obfuscation
+        self._response_cb = response_callback
+        self._test_session_token = _resolve_test_session_token(test_session_token)
+        self._stats_opt_out = stats_opt_out
+        self._otlp_endpoint = otlp_endpoint
+        self._otlp_metrics_endpoint = otlp_metrics_endpoint
+        # AgentWriterInterface is deliberately not implemented: nothing in a lifecycle path needs it,
+        # and its only consumers read intake_url for display. tracer.agent_trace_url therefore returns
+        # None while this writer is active.
+        self._sync_mode = False
+        self._buffer = self._create_buffer()
+
+    def _create_buffer(self) -> "native.NativeTraceBuffer":
+        builder = _build_base_exporter_builder(
+            self.intake_url,
+            self._test_session_token,
+            self._compute_stats_enabled,
+            self._stats_opt_out,
+            self._otlp_metrics_endpoint is not None,
+        )
+        builder.set_input_format(self._api_version).set_output_format(self._api_version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+        if self._otlp_metrics_endpoint is not None:
+            builder.set_otlp_metrics_endpoint(self._otlp_metrics_endpoint)
+        if self._client_side_stats_obfuscation:
+            builder.enable_client_side_stats_obfuscation()
+        if p_tags := process_tags.process_tags:
+            builder.set_process_tags(p_tags)
+        if config._health_metrics_enabled:
+            builder.enable_health_metrics()
+        return native.NativeTraceBuffer(builder, get_native_runtime())
+
+    def _deliver_agent_response(self) -> None:
+        """Hand the last agent response to the sampler, if one arrived.
+
+        The native response handler runs on a libdatadog worker thread and must not touch Python, so
+        it parks the response body instead of calling back. Collect it here, on a Python thread.
+        """
+        if self._response_cb is None:
+            return
+        body = self._buffer.take_agent_response()
+        if not body:
+            return
+        raw_resp = Response(body=body).get_json()
+        if raw_resp and "rate_by_service" in raw_resp:
+            self._response_cb(AgentResponse(rate_by_service=raw_resp["rate_by_service"]))
+
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
+        if not spans:
+            return
+        # Origin lives on the Context, not on the individual spans, so read it here and let the
+        # native side stamp `_dd.origin` on each span as it builds the wire form.
+        ctx = spans[0].context
+        # write() reports a reason instead of raising, because it runs inside span.finish(). A reason
+        # here means spans were dropped, so it must not pass silently.
+        reason = self._buffer.write(spans, ctx.dd_origin if ctx is not None else None)
+        if reason:
+            _safelog(log.warning, "native trace buffer dropped spans: %s", reason)
+        self._deliver_agent_response()
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        try:
+            self._buffer.force_flush()
+        except Exception:
+            if raise_exc:
+                raise
+            _safelog(log.warning, "failed to flush the native trace buffer", exc_info=True)
+        self._deliver_agent_response()
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        timeout_ns = int(timeout * 1e9) if timeout is not None else 3_000_000_000
+        try:
+            self._buffer.shutdown(timeout_ns)
+        except Exception:
+            # Raising here would skip the rest of the caller's teardown and leave libdatadog's
+            # workers running.
+            _safelog(log.warning, "failed to shut down the native trace buffer", exc_info=True)
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        """Rebuild on the new token, because the token is fixed when the exporter is built.
+
+        tests/utils.py calls this on the active writer for every snapshot test.
+        """
+        self._test_session_token = token
+        old_buffer = self._buffer
+        self._buffer = self._create_buffer()
+        try:
+            old_buffer.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shut down the replaced native trace buffer", exc_info=True)
+
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "NativeTraceBuffer":
+        """Return a replacement writer, discarding this one's buffered spans.
+
+        The caller reaches this method after a fork as well as on reconfiguration, and in the forked
+        child the inherited buffer is unusable: its libdatadog worker does not exist in the child, and
+        its contents belong to the parent, which may already have sent them. Building fresh and
+        dropping the old buffer without a flush is therefore correct in both cases. Flushing here
+        would re-send the parent's spans under the child's runtime-id.
+        """
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
+        return self.__class__(
+            intake_url=self.intake_url,
+            compute_stats_enabled=self._compute_stats_enabled,
+            client_side_stats_obfuscation=self._client_side_stats_obfuscation,
+            api_version=api_version,
+            response_callback=self._response_cb,
+            test_session_token=self._test_session_token,
+            stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
+            otlp_metrics_endpoint=self._otlp_metrics_endpoint,
+        )
+
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
@@ -1258,6 +1405,17 @@ def create_trace_writer(
         )
         else None
     )
+
+    if config._trace_native_buffer_enabled:
+        return NativeTraceBuffer(
+            intake_url=agent_config.trace_agent_url,
+            compute_stats_enabled=config._trace_compute_stats,
+            client_side_stats_obfuscation=config._client_side_stats_obfuscation,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
+            otlp_metrics_endpoint=otlp_metrics_endpoint,
+        )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,
