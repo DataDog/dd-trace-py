@@ -153,7 +153,14 @@ PY
   # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
   section_start "repair_wheel" "Repairing wheel"
   if [[ "$(uname -s)" == "Linux" ]]; then
-    auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
+    # The opt-in heap-gotter cdylib (DD_PROFILING_NATIVE_HEAP_BUILD=1) is a
+    # statically-linked Rust artifact with non-standard ELF versioning sections
+    # that trip auditwheel's iter_versions parser. Exclude it from repair —
+    # same rationale as skipping it in extract_debug_symbols above.
+    auditwheel repair -w "${TMP_WHEEL_DIR}" \
+      --exclude 'liblibdd_profiling_heap_gotter_ffi*.so' \
+      --exclude 'libdd_heap_gotter*.so' \
+      "${BUILT_WHEEL_FILE}"
   else
     # macOS
     MACOSX_DEPLOYMENT_TARGET=14.7 uvx --from="delocate" delocate-wheel \
