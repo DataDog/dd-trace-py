@@ -183,7 +183,7 @@ class Block_config:
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
 
-    def get(self, key: str, default: Any = None) -> Union[str, int]:
+    def get(self, key: str, default: Optional[Union[str, int]] = None) -> Optional[Union[str, int]]:
         """
         Dictionary-like get method for backward compatibility with Lambda integration.
 
@@ -192,7 +192,7 @@ class Block_config:
         """
         if key == "content-type":
             key = "content_type"
-        return getattr(self, key, default)  # type: ignore[no-any-return]
+        return getattr(self, key, default)
 
     def __getitem__(self, key: str) -> Optional[Union[str, int]]:
         if key == "content-type":
