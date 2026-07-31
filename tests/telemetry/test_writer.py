@@ -1439,6 +1439,29 @@ def test_redact_filename(filename, result):
     assert writer._format_file_path(filename) == result
 
 
+def test_endpoint_subscription_lifecycle(telemetry_writer):
+    """``enable`` subscribes the writer to the endpoint collection, ``disable`` unsubscribes it."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    assert endpoint_collection.on_endpoint_registered == telemetry_writer._record_endpoint
+
+    telemetry_writer.disable()
+    assert endpoint_collection.on_endpoint_registered is None
+
+
+def test_disable_leaves_a_foreign_endpoint_subscriber_alone(telemetry_writer):
+    """Only the writer's own subscription is cleared, so a disable cannot unhook someone else."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    def other(endpoint):
+        pass
+
+    endpoint_collection.on_endpoint_registered = other
+    telemetry_writer.disable()
+
+    assert endpoint_collection.on_endpoint_registered is other
+
+
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
     """Test that telemetry data is submitted for multiple sources with increasing seq_id"""
 

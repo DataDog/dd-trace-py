@@ -87,8 +87,7 @@ class NoOpTelemetryWriter(object):
     def add_distribution_metric(self, namespace, name: str, value: float, tags=None) -> None:
         pass
 
-    def _record_endpoint(self, method: str, path: str, resource_name: str, operation_name: str) -> None:
-        # Endpoint collection forwards each registration via this hook (see endpoints.py); no-op here.
+    def _record_endpoint(self, endpoint) -> None:
         pass
 
     def _report_endpoints(self) -> None:
