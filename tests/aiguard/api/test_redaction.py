@@ -7,42 +7,47 @@ run twice: once against redact_messages directly, once end to end through evalua
 from copy import deepcopy
 import json
 from pathlib import Path
+from typing import Any
+from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
-from ddtrace.aiguard import Evaluation
+from ddtrace.aiguard import AIGuardClient
+from ddtrace.aiguard import Message
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._redaction import Segment
 from ddtrace.aiguard._redaction import _resolve_writable_string
 from ddtrace.aiguard._redaction import _split_segments
 from ddtrace.aiguard._redaction import redact_messages
 from tests.aiguard.utils import find_ai_guard_span
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
+from tests.utils import TracerSpanContainer
 
 
-SCENARIOS = json.loads((Path(__file__).parent / "redaction_scenarios.json").read_text())["cases"]
+SCENARIOS: list[dict[str, Any]] = json.loads((Path(__file__).parent / "redaction_scenarios.json").read_text())["cases"]
 
 # Matches the messages the corpus builds its paths against.
-SIMPLE = [
+SIMPLE: list[Message] = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "My SSN is 123-45-6789"},
 ]
-REPLACEMENTS = [{"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"}]
-REDACTED = [
+REPLACEMENTS: list[dict[str, str]] = [{"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"}]
+REDACTED: list[Message] = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "My SSN is <REDACTED>"},
 ]
 
 
-def _corpus_params():
+def _corpus_params() -> list[Any]:
     return [pytest.param(case, id=case["id"]) for case in SCENARIOS]
 
 
-def _metrics(telemetry_mock, metric):
-    """Every (value, tags) pair recorded for *metric*."""
+def _metrics(telemetry_mock: Mock, metric: str) -> list[tuple[Any, Any]]:
+    """Every (value, tags) pair recorded for the given metric."""
     return [
         (args[3], args[4])
         for args, _ in telemetry_mock.add_metric.call_args_list
@@ -50,12 +55,14 @@ def _metrics(telemetry_mock, metric):
     ]
 
 
-def _meta_struct(test_spans):
-    return find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
+def _meta_struct(test_spans: TracerSpanContainer) -> dict[str, Any]:
+    struct = find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
+    assert struct is not None
+    return struct
 
 
 @pytest.mark.parametrize("case", _corpus_params())
-def test_redact_messages_corpus(case):
+def test_redact_messages_corpus(case: dict[str, Any]) -> None:
     """Every corpus scenario, applied by redact_messages directly."""
     messages = deepcopy(case["messages"])
     untouched = deepcopy(messages)
@@ -73,7 +80,13 @@ def test_redact_messages_corpus(case):
 @pytest.mark.parametrize("case", _corpus_params())
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_evaluate_applies_corpus(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, case):
+def test_evaluate_applies_corpus(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+    case: dict[str, Any],
+) -> None:
     """Every corpus scenario, end to end: the SDK result, meta struct and the outgoing payload."""
     messages = deepcopy(case["messages"])
     sent = deepcopy(messages)
@@ -94,14 +107,14 @@ def test_evaluate_applies_corpus(mock_execute_request, telemetry_mock, ai_guard_
     assert payload["data"]["attributes"]["messages"] == sent
 
 
-def test_redaction_never_raises():
+def test_redaction_never_raises() -> None:
     """An unexpected failure degrades to the original messages instead of breaking the caller."""
 
     class Undeepcopyable:
-        def __deepcopy__(self, memo):
+        def __deepcopy__(self, memo: dict[int, Any]) -> Any:
             raise RuntimeError("boom")
 
-    messages = [{"role": "user", "content": "My SSN is 123-45-6789", "extra": Undeepcopyable()}]
+    messages: list[Any] = [{"role": "user", "content": "My SSN is 123-45-6789", "extra": Undeepcopyable()}]
 
     result = redact_messages(messages, [{"path": "messages[0].content", "replacement": "redacted"}])
 
@@ -125,14 +138,14 @@ def test_redaction_never_raises():
         pytest.param("", None, id="empty"),
     ],
 )
-def test_split_segments(path, expected):
+def test_split_segments(path: str, expected: Optional[list[Segment]]) -> None:
     """The per-segment tokenizer every tracer implements identically."""
     assert _split_segments(path) == expected
 
 
-def test_resolve_writable_string_against_the_rfc_example():
+def test_resolve_writable_string_against_the_rfc_example() -> None:
     """Path resolution against the canonical Message projection."""
-    root = {
+    root: dict[str, Any] = {
         "messages": [
             {"role": "user", "content": "hello"},
             {
@@ -142,7 +155,7 @@ def test_resolve_writable_string_against_the_rfc_example():
         ]
     }
 
-    def resolved_value(path):
+    def resolved_value(path: str) -> Any:
         resolved = _resolve_writable_string(root, path)
         return None if resolved is None else resolved[0][resolved[1]]
 
@@ -155,9 +168,14 @@ def test_resolve_writable_string_against_the_rfc_example():
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_redaction_survives_message_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_redaction_survives_message_truncation(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """Paths index the full evaluated array, so redaction runs before meta struct truncates it."""
-    messages = [{"role": "user", "content": f"message {i} ssn 123-45-6789"} for i in range(20)]
+    messages: list[Message] = [{"role": "user", "content": f"message {i} ssn 123-45-6789"} for i in range(20)]
     mock_execute_request.return_value = mock_evaluate_response(
         "ALLOW",
         redaction_replacements=[
@@ -184,11 +202,14 @@ def test_redaction_survives_message_truncation(mock_execute_request, telemetry_m
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_content_is_truncated_in_meta_struct(
-    mock_execute_request, telemetry_mock, ai_guard_client, test_spans
-):
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """A redacted string longer than the content limit is truncated for meta struct only."""
     replacement = "<REDACTED>" * 100
-    messages = [{"role": "user", "content": "My SSN is 123-45-6789"}]
+    messages: list[Message] = [{"role": "user", "content": "My SSN is 123-45-6789"}]
     mock_execute_request.return_value = mock_evaluate_response(
         "ALLOW", redaction_replacements=[{"path": "messages[0].content", "replacement": replacement}]
     )
@@ -204,8 +225,12 @@ def test_redacted_content_is_truncated_in_meta_struct(
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_blocked_evaluation_reports_redacted_messages(
-    mock_execute_request, telemetry_mock, ai_guard_client, test_spans, action
-):
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+    action: str,
+) -> None:
     """A block still redacts what it reports, and the abort error carries no conversation.
 
     The messages can be sensitive and arbitrarily large, and errors get logged, so the span is
@@ -235,8 +260,14 @@ def test_blocked_evaluation_reports_redacted_messages(
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_is_reported(
-    mock_execute_request, telemetry_mock, ai_guard_client, test_spans, redaction_enabled, replacements, expected
-):
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+    redaction_enabled: bool,
+    replacements: Optional[list[dict[str, str]]],
+    expected: Optional[str],
+) -> None:
     """Whether redaction happened is reported both as a span tag and as an ai_guard.requests tag."""
     messages = deepcopy(SIMPLE)
     mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=replacements)
@@ -251,10 +282,15 @@ def test_redacted_is_reported(
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_sds_findings_do_not_drive_redaction(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_sds_findings_do_not_drive_redaction(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """Findings are detection metadata: on their own they never change a message."""
     messages = deepcopy(SIMPLE)
-    findings = [
+    findings: list[dict[str, Any]] = [
         {
             "rule_display_name": "US Social Security Number Scanner",
             "rule_tag": "us_ssn",
@@ -273,8 +309,11 @@ def test_sds_findings_do_not_drive_redaction(mock_execute_request, telemetry_moc
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_messages_are_isolated_from_the_caller(
-    mock_execute_request, telemetry_mock, ai_guard_client, test_spans
-):
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """Mutating the input afterwards must not reach the result or the reported messages."""
     messages = deepcopy(SIMPLE)
     mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
@@ -289,10 +328,15 @@ def test_redacted_messages_are_isolated_from_the_caller(
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_kill_switch_keeps_findings_and_evaluation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_kill_switch_keeps_findings_and_evaluation(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """With redaction disabled the evaluation still runs and findings are still reported."""
     messages = deepcopy(SIMPLE)
-    findings = [{"rule_tag": "us_ssn", "category": "ssn"}]
+    findings: list[dict[str, Any]] = [{"rule_tag": "us_ssn", "category": "ssn"}]
     mock_execute_request.return_value = mock_evaluate_response(
         "ALLOW", sds_findings=findings, redaction_replacements=REPLACEMENTS
     )
@@ -308,7 +352,12 @@ def test_kill_switch_keeps_findings_and_evaluation(mock_execute_request, telemet
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_malformed_response_does_not_break_evaluate(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_malformed_response_does_not_break_evaluate(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
     """A broken redaction payload leaves the evaluation itself untouched."""
     mock_response = Mock()
     mock_response.status = 200
@@ -325,34 +374,17 @@ def test_malformed_response_does_not_break_evaluate(mock_execute_request, teleme
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_printing_an_evaluation_elides_the_messages(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
-    """Printing or logging an evaluation must not write the conversation out.
-
-    Integrations debug-log the whole result, so the messages are elided by the result itself
-    rather than at each call site. Both %s (via __str__) and repr() go through __repr__.
-    """
+def test_messages_are_serializable_alongside_the_evaluation(
+    mock_execute_request: Mock,
+    telemetry_mock: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """The result stays a plain dict: the redacted messages are just another key."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
 
     result = ai_guard_client.evaluate(deepcopy(SIMPLE))
 
-    assert isinstance(result, Evaluation)
-    for printed in (repr(result), str(result), "%s" % (result,), f"{result}"):
-        assert "helpful assistant" not in printed
-        assert "<REDACTED>" not in printed
-        assert "<2 message(s) not shown>" in printed
-        assert "'action': 'ALLOW'" in printed
-    # Elided only when printed: the messages themselves are untouched.
-    assert result["messages"] == REDACTED
-    assert dict(result)["messages"] == REDACTED
-    assert "<REDACTED>" in json.dumps(result)
-
-
-def test_evaluation_stays_dict_compatible():
-    """Evaluation must keep behaving like the plain dict callers have always received."""
-    evaluation = Evaluation(action="ALLOW", reason="", tags=[], sds=[], tag_probs={}, messages=[])
-
-    assert isinstance(evaluation, dict)
-    assert evaluation == {"action": "ALLOW", "reason": "", "tags": [], "sds": [], "tag_probs": {}, "messages": []}
-    assert sorted(evaluation.keys()) == ["action", "messages", "reason", "sds", "tag_probs", "tags"]
-    # A partial construction still works at runtime, as it did when this was a TypedDict.
-    assert repr(Evaluation(action="ALLOW")) == "{'action': 'ALLOW'}"
+    assert isinstance(result, dict)
+    assert sorted(result.keys()) == ["action", "messages", "reason", "sds", "tag_probs", "tags"]
+    assert json.loads(json.dumps(result))["messages"] == REDACTED

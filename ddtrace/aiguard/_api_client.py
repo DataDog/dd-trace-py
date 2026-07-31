@@ -3,6 +3,7 @@
 from copy import deepcopy
 import json
 from typing import Any
+from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from typing import Union
@@ -60,27 +61,16 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
 
 
-class Evaluation(dict[str, Any]):
-    """Result of an evaluate call, read by key: action, reason, tags, sds, tag_probs and messages.
-
-    messages is the evaluated conversation, redacted when the AI Guard service asked for it and
-    otherwise the very same list passed to evaluate, so result["messages"] is messages means
-    nothing was redacted.
-
-    AIDEV-NOTE: a dict subclass rather than a TypedDict so __repr__ below actually runs. A
-    TypedDict has no instances of its own -- Evaluation(...) would build a plain dict and any
-    magic method declared on it would be silently dead code.
-    """
-
-    def __repr__(self) -> str:
-        """Elide the messages: printing or logging a result must not write the conversation out."""
-        messages = self.get("messages")
-        if messages is None:
-            return super().__repr__()
-        elided = dict(self)
-        count = len(messages) if isinstance(messages, list) else "?"
-        elided["messages"] = f"<{count} message(s) not shown>"
-        return repr(elided)
+class Evaluation(TypedDict):
+    action: Literal["ALLOW", "DENY", "ABORT"]
+    reason: str
+    tags: list[str]
+    sds: list[Any]
+    tag_probs: dict[str, float]
+    # The evaluated conversation, redacted when the AI Guard service asked for it and otherwise
+    # the very same list passed to evaluate, so result["messages"] is messages means nothing
+    # was redacted. It can carry sensitive data: never log it.
+    messages: list[Message]
 
 
 class Options(TypedDict, total=False):
@@ -131,8 +121,8 @@ class AIGuardAbortError(DDBlockException):
         self.tags = tags
         self.sds = sds or []
         self.tag_probs = tag_probs
-        # AIDEV-NOTE: deliberately no messages attribute. The evaluated conversation can carry
-        # sensitive data and be arbitrarily large, and errors get logged; read it from the span instead.
+        # Do not include the messages attribute as it can have
+        # sensitive data and be large
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 

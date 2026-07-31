@@ -35,11 +35,13 @@ _REDACTABLE_TERMINALS = frozenset({"content", "text", "arguments"})
 _SKIP = object()
 
 Segment = tuple[str, Optional[int]]
+# What a replacement can be written into: everything else resolves read-only.
+Writable = Union[MutableMapping[str, Any], list[Any]]
 
 
 def _split_segments(path: str) -> Optional[list[Segment]]:
     """Split a location path into (name, index) segments, or None if any segment is malformed."""
-    segments = []
+    segments: list[Segment] = []
     for raw in path.split("."):
         match = SEGMENT_RE.match(raw)
         if match is None:
@@ -49,14 +51,14 @@ def _split_segments(path: str) -> Optional[list[Segment]]:
     return segments
 
 
-def _get_field(node: Any, name: str) -> Any:
+def _get_field(node: object, name: str) -> object:
     """Read a field off a mapping or an object, None when absent."""
     if isinstance(node, Mapping):
         return node.get(name)
     return getattr(node, name, None)
 
 
-def _step(node: Any, name: str, index: Optional[int]) -> Any:
+def _step(node: object, name: str, index: Optional[int]) -> object:
     """Resolve one path segment, None whenever the field or the list index does not exist."""
     value = _get_field(node, name)
     if value is None or index is None:
@@ -67,8 +69,12 @@ def _step(node: Any, name: str, index: Optional[int]) -> Any:
     return value[index]
 
 
-def _resolve_writable_string(root: dict[str, Any], path: str) -> Optional[tuple[Any, Union[str, int]]]:
-    """Resolve *path* to the (container, key) of a writable string, or None to skip it fail-safe."""
+def _resolve_writable_string(root: dict[str, Any], path: str) -> Optional[tuple[Writable, Any]]:
+    """Resolve path to the (container, key) of a writable string, or None to skip it fail-safe.
+
+    The key type follows the container, a correlation the type checker cannot express: a list
+    always comes back with its int index, a mapping with its str field name.
+    """
     segments = _split_segments(path)
     if not segments:
         return None
@@ -77,34 +83,32 @@ def _resolve_writable_string(root: dict[str, Any], path: str) -> Optional[tuple[
     if name not in _REDACTABLE_TERMINALS:
         return None
 
-    node: Any = root
+    node: object = root
     for parent_name, parent_index in segments[:-1]:
         node = _step(node, parent_name, parent_index)
         if node is None:
             return None
 
     value = _get_field(node, name)
+    container: Writable
+    key: Union[str, int]
     if index is None:
-        container: Any = node
-        key: Union[str, int] = name
-        target = value
+        # Writing back needs item assignment; SDK objects resolved through getattr are left alone.
+        if not isinstance(node, MutableMapping):
+            return None
+        container, key, target = node, name, value
     else:
         if not isinstance(value, list) or index >= len(value):
             return None
-        container = value
-        key = index
-        target = value[index]
+        container, key, target = value, index, value[index]
 
     if not isinstance(target, str):
-        return None
-    # Writing back needs item assignment; SDK objects resolved through getattr are left alone.
-    if isinstance(key, str) and not isinstance(container, MutableMapping):
         return None
     return container, key
 
 
 def _set_string_at_path(root: dict[str, Any], path: str, value: str) -> bool:
-    """Overwrite the string at *path*, returning whether it was written."""
+    """Overwrite the string at path, returning whether it was written."""
     resolved = _resolve_writable_string(root, path)
     if resolved is None:
         return False
@@ -113,12 +117,12 @@ def _set_string_at_path(root: dict[str, Any], path: str, value: str) -> bool:
     return True
 
 
-def _collect_replacements(replacements: Any) -> dict[str, Union[str, object]]:
+def _collect_replacements(replacements: object) -> dict[str, object]:
     """Collect one authoritative replacement per path, or _SKIP when the backend contradicts itself."""
     if not isinstance(replacements, list):
         return {}
 
-    by_path: dict[str, Union[str, object]] = {}
+    by_path: dict[str, object] = {}
     for entry in replacements:
         if not isinstance(entry, Mapping):
             continue
@@ -136,8 +140,8 @@ def _collect_replacements(replacements: Any) -> dict[str, Union[str, object]]:
     return by_path
 
 
-def redact_messages(messages: "list[Message]", replacements: Any) -> "list[Message]":
-    """Apply *replacements* to *messages* and return the redacted list.
+def redact_messages(messages: "list[Message]", replacements: object) -> "list[Message]":
+    """Apply the replacements to the messages and return the redacted list.
 
     Copy-on-write: the caller's messages are never mutated, and the very same list object is returned
     when nothing was applied, so callers can use identity to detect whether anything changed.
@@ -155,8 +159,9 @@ def redact_messages(messages: "list[Message]", replacements: Any) -> "list[Messa
         root = {"messages": result}
         applied = 0
         for path, replacement in by_path.items():
-            # A path that is missing, malformed or not pointing at a redactable string is skipped.
-            if replacement is not _SKIP and _set_string_at_path(root, path, replacement):  # type: ignore[arg-type]
+            # _SKIP is not a str, so a contradicted path is skipped along with any path that is
+            # missing, malformed or not pointing at a redactable string.
+            if isinstance(replacement, str) and _set_string_at_path(root, path, replacement):
                 applied += 1
 
         return result if applied else messages
