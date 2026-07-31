@@ -259,7 +259,7 @@ def test_shutdown_during_backoff_stops_retrying(harness, monkeypatch):
     src = harness([_FakeResponse(500), _FakeResponse(200, _ufc_body(), {"ETag": '"late"'})])
 
     def wait_then_shutdown(delay):
-        src._shutdown.set()
+        src._stopping = True
         return True
 
     monkeypatch.setattr(src, "_wait", wait_then_shutdown)
@@ -274,7 +274,7 @@ def test_shutdown_during_backoff_stops_retrying(harness, monkeypatch):
 def test_shutdown_mid_poll_does_not_apply(harness):
     """A response that arrives after shutdown must not replace state."""
     src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})])
-    src._shutdown.set()
+    src._stopping = True
 
     src.periodic()
 
@@ -285,9 +285,34 @@ def test_shutdown_mid_poll_does_not_apply(harness):
 def test_backoff_wait_is_interruptible(harness):
     """The backoff wait returns as soon as a shutdown is requested."""
     src = harness([_FakeResponse(304)])
-    src._shutdown.set()
+    src._stopping = True
     # A long delay must return immediately (True) rather than sleeping it out.
     assert src._wait(3600) is True
+
+
+def test_wait_stops_at_the_next_slice(harness, monkeypatch):
+    """A stop requested mid-wait ends it at the next slice, not after the full delay."""
+    src = harness([_FakeResponse(304)])
+    slept: list = []
+
+    def fake_sleep(delay):
+        slept.append(delay)
+        src._stopping = True  # requested while the wait is in progress
+
+    monkeypatch.setattr(source_mod.time, "sleep", fake_sleep)
+
+    assert src._wait(3600) is True
+    assert slept == [source_mod.SHUTDOWN_POLL_INTERVAL_S]  # one slice, not 3600s
+
+
+def test_wait_sleeps_the_full_delay_when_not_stopping(harness, monkeypatch):
+    """Without a stop request the wait consumes the whole delay in slices."""
+    src = harness([_FakeResponse(304)])
+    slept: list = []
+    monkeypatch.setattr(source_mod.time, "sleep", slept.append)
+
+    assert src._wait(source_mod.SHUTDOWN_POLL_INTERVAL_S * 3) is False
+    assert len(slept) == 3
 
 
 def test_poll_interval_clamped_to_one_hour():

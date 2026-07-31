@@ -14,7 +14,7 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 from collections import namedtuple
 import os
 import random
-import threading
+import time
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -50,6 +50,11 @@ RETRY_JITTER = 0.2
 # forked child, so pre-fork workers (gunicorn/uWSGI) don't hit the CDN in
 # lockstep. The origin process is never delayed.
 FIRST_POLL_JITTER_MAX_S = 5.0
+
+# Granularity of in-tick waits (retry backoff, fork jitter). Waits are sliced at
+# this interval so a requested shutdown is noticed without an event primitive.
+SHUTDOWN_POLL_INTERVAL_S = 0.2
+_WAIT_EPSILON_S = 1e-6
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
@@ -126,25 +131,36 @@ class AgentlessConfigurationSource(PeriodicService):
         self._jittered_pid: Optional[int] = None
 
         # Set on shutdown so in-tick waits (retry backoff, fork jitter) return
-        # immediately instead of holding the worker thread for their full delay.
-        self._shutdown = threading.Event()
+        # early instead of holding the worker thread for their full delay.
+        self._stopping = False
 
     # -- scheduling ---------------------------------------------------------
 
     def _start_service(self, *args: Any, **kwargs: Any) -> None:
-        self._shutdown.clear()
+        self._stopping = False
         super()._start_service(*args, **kwargs)
 
     def _stop_service(self, *args: Any, **kwargs: Any) -> None:
-        # Release any in-tick wait first so the worker thread can finish promptly.
-        self._shutdown.set()
+        # Request the stop first so any in-tick wait ends at its next slice and
+        # the worker thread can finish promptly.
+        self._stopping = True
         super()._stop_service(*args, **kwargs)
 
     def _wait(self, delay: float) -> bool:
-        """Wait ``delay`` seconds. Returns True if a shutdown was requested."""
-        if delay <= 0:
-            return self._shutdown.is_set()
-        return self._shutdown.wait(delay)
+        """Wait up to ``delay`` seconds. Returns True if a shutdown was requested.
+
+        The wait is sliced rather than done with an event because the library runs
+        on native threads and has no Python-visible event primitive; polling a
+        plain flag keeps shutdown responsive without one.
+        """
+        remaining = delay
+        # The epsilon keeps floating-point drift from adding a final zero-length
+        # slice (0.6 - 0.2 * 3 does not land exactly on zero).
+        while remaining > _WAIT_EPSILON_S and not self._stopping:
+            this_slice = min(remaining, SHUTDOWN_POLL_INTERVAL_S)
+            time.sleep(this_slice)
+            remaining -= this_slice
+        return self._stopping
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
@@ -156,7 +172,7 @@ class AgentlessConfigurationSource(PeriodicService):
             after=after,
             # Stop retrying on a decisive response, or as soon as a shutdown is
             # requested (the backoff wait below returns early in that case).
-            until=lambda r: self._shutdown.is_set() or not _is_retryable_status(r.status),
+            until=lambda r: self._stopping or not _is_retryable_status(r.status),
             sleep_func=self._wait,
         )(self._request)
         try:
@@ -171,7 +187,7 @@ class AgentlessConfigurationSource(PeriodicService):
 
         # A shutdown mid-poll leaves the response unusable for state transitions;
         # keep last-known-good and the current ETag.
-        if self._shutdown.is_set():
+        if self._stopping:
             return
 
         self._apply(response)
@@ -188,7 +204,7 @@ class AgentlessConfigurationSource(PeriodicService):
         """
         pid = os.getpid()
         if pid == self._origin_pid or self._jittered_pid == pid:
-            return self._shutdown.is_set()
+            return self._stopping
         self._jittered_pid = pid
         delay = random.uniform(0, min(self.interval, FIRST_POLL_JITTER_MAX_S))  # nosec B311
         return self._wait(delay)
