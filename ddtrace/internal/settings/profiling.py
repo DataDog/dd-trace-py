@@ -385,6 +385,19 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_tasks = DDConfig.v(
+        int,
+        "max_tasks",
+        default=50,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help=(
+            "Maximum number of leaf asyncio tasks/greenlets to sample per cycle. "
+            "Uses reservoir sampling when exceeded. 0 = unlimited."
+        ),
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
