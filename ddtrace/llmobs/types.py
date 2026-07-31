@@ -4,6 +4,8 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
+from typing_extensions import NotRequired
+
 
 JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
 ExperimentConfigType = dict[str, JSONType]
@@ -14,6 +16,9 @@ class ExportedLLMObsSpan(TypedDict):
     trace_id: str
     # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
     is_otel: bool
+    # The span's display name, carried so LLMObs.evaluation() can surface it as
+    # evaluated_span_name on the judge trace. Optional for backward compatibility.
+    name: NotRequired[str]
 
 
 class SpanWithTagValue(TypedDict):

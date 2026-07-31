@@ -18,6 +18,7 @@ from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
 from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_NAME_METADATA_KEY
 from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
 from ddtrace.llmobs._constants import EVALUATIONS_ML_APP
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
@@ -682,6 +683,29 @@ def test_evaluation_span_span_scope(llmobs):
     assert tags[EVALUATED_TRACE_ID_TAG] == "222"
     assert tags[EVALUATED_SPAN_ID_TAG] == "111"
     assert EVALUATED_SESSION_ID_TAG not in tags
+
+
+def test_export_span_includes_name(llmobs):
+    with llmobs.agent(name="qa_agent") as span:
+        exported = llmobs.export_span(span)
+    assert exported["name"] == "qa_agent"
+
+
+def test_evaluation_sets_evaluated_span_name_metadata(llmobs):
+    # export_span() carries the evaluated span's display name; evaluation() surfaces it in
+    # meta.metadata.evaluated_span_name so the Health "Evaluated" column shows a name, not an id.
+    with llmobs.evaluation(
+        name="relevance", evaluated_span={"span_id": "1", "trace_id": "2", "name": "qa_agent"}
+    ) as judge:
+        pass
+    assert get_llmobs_metadata(judge)[EVALUATED_SPAN_NAME_METADATA_KEY] == "qa_agent"
+
+
+def test_evaluation_no_evaluated_span_name_when_absent(llmobs):
+    # Older exports (no name) and session scope carry no evaluated_span_name metadata.
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+        pass
+    assert EVALUATED_SPAN_NAME_METADATA_KEY not in (get_llmobs_metadata(judge) or {})
 
 
 def test_evaluation_span_session_scope(llmobs):

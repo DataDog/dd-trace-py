@@ -72,6 +72,7 @@ from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
 from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_NAME_METADATA_KEY
 from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
 from ddtrace.llmobs._constants import EVALUATIONS_ML_APP
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
@@ -2354,6 +2355,7 @@ class LLMObs(Service):
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
                 is_otel=span._span_api == SPAN_API_OTEL,
+                name=get_llmobs_span_name(span) or span.name,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -2755,6 +2757,7 @@ class LLMObs(Service):
         if eval_scope not in ("span", "trace", "session"):
             raise ValueError("eval_scope must be one of 'span', 'trace', or 'session'.")
         scope_tags: dict[str, str] = {}
+        evaluated_span_name: Optional[str] = None
         if eval_scope == "session":
             if not evaluated_session_id:
                 raise ValueError("eval_scope='session' requires a non-empty evaluated_session_id.")
@@ -2771,6 +2774,10 @@ class LLMObs(Service):
                 )
             scope_tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
             scope_tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
+            # export_span() carries the evaluated span's display name; keep it if present.
+            name_val = evaluated_span.get("name")
+            if isinstance(name_val, str) and name_val:
+                evaluated_span_name = name_val
 
         if cls._instance._current_span() is not None:
             log.warning(
@@ -2792,7 +2799,10 @@ class LLMObs(Service):
         if evaluated_ml_app:
             tags[EVALUATED_ML_APP_TAG] = evaluated_ml_app
         tags.update(scope_tags)
-        cls.annotate(span=span, tags=tags)
+        # Surface the evaluated span's display name (case-preserved) in meta.metadata so the eval
+        # Health "Evaluated" column shows the name instead of the raw span id — matching managed evals.
+        metadata = {EVALUATED_SPAN_NAME_METADATA_KEY: evaluated_span_name} if evaluated_span_name else None
+        cls.annotate(span=span, tags=tags, metadata=metadata)
 
         if _decorator or not emit_error_metric or eval_scope == "session":
             return span
