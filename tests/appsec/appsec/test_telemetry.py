@@ -480,7 +480,15 @@ def test_appsec_enabled_metric(
     test_agent_session,
     tracer,
 ):
-    """The DD_APPSEC_ENABLED configuration is reported on each telemetry periodic dispatch."""
+    """DD_APPSEC_ENABLED is reported change-driven with the current value/origin.
+
+    ASM enablement is reported to telemetry whenever it changes — via ``_report_asm_enabled``,
+    called from the appsec enable/disable paths — rather than re-reported on every telemetry
+    periodic dispatch. This drives ``_report_asm_enabled`` directly to assert the value/origin
+    it emits for each configuration combination.
+    """
+    from ddtrace.appsec._listeners import _report_asm_enabled
+
     # Restore defaults and enabling telemetry appsec service
     with override_global_config({"_asm_enabled": True}):
         tracer.configure(appsec_enabled=appsec_enabled)
@@ -496,9 +504,11 @@ def test_appsec_enabled_metric(
         if rc_enabled:
             enable_asm()
 
-        # ``periodic`` dispatches ``telemetry.periodic`` which queues the DD_APPSEC_ENABLED
-        # configuration with the current value/origin, then flushes it to the test agent.
+        # Drain telemetry queued while configuring, then capture only the change-driven
+        # DD_APPSEC_ENABLED report for the final state.
+        telemetry_writer.periodic(force_flush=True)
         test_agent_session.clear()
+        _report_asm_enabled()
         telemetry_writer.periodic(force_flush=True)
 
         configurations = test_agent_session.get_configurations("DD_APPSEC_ENABLED", remove_seq_id=True, effective=True)
