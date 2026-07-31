@@ -171,15 +171,23 @@ impl OtelMetricsAggregatorPy {
 impl OtelMetricsAggregatorPy {
     /// `kind` is one of `"counter"`, `"up_down_counter"`, `"histogram"`, `"observable_gauge"`,
     /// `"observable_counter"`, `"observable_up_down_counter"`.
+    #[allow(clippy::too_many_arguments)]
     fn register_instrument(
         &self,
         name: &str,
         kind: &str,
         unit: Option<&str>,
         description: Option<&str>,
+        meter_name: &str,
+        meter_version: Option<&str>,
+        meter_schema_url: Option<&str>,
     ) -> PyResult<u64> {
         let kind = parse_instrument_kind(kind)?;
-        let mut descriptor = InstrumentDescriptor::new(name, kind);
+        let mut descriptor = InstrumentDescriptor::new(name, kind).with_scope(
+            meter_name,
+            meter_version.map(str::to_string),
+            meter_schema_url.map(str::to_string),
+        );
         if let Some(unit) = unit {
             descriptor = descriptor.with_unit(unit);
         }

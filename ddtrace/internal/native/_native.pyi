@@ -1213,11 +1213,19 @@ class OtelMetricsAggregator:
     """Aggregates OTel metric measurements and exports them via OTLP. Primitives-only surface."""
 
     def register_instrument(
-        self, name: str, kind: str, unit: Optional[str] = None, description: Optional[str] = None
+        self,
+        name: str,
+        kind: str,
+        unit: Optional[str] = None,
+        description: Optional[str] = None,
+        meter_name: str = "",
+        meter_version: Optional[str] = None,
+        meter_schema_url: Optional[str] = None,
     ) -> int:
         """Register an instrument and return its opaque id. ``kind`` is one of ``"counter"``,
         ``"up_down_counter"``, ``"histogram"``, ``"observable_gauge"``, ``"observable_counter"``,
-        ``"observable_up_down_counter"``.
+        ``"observable_up_down_counter"``. ``meter_*`` carry the instrumentation scope so exported
+        metrics keep the caller's ``get_meter`` identity.
         """
         ...
     def record_counter(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...

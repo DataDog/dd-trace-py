@@ -150,9 +150,24 @@ class Meter(otel.Meter):
         super().__init__(name, version=version, schema_url=schema_url)
         self._aggregator = aggregator
         self._reader = reader
+        # Preserve this meter's instrumentation scope so exported metrics carry it (not the
+        # crate's internal meter name).
+        self._meter_name = name
+        self._meter_version = version
+        self._meter_schema_url = schema_url
 
     def _register(self, name, kind, unit, description) -> int:
-        return int(self._aggregator.register_instrument(name, kind, unit or None, description or None))
+        return int(
+            self._aggregator.register_instrument(
+                name,
+                kind,
+                unit or None,
+                description or None,
+                self._meter_name,
+                self._meter_version,
+                self._meter_schema_url,
+            )
+        )
 
     def create_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "counter", unit, description)
