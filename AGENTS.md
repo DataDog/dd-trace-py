@@ -47,6 +47,7 @@ prose optimized for reading in an editor. Nothing renders it, so rST inline mark
 
 Either way, aim for **good documentation**: say why the code exists or what invariant it upholds,
 not what the next line already says. Keep it short — a one-line summary covers most helpers.
+Do not add a comment if the comment simply states what the code does, and not why.
 
 ## Key Architecture
 
