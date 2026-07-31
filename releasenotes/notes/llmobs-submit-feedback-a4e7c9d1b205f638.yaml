@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: Adds ``LLMObs.submit_feedback()`` for submitting end-user feedback
+    associated with a span, trace, session, or customer-defined feedback join key.
