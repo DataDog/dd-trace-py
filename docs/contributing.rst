@@ -78,6 +78,25 @@ Release notes should be written from the user's perspective and clearly explain 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
 At this time, do not use the merge queue option.
 
+Merging Pull Requests from Forks
+---------------------------------
+
+Pull requests opened from a fork (i.e. by an external contributor) cannot run our internal
+CI pipeline directly: our GitLab pipeline and system tests only issue credentials to pipelines
+tied to a pull request owned by this repository, and GitLab never mirrors branches from
+external forks.
+
+If you're a maintainer merging a fork PR, you'll need to mirror it into the repository first:
+
+#. Push the fork PR's exact head commit to a new branch in this repository, e.g.
+   ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``.
+#. Open a pull request from that branch into ``main``. This gives the commit a
+   repository-owned PR context, which is required for CI to authenticate correctly.
+#. Wait for the mirror PR's checks to pass. Since it's the same commit SHA, the original
+   fork PR's checks will reflect the same results.
+#. Comment ``/merge`` on the *original* fork PR once its checks are green.
+#. Close the mirror PR without merging it, and delete its branch.
+
 Backporting
 -----------
 
