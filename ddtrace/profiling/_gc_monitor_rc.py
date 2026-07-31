@@ -18,26 +18,78 @@ class _GCMonitorRCCallback(RCCallback):
         self._started: bool = already_started
 
     def __call__(self, payloads: Sequence[Payload]) -> None:
+        """
+        Example payload:
+        {
+            "poc": "reference_chains",
+            "contents": {
+                "enabled": true,
+                "referrers_enabled": true
+            }
+        }
+        """
         # Piggy-backing on the `Debug` product until a dedicated
-        # product/schema is defined. Any non-empty payload flips the switch on;
-        # once started we stay started for the lifetime of the process.
-        if self._started or not payloads:
+        # product/schema is defined. `contents.enabled` toggles the GC monitor
+        # on/off; `contents.referrers_enabled` controls whether type walking /
+        # full reference chains are tracked. Payloads missing these fields (or
+        # deleted payloads) leave the state unchanged.
+        for payload in payloads:
+            log.error(
+                "GC monitor RC payload received: path=%s metadata=%r content=%r",
+                payload.path,
+                payload.metadata,
+                payload.content,
+            )
+
+        desired_enabled: Optional[bool] = None
+        desired_referrers: Optional[bool] = None
+        for payload in payloads:
+            content = payload.content
+            if not isinstance(content, dict):
+                continue
+            contents = content.get("contents")
+            if not isinstance(contents, dict):
+                continue
+            enabled = contents.get("enabled")
+            if isinstance(enabled, bool):
+                desired_enabled = enabled
+            referrers = contents.get("referrers_enabled")
+            if isinstance(referrers, bool):
+                desired_referrers = referrers
+
+        if desired_enabled is None:
             return
-        try:
-            ddup.start_gc_monitor(
-                interval_ms=profiling_config.gc.interval_s * 1000,
-                survivor_threshold=profiling_config.gc.survivor_threshold,
-                top_n=profiling_config.gc.top_n,
-                referrers_enabled=profiling_config.gc.referrers_enabled,
-                max_depth=profiling_config.gc.max_depth,
-            )
-            self._started = True
-            log.debug(
-                "GC monitor started via remote config (interval=%ds)",
-                profiling_config.gc.interval_s,
-            )
-        except Exception:
-            log.error("Failed to start GC monitor from remote config", exc_info=True)
+
+        if desired_enabled and not self._started:
+            try:
+                log.error(
+                    "Starting GC monitor via remote config (interval=%ds, referrers_enabled=%s)",
+                    profiling_config.gc.interval_s,
+                    bool(desired_referrers),
+                )
+                ddup.start_gc_monitor(
+                    interval_ms=profiling_config.gc.interval_s * 1000,
+                    survivor_threshold=profiling_config.gc.survivor_threshold,
+                    top_n=profiling_config.gc.top_n,
+                    referrers_enabled=bool(desired_referrers),
+                    max_depth=profiling_config.gc.max_depth,
+                )
+                self._started = True
+                log.debug(
+                    "GC monitor started via remote config (interval=%ds, referrers_enabled=%s)",
+                    profiling_config.gc.interval_s,
+                    bool(desired_referrers),
+                )
+            except Exception:
+                log.error("Failed to start GC monitor from remote config", exc_info=True)
+        elif not desired_enabled and self._started:
+            try:
+                log.error("Stopping GC monitor via remote config")
+                ddup.stop_gc_monitor()
+                self._started = False
+                log.debug("GC monitor stopped via remote config")
+            except Exception:
+                log.error("Failed to stop GC monitor from remote config", exc_info=True)
 
 
 _callback: Optional[_GCMonitorRCCallback] = None
