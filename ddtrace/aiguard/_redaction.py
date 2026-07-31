@@ -1,8 +1,7 @@
 """Sensitive data redaction for AI Guard evaluations.
 
 The service returns the fully redacted string per location path, so applying it is a verbatim
-overwrite: no slicing, no placeholder choice, no offset or encoding math. Pure, network-free, and
-never raising -- a malformed response degrades to a fail-safe skip that leaves the message untouched.
+overwrite. Never raises: a malformed response degrades to a skip that leaves the message untouched.
 """
 
 from collections.abc import Mapping
@@ -25,7 +24,7 @@ logger = ddlogger.get_logger(__name__)
 
 # One segment of a location path: a field name plus an optional non-negative list index. The whole
 # segment must match; a partial match is rejected. Shared by every tracer, see the AI Guard redaction RFC.
-SEGMENT_RE = re.compile(r"^(?P<name>[A-Za-z0-9_]+)(?:\[(?P<index>[0-9]+)\])?\Z")
+_SEGMENT_RE = re.compile(r"^(?P<name>[A-Za-z0-9_]+)(?:\[(?P<index>[0-9]+)\])?\Z")
 
 # Terminal field names a replacement may be written to. Everything else resolves read-only, so a path
 # pointing at an image locator, a role or a tool name can never overwrite it.
@@ -43,7 +42,7 @@ def _split_segments(path: str) -> Optional[list[Segment]]:
     """Split a location path into (name, index) segments, or None if any segment is malformed."""
     segments: list[Segment] = []
     for raw in path.split("."):
-        match = SEGMENT_RE.match(raw)
+        match = _SEGMENT_RE.match(raw)
         if match is None:
             return None
         index = match.group("index")

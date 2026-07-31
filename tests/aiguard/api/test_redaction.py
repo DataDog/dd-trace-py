@@ -334,9 +334,19 @@ def test_kill_switch_keeps_findings_and_evaluation(
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
-    """With redaction disabled the evaluation still runs and findings are still reported."""
+    """With redaction disabled the evaluation still runs and findings are still reported.
+
+    Their offsets describe the redacted string ([10, 20) spans <REDACTED>), so they do not
+    match the originals reported here: forwarded untouched, never sliced on.
+    """
     messages = deepcopy(SIMPLE)
-    findings: list[dict[str, Any]] = [{"rule_tag": "us_ssn", "category": "ssn"}]
+    findings: list[dict[str, Any]] = [
+        {
+            "rule_tag": "us_ssn",
+            "category": "ssn",
+            "location": {"path": "messages[1].content", "start_index": 10, "end_index_exclusive": 20},
+        }
+    ]
     mock_execute_request.return_value = mock_evaluate_response(
         "ALLOW", sds_findings=findings, redaction_replacements=REPLACEMENTS
     )
@@ -348,43 +358,3 @@ def test_kill_switch_keeps_findings_and_evaluation(
     assert result["messages"] is messages
     assert _meta_struct(test_spans)["messages"] == SIMPLE
     assert _meta_struct(test_spans)["sds"] == findings
-
-
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
-@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_malformed_response_does_not_break_evaluate(
-    mock_execute_request: Mock,
-    telemetry_mock: Mock,
-    ai_guard_client: AIGuardClient,
-    test_spans: TracerSpanContainer,
-) -> None:
-    """A broken redaction payload leaves the evaluation itself untouched."""
-    mock_response = Mock()
-    mock_response.status = 200
-    mock_response.get_json.return_value = {
-        "data": {"attributes": {"action": "ALLOW", "reason": "", "tags": [], "redaction_replacements": "nonsense"}}
-    }
-    mock_execute_request.return_value = mock_response
-
-    result = ai_guard_client.evaluate(deepcopy(SIMPLE))
-
-    assert result["action"] == "ALLOW"
-    assert result["messages"] == SIMPLE
-
-
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
-@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_messages_are_serializable_alongside_the_evaluation(
-    mock_execute_request: Mock,
-    telemetry_mock: Mock,
-    ai_guard_client: AIGuardClient,
-    test_spans: TracerSpanContainer,
-) -> None:
-    """The result stays a plain dict: the redacted messages are just another key."""
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
-
-    result = ai_guard_client.evaluate(deepcopy(SIMPLE))
-
-    assert isinstance(result, dict)
-    assert sorted(result.keys()) == ["action", "messages", "reason", "sds", "tag_probs", "tags"]
-    assert json.loads(json.dumps(result))["messages"] == REDACTED

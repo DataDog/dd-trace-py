@@ -154,6 +154,10 @@ plain dicts *or* SDK objects.
    `Evaluation`. The abort error carries no messages: the conversation can be
    sensitive and arbitrarily large, and errors get logged.
 
+`sds_findings` are copied through untouched. Their `location` offsets are
+computed on the **redacted** string, so they only line up when the reported
+messages are the redacted ones — never slice on them.
+
 ### 5. Double-scan avoidance (`_context.py`)
 
 A framework integration (LangChain, Strands) and a provider integration

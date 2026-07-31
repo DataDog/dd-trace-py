@@ -68,8 +68,7 @@ class Evaluation(TypedDict):
     sds: list[Any]
     tag_probs: dict[str, float]
     # The evaluated conversation, redacted when the AI Guard service asked for it and otherwise
-    # the very same list passed to evaluate, so result["messages"] is messages means nothing
-    # was redacted. It can carry sensitive data: never log it.
+    # the very same list passed to evaluate. It can carry sensitive data: never log it.
     messages: list[Message]
 
 
@@ -285,6 +284,8 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
+                        # Reported verbatim: location offsets are computed on the redacted string, so
+                        # they only line up when the redacted messages are what ends up reported.
                         sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                         tag_probs = attributes.get("tag_probs")
