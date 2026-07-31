@@ -547,11 +547,12 @@ class ProfilingConfigNativeHeap(DDConfig):
         help=(
             "Whether to arm native (C/C++) heap allocation profiling by installing GOT "
             "overrides for allocation symbols so Datadog's ``ddheap`` USDT probe sites "
-            "fire on sampled allocations. Samples are collected out-of-band by the "
-            "Datadog Full Host eBPF profiler; nothing is collected or uploaded by the "
-            "tracer itself. Requires Linux and a wheel built with "
-            "``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Phase 1 is allocation-only. Disabled "
-            "by default (experimental)."
+            "fire on sampled allocations. Requires ``DD_PROFILING_ENABLED=true`` so the "
+            "profiler starts and calls the activator; samples are collected out-of-band "
+            "by the OpenTelemetry eBPF profiler or Datadog Host Profiler (nothing is "
+            "collected or uploaded by the tracer itself). Requires Linux and a wheel "
+            "built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Phase 1 is allocation-only. "
+            "Disabled by default (experimental)."
         ),
     )
 

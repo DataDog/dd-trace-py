@@ -42,6 +42,32 @@ def test_native_heap_gotter_smoke() -> None:
         for i in range(200):
             blobs.append(("x" * 4096, i))
         assert len(blobs) == 200
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
+    """Post-fork profiler restarts call install() again; that must be harmless."""
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+    from ddtrace.internal.settings.profiling import config as profiling_config
+
+    profiling_config.native_heap.enabled = True  # pyright: ignore[reportAttributeAccessIssue]
+
+    with mock.patch.object(heap_gotter, "install", return_value=True) as install:
+        from ddtrace.profiling.profiler import Profiler
+
+        prof: Profiler = Profiler()
+        prof.start()
+        try:
+            assert install.call_count == 1
+            # Simulate uWSGI post-fork restart: _start_service() runs again.
+            prof._profiler._start_service()
+            assert install.call_count == 2
+        finally:
+            prof.stop(flush=False)
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
 def test_profiler_start_arms_native_heap_when_enabled() -> None:
     """Starting the profiler with native heap enabled invokes the activator.
