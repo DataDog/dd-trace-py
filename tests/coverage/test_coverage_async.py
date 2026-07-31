@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_async_function():
     """
     Async functions in Python 3.10 have an initial GEN_START instruction with no corresponding line number.
