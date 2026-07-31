@@ -1,6 +1,6 @@
 stages:
-  - package
   - shared-pipeline-build
+  - package
   - tests
   - system-tests
   - fuzz
