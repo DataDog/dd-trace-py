@@ -212,6 +212,19 @@ class TestSessionManagerIsSkippableTest:
         assert session_manager.is_skippable_test(local_test_ref) is False
 
 
+class TestSessionManagerITRCorrelationId:
+    def test_session_manager_propagates_itr_correlation_id_to_session(self) -> None:
+        session_manager = (
+            session_manager_mock()
+            .with_settings(MockDefaults.settings(itr_enabled=True, skipping_enabled=True))
+            .with_itr_correlation_id("itr-correlation-id")
+            .build_real_with_mocks(MockDefaults.test_environment())
+        )
+
+        assert session_manager.itr_correlation_id == "itr-correlation-id"
+        assert session_manager.session.itr_correlation_id == "itr-correlation-id"
+
+
 class TestSessionManagerIsSkippableSuitePath:
     """Test is_skippable_suite_path, including the EMPTY_NAME module fallback."""
 
@@ -905,7 +918,7 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
-        sm.api_client.get_known_commits.assert_not_called()  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.assert_not_called()
 
     def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
         """The sentinel is written when the early-return on all-commits-known path is taken."""
@@ -913,7 +926,7 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -935,8 +948,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
-        sm.api_client.send_git_pack_file.return_value = 123  # type: ignore[attr-defined]  # bytes uploaded
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -957,7 +970,7 @@ class TestUploadSentinel:
         """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = []
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -979,8 +992,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
-        sm.api_client.send_git_pack_file.return_value = None  # type: ignore[attr-defined]  # upload failure
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = None  # upload failure
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1002,9 +1015,9 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = []
         # First packfile succeeds, second fails.
-        sm.api_client.send_git_pack_file.side_effect = [123, None]  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.side_effect = [123, None]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1025,7 +1038,7 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         # API returning None signals a failure that aborts the upload.
-        sm.api_client.get_known_commits.return_value = None  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = None
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1163,7 +1176,7 @@ class TestUploadLock:
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.api_client.get_known_commits.return_value = ["c1"]  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = ["c1"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["c1"]

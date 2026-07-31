@@ -203,6 +203,62 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
     return nullptr;
 }
 
+bool
+TaintEngineContext::is_object_tainted_in_map(PyObject* obj, const TaintedObjectMapTypePtr& map_ptr)
+{
+    if (!obj || !map_ptr) {
+        return false;
+    }
+
+    // Direct (single) object: check membership against this map only.
+    const auto is_tainted = [&map_ptr](PyObject* candidate) -> bool {
+        if (!candidate) {
+            return false;
+        }
+        const auto& to_initial = get_tainted_object(candidate, map_ptr);
+        return to_initial && !to_initial->get_ranges().empty();
+    };
+
+    // 1) Direct text objects
+    if (is_text(obj)) {
+        return is_tainted(obj);
+    }
+
+    // 2) Containers: list or tuple -> iterate each element
+    if (PyList_Check(obj)) {
+        const Py_ssize_t n = PyList_GET_SIZE(obj);
+        for (Py_ssize_t i = 0; i < n; ++i) {
+            if (is_tainted(PyList_GET_ITEM(obj, i))) { // borrowed ref
+                return true;
+            }
+        }
+        return false;
+    }
+    if (PyTuple_Check(obj)) {
+        const Py_ssize_t n = PyTuple_GET_SIZE(obj);
+        for (Py_ssize_t i = 0; i < n; ++i) {
+            if (is_tainted(PyTuple_GET_ITEM(obj, i))) { // borrowed ref
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 3) Dictionaries: iterate over values
+    if (PyDict_Check(obj)) {
+        PyObject *key, *value;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(obj, &pos, &key, &value)) { // borrowed refs
+            if (is_tainted(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    return is_tainted(obj);
+}
+
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map_from_pyobject(PyObject* tainted_object)
 {
@@ -371,8 +427,9 @@ pyexport_taint_engine_context(py::module& m)
               if (!map_ptr || map_ptr->empty()) {
                   return false;
               }
-              const auto& to_initial = get_tainted_object(tainted_obj.ptr(), map_ptr);
-              return to_initial && !to_initial->get_ranges().empty();
+              // Container-aware: scan list/tuple/dict contents against this map,
+              // matching the traversal behavior of the no-context path below.
+              return TaintEngineContext::is_object_tainted_in_map(tainted_obj.ptr(), map_ptr);
           }
           // No active request: scan every slot to locate the owning map.
           const auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
