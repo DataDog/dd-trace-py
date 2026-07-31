@@ -86,16 +86,29 @@ CI pipeline directly: our GitLab pipeline and system tests only issue credential
 tied to a pull request owned by this repository, and GitLab never mirrors branches from
 external forks.
 
-If you're a maintainer merging a fork PR, you'll need to mirror it into the repository first:
+If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
+access to credentials. The reviewer owns that trust decision. Follow this process:
 
-#. Push the fork PR's exact head commit to a new branch in this repository, e.g.
+#. Complete the normal code review on the original fork PR. Before mirroring, you should be willing
+   to merge its exact current head commit as long as the final CI checks pass.
+#. Review everything the internal CI pipeline might execute with extra scrutiny. This includes
+   workflow definitions, scripts, tests, build and install configuration, dependency changes,
+   network calls, artifact uploads, and code that accesses credentials or changes permissions.
+   Involve the relevant code owners or security reviewers when appropriate.
+#. Immediately before mirroring, verify that the original PR's head SHA is still the SHA you
+   reviewed. If it changed, review the updates and repeat this check.
+#. Push that exact reviewed head commit to a new branch in this repository, e.g.
    ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``.
-#. Open a pull request from that branch into ``main``. This gives the commit a
-   repository-owned PR context, which is required for CI to authenticate correctly.
-#. Wait for the mirror PR's checks to pass. Since it's the same commit SHA, the original
-   fork PR's checks will reflect the same results.
+#. Open a draft shadow PR from that branch into ``main`` with a title that begins
+   ``[DO NOT MERGE]``. This gives the commit a repository-owned PR context, which is required for
+   CI to authenticate correctly while making the shadow PR's purpose clear.
+#. Wait for the shadow PR's checks to pass. The identical commit SHA establishes parity between
+   the shadow and the original PR; it does not establish that the code is safe. That assurance
+   comes from the review before mirroring.
 #. Comment ``/merge`` on the *original* fork PR once its checks are green.
-#. Close the mirror PR without merging it, and delete its branch.
+#. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
+
+Never mirror speculative, partially reviewed, or unreviewed code just to obtain CI results.
 
 Backporting
 -----------
