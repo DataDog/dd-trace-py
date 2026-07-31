@@ -652,12 +652,6 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
 
 def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
-        # Skip creating a new ASM context if one already exists in a parent context
-        # AND this is a sub-app span (e.g., mounted FastAPI/Starlette sub-application).
-        # The parent's ASM context already has the request data (body, headers, etc.)
-        # and is accessible via core.find_item thanks to context tree traversal.
-        if in_asm_context() and core.find_item("is_subapp"):
-            return
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
@@ -732,7 +726,7 @@ def _get_headers_if_appsec() -> Optional[Any]:
     return None
 
 
-# headers tags
+# Headers tags
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
