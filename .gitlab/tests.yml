@@ -44,6 +44,11 @@ include:
 
         for riot_python_version in "${riot_python_versions[@]}"
         do
+          unset DD_CIVISIBILITY_ITR_ENABLED
+          unset _DD_COVERAGE_FILE_LEVEL
+          unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
+          unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
+
           if [[ "${riot_python_version:-}" =~ ^3\.(12|13|14|15)$ ]]; then
             export DD_CIVISIBILITY_ITR_ENABLED=true
 
