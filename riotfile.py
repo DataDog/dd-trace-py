@@ -106,9 +106,16 @@ if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
 
 
+# Some suites opt into ITR test skipping by overriding _base_env's skip-prevention default. Preserve an externally
+# exported prevention value (GitLab sets this on protected branches for coverage-only rollout), otherwise allow skipping.
+_itr_prevent_skipping_override = os.environ.get(
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "0"
+)
+
+
 # Common env configurations for appsec threats testing without/with IAST
 _appsec_threats_no_iast_env = {
-    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
     "DD_IAST_ENABLED": "false",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     "DD_APPSEC_ENABLED": "true",
@@ -3060,7 +3067,7 @@ venv = Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -3140,7 +3147,7 @@ venv = Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3168,7 +3175,7 @@ venv = Venv(
             name="llama_index",
             command="pytest {cmdargs} tests/contrib/llama_index",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.10", max_version="3.13"),
             pkgs={
@@ -3231,7 +3238,7 @@ venv = Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
@@ -3257,7 +3264,7 @@ venv = Venv(
             name="mistralai",
             command="pytest {cmdargs} tests/contrib/mistralai",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -3269,7 +3276,7 @@ venv = Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(),
             pkgs={
@@ -3281,7 +3288,7 @@ venv = Venv(
             name="crewai",
             command="pytest {cmdargs} tests/contrib/crewai",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.10", max_version="3.12"),
             pkgs={
@@ -3295,7 +3302,7 @@ venv = Venv(
             name="pydantic_ai",
             command="pytest {cmdargs} tests/contrib/pydantic_ai",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": latest,
@@ -3348,7 +3355,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "logbook": ["~=1.0.0", latest],
@@ -3360,7 +3367,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/loguru",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "loguru": ["~=0.4.0", latest],
@@ -3371,7 +3378,7 @@ venv = Venv(
             name="molten",
             command="pytest -n 8 {cmdargs} tests/contrib/molten",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(),
             pkgs={
@@ -3385,7 +3392,7 @@ venv = Venv(
             name="gunicorn",
             command="pytest {cmdargs} tests/contrib/gunicorn",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "requests": latest,
@@ -3400,7 +3407,7 @@ venv = Venv(
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-randomly": latest,
@@ -3427,7 +3434,7 @@ venv = Venv(
             name="aws_lambda",
             command="pytest {cmdargs} tests/contrib/aws_lambda",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3441,7 +3448,7 @@ venv = Venv(
             name="aws_durable_execution_sdk_python",
             command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.11"),
             pkgs={
@@ -3454,7 +3461,7 @@ venv = Venv(
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
@@ -3468,7 +3475,7 @@ venv = Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "falcon": latest,
@@ -3501,7 +3508,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_cosmos",
             pys=select_pys(),
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "azure.cosmos": ["~=4.9.0", latest],
@@ -3515,7 +3522,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "azure.eventhub": ["~=5.12.0", latest],
@@ -3526,7 +3533,7 @@ venv = Venv(
             name="azure_functions",
             command="pytest {cmdargs} tests/contrib/azure_functions",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3538,7 +3545,7 @@ venv = Venv(
             name="azure_durable_functions",
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3549,7 +3556,7 @@ venv = Venv(
             name="azure_functions:cosmos",
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
@@ -3563,7 +3570,7 @@ venv = Venv(
             name="azure_functions:eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_functions_eventhubs",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3576,7 +3583,7 @@ venv = Venv(
             name="azure_functions:servicebus",
             command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3588,7 +3595,7 @@ venv = Venv(
             name="azure_servicebus",
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             venvs=[
                 Venv(
@@ -3611,7 +3618,7 @@ venv = Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(),
             pkgs={
@@ -3675,7 +3682,7 @@ venv = Venv(
         Venv(
             name="llmobs",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             venvs=[
                 Venv(
@@ -3721,7 +3728,7 @@ venv = Venv(
             name="vllm",
             command="pytest {cmdargs} tests/contrib/vllm",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -3735,7 +3742,7 @@ venv = Venv(
             name="valkey",
             command="pytest {cmdargs} tests/contrib/valkey",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "valkey": latest,
@@ -3992,7 +3999,7 @@ venv = Venv(
             command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             venvs=[
                 Venv(
@@ -4577,7 +4584,7 @@ venv = Venv(
             name="ai_guard_api",
             command="pytest {cmdargs} tests/aiguard/api/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "requests": latest,
@@ -4588,7 +4595,7 @@ venv = Venv(
             name="ai_guard_langchain",
             command="pytest {cmdargs} tests/aiguard/langchain/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4627,7 +4634,7 @@ venv = Venv(
             name="ai_guard_openai",
             command="pytest {cmdargs} tests/aiguard/openai/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4661,7 +4668,7 @@ venv = Venv(
             name="ai_guard_anthropic",
             command="pytest {cmdargs} tests/aiguard/anthropic/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(),
             pkgs={
@@ -4684,7 +4691,7 @@ venv = Venv(
             name="claude_agent_sdk",
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -4696,7 +4703,7 @@ venv = Venv(
             name="ai_guard_strands",
             command="pytest {cmdargs} tests/aiguard/strands_hooks/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "strands-agents": ">=1.29.0",
@@ -4707,7 +4714,7 @@ venv = Venv(
             name="ai_guard_litellm_guardrail",
             command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pkgs={
                 "pytest-asyncio": latest,
@@ -4731,7 +4738,7 @@ venv = Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
             env={
-                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": _itr_prevent_skipping_override,
             },
             pys=select_pys(),
         ),
