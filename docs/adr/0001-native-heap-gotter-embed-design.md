@@ -16,7 +16,7 @@ This ADR captures **exploratory embed design** for team review and PR discussion
 
 ## Abstract
 
-This record documents how dd-trace-py **explores** embedding Datadog's native heap sampler ("gotter") so Python processes can emit `ddheap:alloc` / `ddheap:free` USDT probes for the Full Host (FH) eBPF profiler. The Python tracer would **arm** the sampler at profiler startup; it would **not** collect, upload, or symbolize native heap profiles in-process. Phase 1 targets allocation-only activation; live-heap free probes and producer-side de-duplication against the in-process `_memalloc` sampler are layered in follow-on draft PRs — with **partition work on hold** pending a unified profiler presentation effort (see [PR #19349 discussion](https://github.com/DataDog/dd-trace-py/pull/19349#issuecomment-5141541518)).
+This record documents how dd-trace-py **explores** embedding Datadog's native heap sampler ("gotter") so Python processes can emit `ddheap:alloc` / `ddheap:free` USDT probes for the Full Host (FH) eBPF profiler. The Python tracer would **arm** the sampler at profiler startup; it would **not** collect, upload, or symbolize native heap profiles in-process. Phase 1 targets allocation-only activation; live-heap free probes are explored in follow-on draft PRs. Producer-side de-duplication against the in-process `_memalloc` sampler is **out of scope** for the current stack — while native (FH/eBPF) and runtime (in-process) profilers remain discrete tools, we should not selectively de-duplicate in the tracer; a unified profiler presentation effort should inform any future approach.
 
 ## Introduction
 
@@ -35,14 +35,14 @@ The FH eBPF profiler can consume out-of-process USDT probes on sampled native al
 - **Opt-in at build and runtime:** wheels ship the cdylib only when explicitly requested; runtime arming requires a separate config flag.
 - **Zero overhead when disabled:** importing ddtrace or starting the profiler with the feature off must not `dlopen` the gotter or patch the GOT.
 - **Fail-closed:** missing cdylib, unsupported platform, or install failure must not break profiler startup or managed-heap collection.
-- **Exactly-one-producer (exploratory):** when armed, each sampled allocation byte should be attributed to either the gotter (FH/eBPF) or in-process `_memalloc`, never both — **partition approach under review** ([PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349)).
 - **Contract compatibility:** emit Datadog's `ddheap:*` USDT provider expected by FH (`sgg/heap-prof-2` consumer), aligned with the broader OTel memory-profiling direction.
 
 ### Out of scope (FH / backend / UI)
 
 - eBPF uprobe attachment, live-heap correlation maps, OTLP export, and back-pressure PID control (FH ebpf-profiler).
 - Backend join of FH profiles to the Python service page, trampoline frame stripping, CompView gauge aggregation (profiling-backend / web-ui).
-- Runtime allocation hints (TLS / USDT arg extensions) — tracked as a complement to partition work, not a replacement.
+- Producer-side de-duplication / ownership partition between gotter and `_memalloc` — deferred pending unified profiler presentation.
+- Runtime allocation hints (TLS / USDT arg extensions) — future complement, not a replacement for backend coordination.
 - Trace → allocation correlation via the universal-profiling ABI (Phase 4).
 
 ## Decision (exploratory — draft PR stack)
@@ -101,27 +101,11 @@ Separate release cadence, smaller build graph, and no double-shipping libdatadog
 
 **Platform (Phase 1):** Linux x86_64 only. `setup.py` gates the gotter build on `CURRENT_OS == "Linux"` and `is_64_bit_python()`; the activator rejects non-Linux at import. arm64 gotter build deferred (upstream uses pointer-tagged allocation headers on arm64).
 
-### 5. Phase 2 — ownership partition (exploratory, on hold)
+### 5. Coexistence with in-process `_memalloc` (no producer-side partition in stack)
 
-When the gotter arms successfully, two independent Poisson samplers would otherwise double-count the same glibc `malloc` for large pymalloc requests:
+When the gotter arms successfully, two independent Poisson samplers may both observe some allocations — notably the **large-object tail** where pymalloc delegates OBJ/MEM requests strictly greater than 512 bytes to glibc `malloc`. The gotter hooks `malloc` via GOT; `_memalloc_heap` hooks OBJ/MEM at `PyObject_Malloc` / `PyMem_Malloc`.
 
-- **Gotter path:** hooks `malloc`/`calloc`/`realloc` via GOT → `ddheap:alloc` → FH.
-- **In-process path:** `_memalloc_heap` hooks OBJ/MEM at `PyObject_Malloc` / `PyMem_Malloc`.
-
-These domains are **mostly disjoint** (gotter owns RAW and direct libc; `_memalloc` owns pool-served OBJ/MEM). The residual overlap is the **large-object tail**: requests **strictly greater than 512 bytes** are delegated by pymalloc to `PyMem_RawMalloc` → glibc `malloc`, so both samplers see them.
-
-**Explored approach (not accepted for ship):** apply a **size-only** producer partition at the OBJ/MEM hook:
-
-| Producer | Owns |
-| :------- | :--- |
-| Gotter + FH | Native/raw glibc `malloc` **and** OBJ/MEM allocations with `size > 512` |
-| In-process `_memalloc` | OBJ/MEM allocations with `size ≤ 512` (pool-served tail) |
-
-512 bytes matches CPython's `SMALL_REQUEST_THRESHOLD`. The comparison is **strictly greater than** 512 — a 512-byte request remains in-process.
-
-**Mechanism (draft [PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349)):** `memalloc.set_native_heap_partition(bool)` sets a process flag; `profiler.py` toggles it when `heap_gotter.install()` succeeds, before memory collectors start.
-
-**Hold / product alignment ([Scott Gerring, 2026-07-31](https://github.com/DataDog/dd-trace-py/pull/19349#issuecomment-5141541518)):** while native (FH/eBPF) and runtime (in-process) profilers remain **discrete tools** in Datadog, we should **not** selectively de-duplicate in the tracer. Ongoing work toward a **unified profiler view** should inform whether producer-side partition is the right approach. **Recommendation:** hold [PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349) and revisit partition design in that light.
+**Product alignment (Scott Gerring, 2026-07-31):** while native (FH/eBPF) and runtime (in-process) profilers remain **discrete tools** in Datadog, we should **not** selectively de-duplicate in the tracer. Ongoing work toward a **unified profiler view** should inform whether any producer-side coordination is appropriate. **Recommendation:** defer partition / de-dup design until that effort clarifies the UX.
 
 Arming the gotter does **not** imply disabling the managed-heap collector — doing so would discard Python-managed visibility the gotter never produces.
 
@@ -130,12 +114,10 @@ Arming the gotter does **not** imply disabling the managed-heap collector — do
 | Layer | Method | Ship gate? |
 | :---- | :----- | :--------- |
 | **Unit / wiring** | `tests/profiling/test_native_heap_gotter.py` (fail-closed, profiler wiring, install idempotence) | Exploratory CI |
-| **Partition logic** | `tests/profiling/collector/test_memalloc.py` (`test_native_heap_partition_*`) — [PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349) | On hold with partition PR |
-| **End-to-end handoff** | `test_native_heap_ownership_handoff_end_to_end` — gotter `test_hook_hits` proves >512B allocations reach the patched GOT | Exploratory CI |
 | **Staging FH** | Test Drive A/B on `do_anomaly_api` / ai_gateway — proves USDT → eBPF pipeline | Complementary |
 | **Arming metric** | Draft [PR #19376](https://github.com/DataDog/dd-trace-py/pull/19376) — **closed**; CI ownership-handoff test deemed sufficient |
 
-**Cluster A/B findings (2026-07-29):** staging dedup campaigns on `do_anomaly_api` and ai_gateway were **inconclusive for quantified overlap bytes**. Workloads are dominated by RAW-domain NumPy/native allocations (eBPF-only in both arms); aggregate flamegraphs lack per-sample size; and JSON logging dropped ddtrace INFO arming lines. A **synthetic OBJ retain endpoint** (`_ab_synth_retain`) gave a **directional PASS** (partition removes the >512B retain frame on dedup-ON) but not a headline byte count. See `experimental/teams/profiling-python/ddtrace-upgrade/native_heap_dedup_ab_recap.md`. **Not sufficient alone to justify shipping partition.**
+**Cluster A/B findings (2026-07-29):** staging dedup campaigns on `do_anomaly_api` and ai_gateway were **inconclusive for quantified overlap bytes**. Workloads are dominated by RAW-domain NumPy/native allocations (eBPF-only in both arms); aggregate flamegraphs lack per-sample size; and JSON logging dropped ddtrace INFO arming lines. See `experimental/teams/profiling-python/ddtrace-upgrade/native_heap_dedup_ab_recap.md`. **Not sufficient alone to justify shipping producer-side de-dup.**
 
 ## Consequences
 
@@ -144,17 +126,15 @@ Arming the gotter does **not** imply disabling the managed-heap collector — do
 - Customers who enable native heap profiling could get libc-level allocation visibility in FH profiles without changing application code.
 - Disabled-by-default embed avoids GOT patching and wheel cost for the majority of installs.
 - Separate cdylib decouples heap sampler updates from `_native` libdatadog v37 pin.
-- Producer-side partition (if revisited) could guarantee non-double-counted data before backend cross-producer dedup exists.
 
 ### Negative / trade-offs
 
 - **Two heap profile lanes** until backend BE-1/BE-2 joins FH `alloc-size` to the Python service page (Phase 5).
+- **Potential double-counting** when both gotter and `_memalloc` run — no producer-side partition in the current stack; backend / unified-view work must address presentation.
 - **Permanent GOT patch** — cannot uninstall; library must remain mapped.
 - **Fork inheritance** — child processes inherit patched GOT (re-install is idempotent no-op).
 - **Platform gap** — no arm64 gotter in Phase 1; macOS builds carry an unused stub.
 - **Flamegraph noise** — gotter trampoline frames rank highly until FE strip/roll-up.
-- **Partition vs unified view** — selective de-dup in-tracer may conflict with discrete native/runtime profiler UX; product direction pending.
-- **Partition blind spot** — RAW-domain large buffers were never in-process; partition targets OBJ/MEM >512B only.
 
 ### Operational
 
@@ -168,18 +148,17 @@ Arming the gotter does **not** imply disabling the managed-heap collector — do
 | **Merge gotter into `_native.so`** | Every import loads GOT interposer; couples release cadence and wheel size to main native build. |
 | **crates.io `libdd-profiling-heap-gotter` wrapper with `ddtrace_*` ABI** | Earlier draft; current stack uses libdatadog git FFI (`ddog_*`) on [PR #19078](https://github.com/DataDog/dd-trace-py/pull/19078). |
 | **Disable in-process `_memalloc` when gotter arms** | Throws away Python-managed heap profile; gotter never sees ≤512B pool-served allocations. |
-| **Domain-scoped partition only (OBJ vs MEM, no size split)** | Does not close the large-object tail overlap where pymalloc delegates to glibc. |
+| **Producer-side ownership partition (size split at 512 B)** | Explored separately; on hold — selective de-dup in-tracer conflicts with discrete native/runtime profiler UX pending unified view. |
 | **Shared sampler state across gotter and `_memalloc`** | Highest fidelity but most invasive; deferred. |
 | **Backend-only dedup (Option A)** | Desirable long-term but insufficient if both producers emit overlapping samples without coordination. |
 | **Rely on cluster A/B alone for ship proof** | Workload confounders make byte-level quantification inconclusive. |
-| **Ship partition while profilers stay discrete ([#19349 comment](https://github.com/DataDog/dd-trace-py/pull/19349#issuecomment-5141541518))** | On hold — revisit after unified profiler presentation effort. |
 
 ## Deferred work
 
 | Phase | Owner | Summary |
 | :---- | :---- | :------ |
 | **1b / E — live-heap** | dd-trace-py | `ddheap:free` producer — draft [PR #19325](https://github.com/DataDog/dd-trace-py/pull/19325) |
-| **2 — partition** | dd-trace-py + product | Draft [PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349) — **on hold** pending unified view |
+| **Producer-side de-dup / partition** | dd-trace-py + product | On hold pending unified profiler presentation |
 | **Native retain-set cap soak** | FH (Scott) | Live-set tracking + cap/eviction in eBPF consumer |
 | **3 — Attribution** | FH (+ dd-trace-py symbols) | Shared unwinder; Python frames for recognized CPython |
 | **4 — Trace correlation** | dd-trace-py + FH | Export universal-profiling ABI |
@@ -191,7 +170,7 @@ Arming the gotter does **not** imply disabling the managed-heap collector — do
 
 All PRs are **draft** and **exploratory** as of 2026-07-31:
 
-`main` ← [#19078](https://github.com/DataDog/dd-trace-py/pull/19078) (cdylib + libdatadog FFI build) ← [#19079](https://github.com/DataDog/dd-trace-py/pull/19079) (activator + config + wiring) ← [#19325](https://github.com/DataDog/dd-trace-py/pull/19325) (live-heap) ← [#19349](https://github.com/DataDog/dd-trace-py/pull/19349) (ownership partition — **on hold**).
+`main` ← [#19078](https://github.com/DataDog/dd-trace-py/pull/19078) (cdylib + libdatadog FFI build) ← [#19079](https://github.com/DataDog/dd-trace-py/pull/19079) (activator + config + wiring) ← [#19325](https://github.com/DataDog/dd-trace-py/pull/19325) (live-heap).
 
 | Path | Role |
 | :--- | :--- |
@@ -199,8 +178,7 @@ All PRs are **draft** and **exploratory** as of 2026-07-31:
 | `setup.py` | `build_heap_gotter()`, `BUILD_NATIVE_HEAP_GOTTER`, stages `liblibdd_profiling_heap_gotter_ffi*` |
 | `ddtrace/internal/datadog/profiling/heap_gotter/__init__.py` | ctypes activator (fail-closed dlopen; `VoidResult` handling) |
 | `ddtrace/internal/settings/profiling.py` | `ProfilingConfigNativeHeap`, availability gate |
-| `ddtrace/profiling/profiler.py` | `_start_service()` arming; partition toggle ([PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349)) |
-| `ddtrace/profiling/collector/_memalloc_heap.cpp` | Partition skip for `size > 512` ([PR #19349](https://github.com/DataDog/dd-trace-py/pull/19349)) |
+| `ddtrace/profiling/profiler.py` | `_start_service()` arming |
 | `tests/profiling/test_native_heap_gotter.py` | Wiring and smoke tests |
 | `ddtrace/native-heap-profiling-roadmap.md` | Living tracker (local/untracked in repo; use PR links for canonical progress) |
 
@@ -209,6 +187,5 @@ All PRs are **draft** and **exploratory** as of 2026-07-31:
 - [Native heap profiling roadmap](../../ddtrace/native-heap-profiling-roadmap.md) — living doc; may remain untracked until promoted
 - [OTel eBPF profiler memory profiling design](https://github.com/open-telemetry/opentelemetry-ebpf-profiler/pull/1672)
 - [libdatadog heap gotter FFI](https://github.com/DataDog/libdatadog/tree/main/libdd-profiling-heap-gotter-ffi) (git pin on draft #19078)
-- [PR #19349 — partition on hold (Scott Gerring)](https://github.com/DataDog/dd-trace-py/pull/19349#issuecomment-5141541518)
 - Staging dedup A/B recap: `experimental/teams/profiling-python/ddtrace-upgrade/native_heap_dedup_ab_recap.md`
 - Profiling native component overview: `ddtrace/internal/datadog/profiling/docs/Design.md`
