@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where stack profiling can cause process memory usage to grow continuously in
+    long-running applications, particularly those using gevent.
