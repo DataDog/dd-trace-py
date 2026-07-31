@@ -103,6 +103,23 @@ class ObservableUpDownCounter(otel.ObservableUpDownCounter):
         self._id = instrument_id
 
 
+# Synchronous Gauge was added to opentelemetry-api in 1.23; guard so we still import on older API.
+_SYNC_GAUGE = getattr(otel, "Gauge", None)
+
+if _SYNC_GAUGE is not None:
+
+    class Gauge(_SYNC_GAUGE):  # type: ignore[misc,valid-type]
+        def __init__(self, aggregator, instrument_id, name, unit="", description=""):
+            self._aggregator = aggregator
+            self._id = instrument_id
+
+        def set(self, amount, attributes=None, context=None):
+            self._aggregator.observe_gauge(self._id, float(amount), _attrs(attributes))
+
+else:
+    Gauge = None  # type: ignore[assignment,misc]
+
+
 class _ObservableCallbackReader(PeriodicService):
     """Resolves registered observable-instrument callbacks once per export interval.
 
@@ -180,6 +197,16 @@ class Meter(otel.Meter):
     def create_histogram(self, name, unit="", description="", *, explicit_bucket_boundaries_advisory=None):
         instrument_id = self._register(name, "histogram", unit, description)
         return Histogram(self._aggregator, instrument_id, name, unit, description)
+
+    def create_gauge(self, name, unit="", description=""):
+        # Synchronous gauge (opentelemetry-api >= 1.23). Backed by the same SDK Gauge handle as an
+        # observable gauge; set() pushes the value via observe_gauge. On older API (no sync Gauge)
+        # fall back to the base no-op.
+        if Gauge is None:
+            # None only on opentelemetry-api < 1.23 (no sync Gauge); mypy checks a newer API.
+            return super().create_gauge(name, unit=unit, description=description)  # type: ignore[unreachable]
+        instrument_id = self._register(name, "observable_gauge", unit, description)
+        return Gauge(self._aggregator, instrument_id, name, unit, description)
 
     def create_observable_counter(self, name, callbacks=None, unit="", description=""):
         instrument_id = self._register(name, "observable_counter", unit, description)
