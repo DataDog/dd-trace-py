@@ -311,7 +311,9 @@ def _instrument_with_monitoring(
                     "Failed to inject import hooks into %r; falling back to static import metadata", code, exc_info=True
                 )
             else:
-                import_names = {}
+                # Keep the file-level package dependency sentinel. Import hooks cover actual import opcodes, but the
+                # current module's dependency on its containing package is not backed by an import opcode.
+                import_names = {0: import_names[0]} if 0 in import_names else {}
 
         # Enable local PY_START events for the final code object.
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
@@ -350,6 +352,7 @@ def _extract_lines_and_imports(
     import_names = import_names_by_line(iter_import_events(code, package) if import_events is None else import_events)
 
     linestarts = dict(dis.findlinestarts(code))
+    package_dependency_recorded = False
     code_iter = iter(enumerate(code.co_code))
     try:
         while True:
@@ -366,8 +369,17 @@ def _extract_lines_and_imports(
                 if line is not None:
                     # Make sure that the current module is marked as depending on its own package by instrumenting the
                     # first executable line. In file-level mode, line 0 is the sentinel for the executed module.
-                    if code.co_name == "<module>" and not import_names and package is not None:
-                        import_names[0 if _USE_FILE_LEVEL_COVERAGE else line] = (package, ("",))
+                    if code.co_name == "<module>" and not package_dependency_recorded and package is not None:
+                        package_dependency_line = 0 if _USE_FILE_LEVEL_COVERAGE else line
+                        if package_dependency_line in import_names:
+                            existing_package, existing_names = import_names[package_dependency_line]
+                            import_names[package_dependency_line] = (
+                                existing_package or package,
+                                ("",) + existing_names,
+                            )
+                        else:
+                            import_names[package_dependency_line] = (package, ("",))
+                        package_dependency_recorded = True
 
                     if track_lines:
                         lines.add(line)
