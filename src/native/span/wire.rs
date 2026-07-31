@@ -103,12 +103,16 @@ fn pack_meta_struct_value(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Option<Byte
 /// `_dd.origin` into every span, because the attribute store only carries it on the chunk-root span.
 /// It is not truncated: it is an internal reserved tag, exempt from the user-tag length cap.
 ///
+/// `mask_link_flags` selects the `flags` convention that the consumer of this span expects. See
+/// [`wire_link`].
+///
 /// This function never raises. It skips a key or value with no valid UTF-8 form, and a meta_struct
 /// value that the packer rejects. One lost attribute costs less than one lost span.
 pub(crate) fn build_wire_span(
     py: Python<'_>,
     span: &SpanData,
     dd_origin: Option<&PyBackedString>,
+    mask_link_flags: bool,
 ) -> Span<PyTraceData> {
     let mut out = Span::<PyTraceData> {
         trace_id: span.trace_id,
@@ -167,7 +171,11 @@ pub(crate) fn build_wire_span(
         }
     }
 
-    out.span_links = span.span_links.iter().map(|l| wire_link(py, l)).collect();
+    out.span_links = span
+        .span_links
+        .iter()
+        .map(|l| wire_link(py, l, mask_link_flags))
+        .collect();
     out.span_events = span.span_events.iter().map(|e| wire_event(py, e)).collect();
 
     if let Some(origin) = dd_origin {
@@ -216,17 +224,32 @@ pub(crate) fn build_wire_span(
 
 /// Project one span link, truncating every string field.
 ///
-/// `flags` keeps its bit-31 "flags present" sentinel, which is the v0.4 wire convention: it lets the
-/// agent tell `flags = 0`, a sampling decision of "drop", apart from "no flags at all". The Cython
-/// encoder set the same bit (`_encoding.pyx`). Only a consumer that reads `flags` as a plain W3C
-/// value needs it stripped, and this buffer speaks v0.4 msgpack only.
-fn wire_link(py: Python<'_>, link: &SpanLink<PyTraceData>) -> SpanLink<PyTraceData> {
+/// Bit 31 of `flags` marks "flags present". The bit lets a reader tell `flags = 0`, a sampling
+/// decision of "drop", apart from "no flags at all". `build_native_link` sets the bit and
+/// `_get_links` strips it again.
+///
+/// The v0.4 msgpack payload wants the bit set, because the agent makes the same distinction, and the
+/// Cython encoder set it too (`_encoding.pyx`). Pass `mask_flags = true` for a consumer that reads
+/// `flags` as a plain W3C value and does not know the convention. libdatadog's v0.4 to v0.5 JSON
+/// conversion is one such consumer: it copies `flags` into `meta["_dd.span_links"]` without
+/// stripping the bit, so an unmasked value reaches the agent as `0x80000001`.
+fn wire_link(
+    py: Python<'_>,
+    link: &SpanLink<PyTraceData>,
+    mask_flags: bool,
+) -> SpanLink<PyTraceData> {
+    // A masked value keeps only the low 31 bits, and collapses "no flags" to 0.
+    let flags = if mask_flags {
+        link.flags & 0x7FFF_FFFF
+    } else {
+        link.flags
+    };
     SpanLink {
         trace_id: link.trace_id,
         trace_id_high: link.trace_id_high,
         span_id: link.span_id,
         tracestate: wire_str(py, link.tracestate.clone_ref(py)),
-        flags: link.flags,
+        flags,
         attributes: link
             .attributes
             .iter()
