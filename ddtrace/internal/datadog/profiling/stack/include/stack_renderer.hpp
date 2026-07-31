@@ -74,6 +74,7 @@ class StackRenderer
 
   public:
     StackRenderer();
+    ~StackRenderer();
     void render_thread_begin(PyThreadState* tstate,
                              std::string_view name,
                              microsecond_t wall_time_us,

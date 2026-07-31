@@ -4,6 +4,8 @@
 
 #include <echion/echion_sampler.h>
 
+#include "dd_wrapper/include/defer.hpp"
+
 #include <algorithm>
 #include <optional>
 #include <string_view>
@@ -11,6 +13,11 @@
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
+    // Every unwind is a new snapshot. Discard any task or greenlet stacks left by an earlier cycle before appending
+    // this cycle's stacks.
+    current_tasks.clear();
+    current_greenlets.clear();
+
     unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
@@ -729,8 +736,6 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-
-        current_tasks.clear();
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
@@ -742,8 +747,6 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-
-        current_greenlets.clear();
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
@@ -755,6 +758,15 @@ Result<void>
 ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
     auto& renderer = echion.renderer();
+
+    // Treat the renderer Sample and unwound task/greenlet stacks as one sampling-cycle transaction. This cleanup runs
+    // for success and every early return, so a failed cycle cannot retain native stacks or leave a Sample checked out.
+    auto cycle_cleanup = make_defer([&]() noexcept {
+        renderer.abort_sample();
+        current_tasks.clear();
+        current_greenlets.clear();
+    });
+
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;

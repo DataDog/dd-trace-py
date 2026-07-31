@@ -26,6 +26,11 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
+
+    // A failed sampling cycle can return before render_stack_end(). Do not overwrite its in-flight Sample, since doing
+    // so would permanently leak the Sample and drain one slot from the fixed-capacity pool.
+    abort_sample();
+
     sample = SampleManager::start_sample();
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
@@ -284,6 +289,11 @@ Datadog::StackRenderer::StackRenderer()
     string_id_cache.max_load_factor(0.7f);
 }
 
+Datadog::StackRenderer::~StackRenderer()
+{
+    abort_sample();
+}
+
 void
 Datadog::StackRenderer::postfork_child()
 {
@@ -294,5 +304,8 @@ Datadog::StackRenderer::postfork_child()
     new (&string_id_cache) std::unordered_map<StringTable::Key, string_id>();
     new (&function_id_cache)
       std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq>();
+
+    // The vanished sampling thread may have been mutating this Sample when fork captured it. Clearing or returning the
+    // child copy could traverse inconsistent vectors, so intentionally abandon at most this one in-flight child copy.
     sample = nullptr;
 }
