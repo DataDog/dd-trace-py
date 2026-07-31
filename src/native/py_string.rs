@@ -199,6 +199,14 @@ impl std::borrow::Borrow<str> for PyBackedString {
     }
 }
 
+// See the note on `AsRef<[u8]> for Bytes`: libdatadog's `BufferSize` blanket impl for
+// `v04::Span<T>` needs `AsRef` on both wire types.
+impl AsRef<str> for PyBackedString {
+    fn as_ref(&self) -> &str {
+        self.deref()
+    }
+}
+
 impl PartialEq for PyBackedString {
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
@@ -238,6 +246,13 @@ impl SpanText for PyBackedString {
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Bytes(Vec<u8>);
 
+impl Bytes {
+    /// Wrap already-packed msgpack bytes.
+    pub(crate) fn from_owned_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+}
+
 impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
         Self(value.to_vec())
@@ -246,6 +261,15 @@ impl SpanBytes for Bytes {
 
 impl Borrow<[u8]> for Bytes {
     fn borrow(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+// `AsRef` on both wire types is what libdatadog's `BufferSize` blanket impl for
+// `v04::Span<T>` requires. Implementing it lets the native trace buffer bound itself by
+// libdatadog's own per-span byte estimate instead of a count we maintain ourselves.
+impl AsRef<[u8]> for Bytes {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
