@@ -14,7 +14,6 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportEvent
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -31,8 +30,19 @@ log = get_logger(__name__)
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
+EXTENDED_ARG = dis.EXTENDED_ARG
 RESUME = dis.opmap["RESUME"]
 CACHE = 0  # CACHE opcode is always 0 across all CPython versions
+LOAD_CONST = dis.opmap["LOAD_CONST"]
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
+# LOAD_SMALL_INT was added in 3.14, replacing LOAD_CONST for small integer literals.
+LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
+
+# In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
+# bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
+# So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
+_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
 
 # Detect empty modules: the bytecode pattern varies across Python versions.
 # Python 3.12-3.13: RESUME + RETURN_CONST
@@ -272,12 +282,32 @@ def _instrument_with_monitoring(
     """
     Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
     """
+    hook_self = getattr(hook, "__self__", None)
+    line_hook = getattr(hook_self, "hook_line", None)
+    file_hook = getattr(hook_self, "hook_file", None)
+    import_hook = getattr(hook_self, "hook_import", None)
+    collect_import_coverage = getattr(hook_self, "_collect_import_coverage", False)
+
     track_lines = not _USE_FILE_LEVEL_COVERAGE
-    # Extract import names and collect line numbers before rewriting nested code objects.
-    import_events = iter_import_events(code, package)
-    lines, import_names = _extract_lines_and_imports(
-        code, package, track_lines=track_lines, import_events=import_events
-    )
+    accurate_file_imports = _USE_FILE_LEVEL_COVERAGE and _USE_ACCURATE_IMPORTS and collect_import_coverage
+    import_events = None
+
+    if accurate_file_imports:
+        # Accurate mode already needs Bytecode.from_code() to get hook insertion points. Reuse that result for fallback
+        # import metadata instead of also doing conservative import decoding with the raw scanner.
+        lines = CoverageLines()
+        import_events = iter_import_events(code, package)
+        import_names = import_names_by_line(import_events)
+        if code.co_name == "<module>" and package is not None:
+            _add_package_dependency(import_names, 0, package)
+    elif track_lines or collect_import_coverage:
+        # Keep the default path cheap: use raw co_code scanning for line numbers and conservative import metadata.
+        lines, import_names = _extract_lines_and_imports(
+            code, package, track_lines=track_lines, collect_imports=collect_import_coverage
+        )
+    else:
+        lines = CoverageLines()
+        import_names = {}
 
     # Recursively instrument nested code objects first. sys.monitoring events must be enabled on the final code
     # objects, not on the original nested constants that may be replaced below.
@@ -294,21 +324,18 @@ def _instrument_with_monitoring(
     if new_consts is not None:
         code = code.replace(co_consts=tuple(new_consts))
 
-    hook_self = getattr(hook, "__self__", None)
-    line_hook = getattr(hook_self, "hook_line", None)
-    file_hook = getattr(hook_self, "hook_file", None)
-    import_hook = getattr(hook_self, "hook_import", None)
-
     if _USE_FILE_LEVEL_COVERAGE:
         # In file-level mode, PY_START is too coarse for import dependency tracking: it fires when a code object
         # starts, before guarded imports are known to execute. Inject a tiny hook immediately after actual import
         # opcodes instead, and keep PY_START exclusively for file coverage.
-        if _USE_ACCURATE_IMPORTS and import_names and getattr(hook_self, "_collect_import_coverage", False):
+        if accurate_file_imports and import_events:
             try:
                 code = inject_import_hooks(code, hook, path, import_events)
             except Exception:
                 log.debug(
-                    "Failed to inject import hooks into %r; falling back to static import metadata", code, exc_info=True
+                    "Failed to inject import hooks into %r; falling back to static import metadata",
+                    code,
+                    exc_info=True,
                 )
             else:
                 # Keep the file-level package dependency sentinel. Import hooks cover actual import opcodes, but the
@@ -341,48 +368,123 @@ def _instrument_with_monitoring(
     return code, lines
 
 
+def _add_package_dependency(
+    import_names: ImportNamesByLine,
+    package_dependency_line: int,
+    package: str,
+) -> None:
+    """Record the current module's dependency on its containing package."""
+    if package_dependency_line in import_names:
+        existing_package, existing_names = import_names[package_dependency_line]
+        import_names[package_dependency_line] = (existing_package or package, ("",) + existing_names)
+    else:
+        import_names[package_dependency_line] = (package, ("",))
+
+
 def _extract_lines_and_imports(
     code: CodeType,
     package: str,
     track_lines: bool = True,
-    import_events: t.Optional[t.Iterable[ImportEvent]] = None,
+    collect_imports: bool = True,
 ) -> tuple[CoverageLines, ImportNamesByLine]:
-    """Extract executable line numbers and import metadata for a code object."""
+    """Extract executable line numbers and conservative import metadata via raw bytecode iteration.
+
+    This intentionally avoids Bytecode.from_code()/dis.get_instructions() in the default path. Accurate import hook
+    injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
+    CPython wordcode directly with much lower overhead.
+    """
     lines = CoverageLines()
-    import_names = import_names_by_line(iter_import_events(code, package) if import_events is None else import_events)
+    import_names: ImportNamesByLine = {}
+
+    current_arg: int = 0
+    current_import_name: t.Optional[str] = None
+    current_import_package: t.Optional[str] = None
 
     linestarts = dict(dis.findlinestarts(code))
+    line: t.Optional[int] = None
     package_dependency_recorded = False
+
+    # Track the decoded values of the previous two real instructions for import depth.
+    # The import sequence is: LOAD_CONST/LOAD_SMALL_INT <level>, LOAD_CONST <fromlist>, IMPORT_NAME.
+    # At IMPORT_NAME, prev_prev_value holds the decoded import depth.
+    prev_prev_value: t.Any = 0
+    prev_value: t.Any = 0
+
+    ext: list[int] = []
     code_iter = iter(enumerate(code.co_code))
     try:
         while True:
             offset, opcode = next(code_iter)
-            next(code_iter)
+            _, arg = next(code_iter)
 
-            # Skip RESUME and CACHE entries (CACHE=0 on all CPython versions).
+            # Skip RESUME and CACHE entries (CACHE=0 on all CPython versions). CACHE entries must not pollute the
+            # argument history used for import depth tracking.
             if opcode == RESUME or opcode == CACHE:
                 continue
 
             if offset in linestarts:
                 line = linestarts[offset]
-                # Skip if line is None (bytecode that doesn't map to a specific source line)
                 if line is not None:
-                    # Make sure that the current module is marked as depending on its own package by instrumenting the
-                    # first executable line. In file-level mode, line 0 is the sentinel for the executed module.
-                    if code.co_name == "<module>" and not package_dependency_recorded and package is not None:
-                        package_dependency_line = 0 if _USE_FILE_LEVEL_COVERAGE else line
-                        if package_dependency_line in import_names:
-                            existing_package, existing_names = import_names[package_dependency_line]
-                            import_names[package_dependency_line] = (
-                                existing_package or package,
-                                ("",) + existing_names,
-                            )
-                        else:
-                            import_names[package_dependency_line] = (package, ("",))
+                    if (
+                        collect_imports
+                        and code.co_name == "<module>"
+                        and not package_dependency_recorded
+                        and package is not None
+                    ):
+                        _add_package_dependency(import_names, 0 if _USE_FILE_LEVEL_COVERAGE else line, package)
                         package_dependency_recorded = True
 
                     if track_lines:
                         lines.add(line)
+
+            if not collect_imports:
+                continue
+
+            if opcode == EXTENDED_ARG:
+                ext.append(arg)
+                continue
+
+            current_arg = int.from_bytes([*ext, arg], "big", signed=False)
+            ext.clear()
+
+            if opcode == IMPORT_NAME and line is not None:
+                import_depth = prev_prev_value if isinstance(prev_prev_value, int) else 0
+                current_import_name = code.co_names[current_arg >> _IMPORT_NAME_ARG_SHIFT]
+                current_import_package = (
+                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                )
+
+                if line in import_names:
+                    previous_package, previous_names = import_names[line]
+                    import_names[line] = (
+                        current_import_package or previous_package,
+                        previous_names + (current_import_name,),
+                    )
+                else:
+                    import_names[line] = (current_import_package, (current_import_name,))
+
+            # Also track import-from statements since the imported attribute can itself be a module, eg:
+            # from my_package import my_module
+            if opcode == IMPORT_FROM and line is not None and current_import_name is not None:
+                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                if line in import_names:
+                    previous_package, previous_names = import_names[line]
+                    import_names[line] = (
+                        current_import_package or previous_package,
+                        previous_names + (import_from_name,),
+                    )
+                else:
+                    import_names[line] = (current_import_package or package, (import_from_name,))
+
+            # Decode argument value and shift history AFTER opcode handling.
+            if opcode == LOAD_CONST:
+                decoded = code.co_consts[current_arg]
+            elif LOAD_SMALL_INT is not None and opcode == LOAD_SMALL_INT:
+                decoded = current_arg
+            else:
+                decoded = current_arg
+            prev_prev_value = prev_value
+            prev_value = decoded
 
     except StopIteration:
         pass
