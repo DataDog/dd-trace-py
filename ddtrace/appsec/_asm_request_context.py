@@ -733,7 +733,7 @@ def _get_headers_if_appsec() -> Optional[Any]:
     return None
 
 
-## headers tags
+# Headers tags
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",

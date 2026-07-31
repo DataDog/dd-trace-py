@@ -96,6 +96,7 @@ def test_nested_same_service_web_span_preserves_waf_results(tracer, user_agent, 
         with core.context_with_data("flask.request", headers=request_headers):
             with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
                 set_http_meta(flask_span, rules.Config(), request_headers=request_headers)
+                _asm_request_context.call_waf_callback()
 
         fingerprint_from_flask = proxy_span.get_tag(FINGERPRINTING.HEADER)
 
@@ -118,6 +119,27 @@ def test_nested_different_service_web_span_uses_separate_asm_context(tracer):
                 assert child_env.entry_span is child_span
 
         assert _asm_request_context.get_active_asm_context() is parent_env
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+def test_only_owner_finish_flushes_shared_asm_context(mock_run, tracer):
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    config = {"_asm_enabled": True, "_asm_static_rule_file": rules.RULES_SRB_RESPONSE}
+
+    with asm_context(tracer=tracer, service="svc", config=config):
+        env = _asm_request_context.get_active_asm_context()
+        assert env is not None
+
+        with core.context_with_data("flask.request"):
+            with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
+                set_http_meta(flask_span, rules.Config(), status_code=200)
+
+        assert mock_run.call_count == 0
+
+    assert mock_run.call_count == 1
 
 
 @pytest.mark.parametrize("rule, _exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
