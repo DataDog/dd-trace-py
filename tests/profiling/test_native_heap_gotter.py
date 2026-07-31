@@ -299,7 +299,7 @@ def test_profiler_keeps_managed_heap_when_native_heap_disabled() -> None:
     sys.platform != "linux" or not _GOTTER_TEST_HOOK_AVAILABLE,
     reason=(
         "needs a Linux 64-bit test-support gotter build exposing "
-        "ddtrace_heap_gotter_test_hook_hits() (build with "
+        "ddog_heap_gotter_test_hook_hits() (build with "
         "DD_PROFILING_NATIVE_HEAP_BUILD=1 DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT=1); "
         "the standard CI wheel ships no gotter"
     ),

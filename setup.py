@@ -873,22 +873,45 @@ import ctypes
 import os
 import sys
 
+DDOG_VOID_RESULT_OK = 0
+
+
+class _DdogVecU8(ctypes.Structure):
+    _fields_ = [
+        ("ptr", ctypes.c_void_p),
+        ("len", ctypes.c_size_t),
+        ("capacity", ctypes.c_size_t),
+    ]
+
+
+class _DdogError(ctypes.Structure):
+    _fields_ = [("message", _DdogVecU8)]
+
+
+class _DdogVoidResult(ctypes.Structure):
+    _fields_ = [
+        ("tag", ctypes.c_uint32),
+        ("err", _DdogError),
+    ]
+
+
 path = {str(library_path)!r}
 lib = ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL | getattr(os, "RTLD_NOW", 0))
-lib.ddtrace_heap_gotter_install.argtypes = []
-lib.ddtrace_heap_gotter_install.restype = ctypes.c_bool
-lib.ddtrace_heap_gotter_test_hook_hits.argtypes = []
-lib.ddtrace_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+lib.ddog_heap_gotter_install.argtypes = []
+lib.ddog_heap_gotter_install.restype = _DdogVoidResult
+lib.ddog_heap_gotter_test_hook_hits.argtypes = []
+lib.ddog_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
 lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
 lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
 lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
 lib.ddtrace_heap_gotter_test_free_probe.restype = None
 
-if not lib.ddtrace_heap_gotter_install():
-    raise SystemExit("test-support gotter install() returned False during build verification")
-before = int(lib.ddtrace_heap_gotter_test_hook_hits())
+install_result = lib.ddog_heap_gotter_install()
+if install_result.tag != DDOG_VOID_RESULT_OK:
+    raise SystemExit("test-support gotter install() failed during build verification")
+before = int(lib.ddog_heap_gotter_test_hook_hits())
 ptr = lib.ddtrace_heap_gotter_test_malloc_probe(64)
-after = int(lib.ddtrace_heap_gotter_test_hook_hits())
+after = int(lib.ddog_heap_gotter_test_hook_hits())
 if not ptr or after <= before:
     raise SystemExit(
         "test-support gotter HOOK_HITS did not advance after malloc probe "

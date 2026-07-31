@@ -82,7 +82,7 @@ failure_msg: str = ""
 _live_heap_available: bool = False
 
 # Whether the loaded cdylib exports the test-only hook-hit counter symbol
-# (``ddtrace_heap_gotter_test_hook_hits``). Only true for a ``test-support``
+# (``ddog_heap_gotter_test_hook_hits``). Only true for a ``test-support``
 # build (never a shipped wheel). Lets deterministic CI tests prove the patched
 # GOT actually ran without a live eBPF attach; see ``test_hook_hits`` below.
 _test_hook_available: bool = False
@@ -144,8 +144,8 @@ try:
     # `test-support` build (never a shipped wheel). A missing symbol simply
     # leaves the counter reported as unavailable rather than failing the load.
     try:
-        _lib.ddtrace_heap_gotter_test_hook_hits.argtypes = []
-        _lib.ddtrace_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+        _lib.ddog_heap_gotter_test_hook_hits.argtypes = []
+        _lib.ddog_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
         _lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
         _lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
         _lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
@@ -212,7 +212,7 @@ def test_hook_hits() -> int | None:
     if not is_available or _lib is None or not _test_hook_available:
         return None
     try:
-        return int(_lib.ddtrace_heap_gotter_test_hook_hits())
+        return int(_lib.ddog_heap_gotter_test_hook_hits())
     except Exception:
         return None
 
