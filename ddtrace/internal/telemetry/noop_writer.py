@@ -18,6 +18,11 @@ class NoOpTelemetryWriter(object):
     def enable(self) -> bool:
         return False
 
+    def app_started(self) -> None:
+        # ProductManager._do_products() calls this unconditionally during bootstrap; it must be a
+        # no-op here so ddtrace-run/ddtrace.auto startup does not crash when telemetry is disabled.
+        pass
+
     def _get_shared_worker(self):
         # No native worker to consolidate; the trace exporter uses its own telemetry worker.
         return None

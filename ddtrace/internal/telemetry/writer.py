@@ -180,6 +180,10 @@ class TelemetryWriter:
         # every point. ContextKeys are worker-specific, so this is cleared on every worker
         # rebuild (see enable()).
         self._metric_contexts: dict[tuple, "MetricContext"] = {}
+        # Serializes first-time metric-context registration so two threads recording the same new
+        # metric can't both register it (which would create duplicate native contexts / split the
+        # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
+        self._metric_lock = forksafe.Lock()
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -296,26 +300,54 @@ class TelemetryWriter:
         # app-started is emitted only by the root process; this is enforced inside the
         # worker via emit_app_lifecycle (set in _build_worker), so calling start() in a
         # forked child schedules heartbeats without re-emitting app-started.
-        if get_parent_runtime_id() is None and not self.started:
-            self.add_configurations(get_python_config_vars())
-        # Use the local (not self._worker) so mypy keeps the non-None narrowing across the
-        # add_configurations() call above.
-        worker.start()
-        self.started = True
+        # The root process defers app-started until startup configuration has been reported
+        # (products load + report_configuration run after enable()); see app_started(), which is
+        # invoked once products are loaded. (Forked children never emit app-started, so just start.)
+        if get_parent_runtime_id() is None:
+            if not self.started:
+                self.add_configurations(get_python_config_vars())
+        else:
+            worker.start()
+            self.started = True
 
         # Subscribe before replaying, so an endpoint registered in between is forwarded twice
         # rather than lost; the native worker dedupes them (ASM API security).
         endpoint_collection.on_endpoint_registered = self._record_endpoint
         self._report_endpoints()
 
-        # Start the dependency-discovery periodic. It is created once (root process); forked
-        # children inherit it and auto-resume (autorestart=True), so only create it when it does
-        # not already exist.
-        if config.DEPENDENCY_COLLECTION and self._deps_collector is None:
-            self._deps_collector = _TelemetryDependencyCollector(self._report_dependencies, config.HEARTBEAT_INTERVAL)
+        # Start the telemetry periodic. Each tick runs periodic() (without a forced flush): it polls
+        # for new dependencies and drives the app-started fallback, so it runs even when dependency
+        # collection is disabled. Created once (root process); forked children inherit it and
+        # auto-resume (autorestart=True), so only create it when it does not already exist.
+        if self._deps_collector is None:
+            self._deps_collector = _TelemetryDependencyCollector(self.periodic, config.HEARTBEAT_INTERVAL)
             self._deps_collector.start()
 
         return True
+
+    def app_started(self) -> None:
+        """Emit the root process's app-started event, exactly once."""
+        if self.started:
+            return
+        if not self.enable() or self._worker is None:
+            return
+        # enable() starts the worker directly in forked children (and sets started there), so
+        # re-check afterwards to avoid starting the worker twice. mypy can't see that enable()
+        # mutates self.started, so it flags this guard as unreachable.
+        if self.started:
+            return  # type: ignore[unreachable]
+        # Discover dependencies before the worker starts: the native Start action schedules the
+        # first extended heartbeat, which snapshots whatever is in the store when it fires. With
+        # a short extended-heartbeat interval that tick can beat the first periodic poll, sending
+        # a snapshot with no dependencies at all. (mostly relevant in tests.)
+        if config.DEPENDENCY_COLLECTION:
+            self._report_dependencies()
+        try:
+            self._worker.start()
+        except Exception:
+            log.debug("Failed to start the native telemetry worker", exc_info=True)
+            return
+        self.started = True
 
     def _get_shared_worker(self):
         """Return the native telemetry worker for this process, so the trace exporter can
@@ -362,6 +394,8 @@ class TelemetryWriter:
         # Rebuild the worker against the new endpoint/api_key. It is called early,
         # before heavy traffic.
         if self._worker is not None:
+            # Make sure to restart the worker if it was already running.
+            was_started = self.started
             try:
                 self._worker.stop(send_app_closing=False)
             except Exception:
@@ -369,6 +403,8 @@ class TelemetryWriter:
             self._worker = None
             self.started = False
             self.enable()
+            if was_started:
+                self.app_started()
 
     def add_integration(
         self,
@@ -394,6 +430,9 @@ class TelemetryWriter:
             patched,
             compatible,
             auto_patched,
+            # Preserve the failure detail so the backend keeps the message/stack for diagnosing
+            # patch failures; empty means "compatible, no error" -> send null.
+            error_msg or None,
         )
 
     def attach_dependency_metadata(
@@ -424,13 +463,16 @@ class TelemetryWriter:
         """
         self._dependency_tracker.enable_sca_metadata()
 
-    def _report_dependencies(self) -> None:
-        """Discover newly imported modules + SCA re-reports and forward them to the worker."""
+    def _report_dependencies(self) -> Optional[list]:
+        """Discover newly imported modules + SCA re-reports and forward them to the worker.
+
+        Returns the reported dependency records or ``None`` when nothing was reported for testing.
+        """
         if not self._enabled or self._worker is None:
-            return
+            return None
         deps = self._dependency_tracker.collect_report()
         if not deps:
-            return
+            return None
         for dep in deps:
             name = dep["name"]
             version = dep.get("version") or None
@@ -439,6 +481,7 @@ class TelemetryWriter:
             else:
                 metadata = None
             self._worker.add_dependency(name, version, metadata)
+        return deps
 
     def _record_endpoint(self, endpoint: HttpEndPoint) -> None:
         """Forward a single newly-registered HTTP endpoint to the worker (ASM API security).
@@ -455,7 +498,12 @@ class TelemetryWriter:
         if worker is None:
             return
         worker.add_endpoint(
-            endpoint.method, endpoint.path, endpoint.operation_name or None, endpoint.resource_name or None
+            endpoint.method,
+            endpoint.path,
+            endpoint.operation_name or None,
+            endpoint.resource_name or None,
+            response_body_type=list(endpoint.response_body_type) or None,
+            response_code=list(endpoint.response_code) or None,
         )
 
     def _report_endpoints(self) -> None:
@@ -473,7 +521,12 @@ class TelemetryWriter:
             return
         for endpoint in endpoint_collection.endpoints:
             worker.add_endpoint(
-                endpoint.method, endpoint.path, endpoint.operation_name or None, endpoint.resource_name or None
+                endpoint.method,
+                endpoint.path,
+                endpoint.operation_name or None,
+                endpoint.resource_name or None,
+                response_body_type=list(endpoint.response_body_type) or None,
+                response_code=list(endpoint.response_code) or None,
             )
 
     def product_activated(self, product: str, status: bool) -> None:
@@ -635,20 +688,28 @@ class TelemetryWriter:
         unique ``(namespace, name, type, tags)``); every subsequent point is a cheap
         ``worker.add_point(context, value)``.
         """
-        enums = _native_telemetry_enums()
-        context = worker.register_metric_context(
-            enums["namespace"][namespace],
-            # ``name`` may be an ``E(str, enum.Enum)``; normalize to a plain str for the worker.
-            str(name),
-            enums["metric_type"][metric_type],
-            _convert_metric_tags(tags),
-            # ``common`` marks language-shared metrics
-            True,
-        )
         # str-enum names hash/compare equal to their string value, so keying on the raw name
         # still dedupes against plain strings.
-        self._metric_contexts[(namespace, name, metric_type, tags)] = context
-        return context
+        key = (namespace, name, metric_type, tags)
+        # Double-checked locking: the hot path reached here on a cache miss, but another thread may
+        # have registered the same context meanwhile. Re-check under the lock so we register (and
+        # cache) each context exactly once — a duplicate registration would split the series.
+        with self._metric_lock:
+            context = self._metric_contexts.get(key)
+            if context is not None:
+                return context
+            enums = _native_telemetry_enums()
+            context = worker.register_metric_context(
+                enums["namespace"][namespace],
+                # ``name`` may be an ``E(str, enum.Enum)``; normalize to a plain str for the worker.
+                str(name),
+                enums["metric_type"][metric_type],
+                _convert_metric_tags(tags),
+                # ``common`` marks language-shared metrics
+                True,
+            )
+            self._metric_contexts[key] = context
+            return context
 
     # The four ``add_*_metric`` methods inline the hot path (worker fetch + cached-context lookup
     # + add_point) rather than delegating to a shared helper: metric points are recorded in tight
@@ -719,15 +780,19 @@ class TelemetryWriter:
         worker.add_point(context, value)
 
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
-        """Run a final dependency discovery and force a flush of the native worker.
+        """Poll for new dependencies and drive the deferred app-started; optionally flush.
 
-        Everything but dependencies is reported immediately to the native worker.
-        Only dependencies need to be polled, so they're explicitly reported here.
+        Everything but dependencies is reported to the native worker as it happens;
+        only dependencies need polling, so they're reported here.
 
         Args:
             force_flush: If True, force an immediate data flush.
             shutting_down: If True, the worker app-closing is driven by ``app_shutdown``.
         """
+        # Fallback trigger for the deferred root app-started (e.g. shutdown, CI visibility, tests
+        # that flush without going through product load). No-op once already started.
+        self.app_started()
+
         if self._worker is None:
             return
 
@@ -741,7 +806,7 @@ class TelemetryWriter:
                 log.debug("Failed to flush the native telemetry worker", exc_info=True)
 
     def app_shutdown(self) -> None:
-        if self.started:
+        if self._worker is not None:
             # Final dependency/endpoint discovery + FLUSH. force_flush=True is required:
             # the native Stop lifecycle only emits the observability batch (logs/metrics),
             # not the app-events batch (dependencies/integrations/configs/endpoints), so the
@@ -781,6 +846,7 @@ class TelemetryWriter:
         self._payload_file_dir = output_dir
         if not self._enabled:
             return
+        was_started = self.started
         if self._worker is not None:
             try:
                 self._worker.stop(send_app_closing=False)
@@ -789,6 +855,10 @@ class TelemetryWriter:
             self._worker = None
             self.started = False
         self.enable()
+        # Re-emit app-started against the file:// worker if it had already started, so the offline
+        # payload directory captures the lifecycle event rather than nothing.
+        if was_started:
+            self.app_started()
 
     def _restart_sequence(self) -> None:
         # Reset the configuration seq_id counter (test determinism). The native

@@ -687,6 +687,22 @@ def telemetry_writer():
     telemetry_writer = TelemetryWriter(agentless=False)
     telemetry_writer.enable()
 
+    # Capture emitted logs in-process, exposed as ``_logs``, so tests can assert on them: the native
+    # worker otherwise only ships logs to the agent (there is no in-process buffer anymore). Wrapping
+    # ``add_log`` is enough because ``add_error_log`` (used by the ddtrace error-log handler for IAST
+    # native exceptions) funnels through it. Each entry mirrors the old ``LogData`` shape enough for
+    # existing assertions (which key on ``message``).
+    telemetry_writer._logs = []
+    _orig_add_log = telemetry_writer.add_log
+
+    def _capturing_add_log(level, message, stack_trace="", tags=None):
+        telemetry_writer._logs.append(
+            {"message": message, "level": getattr(level, "value", level), "stack_trace": stack_trace, "tags": tags}
+        )
+        return _orig_add_log(level, message, stack_trace=stack_trace, tags=tags)
+
+    telemetry_writer.add_log = _capturing_add_log
+
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
         ddtrace.internal.telemetry.telemetry_writer.disable()

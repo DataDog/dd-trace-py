@@ -175,11 +175,12 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
+    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
         :param local_root: The root span of the local trace chunk.
+        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
     def detach_otel_thread_context() -> None:
@@ -312,8 +313,12 @@ class TelemetryWorker:
         enabled: bool,
         compatible: Optional[bool],
         auto_enabled: Optional[bool],
+        error: Optional[str] = None,
     ) -> None:
-        """Track a patch/integration outcome (app-integrations-change)."""
+        """Track a patch/integration outcome (app-integrations-change).
+
+        :param error: failure detail when patching failed (None when it succeeded).
+        """
         ...
     def add_dependency(
         self,
@@ -369,11 +374,23 @@ class TelemetryWorker:
             ``profiler``, ``appsec`` (any string is accepted as the product name).
         """
         ...
-    def add_endpoint(self, method: str, path: str, operation_name: Optional[str], resource_name: Optional[str]) -> None:
+    def add_endpoint(
+        self,
+        method: str,
+        path: str,
+        operation_name: Optional[str],
+        resource_name: Optional[str],
+        request_body_type: Optional[list[str]] = None,
+        response_body_type: Optional[list[str]] = None,
+        response_code: Optional[list[int]] = None,
+    ) -> None:
         """Report an instrumented endpoint (ASM app-endpoints).
 
         :param method: HTTP method (unknown methods map to ``"*"``; empty => unset).
         :param path: request path; empty => unset.
+        :param request_body_type: declared request media types (API Security inventory).
+        :param response_body_type: declared response media types (API Security inventory).
+        :param response_code: declared response status codes (API Security inventory).
         """
         ...
 

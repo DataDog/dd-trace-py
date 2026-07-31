@@ -320,7 +320,7 @@ impl TelemetryWorkerPy {
         Ok(())
     }
 
-    #[pyo3(signature = (name, version, enabled, compatible, auto_enabled))]
+    #[pyo3(signature = (name, version, enabled, compatible, auto_enabled, error=None))]
     fn add_integration(
         &self,
         name: String,
@@ -328,11 +328,12 @@ impl TelemetryWorkerPy {
         enabled: bool,
         compatible: Option<bool>,
         auto_enabled: Option<bool>,
+        error: Option<String>,
     ) -> PyResult<()> {
         drop_on_err(
             "integration",
             self.handle
-                .add_integration(name, enabled, version, compatible, auto_enabled),
+                .add_integration(name, enabled, version, compatible, auto_enabled, error),
         );
         Ok(())
     }
@@ -442,19 +443,28 @@ impl TelemetryWorkerPy {
 
     /// Report an instrumented endpoint (ASM app-endpoints). `method`/`path` are
     /// optional; `operation_name`/`resource_name` default to empty strings.
-    #[pyo3(signature = (method, path, operation_name, resource_name))]
+    /// `request_body_type`/`response_body_type`/`response_code` carry the declared
+    /// response media types and status codes (API Security inventory); both default to empty.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (method, path, operation_name, resource_name, request_body_type=None, response_body_type=None, response_code=None))]
     fn add_endpoint(
         &self,
         method: String,
         path: String,
         operation_name: Option<String>,
         resource_name: Option<String>,
+        request_body_type: Option<Vec<String>>,
+        response_body_type: Option<Vec<String>>,
+        response_code: Option<Vec<u32>>,
     ) -> PyResult<()> {
         let endpoint = data::Endpoint {
             method: parse_method(&method),
             path: if path.is_empty() { None } else { Some(path) },
             operation_name: operation_name.unwrap_or_default(),
             resource_name: resource_name.unwrap_or_default(),
+            request_body_type,
+            response_body_type,
+            response_code,
         };
         drop_on_err(
             "endpoint",
