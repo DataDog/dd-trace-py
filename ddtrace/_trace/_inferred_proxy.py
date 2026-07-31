@@ -204,11 +204,11 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     if proxy_header_path and not proxy_header_path.startswith("/"):
         proxy_header_path = f"/{proxy_header_path}"
 
-    # If the proxy is expected to provide a timestamp, require it; otherwise fall back to current time (ms).
+    # If the proxy is expected to provide a timestamp, require it; otherwise fall back to current time.
     if not proxy_header_start_time_ms:
         if proxy_info.does_provide_timestamp:
             return None
-        proxy_header_start_time_ms = str(Time.time_ns() // 1_000_000)  # convert ns to ms
+        proxy_header_start_time_ms = str(Time.time_ns() // 1_000_000)
 
     return ProxyHeaderContext(
         proxy_header_system,
