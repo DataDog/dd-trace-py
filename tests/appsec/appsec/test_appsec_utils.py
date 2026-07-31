@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -195,3 +196,14 @@ def test_block_config_get_preserves_attribute_access():
     # Both access methods should return identical values
     assert config.status_code == config.get("status_code")
     assert config.type == config.get("type")
+
+
+def test_user_info_retriever_preserves_id_and_stringifies_extra_values():
+    from ddtrace.appsec._utils import _UserInfoRetriever
+
+    retriever = _UserInfoRetriever(SimpleNamespace(pk=1, username=2, email=3, name=4))
+
+    assert retriever.get_user_info(login=True, email=True, name=True) == (
+        1,
+        {"login": "2", "email": "3", "name": "4"},
+    )
