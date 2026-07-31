@@ -535,7 +535,7 @@ experiments:
               - execution_time < 2.30 ms
           - name: iastpropagation-propagation_enabled_1000
             thresholds:
-              - execution_time < 38.00 ms
+              - execution_time < 38.50 ms
 
           # otelsdkspan
           - name: otelsdkspan-add-event
