@@ -108,7 +108,7 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
 #. Comment ``/merge`` on the *original* fork PR once its checks are green.
 #. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
 
-Never mirror speculative, partially reviewed, or unreviewed code just to obtain CI results.
+Never mirror speculative, partially reviewed, or code that has not been reviewed just to obtain CI results.
 
 Backporting
 -----------
