@@ -29,7 +29,7 @@ Guild-agreed convention. It splits on whether the code is part of the **public i
 
 ```python
 def enable(self, flush_interval: float = 1.0) -> None:
-    """Start the writer thread.
+    """Start the writer thread, flushing every ``flush_interval`` seconds.
 
     :param flush_interval: Seconds between flushes.
     :raises RuntimeError: If the writer is already running.
