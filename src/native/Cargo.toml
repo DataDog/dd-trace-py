@@ -42,7 +42,7 @@ libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", branch = "
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", optional = true }
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
-libdd-otel-telemetry = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
+libdd-otel-telemetry = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = ["grpc", "http"] }
 libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37" }
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog-v37", features = [
   "stats-obfuscation"

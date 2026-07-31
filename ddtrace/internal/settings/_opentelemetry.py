@@ -30,8 +30,16 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
-    default_endpoint = ExporterConfig._get_default_endpoint(config.METRICS_PROTOCOL, config.METRICS_PATH)
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
+    # Signal-specific endpoint takes precedence (full URL, no path appended).
+    if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+        return metrics_endpoint
+    # Global endpoint is a base URL; for http protocols append the metrics signal path
+    # (matching the SDK's global -> signal precedence and _get_default_endpoint's behavior).
+    if global_endpoint := env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        if config.METRICS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
+            return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
+        return global_endpoint
+    return ExporterConfig._get_default_endpoint(config.METRICS_PROTOCOL, config.METRICS_PATH)
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
@@ -39,7 +47,7 @@ def _derive_metrics_protocol(config: "ExporterConfig"):
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_HEADERS", config.HEADERS)
+    return get_config(["OTEL_EXPORTER_OTLP_METRICS_HEADERS", "OTEL_EXPORTER_OTLP_HEADERS"], config.HEADERS)
 
 
 def _derive_metrics_timeout(config: "ExporterConfig"):

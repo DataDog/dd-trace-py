@@ -12,13 +12,8 @@ use std::time::Duration;
 use crate::shared_runtime::SharedRuntimePy;
 
 fn parse_protocol(protocol: &str) -> PyResult<OtlpProtocol> {
-    match protocol {
-        "grpc" => Ok(OtlpProtocol::Grpc),
-        "http/protobuf" => Ok(OtlpProtocol::HttpProtobuf),
-        other => Err(PyValueError::new_err(format!(
-            "Invalid OTLP protocol: {other}"
-        ))),
-    }
+    OtlpProtocol::from_config_str(protocol)
+        .ok_or_else(|| PyValueError::new_err(format!("Invalid OTLP protocol: {protocol}")))
 }
 
 fn parse_instrument_kind(kind: &str) -> PyResult<InstrumentKind> {
@@ -107,15 +102,7 @@ impl OtelMetricsAggregatorBuilderPy {
         mut slf: PyRefMut<'_, Self>,
         temporality: &str,
     ) -> PyResult<Py<Self>> {
-        let temporality = match temporality {
-            "delta" => Temporality::Delta,
-            "cumulative" => Temporality::Cumulative,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "Invalid temporality: {other}"
-                )))
-            }
-        };
+        let temporality = Temporality::from_config_str(temporality);
         let builder = slf.try_take_builder()?;
         slf.builder = Some(builder.with_metrics_temporality(temporality));
         Ok(slf.into())
