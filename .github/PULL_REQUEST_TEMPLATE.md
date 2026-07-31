@@ -1,8 +1,6 @@
 ## Description
 
-<!-- Provide an overview of the change and motivation for the change.
-     Implementation detail and rationale belong here, not in the release note -
-     release notes are customer-facing (see docs/releasenotes.rst). -->
+<!-- Provide an overview of the change and motivation for the change -->
 
 ## Testing
 
