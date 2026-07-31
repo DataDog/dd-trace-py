@@ -21,15 +21,18 @@ def collection():
 
 
 @pytest.fixture(autouse=True)
-def record_endpoint():
-    """Isolate the collection from the real telemetry writer.
+def record_endpoint(collection):
+    """Subscribe a mock in place of the telemetry writer.
 
-    ``add_endpoint`` forwards each newly-registered endpoint to
-    ``telemetry_writer._record_endpoint``; patch it so these unit tests neither spin up the
-    native worker nor depend on its state, and can assert on what gets forwarded.
+    ``add_endpoint`` notifies whatever is registered as ``on_endpoint_registered``; substituting a
+    mock lets these unit tests assert on what gets forwarded without spinning up the native worker
+    or depending on its state.
     """
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer._record_endpoint") as m:
-        yield m
+    previous = collection.on_endpoint_registered
+    m = mock.Mock()
+    collection.on_endpoint_registered = m
+    yield m
+    collection.on_endpoint_registered = previous
 
 
 def test_add_endpoint_populates_set(collection):
@@ -44,7 +47,18 @@ def test_add_endpoint_forwards_normalized_fields(collection, record_endpoint):
     """Each new endpoint is forwarded once, method upper-cased and resource defaulted."""
     collection.add_endpoint("get", "/api/users", operation_name="flask.request")
 
-    record_endpoint.assert_called_once_with("GET", "/api/users", "GET /api/users", "flask.request")
+    record_endpoint.assert_called_once_with(
+        HttpEndPoint(method="GET", path="/api/users", resource_name="GET /api/users", operation_name="flask.request")
+    )
+
+
+def test_endpoints_are_collected_without_a_subscriber(collection):
+    """Registrations before telemetry subscribes are still collected, for it to replay."""
+    collection.on_endpoint_registered = None
+
+    collection.add_endpoint("GET", "/api/users")
+
+    assert len(collection.endpoints) == 1
 
 
 def test_duplicate_endpoint_is_not_forwarded_again(collection, record_endpoint):
@@ -69,7 +83,9 @@ def test_http_endpoint_hash_consistency(collection):
 def test_explicit_resource_name_is_preserved(collection, record_endpoint):
     collection.add_endpoint("GET", "/api/users/{id}", resource_name="users.show")
 
-    record_endpoint.assert_called_once_with("GET", "/api/users/{id}", "users.show", "http.request")
+    record_endpoint.assert_called_once_with(
+        HttpEndPoint(method="GET", path="/api/users/{id}", resource_name="users.show")
+    )
 
 
 def test_max_size_cap_stops_registration(collection, record_endpoint):

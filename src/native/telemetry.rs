@@ -407,14 +407,18 @@ impl TelemetryWorkerPy {
         common: bool,
     ) -> MetricContextPy {
         let parsed_tags = parse_tag_list(&tags);
-        let key =
-            self.handle
-                .register_metric_context(name, parsed_tags, metric_type.0, common, namespace.0);
+        let key = self.handle.register_metric_context(
+            name,
+            parsed_tags,
+            metric_type.0,
+            common,
+            namespace.0,
+        );
         MetricContextPy(key)
     }
 
     /// Add `value` to a metric context previously returned by [`register_metric_context`].
-    /// Cheap hot path: no string/tag marshalling, just a channel send of the point.
+    /// Cheap hot path: the point is published to the worker's lock-free ring buffer.
     fn add_point(&self, context: &MetricContextPy, value: f64) {
         drop_on_err(
             "metric point",

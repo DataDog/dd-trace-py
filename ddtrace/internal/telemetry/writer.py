@@ -8,6 +8,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
@@ -302,11 +303,14 @@ class TelemetryWriter:
         worker.start()
         self.started = True
 
-        # Drain any endpoints buffered before the worker existed (ASM API security), then
-        # start the dependency-discovery periodic. The periodic is created once (root process);
-        # forked children inherit it and auto-resume (autorestart=True), so only create it when
-        # it does not already exist.
+        # Subscribe before replaying, so an endpoint registered in between is forwarded twice
+        # rather than lost; the native worker dedupes them (ASM API security).
+        endpoint_collection.on_endpoint_registered = self._record_endpoint
         self._report_endpoints()
+
+        # Start the dependency-discovery periodic. It is created once (root process); forked
+        # children inherit it and auto-resume (autorestart=True), so only create it when it does
+        # not already exist.
         if config.DEPENDENCY_COLLECTION and self._deps_collector is None:
             self._deps_collector = _TelemetryDependencyCollector(self._report_dependencies, config.HEARTBEAT_INTERVAL)
             self._deps_collector.start()
@@ -329,6 +333,8 @@ class TelemetryWriter:
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        if endpoint_collection.on_endpoint_registered == self._record_endpoint:
+            endpoint_collection.on_endpoint_registered = None
         if self._deps_collector is not None:
             try:
                 self._deps_collector.stop()
@@ -434,12 +440,12 @@ class TelemetryWriter:
                 metadata = None
             self._worker.add_dependency(name, version, metadata)
 
-    def _record_endpoint(self, method: str, path: str, resource_name: str, operation_name: str) -> None:
+    def _record_endpoint(self, endpoint: HttpEndPoint) -> None:
         """Forward a single newly-registered HTTP endpoint to the worker (ASM API security).
 
-        No-op until the worker exists; ``_report_endpoints`` (called from ``enable()``) replays
-        the endpoint collection once it does. The native worker dedupes endpoints, so a replay
-        overlapping with an eager forward cannot create duplicates.
+        Subscribed to ``endpoint_collection`` by ``enable()``, which also replays the endpoints
+        registered before then. The native worker dedupes endpoints, so a replay overlapping with
+        an eager forward cannot create duplicates.
         """
         from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
@@ -448,13 +454,15 @@ class TelemetryWriter:
         worker = self._worker
         if worker is None:
             return
-        worker.add_endpoint(method, path, operation_name or None, resource_name or None)
+        worker.add_endpoint(
+            endpoint.method, endpoint.path, endpoint.operation_name or None, endpoint.resource_name or None
+        )
 
     def _report_endpoints(self) -> None:
         """Replay every collected HTTP endpoint to the worker (ASM API security).
 
-        Called from ``enable()`` to forward endpoints registered before the worker existed;
-        endpoints registered afterwards are forwarded eagerly by ``_record_endpoint``.
+        Called from ``enable()`` to forward endpoints registered before this writer subscribed;
+        endpoints registered afterwards arrive through ``_record_endpoint``.
         """
         from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
@@ -613,18 +621,43 @@ class TelemetryWriter:
         except ValueError:
             return "<REDACTED>"
 
-    def _add_metric_point(
+    def _register_metric_context(
         self,
+        worker: "TelemetryWorker",
         metric_type: str,
         namespace: TELEMETRY_NAMESPACE,
         name: str,
-        value: float,
         tags: Optional[MetricTagType],
+    ) -> "MetricContext":
+        """Register a native metric context for a metric and cache it.
+
+        Cold path: the ``add_*_metric`` hot path calls this only on a cache miss (once per
+        unique ``(namespace, name, type, tags)``); every subsequent point is a cheap
+        ``worker.add_point(context, value)``.
+        """
+        enums = _native_telemetry_enums()
+        context = worker.register_metric_context(
+            enums["namespace"][namespace],
+            # ``name`` may be an ``E(str, enum.Enum)``; normalize to a plain str for the worker.
+            str(name),
+            enums["metric_type"][metric_type],
+            _convert_metric_tags(tags),
+            # ``common`` marks language-shared metrics
+            True,
+        )
+        # str-enum names hash/compare equal to their string value, so keying on the raw name
+        # still dedupes against plain strings.
+        self._metric_contexts[(namespace, name, metric_type, tags)] = context
+        return context
+
+    # The four ``add_*_metric`` methods inline the hot path (worker fetch + cached-context lookup
+    # + add_point) rather than delegating to a shared helper: metric points are recorded in tight
+    # loops, so avoiding the extra Python call frame per point measurably lowers the cost.
+
+    def add_count_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
     ) -> None:
-        # Hot path: avoid the idempotent enable() call and the native name/tag marshalling
-        # once the worker exists. A metric context is registered with the native worker once
-        # per unique (namespace, name, type, tags) and cached; subsequent points are a cheap
-        # ``add_point(context, value)``.
+        """Queues count metric"""
         worker = self._worker
         if worker is None:
             if not self.enable():
@@ -632,55 +665,58 @@ class TelemetryWriter:
             worker = self._worker
             if worker is None:
                 return
-        # ``name`` may be an ``E(str, enum.Enum)``; str-enum members hash/compare equal to
-        # their string value, so keying on the raw name still dedupes against plain strings.
-        key = (namespace, name, metric_type, tags)
-        context = self._metric_contexts.get(key)
+        context = self._metric_contexts.get((namespace, name, "count", tags))
         if context is None:
-            enums = _native_telemetry_enums()
-            context = worker.register_metric_context(
-                enums["namespace"][namespace],
-                str(name),
-                enums["metric_type"][metric_type],
-                _convert_metric_tags(tags),
-                # ``common`` marks language-shared metrics; the previous Cython aggregator
-                # reported these as common, so preserve that for backend/dashboard parity.
-                True,
-            )
-            self._metric_contexts[key] = context
-        worker.add_point(context, float(value))
+            context = self._register_metric_context(worker, "count", namespace, name, tags)
+        worker.add_point(context, value)
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
     ) -> None:
-        """
-        Queues gauge metric
-        """
-        self._add_metric_point("gauge", namespace, name, value, tags)
+        """Queues gauge metric"""
+        worker = self._worker
+        if worker is None:
+            if not self.enable():
+                return
+            worker = self._worker
+            if worker is None:
+                return
+        context = self._metric_contexts.get((namespace, name, "gauge", tags))
+        if context is None:
+            context = self._register_metric_context(worker, "gauge", namespace, name, tags)
+        worker.add_point(context, value)
 
     def add_rate_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
     ) -> None:
-        """
-        Queues rate metric
-        """
-        self._add_metric_point("rate", namespace, name, value, tags)
-
-    def add_count_metric(
-        self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
-    ) -> None:
-        """
-        Queues count metric
-        """
-        self._add_metric_point("count", namespace, name, value, tags)
+        """Queues rate metric"""
+        worker = self._worker
+        if worker is None:
+            if not self.enable():
+                return
+            worker = self._worker
+            if worker is None:
+                return
+        context = self._metric_contexts.get((namespace, name, "rate", tags))
+        if context is None:
+            context = self._register_metric_context(worker, "rate", namespace, name, tags)
+        worker.add_point(context, value)
 
     def add_distribution_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
     ) -> None:
-        """
-        Queues distributions metric
-        """
-        self._add_metric_point("distribution", namespace, name, value, tags)
+        """Queues distributions metric"""
+        worker = self._worker
+        if worker is None:
+            if not self.enable():
+                return
+            worker = self._worker
+            if worker is None:
+                return
+        context = self._metric_contexts.get((namespace, name, "distribution", tags))
+        if context is None:
+            context = self._register_metric_context(worker, "distribution", namespace, name, tags)
+        worker.add_point(context, value)
 
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
         """Run a final dependency discovery and force a flush of the native worker.

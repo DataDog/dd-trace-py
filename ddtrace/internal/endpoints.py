@@ -1,5 +1,7 @@
 import dataclasses
 from time import monotonic
+from typing import Callable
+from typing import Optional
 from typing import Sequence
 
 
@@ -54,6 +56,11 @@ class HttpEndPointsCollection(metaclass=Singleton):
     drop_time_seconds: float = dataclasses.field(default=90.0, init=False)
     last_modification_time: float = dataclasses.field(default_factory=monotonic, init=False)
     max_size_length: int = dataclasses.field(default=900, init=False)
+    # Notified of each newly-registered endpoint. The telemetry writer installs itself here in
+    # ``enable()``; nothing else subscribes. The dependency points that way round so that this
+    # module, which every web framework integration imports, needs no import of the telemetry
+    # package -- importing it here would close a cycle back through ``telemetry.writer``.
+    on_endpoint_registered: Optional[Callable[[HttpEndPoint], None]] = dataclasses.field(default=None, init=False)
 
     def reset(self) -> None:
         """Reset the collection to its initial state."""
@@ -92,15 +99,10 @@ class HttpEndPointsCollection(metaclass=Singleton):
         self.endpoints.add(endpoint)
         self.last_modification_time = current_time
 
-        # Forward just this newly-registered endpoint. The native worker dedupes and buffers
-        # endpoints itself, so this avoids re-walking the whole collection on every call. This
-        # no-ops until the worker exists; ``enable()`` replays the set once it does. The import
-        # is deferred because the telemetry writer imports this module's ``endpoint_collection``.
-        from ddtrace.internal.telemetry import telemetry_writer
-
-        telemetry_writer._record_endpoint(
-            endpoint.method, endpoint.path, endpoint.resource_name, endpoint.operation_name
-        )
+        # Forward just this newly-registered endpoint, so the subscriber never re-walks the whole
+        # collection. Nobody is subscribed until telemetry is enabled, which replays the set.
+        if self.on_endpoint_registered is not None:
+            self.on_endpoint_registered(endpoint)
 
 
 endpoint_collection = HttpEndPointsCollection()
