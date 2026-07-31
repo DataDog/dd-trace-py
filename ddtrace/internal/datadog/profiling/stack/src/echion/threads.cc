@@ -11,12 +11,18 @@
 #include <string_view>
 
 void
+ThreadInfo::reset_cycle_state() noexcept
+{
+    current_tasks.clear();
+    current_greenlets.clear();
+}
+
+void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
     // Every unwind is a new snapshot. Discard any task or greenlet stacks left by an earlier cycle before appending
     // this cycle's stacks.
-    current_tasks.clear();
-    current_greenlets.clear();
+    reset_cycle_state();
 
     unwind_python_stack(echion, tstate, python_stack);
 
@@ -759,15 +765,11 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 {
     auto& renderer = echion.renderer();
 
-    // Treat the renderer Sample and unwound task/greenlet stacks as one sampling-cycle transaction. This cleanup runs
-    // for success and every early return, so a failed cycle cannot retain native stacks or leave a Sample checked out.
-    auto cycle_cleanup = make_defer([&]() noexcept {
-        renderer.abort_sample();
-        current_tasks.clear();
-        current_greenlets.clear();
-    });
+    // Task and greenlet stacks are reusable scratch storage, but their logical contents belong to this cycle only.
+    auto state_cleanup = make_defer([&]() noexcept { reset_cycle_state(); });
 
-    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
+    // The mandatory cycle guard owns renderer cleanup for every return and exception after render_thread_begin().
+    [[maybe_unused]] auto render_cycle = renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
     auto update_cpu_time_success = update_cpu_time();

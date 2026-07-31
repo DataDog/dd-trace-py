@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -62,8 +63,35 @@ struct ThreadState
 
 class StackRenderer
 {
-    Sample* sample = nullptr;
+  public:
+    class [[nodiscard]] RenderCycle
+    {
+        StackRenderer* renderer = nullptr;
+        std::uint64_t cycle_id = 0;
+
+        RenderCycle(StackRenderer& _renderer, std::uint64_t _cycle_id) noexcept;
+        friend class StackRenderer;
+
+      public:
+        ~RenderCycle() noexcept;
+        RenderCycle(RenderCycle&& other) noexcept;
+        RenderCycle(const RenderCycle&) = delete;
+        RenderCycle& operator=(const RenderCycle&) = delete;
+        RenderCycle& operator=(RenderCycle&&) = delete;
+    };
+
+  private:
+    struct SampleDropper
+    {
+        void operator()(Sample* _sample) const noexcept;
+    };
+
+    using SampleHandle = std::unique_ptr<Sample, SampleDropper>;
+
+    SampleHandle sample;
     ThreadState thread_state = {};
+    std::uint64_t active_cycle_id = 0;
+    std::uint64_t next_cycle_id = 0;
 
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
@@ -72,14 +100,21 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
+    void finish_cycle(std::uint64_t cycle_id) noexcept;
+
   public:
     StackRenderer();
     ~StackRenderer();
-    void render_thread_begin(PyThreadState* tstate,
-                             std::string_view name,
-                             microsecond_t wall_time_us,
-                             uintptr_t thread_id,
-                             unsigned long native_id);
+    StackRenderer(const StackRenderer&) = delete;
+    StackRenderer(StackRenderer&&) = delete;
+    StackRenderer& operator=(const StackRenderer&) = delete;
+    StackRenderer& operator=(StackRenderer&&) = delete;
+
+    [[nodiscard]] RenderCycle render_thread_begin(PyThreadState* tstate,
+                                                  std::string_view name,
+                                                  microsecond_t wall_time_us,
+                                                  uintptr_t thread_id,
+                                                  unsigned long native_id);
     void render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
