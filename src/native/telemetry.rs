@@ -246,10 +246,11 @@ impl TelemetryWorkerPy {
     /// Flush + optionally emit app-closing (in origin process), then tear the worker down.
     fn stop(&self, py: Python<'_>, send_app_closing: bool) -> PyResult<()> {
         // Take the registration handle; if already stopped, nothing to do.
-        let worker_handle = match self.worker_handle.lock() {
-            Ok(mut guard) => guard.take(),
-            Err(_) => None,
-        };
+        let worker_handle = self
+            .worker_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
 
         if send_app_closing {
             // Flush the app-closing batch first (clears data.started).
@@ -281,19 +282,22 @@ impl TelemetryWorkerPy {
         // (FlushMetricAggr), otherwise FlushData would send no metrics — the
         // worker normally does this on its own 10s cadence, but a forced flush
         // must do it inline so metrics added since the last cadence are sent.
-        let _ = self.handle.try_send_msg(TelemetryActions::Lifecycle(
-            LifecycleAction::FlushMetricAggr,
-        ));
-        let _ = self
-            .handle
-            .try_send_msg(TelemetryActions::Lifecycle(LifecycleAction::FlushData));
-        if let Ok(receiver) = self.handle.stats() {
-            py.detach(|| {
-                let _ = self.shared_runtime.block_on(async {
+        py.detach(|| {
+            let _ = self.shared_runtime.block_on(async {
+                let _ = self
+                    .handle
+                    .send_msg(TelemetryActions::Lifecycle(LifecycleAction::FlushMetricAggr))
+                    .await;
+                let _ = self
+                    .handle
+                    .send_msg(TelemetryActions::Lifecycle(LifecycleAction::FlushData))
+                    .await;
+                // Queued after the flushes, to ensure processing finished.
+                if let Ok(receiver) = self.handle.stats() {
                     let _ = receiver.await;
-                });
+                }
             });
-        }
+        });
         Ok(())
     }
 
@@ -424,6 +428,16 @@ impl TelemetryWorkerPy {
         drop_on_err(
             "metric point",
             self.handle.add_point(value, &context.0, Vec::new()),
+        );
+    }
+
+    /// Like [`add_point`], but allowing for explicit tags as well. To be used when the
+    /// cardinality of tags is unknown.
+    fn add_point_with_tags(&self, context: &MetricContextPy, value: f64, tags: Vec<String>) {
+        drop_on_err(
+            "metric point",
+            self.handle
+                .add_point(value, &context.0, parse_tag_list(&tags)),
         );
     }
 
