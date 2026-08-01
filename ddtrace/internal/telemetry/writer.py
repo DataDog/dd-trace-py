@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
 import itertools
 import os
 import traceback
@@ -34,6 +33,10 @@ from .data import get_host_info
 from .data import get_python_config_vars
 from .dependency_tracker import DependencyTracker
 from .logging import DDTelemetryErrorHandler
+from .metrics import _bind_metric_recorders
+from .metrics import _convert_metric_tags
+from .metrics import _unbind_metric_recorders
+from .metrics import register_metric_context
 
 
 if TYPE_CHECKING:
@@ -87,15 +90,6 @@ class LogData(dict):
         )
 
 
-def _convert_metric_tags(tags: tuple[tuple[str, str], ...]) -> list[str]:
-    """Convert the tag tuple form ``((k, v), ...)`` into ``["k:v", ...]``.
-
-    Callers check for tags first and use the untagged ``add_point`` when there are none, so this
-    is never handed an empty/None tag set.
-    """
-    return [f"{k}:{v}".lower() for k, v in tags]
-
-
 # Map python strings to libdatadog enums.
 _NATIVE_TELEMETRY_ENUMS: Optional[dict] = None
 
@@ -105,17 +99,8 @@ def _native_telemetry_enums() -> dict:
     if _NATIVE_TELEMETRY_ENUMS is None:
         from ddtrace.internal.native import ConfigurationOrigin
         from ddtrace.internal.native import LogLevel
-        from ddtrace.internal.native import MetricNamespace
-        from ddtrace.internal.native import MetricType
 
         _NATIVE_TELEMETRY_ENUMS = {
-            "namespace": {ns: getattr(MetricNamespace, ns.value) for ns in TELEMETRY_NAMESPACE},
-            "metric_type": {
-                "gauge": MetricType.gauge,
-                "count": MetricType.count,
-                "rate": MetricType.rate,
-                "distribution": MetricType.distribution,
-            },
             "level": {level: getattr(LogLevel, level.value) for level in TELEMETRY_LOG_LEVEL},
             "origin": ConfigurationOrigin,
         }
@@ -298,6 +283,7 @@ class TelemetryWriter:
             return False
         self._metric_contexts.clear()
         self._worker = worker
+        _bind_metric_recorders(self, worker)
         self._notify_worker_changed(worker)
 
         # Every process starts its worker so it heartbeats with its own session id.
@@ -384,6 +370,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
@@ -418,6 +405,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker during agentless switch", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
             self.enable()
             if was_started:
@@ -715,17 +703,8 @@ class TelemetryWriter:
             context = self._metric_contexts.get(key)
             if context is not None:
                 return context
-            enums = _native_telemetry_enums()
-            context = worker.register_metric_context(
-                enums["namespace"][namespace],
-                # ``name`` may be an ``E(str, enum.Enum)``, use value then, rather than str().
-                name.value if isinstance(name, Enum) else str(name),
-                enums["metric_type"][metric_type],
-                # No tags on the context itself; they are sent per point.
-                [],
-                # ``common`` marks language-shared metrics
-                True,
-            )
+            # No tags on the context itself; they are sent per point.
+            context = register_metric_context(worker, metric_type, namespace, name)
             self._metric_contexts[key] = context
             return context
 
@@ -866,6 +845,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while setting test token", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
         self.enable()
 
@@ -889,6 +869,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while enabling payload files", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
         self.enable()
         # Re-emit app-started against the file:// worker if it had already started, so the offline
@@ -916,6 +897,9 @@ class TelemetryWriter:
         # that calls _get_shared_worker() to get a new telemetry client.
         self._worker = None
         self.started = False
+        # Contexts belong to the worker the parent built; the child rebuilds lazily and the
+        # recorders re-register against it then.
+        _unbind_metric_recorders(self)
         self._notify_worker_changed(None)
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()
