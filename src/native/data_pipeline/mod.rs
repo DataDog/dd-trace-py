@@ -176,16 +176,6 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Share the telemetry worker with the data-pipeline
-    fn set_telemetry_handle(
-        mut slf: PyRefMut<'_, Self>,
-        worker: PyRef<'_, crate::telemetry::TelemetryWorkerPy>,
-    ) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?
-            .set_telemetry_handle(worker.clone_handle());
-        Ok(slf.into())
-    }
-
     fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_endpoint(url);
         Ok(slf.into())
@@ -277,6 +267,21 @@ impl TraceExporterPy {
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
+    }
+
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        Ok(())
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {

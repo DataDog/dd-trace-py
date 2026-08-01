@@ -850,23 +850,33 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._client_side_stats_obfuscation:
             builder.enable_client_side_stats_obfuscation()
 
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        shared_worker = None
         if config._telemetry_enabled:
             # Have a single telemetry client / lifecycle - by sharing it with trace exporter.
             # The telemetry client is guaranteed to be ready by the time this is called.
-            from ddtrace.internal.telemetry import telemetry_writer
-
             shared_worker = telemetry_writer._get_shared_worker()
-            if shared_worker is not None:
-                builder.set_telemetry_handle(shared_worker)
             # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
-            elif sys.platform.startswith("linux"):
+            if shared_worker is None and sys.platform.startswith("linux"):
                 heartbeat_ms = int(
                     config._telemetry_heartbeat_interval * 1000
                 )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
                 builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime())
+        exporter = builder.build(get_native_runtime())
+        if shared_worker is not None:
+            exporter.set_telemetry_handle(shared_worker)
+            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
+        return exporter
+
+    def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
+        """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
+        try:
+            self._exporter.set_telemetry_handle(worker)
+        except Exception:
+            log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """

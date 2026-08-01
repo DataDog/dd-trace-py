@@ -365,7 +365,14 @@ class TelemetryWorker:
         """
         ...
     def add_point(self, context: "MetricContext", value: float) -> None:
-        """Add ``value`` to a context returned by :meth:`register_metric_context`."""
+        """Add ``value`` to a context returned by :meth:`register_metric_context`.
+
+        For contexts registered *with* tags. Use :meth:`add_point_with_tags` for untagged
+        contexts whose tags vary per point.
+        """
+        ...
+    def add_point_with_tags(self, context: "MetricContext", value: float, tags: list[str]) -> None:
+        """Add ``value`` to an untagged context with ``tags`` (``"k:v"`` strings) on the point."""
         ...
     def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
         """Record a product enable/disable change (app-product-change).
@@ -398,6 +405,13 @@ class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
     """
+
+    def set_telemetry_handle(self, worker: Optional["TelemetryWorker"] = None) -> None:
+        """
+        Report the exporter's ``trace_api.*`` health metrics through an existing
+        instrumentation-telemetry worker instead of a dedicated one.
+        """
+        ...
 
     def __init__(self):
         """
@@ -571,14 +585,6 @@ class TraceExporterBuilder:
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
-        """
-        ...
-    def set_telemetry_handle(self, worker: "TelemetryWorker") -> TraceExporterBuilder:
-        """
-        Report the exporter's health metrics through an existing instrumentation-telemetry
-        worker instead of spawning a dedicated worker.
-        Takes precedence over ``enable_telemetry``. The caller owns the worker's lifecycle.
-        :param worker: the instrumentation ``TelemetryWorker`` to report through.
         """
         ...
     def enable_health_metrics(self) -> TraceExporterBuilder:

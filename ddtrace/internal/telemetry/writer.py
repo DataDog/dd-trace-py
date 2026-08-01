@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from enum import Enum
 import itertools
 import os
 import traceback
@@ -86,13 +87,12 @@ class LogData(dict):
         )
 
 
-def _convert_metric_tags(tags: Optional[MetricTagType]) -> list:
+def _convert_metric_tags(tags: tuple[tuple[str, str], ...]) -> list[str]:
     """Convert the tag tuple form ``((k, v), ...)`` into ``["k:v", ...]``.
 
-    Preserves the previous Cython behaviour of lowercasing the whole "k:v" token.
+    Callers check for tags first and use the untagged ``add_point`` when there are none, so this
+    is never handed an empty/None tag set.
     """
-    if not tags:
-        return []
     return [f"{k}:{v}".lower() for k, v in tags]
 
 
@@ -175,15 +175,19 @@ class TelemetryWriter:
 
         # The native worker, lazily built in enable() once the native runtime exists.
         self._worker: Optional["TelemetryWorker"] = None
-        # Cache of registered native metric contexts, keyed by (namespace, name, type, tags).
-        # Lets the hot metric-add path skip re-marshalling name/tags into the native worker on
-        # every point. ContextKeys are worker-specific, so this is cleared on every worker
+        # Registered native metric contexts, keyed by (namespace, name, type) - deliberately NOT
+        # by tags, which ride along with each point instead, so this stays bounded by the number of
+        # distinct metrics. ContextKeys are worker-specific, so it is cleared on every worker
         # rebuild (see enable()).
-        self._metric_contexts: dict[tuple, "MetricContext"] = {}
+        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], "MetricContext"] = {}
         # Serializes first-time metric-context registration so two threads recording the same new
         # metric can't both register it (which would create duplicate native contexts / split the
         # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
         self._metric_lock = forksafe.Lock()
+        # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
+        # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
+        # health metrics) has to be handed the new one rather than keeping a stale clone.
+        self._worker_subscribers: list[Callable[[Optional["TelemetryWorker"]], None]] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -292,9 +296,9 @@ class TelemetryWriter:
         except Exception:
             log.debug("Failed to build the native telemetry worker", exc_info=True)
             return False
-        self._worker = worker
-        # A fresh worker has an empty metric registry; drop context handles from any prior one.
         self._metric_contexts.clear()
+        self._worker = worker
+        self._notify_worker_changed(worker)
 
         # Every process starts its worker so it heartbeats with its own session id.
         # app-started is emitted only by the root process; this is enforced inside the
@@ -380,6 +384,18 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker", exc_info=True)
             self._worker = None
             self.started = False
+            self._notify_worker_changed(None)
+
+    def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
+        if callback not in self._worker_subscribers:
+            self._worker_subscribers.append(callback)
+
+    def _notify_worker_changed(self, worker: Optional["TelemetryWorker"]) -> None:
+        for callback in list(self._worker_subscribers):
+            try:
+                callback(worker)
+            except Exception:
+                log.debug("Telemetry worker subscriber failed", exc_info=True)
 
     def enable_agentless_client(self, enabled: bool = True) -> None:
         if self._agentless == enabled:
@@ -402,6 +418,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker during agentless switch", exc_info=True)
             self._worker = None
             self.started = False
+            self._notify_worker_changed(None)
             self.enable()
             if was_started:
                 self.app_started()
@@ -680,17 +697,17 @@ class TelemetryWriter:
         metric_type: str,
         namespace: TELEMETRY_NAMESPACE,
         name: str,
-        tags: Optional[MetricTagType],
     ) -> "MetricContext":
         """Register a native metric context for a metric and cache it.
 
-        Cold path: the ``add_*_metric`` hot path calls this only on a cache miss (once per
-        unique ``(namespace, name, type, tags)``); every subsequent point is a cheap
-        ``worker.add_point(context, value)``.
+        Note: we register without tags here, otherwise with variable tags this will accumulate
+        indefinitely.
+
+        Cold path: the ``add_*_metric`` hot path calls this only on a cache miss.
         """
         # str-enum names hash/compare equal to their string value, so keying on the raw name
         # still dedupes against plain strings.
-        key = (namespace, name, metric_type, tags)
+        key = (namespace, name, metric_type)
         # Double-checked locking: the hot path reached here on a cache miss, but another thread may
         # have registered the same context meanwhile. Re-check under the lock so we register (and
         # cache) each context exactly once — a duplicate registration would split the series.
@@ -701,10 +718,11 @@ class TelemetryWriter:
             enums = _native_telemetry_enums()
             context = worker.register_metric_context(
                 enums["namespace"][namespace],
-                # ``name`` may be an ``E(str, enum.Enum)``; normalize to a plain str for the worker.
-                str(name),
+                # ``name`` may be an ``E(str, enum.Enum)``, use value then, rather than str().
+                name.value if isinstance(name, Enum) else str(name),
                 enums["metric_type"][metric_type],
-                _convert_metric_tags(tags),
+                # No tags on the context itself; they are sent per point.
+                [],
                 # ``common`` marks language-shared metrics
                 True,
             )
@@ -719,17 +737,25 @@ class TelemetryWriter:
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
     ) -> None:
         """Queues count metric"""
+        # Metric recording sits in hot paths (every IAST aspect, every propagation inject), so keep
+        # both branches lean. ``_worker`` is only ever set while enabled (``disable()`` clears it),
+        # so the ``_enabled`` test belongs inside this branch: the enabled path stays a single
+        # attribute load, while the disabled path short-circuits without paying for an ``enable()``
+        # call frame on every point.
         worker = self._worker
         if worker is None:
-            if not self.enable():
+            if not self._enabled or not self.enable():
                 return
             worker = self._worker
             if worker is None:
                 return
-        context = self._metric_contexts.get((namespace, name, "count", tags))
+        context = self._metric_contexts.get((namespace, name, "count"))
         if context is None:
-            context = self._register_metric_context(worker, "count", namespace, name, tags)
-        worker.add_point(context, value)
+            context = self._register_metric_context(worker, "count", namespace, name)
+        if tags:
+            worker.add_point_with_tags(context, value, _convert_metric_tags(tags))
+        else:
+            worker.add_point(context, value)
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
@@ -737,15 +763,18 @@ class TelemetryWriter:
         """Queues gauge metric"""
         worker = self._worker
         if worker is None:
-            if not self.enable():
+            if not self._enabled or not self.enable():
                 return
             worker = self._worker
             if worker is None:
                 return
-        context = self._metric_contexts.get((namespace, name, "gauge", tags))
+        context = self._metric_contexts.get((namespace, name, "gauge"))
         if context is None:
-            context = self._register_metric_context(worker, "gauge", namespace, name, tags)
-        worker.add_point(context, value)
+            context = self._register_metric_context(worker, "gauge", namespace, name)
+        if tags:
+            worker.add_point_with_tags(context, value, _convert_metric_tags(tags))
+        else:
+            worker.add_point(context, value)
 
     def add_rate_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
@@ -753,15 +782,18 @@ class TelemetryWriter:
         """Queues rate metric"""
         worker = self._worker
         if worker is None:
-            if not self.enable():
+            if not self._enabled or not self.enable():
                 return
             worker = self._worker
             if worker is None:
                 return
-        context = self._metric_contexts.get((namespace, name, "rate", tags))
+        context = self._metric_contexts.get((namespace, name, "rate"))
         if context is None:
-            context = self._register_metric_context(worker, "rate", namespace, name, tags)
-        worker.add_point(context, value)
+            context = self._register_metric_context(worker, "rate", namespace, name)
+        if tags:
+            worker.add_point_with_tags(context, value, _convert_metric_tags(tags))
+        else:
+            worker.add_point(context, value)
 
     def add_distribution_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
@@ -769,15 +801,18 @@ class TelemetryWriter:
         """Queues distributions metric"""
         worker = self._worker
         if worker is None:
-            if not self.enable():
+            if not self._enabled or not self.enable():
                 return
             worker = self._worker
             if worker is None:
                 return
-        context = self._metric_contexts.get((namespace, name, "distribution", tags))
+        context = self._metric_contexts.get((namespace, name, "distribution"))
         if context is None:
-            context = self._register_metric_context(worker, "distribution", namespace, name, tags)
-        worker.add_point(context, value)
+            context = self._register_metric_context(worker, "distribution", namespace, name)
+        if tags:
+            worker.add_point_with_tags(context, value, _convert_metric_tags(tags))
+        else:
+            worker.add_point(context, value)
 
     def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
         """Poll for new dependencies and drive the deferred app-started; optionally flush.
@@ -832,6 +867,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while setting test token", exc_info=True)
             self._worker = None
             self.started = False
+            self._notify_worker_changed(None)
         self.enable()
 
     def set_payload_file_dir(self, output_dir: str) -> None:
@@ -854,6 +890,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while enabling payload files", exc_info=True)
             self._worker = None
             self.started = False
+            self._notify_worker_changed(None)
         self.enable()
         # Re-emit app-started against the file:// worker if it had already started, so the offline
         # payload directory captures the lifecycle event rather than nothing.
@@ -880,6 +917,7 @@ class TelemetryWriter:
         # that calls _get_shared_worker() to get a new telemetry client.
         self._worker = None
         self.started = False
+        self._notify_worker_changed(None)
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()
 
