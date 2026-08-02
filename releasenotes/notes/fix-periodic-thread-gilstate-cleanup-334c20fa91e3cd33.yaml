@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where applications can crash when background worker threads clean up thread-local data.

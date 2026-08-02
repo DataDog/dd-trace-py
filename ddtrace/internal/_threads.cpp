@@ -312,13 +312,16 @@ class PyRef
     // destruction, resulting in a double-decrement (use-after-free).
     PyRef(const PyRef&) = delete;
     PyRef& operator=(const PyRef&) = delete;
-    inline ~PyRef()
+    inline ~PyRef() { reset(); }
+    inline void reset()
     {
+        PyObject* obj = _obj;
+        _obj = nullptr;
         // Avoid calling Py_DECREF during finalization as the thread state
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately.
-        if (_obj != nullptr && !_mstate->is_finalizing())
-            Py_DECREF(_obj);
+        if (obj != nullptr && !_mstate->is_finalizing())
+            Py_DECREF(obj);
     }
 
   private:
@@ -710,15 +713,15 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                 // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
                 // stopped_event->set(). This ensures that all Python VM interactions
                 // (Py_DECREF, PyGILState_Release) complete before the join() caller is
-                // unblocked. The inner scope also means ~PyRef may trigger
+                // unblocked. The inner scope also allows PyRef::reset() to trigger
                 // PeriodicThread_dealloc (if this thread held the last reference),
                 // which is safe because stopped_event is a captured shared_ptr
                 // independent of self's lifetime.
                 {
                     GILGuard _gil(state);
 
-                    // Move ref into this scope so ~PyRef (and thus Py_DECREF) fires
-                    // while the GIL is still held, before stopped_event->set().
+                    // Move ref into this scope so PyRef::reset() can release it while
+                    // the GIL is still held, before stopped_event->set().
                     PyRef _ref = std::move(ref);
 
                     // Retrieve the thread ID
@@ -815,9 +818,27 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                         unregister_periodic_thread_if_self(state->periodic_threads, self->ident, (PyObject*)self);
                     }
 
-                    // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
-                    // PyRef::~PyRef calls Py_DECREF(self). Both may interact with the
-                    // Python VM; they must complete before stopped_event->set() below.
+                    // Release the worker's Python reference before the final
+                    // thread-local sweep so its deallocator cannot repopulate
+                    // the thread dictionary after the sweep.
+                    _ref.reset();
+
+#if PY_VERSION_HEX < 0x030C04F0
+                    // Work around CPython GH-119585. PyGILState_Release clears
+                    // the thread dictionary after setting gilstate_counter to zero,
+                    // so a thread-local destructor that re-enters PyGILState can
+                    // delete the active state. Clear the dictionary while the
+                    // counter is still nonzero; the subsequent clear is harmless.
+                    if (!state->is_finalizing()) {
+                        PyObject* thread_dict = PyThreadState_GetDict();
+                        if (thread_dict != nullptr)
+                            PyDict_Clear(thread_dict);
+                    }
+#endif
+
+                    // Inner scope ends here. GILGuard::~GILGuard releases the GIL.
+                    // The worker reference and thread-local values were already
+                    // released while gilstate_counter was nonzero.
                 }
 
                 // All Python VM interactions are done. Signal that the thread has fully
