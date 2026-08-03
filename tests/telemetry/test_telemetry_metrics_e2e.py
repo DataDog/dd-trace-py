@@ -26,7 +26,6 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     # do not patch flask because we will end up with confusing metrics
     # now that we generate metrics for spans
     env["DD_PATCH_MODULES"] = "flask:false"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -101,7 +100,6 @@ for _ in range(10):
         pass
 """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
@@ -131,7 +129,6 @@ for _ in range(9):
 """
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)

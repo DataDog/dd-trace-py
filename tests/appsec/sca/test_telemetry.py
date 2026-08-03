@@ -281,7 +281,7 @@ def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
 
     appsec_telemetry_config.SCA_ENABLED = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
-    writer._service_lock = MagicMock()
+    writer._metric_lock = MagicMock()
     writer._enabled = enabled
     # The native worker is mocked: _report_dependencies() forwards to worker.add_dependency and
     # returns the reported records, which is what these tests assert on.

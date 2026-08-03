@@ -94,7 +94,6 @@ def test_app_started_event_configuration_override_asm(
 ):
     """asserts that asm configuration value is changed and queues a valid telemetry request"""
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
     env[env_var] = value
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
@@ -161,7 +160,6 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -221,10 +219,6 @@ _WORKER_BOOTSTRAP = """import django
 
 def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
-    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
-    # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
     mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _SERVING_BOOTSTRAP}
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
@@ -277,7 +271,6 @@ def test_instrumentation_source_config(
     test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
 ):
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
     assert status == 0, stderr
@@ -301,7 +294,6 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
@@ -315,7 +307,6 @@ def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_py
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -645,7 +636,6 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
@@ -724,7 +714,6 @@ import opentelemetry
     env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_LOGS"
     # Non-sensitive OTLP exporter configurations that must still be reported.
     env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr

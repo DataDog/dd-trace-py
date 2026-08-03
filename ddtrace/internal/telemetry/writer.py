@@ -814,7 +814,7 @@ class TelemetryWriter:
         else:
             worker.add_point(context, value)
 
-    def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
+    def periodic(self, force_flush: bool = False) -> None:
         """Poll for new dependencies and drive the deferred app-started; optionally flush.
 
         Everything but dependencies is reported to the native worker as it happens;
@@ -822,7 +822,6 @@ class TelemetryWriter:
 
         Args:
             force_flush: If True, force an immediate data flush.
-            shutting_down: If True, the worker app-closing is driven by ``app_shutdown``.
         """
         # Fallback trigger for the deferred root app-started (e.g. shutdown, CI visibility, tests
         # that flush without going through product load). No-op once already started.
@@ -846,7 +845,7 @@ class TelemetryWriter:
             # the native Stop lifecycle only emits the observability batch (logs/metrics),
             # not the app-events batch (dependencies/integrations/configs/endpoints), so the
             # deps/endpoints discovered here must be flushed before stop() runs.
-            self.periodic(force_flush=True, shutting_down=True)
+            self.periodic(force_flush=True)
         self.disable()
 
     def set_test_session_token(self, token: Optional[str]) -> None:

@@ -11,8 +11,12 @@ class HttpEndPoint:
     path: str
     resource_name: str = dataclasses.field(default="")
     operation_name: str = dataclasses.field(default="http.request")
-    response_body_type: Sequence[str] = dataclasses.field(default_factory=tuple)
-    response_code: Sequence[int] = dataclasses.field(default_factory=tuple)
+    # compare=False so equality matches __hash__ (method, path): a frozen dataclass otherwise
+    # compares every field, and the same route registered with different reported metadata would
+    # be a distinct set member - stored twice and forwarded to the worker twice, leaving the
+    # dedupe this set exists for to native code.
+    response_body_type: Sequence[str] = dataclasses.field(default_factory=tuple, compare=False)
+    response_code: Sequence[int] = dataclasses.field(default_factory=tuple, compare=False)
     _hash: int = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self) -> None:
