@@ -346,6 +346,6 @@ Datadog::StackRenderer::postfork_child()
 
     // The vanished sampling thread may have been mutating this Sample when fork captured it. Clearing or returning the
     // child copy could traverse inconsistent vectors, so intentionally abandon at most this one in-flight child copy.
-    (void)sample.release();
+    [[maybe_unused]] Sample* abandoned_sample = sample.release();
     active_cycle_id = 0;
 }
