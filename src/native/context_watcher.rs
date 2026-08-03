@@ -15,15 +15,15 @@ unsafe extern "C" {
     fn PyContext_AddWatcher(callback: PyContextWatchCallback) -> c_int;
 }
 
-pub fn register(py: Python<'_>) -> PyResult<()> {
+pub fn register(py: Python<'_>) {
     // SAFETY: This module is only compiled for CPython 3.14+, and the callback
     // signature matches PyContext_WatchCallback from cpython/context.h.
     let watcher_id = unsafe { PyContext_AddWatcher(context_watcher) };
     if watcher_id == -1 {
-        return Err(PyErr::fetch(py));
+        // Context-switch publication is optional. If no watcher slot is
+        // available, clear the C-API error and leave the watcher disabled.
+        drop(PyErr::fetch(py));
     }
-
-    Ok(())
 }
 
 unsafe extern "C" fn context_watcher(event: PyContextEvent, object: *mut ffi::PyObject) -> c_int {
