@@ -1,4 +1,5 @@
 import concurrent.futures
+from contextvars import Context
 import ctypes
 import os
 import sys
@@ -42,10 +43,12 @@ def _published_span_id():
 
 @pytest.fixture(autouse=True)
 def _register_otel_thread_context_listener(tracer):
-    listener = register_otel_thread_context_listener(tracer)
-    assert listener is not None
+    listeners = register_otel_thread_context_listener(tracer)
+    assert listeners is not None
+    activation_listener, context_switch_listener = listeners
     yield
-    core.reset_listeners("ddtrace.context_provider.activate", listener)
+    core.reset_listeners("ddtrace.context_provider.activate", activation_listener)
+    core.reset_listeners("python.context.switch", context_switch_listener)
 
 
 def test_span_context_is_published_and_detached(tracer: Tracer):
@@ -75,6 +78,21 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
     with tracer.trace("test") as span:
         uninstalled_provider.activate(None)
 
+        assert _published_span_id() == span.span_id
+
+
+def test_python_context_switch_syncs_active_span(tracer: Tracer):
+    with tracer.trace("test") as span:
+        detach_otel_thread_context()
+        assert _published_span_id() is None
+
+        core.dispatch("python.context.switch")
+        assert _published_span_id() == span.span_id
+
+        Context().run(core.dispatch, "python.context.switch")
+        assert _published_span_id() is None
+
+        core.dispatch("python.context.switch")
         assert _published_span_id() == span.span_id
 
 
