@@ -148,16 +148,12 @@ class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
 
 
 class Test_FastAPI_IAST_Context:
-    @pytest.mark.xfail(
-        strict=True,
-        reason="IAST returns a borrowed header value after a detached request context is released",
-    )
     @pytest.mark.subprocess(
         ddtrace_run=True,
         env={"DD_IAST_ENABLED": "true", "DD_IAST_REQUEST_SAMPLING": "100"},
         err=None,
     )
-    def test_detached_task_reads_header_after_request(self):
+    def test_detached_task_reads_request_data_after_request(self):
         import asyncio
         import threading
 
@@ -174,7 +170,7 @@ class Test_FastAPI_IAST_Context:
         async def endpoint(request: Request):
             async def background():
                 await asyncio.to_thread(release_background.wait)
-                observed.append(request.headers.get("x-customer-id"))
+                observed.append((request.headers.get("x-customer-id"), request.url.path))
                 background_finished.set()
 
             asyncio.create_task(background())
@@ -185,10 +181,10 @@ class Test_FastAPI_IAST_Context:
             assert response.status_code == 200
 
             # AIDEV-NOTE: The response must finish before this task reads the
-            # header so its copied ContextVar points to a released native slot.
+            # request data so its copied ContextVar points to a released native slot.
             release_background.set()
             assert background_finished.wait(timeout=5)
-            assert observed == ["customer-123"]
+            assert observed == [("customer-123", "/")]
 
 
 class Test_FastAPI_RC(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats_RC):
