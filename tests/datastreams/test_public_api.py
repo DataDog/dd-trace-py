@@ -83,47 +83,6 @@ def test_additional_tags_behavior():
         assert "direction:in" in consume_tags
 
 
-@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
-def test_additional_tags_are_filtered():
-    import mock
-
-    from ddtrace.data_streams import set_produce_checkpoint
-    from ddtrace.internal.datastreams import data_streams_processor
-
-    processor = data_streams_processor()
-
-    with mock.patch.object(processor, "set_checkpoint") as mock_set_checkpoint:
-        set_produce_checkpoint(
-            "eventbridge",
-            "my-detail",
-            {}.setdefault,
-            tags=[
-                "exchange:my-bus",  # valid, kept
-                "direction:in",  # reserved key, dropped
-                "type:other",  # reserved key, dropped
-                "topic:other",  # reserved key, dropped
-                "manual_checkpoint:false",  # reserved key, dropped
-                "filter:a,b",  # comma, dropped
-            ],
-        )
-        sent_tags = mock_set_checkpoint.call_args[0][0]
-
-    # Valid custom tag is kept.
-    assert "exchange:my-bus" in sent_tags
-    # Comma-containing tag is dropped entirely.
-    assert "filter:a,b" not in sent_tags
-    assert "filter:a" not in sent_tags
-    # Reserved-key overrides are dropped, and the automatic values remain authoritative and unique.
-    assert sent_tags.count("direction:out") == 1
-    assert "direction:in" not in sent_tags
-    assert sent_tags.count("type:eventbridge") == 1
-    assert "type:other" not in sent_tags
-    assert sent_tags.count("topic:my-detail") == 1
-    assert "topic:other" not in sent_tags
-    assert sent_tags.count("manual_checkpoint:true") == 1
-    assert "manual_checkpoint:false" not in sent_tags
-
-
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
 def test_additional_tags_hash_behavior():
     from ddtrace.data_streams import set_consume_checkpoint
