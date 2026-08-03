@@ -40,26 +40,25 @@ class InvalidVersion(ValueError):
 
 
 class _BaseVersion(object):
-
     def __hash__(self):
         return hash(self._key)
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         return self._compare(other, lambda s, o: s < o)
 
-    def __le__(self, other):
+    def __le__(self, other) -> bool:
         return self._compare(other, lambda s, o: s <= o)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self._compare(other, lambda s, o: s == o)
 
-    def __ge__(self, other):
+    def __ge__(self, other) -> bool:
         return self._compare(other, lambda s, o: s >= o)
 
-    def __gt__(self, other):
+    def __gt__(self, other) -> bool:
         return self._compare(other, lambda s, o: s > o)
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return self._compare(other, lambda s, o: s != o)
 
     def _compare(self, other, method):
@@ -220,7 +219,7 @@ class Version(_BaseVersion):
         re.VERBOSE | re.IGNORECASE,
     )
 
-    def __init__(self, version):
+    def __init__(self, version: str) -> None:
         # Validate the version and parse it into pieces
         match = self._regex.search(version)
         if not match:
