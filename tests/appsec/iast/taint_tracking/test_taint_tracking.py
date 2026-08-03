@@ -15,6 +15,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
@@ -24,6 +25,8 @@ from tests.utils import override_global_config
 @settings(max_examples=1000)
 @given(non_empty_text)
 def test_taint_pyobject(text_to_taint):
+    _end_iast_context_and_oce()
+    _start_iast_context_and_oce()
     tainted_text = taint_pyobject(
         text_to_taint, source_name="request_body", source_value=text_to_taint, source_origin=OriginType.PARAMETER
     )
