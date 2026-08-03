@@ -841,7 +841,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_otlp_endpoint(self._otlp_endpoint)
             # Only http/json and http/protobuf are supported; fall back to http/protobuf
             # for anything else (e.g. grpc).
-            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL
+            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
             if otlp_protocol not in ("http/json", "http/protobuf"):
                 log.debug(
                     "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
