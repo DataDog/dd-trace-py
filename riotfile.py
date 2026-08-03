@@ -4319,10 +4319,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command=(
-                "pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI"
-                " tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI_IAST_Context {cmdargs}"
-            ),
+            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
