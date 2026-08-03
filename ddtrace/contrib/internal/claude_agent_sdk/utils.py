@@ -42,8 +42,7 @@ def force_include_partial_messages(options: Any, in_place: bool = False) -> tupl
       the flag on (matching the SDK, which constructs a default when none is given).
     - ``True`` (the ``ClaudeSDKClient`` path): mutate the given object in place and return
       it. The client stores the caller's options (``self.options = options``) and reads its
-      fields lazily at ``connect()`` time, so swapping in a copy would sever
-      ``client.options is opts`` and silently drop any field the caller mutates after
+      fields lazily at ``connect()`` time, so swapping in a copy would silently drop any field the caller mutates after
       construction. The SDK has already ensured ``instance.options`` is a real
       ``ClaudeAgentOptions`` by the time we run, so ``options`` is never None here.
     """

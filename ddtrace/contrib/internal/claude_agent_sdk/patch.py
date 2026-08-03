@@ -33,8 +33,8 @@ def traced_client_init(func, instance, args, kwargs):
     ClaudeSDKClient reads options at construction/connect time (before query()), so
     the flag must be set here rather than on the query() call. We flip the flag in
     place on the client's own options object rather than swapping in a copy, so we
-    don't sever ``client.options is opts`` or drop later caller mutations. We stash
-    whether we forced it so receive_messages() can tell the handler to filter the
+    don't drop later caller mutations. We stash
+    whether we forced the flag so receive_messages() can tell the handler to filter the
     extra events.
     """
     func(*args, **kwargs)
