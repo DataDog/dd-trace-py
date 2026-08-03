@@ -4,9 +4,12 @@ import time
 import mock
 import pytest
 
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
+import ddtrace.appsec._common_module_patches as common_module_patches
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._listeners import disable_appsec
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
@@ -26,11 +29,35 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+def _appsec_remote_config_state():
+    return {
+        "api_security_active": asm_config._api_security_active,
+        "rc_client_id": asm_config._rc_client_id,
+        "appsec_processor": AppSecSpanProcessor._instance,
+        "span_processors": tuple(SpanProcessor.__processors__),
+        "common_modules_patched": common_module_patches._is_patched,
+        "appsec_callback_cache": dict(_appsec_callback._cache),
+    }
+
+
 @pytest.fixture(autouse=True)
-def patch_remoteconfig_poller_for_appsec(rc_poller):
-    """Patch the global remoteconfig_poller with the test fixture for appsec tests."""
-    with mock.patch("ddtrace.appsec._remoteconfiguration.remoteconfig_poller", rc_poller):
-        yield
+def isolate_appsec_remote_config(rc_poller):
+    """Isolate every AppSec remote-config test from process-global security state."""
+    initial_state = _appsec_remote_config_state()
+    with (
+        mock.patch("ddtrace.appsec._remoteconfiguration.remoteconfig_poller", rc_poller),
+        mock.patch.object(asm_config, "_rc_client_id", None),
+        mock.patch.object(_appsec_callback, "_cache", {}),
+        override_global_config({}),
+    ):
+        try:
+            yield
+        finally:
+            disable_appsec_rc()
+            disable_appsec()
+            common_module_patches.unpatch_common_modules()
+
+    assert _appsec_remote_config_state() == initial_state
 
 
 def _set_and_get_appsec_tags(tracer, check_client_id=False):
@@ -206,8 +233,6 @@ def test_rc_capabilities_updated_after_one_click_activation(tracer, rc_poller):
         assert advertised().isdisjoint(_ALL_ASM_BLOCKING)
         assert advertised() == set(_rc_capabilities())
 
-    disable_appsec_rc()
-
 
 def test_rc_activation_validate_products(tracer, rc_poller):
     with override_global_config(dict(_asm_enabled=False, _remote_config_enabled=True, api_version="v0.4")):
@@ -216,7 +241,6 @@ def test_rc_activation_validate_products(tracer, rc_poller):
         enable_appsec_rc()
 
         assert rc_poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures]
-    disable_appsec_rc()
 
 
 def test_rc_activation_validate_client_id(tracer, rc_poller):
@@ -224,7 +248,6 @@ def test_rc_activation_validate_client_id(tracer, rc_poller):
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc()
         _set_and_get_appsec_tags(tracer, True)
-    disable_appsec_rc()
 
 
 @pytest.mark.parametrize(
@@ -292,8 +315,6 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)) is expected
         assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
-    disable_appsec_rc()
-
 
 @pytest.mark.parametrize("auto_user", [True, False])
 def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user):
@@ -314,8 +335,6 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user)
         assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData)
         assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)
         assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)) == auto_user
-
-    disable_appsec_rc()
 
 
 def test_rc_activation_ip_blocking_data(tracer, rc_poller):
@@ -413,8 +432,6 @@ def test_rc_activation_does_not_report_appsec_product_when_only_rc_enabled(trace
             # Telemetry should NOT report AppSec as activated
             mock_tw.product_activated.assert_not_called()
 
-    disable_appsec_rc()
-
 
 def test_rc_activation_reports_appsec_product_when_enabled(tracer, rc_poller):
     """When AppSec is explicitly enabled, enable_appsec_rc should report the product as activated."""
@@ -424,8 +441,6 @@ def test_rc_activation_reports_appsec_product_when_enabled(tracer, rc_poller):
             enable_appsec_rc()
 
             mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
-
-    disable_appsec_rc()
 
 
 def test_rc_enable_then_disable_asm_reports_telemetry(tracer, rc_poller):
@@ -448,5 +463,3 @@ def test_rc_enable_then_disable_asm_reports_telemetry(tracer, rc_poller):
             disable_config = [build_payload("ASM_FEATURES", {"asm": {}}, "config")]
             _appsec_callback(disable_config)
             mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, False)
-
-    disable_appsec_rc()
