@@ -38,13 +38,22 @@ def _decoded_arg_for_history(instr: Instr) -> t.Any:
     return 0
 
 
-def iter_import_events(code: CodeType, package: str) -> list[ImportEvent]:
+def iter_import_events(
+    code_or_bytecode: CodeType | Bytecode, package: str, code: t.Optional[CodeType] = None
+) -> list[ImportEvent]:
     """Return import bytecode events in execution order.
 
     The returned metadata is shared by line-level static import tracking and file-level import-hook injection so import
     decoding semantics stay in one place.
     """
-    bytecode = Bytecode.from_code(code)
+    if isinstance(code_or_bytecode, CodeType):
+        code = code_or_bytecode
+        bytecode = Bytecode.from_code(code)
+    else:
+        bytecode = code_or_bytecode
+        if code is None:
+            raise ValueError("code must be provided when code_or_bytecode is a Bytecode object")
+
     events: list[ImportEvent] = []
     current_import_name: t.Optional[str] = None
     current_import_package = package
@@ -83,14 +92,20 @@ def import_names_by_line(import_events: t.Iterable[ImportEvent]) -> ImportNamesB
     return import_names
 
 
-def inject_import_hooks(code: CodeType, hook: HookType, path: str, import_events: t.Iterable[ImportEvent]) -> CodeType:
+def inject_import_hooks(
+    code_or_bytecode: CodeType | Bytecode, hook: HookType, path: str, import_events: t.Iterable[ImportEvent]
+) -> CodeType:
     """Inject import dependency hooks immediately after actual import bytecodes.
 
     File-level coverage uses PY_START, which is too early to know whether guarded imports in the code object will run.
     These injected hooks fire only when the interpreter reaches IMPORT_NAME/IMPORT_FROM, so false runtime branches do
     not create dependency edges. The hook is inserted after the import opcode, meaning failed imports are not recorded.
     """
-    bytecode = Bytecode.from_code(code)
+    if isinstance(code_or_bytecode, CodeType):
+        bytecode = Bytecode.from_code(code_or_bytecode)
+    else:
+        bytecode = code_or_bytecode
+
     pending_insertions: list[PendingImportHook] = [
         (event.instruction_index, (0, path, event.import_name), event.line) for event in import_events
     ]

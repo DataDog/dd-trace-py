@@ -13,6 +13,8 @@ import sys
 from types import CodeType
 import typing as t
 
+from bytecode import Bytecode
+
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
@@ -53,7 +55,14 @@ EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
-_USE_ACCURATE_IMPORTS = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
+_ACCURATE_IMPORTS_REQUESTED = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
+_USE_ACCURATE_IMPORTS = sys.version_info < (3, 15) and _ACCURATE_IMPORTS_REQUESTED
+if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
+    log.info(
+        "_DD_COVERAGE_ACCURATE_IMPORTS is enabled, but accurate import tracking is not supported on Python %s; "
+        "using conservative static import tracking instead",
+        sys.version.split()[0],
+    )
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -252,8 +261,9 @@ def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monito
         else:
             hook((0, path, None))
 
-        # Fallback path for import dependencies when bytecode import-hook injection is unavailable. This is less
-        # precise because PY_START fires before guarded imports are known to execute.
+        # Conservative static import metadata path. This is the default when accurate import-hook injection is off, and
+        # also the fallback if injection fails. It is less precise because PY_START fires before guarded imports are
+        # known to execute.
         for import_name in import_names.values():
             if import_hook is not None:
                 import_hook(path, import_name)
@@ -290,16 +300,10 @@ def _instrument_with_monitoring(
 
     track_lines = not _USE_FILE_LEVEL_COVERAGE
     accurate_file_imports = _USE_FILE_LEVEL_COVERAGE and _USE_ACCURATE_IMPORTS and collect_import_coverage
-    import_events = None
 
     if accurate_file_imports:
-        # Accurate mode already needs Bytecode.from_code() to get hook insertion points. Reuse that result for fallback
-        # import metadata instead of also doing conservative import decoding with the raw scanner.
         lines = CoverageLines()
-        import_events = iter_import_events(code, package)
-        import_names = import_names_by_line(import_events)
-        if code.co_name == "<module>" and package is not None:
-            _add_package_dependency(import_names, 0, package)
+        import_names = {}
     elif track_lines or collect_import_coverage:
         # Keep the default path cheap: use raw co_code scanning for line numbers and conservative import metadata.
         lines, import_names = _extract_lines_and_imports(
@@ -328,9 +332,16 @@ def _instrument_with_monitoring(
         # In file-level mode, PY_START is too coarse for import dependency tracking: it fires when a code object
         # starts, before guarded imports are known to execute. Inject a tiny hook immediately after actual import
         # opcodes instead, and keep PY_START exclusively for file coverage.
-        if accurate_file_imports and import_events:
+        if accurate_file_imports:
+            # Accurate mode needs Bytecode.from_code() for hook insertion points. Parse once after nested code objects
+            # have been replaced, then use that same Bytecode object both to find import events and to inject hooks.
+            bytecode = Bytecode.from_code(code)
+            import_events = iter_import_events(bytecode, package, code)
+            import_names = import_names_by_line(import_events)
+            if code.co_name == "<module>" and package is not None:
+                _add_package_dependency(import_names, 0, package)
             try:
-                code = inject_import_hooks(code, hook, path, import_events)
+                code = inject_import_hooks(bytecode, hook, path, import_events)
             except Exception:
                 log.debug(
                     "Failed to inject import hooks into %r; falling back to static import metadata",
@@ -392,6 +403,11 @@ def _extract_lines_and_imports(
     This intentionally avoids Bytecode.from_code()/dis.get_instructions() in the default path. Accurate import hook
     injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
     CPython wordcode directly with much lower overhead.
+
+    AIDEV-NOTE: This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
+    CACHE entries must not enter the argument history; 3.14+ LOAD_SMALL_INT stores the integer directly instead of
+    indexing co_consts; dis.findlinestarts() owns the version-specific line table decoding; and 3.15+ PEP 810
+    bit-packs IMPORT_NAME's co_names index behind lazy-import flag bits.
     """
     lines = CoverageLines()
     import_names: ImportNamesByLine = {}
@@ -476,7 +492,8 @@ def _extract_lines_and_imports(
                 else:
                     import_names[line] = (current_import_package or package, (import_from_name,))
 
-            # Decode argument value and shift history AFTER opcode handling.
+            # AIDEV-NOTE: Decode argument value and shift history after opcode handling. IMPORT_NAME reads
+            # prev_prev_value before this block because the import sequence is level, fromlist, IMPORT_NAME.
             if opcode == LOAD_CONST:
                 decoded = code.co_consts[current_arg]
             elif LOAD_SMALL_INT is not None and opcode == LOAD_SMALL_INT:

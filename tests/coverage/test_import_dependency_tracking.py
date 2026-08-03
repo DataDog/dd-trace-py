@@ -393,7 +393,7 @@ def test_file_level_false_guarded_import_not_tracked():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"], "_DD_COVERAGE_ACCURATE_IMPORTS": [None]})
 def test_file_level_accurate_imports_disabled_by_default():
     """The accurate import hook is disabled by default to keep conservative static import dependencies."""
     import os
