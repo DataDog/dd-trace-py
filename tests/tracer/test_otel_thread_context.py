@@ -1,4 +1,5 @@
 import concurrent.futures
+from contextvars import Context
 import ctypes
 import os
 import sys
@@ -8,6 +9,7 @@ import pytest
 
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
+from ddtrace.internal import core
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -65,6 +67,21 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
     with tracer.trace("test") as span:
         uninstalled_provider.activate(None)
 
+        assert _published_span_id() == span.span_id
+
+
+def test_python_context_switch_syncs_active_span(tracer: Tracer):
+    with tracer.trace("test") as span:
+        detach_otel_thread_context()
+        assert _published_span_id() is None
+
+        core.dispatch("python.context.switch")
+        assert _published_span_id() == span.span_id
+
+        Context().run(core.dispatch, "python.context.switch")
+        assert _published_span_id() is None
+
+        core.dispatch("python.context.switch")
         assert _published_span_id() == span.span_id
 
 
