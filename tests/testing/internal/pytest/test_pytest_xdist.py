@@ -30,13 +30,15 @@ import typing as t
 import msgpack
 import pytest
 
+from ddtrace.testing.internal.pytest.xdist import xdist_manifest_dir
+
 
 # ---------------------------------------------------------------------------
 # Mock HTTP server
 # ---------------------------------------------------------------------------
 
 
-def _settings_attributes() -> dict:
+def _settings_attributes() -> dict[str, t.Any]:
     """The ``attributes`` block returned by the settings endpoint.
 
     This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
@@ -101,6 +103,8 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         body = self._read_body()
 
+        self.server.recorded_request_paths.append(self.path)  # type: ignore[attr-defined]
+
         if self.path == "/api/v2/citestcycle":
             payload = msgpack.unpackb(body)
             self.server.recorded_payloads.append(payload)  # type: ignore[attr-defined]
@@ -113,7 +117,7 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
                     "data": {
                         "id": "1",
                         "type": "ci_app_test_service_libraries_settings",
-                        "attributes": _settings_attributes(),
+                        "attributes": self.server.settings_attributes,  # type: ignore[attr-defined]
                     }
                 }
             )
@@ -167,6 +171,8 @@ class MockCIVisibilityServer:
     def __enter__(self) -> "MockCIVisibilityServer":
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
+        self.server.recorded_request_paths = []  # type: ignore[attr-defined]
+        self.server.settings_attributes = _settings_attributes()  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         return self
@@ -187,7 +193,17 @@ class MockCIVisibilityServer:
     @property
     def recorded_payloads(self) -> list[dict[str, t.Any]]:
         assert self.server is not None
-        return self.server.recorded_payloads  # type: ignore[attr-defined]
+        server = t.cast(t.Any, self.server)
+        return t.cast(list[dict[str, t.Any]], server.recorded_payloads)
+
+    @property
+    def recorded_request_paths(self) -> list[str]:
+        assert self.server is not None
+        server = t.cast(t.Any, self.server)
+        return t.cast(list[str], server.recorded_request_paths)
+
+    def count_requests(self, path: str) -> int:
+        return self.recorded_request_paths.count(path)
 
     def get_all_events(self) -> list[dict[str, t.Any]]:
         """Return a flat list of all events across all recorded payloads."""
@@ -223,6 +239,8 @@ class MockCIVisibilityServer:
 def _make_env(mock_server_url: str, extra: t.Optional[dict[str, str]] = None) -> dict[str, str]:
     """Build an environment dict for the subprocess that points at the mock server."""
     env = os.environ.copy()
+    env.pop("PYTEST_XDIST_WORKER", None)
+    env.pop("PYTEST_XDIST_WORKER_COUNT", None)
     env.update(
         {
             "DD_API_KEY": "test-api-key-xdist",
@@ -318,6 +336,80 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # AIDEV-NOTE: These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
+
+
+class TestXdistManifestMode:
+    def test_controller_generates_manifest_workers_avoid_backend_fanout(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        settings = _settings_attributes()
+        settings["itr_enabled"] = True
+        settings["tests_skipping"] = True
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        marker_dir = test_project / "xdist_markers"
+        (test_project / "conftest.py").write_text(
+            textwrap.dedent(f"""\
+                import os
+                from pathlib import Path
+
+                MARKER_DIR = Path({str(marker_dir)!r})
+
+                def pytest_configure(config):
+                    worker = os.environ.get("PYTEST_XDIST_WORKER")
+                    manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
+                    MARKER_DIR.mkdir(exist_ok=True)
+                    (MARKER_DIR / (worker or "controller")).write_text(manifest)
+            """)
+        )
+        (test_project / "test_a.py").write_text(
+            textwrap.dedent(f"""\
+                import os
+                from pathlib import Path
+
+                MARKER_DIR = Path({str(marker_dir)!r})
+
+                def _record_test(name):
+                    worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
+                    with (MARKER_DIR / (worker + "-tests")).open("a") as f:
+                        f.write(name + "\\n")
+
+                def test_one():
+                    _record_test("test_one")
+                    assert True
+
+                def test_two():
+                    _record_test("test_two")
+                    assert True
+
+                def test_three():
+                    _record_test("test_three")
+                    assert True
+
+                def test_four():
+                    _record_test("test_four")
+                    assert True
+            """)
+        )
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url)
+        result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        manifest_dir = xdist_manifest_dir(test_project)
+        assert manifest_dir is not None
+        worker_manifests = [path.read_text() for path in marker_dir.glob("gw[0-9]")]
+        assert len(worker_manifests) == 2
+        assert all(worker_manifests)
+        worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
+        assert len(worker_test_counts) == 2
+        assert sum(worker_test_counts) == 4
+        assert all(1 <= count <= 3 for count in worker_test_counts)
+        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
+        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
+        assert not manifest_dir.exists()
 
 
 class TestXdistEventDelivery:

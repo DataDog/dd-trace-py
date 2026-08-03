@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
@@ -86,7 +87,19 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> Mock:
+def clear_outer_xdist_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Do not let an outer xdist controller-generated manifest leak into these tests."""
+    monkeypatch.delenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, raising=False)
+    try:
+        import ddtrace.testing.internal.offline_mode as offline_mode
+
+        offline_mode._offline_mode = None
+    except Exception:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Iterator[Mock]:
     """
     Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """
