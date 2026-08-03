@@ -1,17 +1,26 @@
+from typing import Any
+
 import gevent
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
+from ddtrace.internal import core
 
 
 GEVENT_VERSION = gevent.version_info[0:3]
 
 
+def _context_switch_trace(event: str, args: Any) -> None:
+    # Greenlet swaps thread-state contexts directly, bypassing CPython's
+    # context watcher even on Python 3.14+.
+    if event in {"switch", "throw"}:
+        core.dispatch("python.context.switch")
+
+
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
-        # Storse the current Datadog context.
+        # Store the current Datadog context.
         # This is necessary to ensure tracing context is passed to greenlets.
-        # Avoids setting Greenlet.gr_context, setting field could introduce
-        # unintended side-effects in third party libraries.
+        # Avoid changing gr_context, which may affect third-party libraries.
         self.trace_context = _DD_CONTEXTVAR.get()
         super(TracingMixin, self).__init__(*args, **kwargs)
 

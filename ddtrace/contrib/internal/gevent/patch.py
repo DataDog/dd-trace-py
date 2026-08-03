@@ -1,9 +1,13 @@
 import gevent
 import gevent.pool
 
+from ddtrace.internal._greenlet import register_trace
+from ddtrace.internal._greenlet import unregister_trace
+
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
+from .greenlet import _context_switch_trace
 
 
 __Greenlet = gevent.Greenlet
@@ -33,6 +37,7 @@ def patch():
     gevent.__datadog_patch = True
 
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
+    register_trace(_context_switch_trace)
 
 
 def unpatch():
@@ -45,6 +50,7 @@ def unpatch():
         return
     gevent.__datadog_patch = False
 
+    unregister_trace(_context_switch_trace)
     _replace(__Greenlet, __IMap, __IMapUnordered)
 
 

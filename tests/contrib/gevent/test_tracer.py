@@ -4,13 +4,13 @@ import threading
 import gevent
 import gevent.pool
 
-
-from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
-from ddtrace.trace import Context
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.trace import Context
 from tests.utils import TracerTestCase
 
 from .utils import silence_errors
@@ -55,6 +55,60 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
         assert "base" == traces[0][0].resource
+
+    def test_context_switch_events_follow_gevent_switches(self):
+        switches = []
+
+        def record_context_switch():
+            switches.append(self.tracer.context_provider.active())
+
+        core.on("python.context.switch", record_context_switch)
+        try:
+            with self.tracer.trace("parent") as parent:
+                switches.clear()
+
+                def greenlet() -> None:
+                    assert switches[-1] is parent
+                    with self.tracer.trace("child") as child:
+                        switches.clear()
+                        gevent.sleep(0)
+                        assert None in switches
+                        assert switches[-1] is child
+
+                gevent.spawn(greenlet).join()
+                assert switches[-1] is parent
+        finally:
+            core.reset_listeners("python.context.switch", record_context_switch)
+
+    def test_context_switch_events_follow_raw_greenlet_switches_and_throw(self):
+        from greenlet import greenlet
+
+        switches = []
+
+        def record_context_switch():
+            switches.append(self.tracer.context_provider.active())
+
+        core.on("python.context.switch", record_context_switch)
+        try:
+            with self.tracer.trace("parent") as parent:
+                switches.clear()
+
+                def child():
+                    assert switches[-1] is None
+                    with self.tracer.trace("raw") as raw_span:
+                        switches.clear()
+                        try:
+                            greenlet.getcurrent().parent.switch()
+                        except RuntimeError:
+                            assert switches[-1] is raw_span
+
+                raw = greenlet(child)
+                raw.switch()
+                assert switches[-1] is parent
+                raw.throw(RuntimeError("expected"))
+                assert switches[-1] is parent
+        finally:
+            core.reset_listeners("python.context.switch", record_context_switch)
 
     def test_trace_greenlet_twice(self):
         # a greenlet can be traced using the trace API
@@ -390,3 +444,51 @@ class TestGeventTracer(TracerTestCase):
         assert p.returncode == 0, f"stdout: {stdout.decode()}\n\nstderr: {stderr.decode()}"
         assert b"Test success" in stdout, stdout.decode()
         assert b"RecursionError" not in stderr, stderr.decode()
+
+
+def test_greenlet_trace_multiplexer_preserves_callbacks():
+    from greenlet import gettrace
+    from greenlet import greenlet
+    from greenlet import settrace
+
+    from ddtrace.internal._greenlet import register_trace
+    from ddtrace.internal._greenlet import unregister_trace
+
+    events = []
+
+    def customer(event, args):
+        events.append(("customer", event))
+
+    def tracing(event, args):
+        events.append(("tracing", event))
+
+    def profiling(event, args):
+        events.append(("profiling", event))
+
+    def replacement(event, args):
+        pass
+
+    original = settrace(customer)
+    try:
+        register_trace(tracing)
+        register_trace(profiling)
+        greenlet(lambda: None).switch()
+
+        unregister_trace(tracing)
+        assert gettrace() is not customer
+        greenlet(lambda: None).switch()
+
+        unregister_trace(profiling)
+        assert gettrace() is customer
+
+        register_trace(tracing)
+        settrace(replacement)
+        unregister_trace(tracing)
+        assert gettrace() is replacement
+    finally:
+        unregister_trace(tracing)
+        unregister_trace(profiling)
+        settrace(original)
+
+    assert {name for name, _ in events[:6]} == {"customer", "tracing", "profiling"}
+    assert {name for name, _ in events[6:]} == {"customer", "profiling"}

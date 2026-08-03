@@ -55,6 +55,7 @@ Blowfish
 booleans
 boto
 botocore
+callables
 cassandra
 cattrs
 cetera

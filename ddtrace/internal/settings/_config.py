@@ -176,6 +176,7 @@ INTEGRATION_CONFIGS = frozenset(
         "avro",
         "fastapi",
         "consul",
+        "anyio",
         "asyncio",
         "requests",
         "logbook",

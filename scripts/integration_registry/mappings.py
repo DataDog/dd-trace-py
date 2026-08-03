@@ -22,6 +22,7 @@ EXCLUDED_FROM_TESTING = {
 DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "flask-caching": "flask-cache",
     "pytest-asyncio": "asyncio",
+    "uvloop": "asyncio",
     "pysqlite3-binary": "sqlite3",
     "dogpile.cache": "dogpile_cache",
     "dogpile_cache": "dogpile_cache",
