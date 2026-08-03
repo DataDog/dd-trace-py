@@ -19,6 +19,9 @@ _is_patched = False
 def patch_common_modules() -> None:
     global _is_patched
 
+    # AIDEV-NOTE: subprocess is patched before the _is_patched guard on purpose: one-click remote
+    # activation can call this again after subprocess was imported. The subprocess patch owns its
+    # idempotency, so this restores its lifecycle without duplicating the ModuleWatchdog hook.
     subprocess_rasp_patch.patch()
     if _is_patched:
         return
@@ -47,6 +50,8 @@ def unpatch_common_modules() -> None:
     urllib3_rasp_patch.unpatch()
     stripe_patch.unpatch()
     subprocess_rasp_patch.unpatch()
+    # AIDEV-NOTE: DBAPI installs only a core listener, so its teardown resets that listener for test
+    # lifecycle isolation.
     dbapi_rasp_patch.unpatch()
 
     log.debug("Unpatching common AppSec modules")

@@ -85,7 +85,6 @@ def wrapped_open(original: Callable[..., T], instance: object, args: tuple[Any, 
                 if use_body:
                     addresses["DOWN_RES_BODY"] = _parse_body(typed_response)
                 call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-            return response
         except HTTPError as error:
             headers = _build_headers(error.headers.items()) if error.headers is not None else None
             call_waf_callback(
@@ -93,4 +92,4 @@ def wrapped_open(original: Callable[..., T], instance: object, args: tuple[Any, 
                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
             )
             raise
-    raise AssertionError("unreachable")
+    return response

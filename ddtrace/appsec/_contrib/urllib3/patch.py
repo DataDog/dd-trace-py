@@ -37,6 +37,9 @@ def patch() -> None:
 
 
 def unpatch() -> None:
+    # AIDEV-NOTE: This teardown is used for test lifecycle isolation. It removes every AppSec wrapper
+    # and lazy module hook, including HTTPConnectionPool.urlopen; production does not call it while
+    # the tracing integration's wrapper is layered on top.
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
@@ -53,6 +56,9 @@ def _parse_headers(headers: object) -> dict[object, object]:
 def wrapped_make_request(
     original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> T:
+    # AIDEV-NOTE: "full_url"/"use_body" are published by the outer wrappers that own the caller-visible
+    # URL (wrapped_urlopen / wrapped_request below, urllib's wrapped_open) and consumed here and in
+    # ddtrace/appsec/_contrib/httplib/patch.py. Changing the item names requires updating all of them.
     full_url = core.find_item("full_url")
     environment = _get_asm_context()
     if not (get_rasp_capability("ssrf") and full_url is not None and environment is not None):
@@ -79,14 +85,15 @@ def wrapped_make_request(
                 pass  # nosec
         result = call_waf_callback(
             addresses,
-            crop_trace="wrapped_urllib3_make_request_6D4E8B2A1F095C73",
+            crop_trace=wrapped_make_request.__name__,
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         environment.downstream_requests += 1
         if result and must_block(result.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        return original(*args, **kwargs)
-    raise AssertionError("unreachable")
+        # AIDEV-NOTE: the call must stay inside the context so nested response wrappers see the subcontext.
+        response = original(*args, **kwargs)
+    return response
 
 
 def _absolute_url(instance: HTTPConnectionPool, path: str) -> str:
@@ -141,5 +148,4 @@ def wrapped_request(original: Callable[..., T], instance: object, args: tuple[An
                 except Exception:
                     pass  # nosec
             call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-        return response
-    raise AssertionError("unreachable")
+    return response

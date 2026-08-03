@@ -51,7 +51,7 @@ def wrapped_system(command: Union[str, bytes]) -> None:
     if in_asm_context():
         result = call_waf_callback(
             {EXPLOIT_PREVENTION.ADDRESS.SHI: command},
-            crop_trace="wrapped_system_5542593D237084A7",
+            crop_trace=wrapped_system.__name__,
             rule_type=EXPLOIT_PREVENTION.TYPE.SHI,
         )
         if result and must_block(result.actions):
@@ -67,7 +67,7 @@ def wrapped_popen(arguments: Union[list[str], str, bytes]) -> None:
         command: list[Union[str, bytes]] = [*arguments] if isinstance(arguments, list) else [arguments]
         result = call_waf_callback(
             {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
-            crop_trace="popen_FD233052260D8B4D",
+            crop_trace=wrapped_popen.__name__,
             rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
         )
         if result and must_block(result.actions):
