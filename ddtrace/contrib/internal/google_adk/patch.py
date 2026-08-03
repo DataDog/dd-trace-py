@@ -18,6 +18,13 @@ logger = get_logger(__name__)
 
 config._add("google_adk", {})
 
+# Cap on the number of agent response events retained for LLMObs tagging. `run_live` streams
+# events for the lifetime of a (potentially unbounded) live agent session, so without a bound an
+# attacker able to keep a session open or drive many events could force the traced process to
+# retain every event object and exhaust memory (APMSP-3136). Buffering is additionally skipped
+# entirely when LLMObs is disabled, since the events are only ever consumed by llmobs_set_tags.
+_MAX_BUFFERED_AGENT_EVENTS = 10000
+
 
 def _supported_versions() -> dict[str, str]:
     return {"google.adk": ">=1.0.0"}
@@ -62,10 +69,26 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
         raise
 
     async def _generator():
-        response_events = []
+        # Only retain response events when LLMObs is enabled — they are consumed solely by
+        # llmobs_set_tags, which no-ops when LLMObs is disabled. Even when enabled, cap how many
+        # are retained so a long-lived run_live stream cannot grow the buffer without bound
+        # (APMSP-3136).
+        buffer_events = integration.llmobs_enabled
+        response_events: list = []
+        truncated = False
         try:
             async for event in agen:
-                response_events.append(event)
+                if buffer_events:
+                    if len(response_events) < _MAX_BUFFERED_AGENT_EVENTS:
+                        response_events.append(event)
+                    elif not truncated:
+                        truncated = True
+                        logger.warning(
+                            "google_adk: response event buffer for %s reached the cap of %d "
+                            "events; further events will not be captured for LLMObs.",
+                            wrapped.__name__,
+                            _MAX_BUFFERED_AGENT_EVENTS,
+                        )
                 yield event
         except Exception:
             span.set_exc_info(*sys.exc_info())

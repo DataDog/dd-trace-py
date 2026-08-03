@@ -286,3 +286,89 @@ class TestLLMObsGoogleADK:
                 "app_name": "TestADKApp",
             },
         )
+
+    @pytest.mark.asyncio
+    async def test_run_live_does_not_buffer_events_when_llmobs_disabled(self, adk, test_spans):
+        """APMSP-3136: the agent wrapper must not retain response events when LLMObs is disabled.
+
+        Events were previously buffered unconditionally for the generator's lifetime, so a
+        long-lived run_live stream could exhaust memory even though the buffer is only ever
+        consumed by llmobs_set_tags (a no-op when LLMObs is disabled).
+        """
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        integration = adk._datadog_integration
+        assert not integration.llmobs_enabled
+
+        instance = _fake_agent_instance()
+
+        async def run_live(*args, **kwargs):
+            for _ in range(50):
+                yield object()
+
+        run_live.__name__ = "run_live"
+
+        captured = {}
+
+        def _spy(span, args, kwargs, response=None, operation=""):
+            captured["response"] = response
+
+        with mock.patch.object(integration, "llmobs_set_tags", _spy):
+            gen = _traced_agent_run_async(run_live, instance, (), {"session_id": "s", "user_id": "u"})
+            consumed = [event async for event in gen]
+
+        # All 50 events still flow through to the caller...
+        assert len(consumed) == 50
+        # ...but none are retained when LLMObs is disabled.
+        assert captured["response"] == []
+
+    @pytest.mark.asyncio
+    async def test_run_live_caps_buffered_events_when_llmobs_enabled(
+        self, adk, test_spans, google_adk_llmobs, monkeypatch
+    ):
+        """APMSP-3136: even with LLMObs enabled, the retained event buffer is bounded."""
+        from ddtrace.contrib.internal.google_adk import patch as adk_patch_mod
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        monkeypatch.setattr(adk_patch_mod, "_MAX_BUFFERED_AGENT_EVENTS", 5)
+
+        integration = adk._datadog_integration
+        assert integration.llmobs_enabled
+
+        instance = _fake_agent_instance()
+
+        async def run_live(*args, **kwargs):
+            for _ in range(20):
+                yield object()
+
+        run_live.__name__ = "run_live"
+
+        captured = {}
+
+        def _spy(span, args, kwargs, response=None, operation=""):
+            captured["response"] = response
+
+        with mock.patch.object(integration, "llmobs_set_tags", _spy):
+            gen = _traced_agent_run_async(run_live, instance, (), {"session_id": "s", "user_id": "u"})
+            consumed = [event async for event in gen]
+
+        # All events still reach the caller, but only the cap is retained for tagging.
+        assert len(consumed) == 20
+        assert len(captured["response"]) == 5
+
+
+def _fake_agent_instance():
+    """Minimal stand-in for an ADK ``Runner`` for exercising the agent-run wrapper directly."""
+
+    class _Model:
+        pass
+
+    class _Agent:
+        name = "test_agent"
+        model = _Model()
+
+    class _Runner:
+        agent = _Agent()
+        app_name = "TestADKApp"
+
+    return _Runner()

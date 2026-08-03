@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    google-adk: Fixes unbounded memory growth when tracing ``Runner.run_live`` (and
+    ``Runner.run_async``). Response events yielded by the agent were buffered for the entire
+    lifetime of the generator regardless of whether LLM Observability was enabled. For long-lived
+    ``run_live`` streaming sessions this could retain every event object and exhaust process
+    memory. Events are now buffered only when LLM Observability is enabled, and the number
+    retained is bounded.
