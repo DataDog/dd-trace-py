@@ -368,7 +368,7 @@ docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-
 
 # Supported versions
 supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/integration_registry/                   @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/                   @DataDog/apm-idm-python
 
 # Benchmarks CI setup
 /.gitlab/benchmarks             @DataDog/apm-ecosystems-performance
