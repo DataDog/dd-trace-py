@@ -15,6 +15,7 @@ from ddtrace.appsec import _trace_utils
 from ddtrace.appsec._asm_request_context import get_blocked as _get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
 import ddtrace.appsec.trace_utils  # noqa: F401
+from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.internal._exceptions import BlockingException
 
 
@@ -96,7 +97,7 @@ def track_user(
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
     usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
     usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
-    _trace_utils.set_user(
+    set_user(
         None,
         user_id,
         name=usr_name if isinstance(usr_name, str) else None,
@@ -148,7 +149,7 @@ def track_user_id(
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
     usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
     usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
-    _trace_utils.set_user(
+    set_user(
         None,
         user_id,
         name=usr_name if isinstance(usr_name, str) else None,
