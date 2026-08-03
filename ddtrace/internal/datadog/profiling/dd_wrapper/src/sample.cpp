@@ -642,6 +642,35 @@ Datadog::Sample::push_task_name(std::string_view task_name)
 }
 
 bool
+Datadog::Sample::push_origin_task_id(uint64_t origin_task_id)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    const int64_t recoded_id =
+      reinterpret_cast<int64_t&>(origin_task_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
+    if (!push_label(ExportLabelKey::origin_task_id, recoded_id)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+bool
+Datadog::Sample::push_origin_task_name(std::string_view origin_task_name)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::origin_task_name, origin_task_name)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
 Datadog::Sample::push_span_id(uint64_t span_id)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety

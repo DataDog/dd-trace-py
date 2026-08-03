@@ -1,5 +1,6 @@
 import gc
 
+from ddtrace.appsec._iast._iast_env import in_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
@@ -340,6 +341,18 @@ def test_is_pyobject_tainted_without_context_does_not_consult_native():
 
     finish_request_context(ctx)
     IAST_CONTEXT.set(None)
+
+
+def test_is_pyobject_tainted_without_context_ignores_stale_iast_env(iast_context_defaults):
+    tainted = taint_pyobject("tainted_with_stale_env", "param", "tainted_with_stale_env", OriginType.PARAMETER)
+    assert is_pyobject_tainted(tainted) is True
+
+    token = IAST_CONTEXT.set(None)
+    try:
+        assert in_iast_env() is True
+        assert is_pyobject_tainted(tainted) is False
+    finally:
+        IAST_CONTEXT.reset(token)
 
 
 def test_taint_query_from_finalizer_without_context_is_safe():

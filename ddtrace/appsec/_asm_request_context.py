@@ -16,7 +16,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._constants import Constant_Class
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
@@ -27,8 +26,10 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -103,7 +104,7 @@ class ASM_Environment:
         if self.root:
             core.add_suppress_exception(BlockingException)
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
-        context_span = span or core.get_root_span()
+        context_span = span or span_bus.get_root_span()
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
@@ -131,7 +132,7 @@ class ASM_Environment:
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
-    return core.find_item(_ASM_CONTEXT)
+    return core.find_item(_ASM_CONTEXT)  # type: ignore[no-any-return]
 
 
 def get_active_asm_context() -> Optional[ASM_Environment]:
@@ -164,11 +165,11 @@ def get_blocked() -> Optional[Block_config]:
 def get_entry_span() -> Optional[Span]:
     env = _get_asm_context()
     if env is None:
-        span = core.get_span()
+        span = span_bus.get_span()
         if span:
             return span._service_entry_span
         else:
-            return core.get_root_span()
+            return span_bus.get_root_span()
     return env.entry_span
 
 
@@ -463,18 +464,11 @@ def set_waf_address(address: str, value: Any) -> None:
         core.set_item(address, value)
 
 
-def get_value(category: str, address: str, default: Any = None) -> Any:
+def get_waf_address(address: str, default: Any = None) -> Any:
     env = get_active_asm_context()
     if env is None:
         return default
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        return asm_context_attr.get(address, default)
-    return default
-
-
-def get_waf_address(address: str, default: Any = None) -> Any:
-    return get_value(_WAF_ADDRESSES, address, default=default)
+    return env.waf_addresses.get(address, default)
 
 
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
@@ -497,8 +491,12 @@ def call_waf_callback(
     if env is not None and env.waf_callable is not None:
         return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
 
-    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
-    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    if rule_type is None:
+        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    else:
+        # RASP calls out of context are benign (e.g. outbound request with no active request)
+        logger.debug(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
     return None
 
 
@@ -518,7 +516,7 @@ def set_ip(ip: Optional[str]) -> None:
 
 
 def get_ip() -> Optional[str]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HTTP_IP)
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)  # type: ignore[no-any-return]
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
@@ -532,7 +530,7 @@ def set_headers(headers: Mapping) -> None:
 
 
 def get_headers() -> Optional[Mapping]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})  # type: ignore[no-any-return]
 
 
 def set_headers_case_sensitive(case_sensitive: bool) -> None:
@@ -540,7 +538,7 @@ def set_headers_case_sensitive(case_sensitive: bool) -> None:
 
 
 def get_headers_case_sensitive() -> bool:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type: ignore[no-any-return]
 
 
 def set_block_request_callable(block_callable: Optional[Callable[[], None]]) -> None:
@@ -654,12 +652,6 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
 
 def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
-        # Skip creating a new ASM context if one already exists in a parent context
-        # AND this is a sub-app span (e.g., mounted FastAPI/Starlette sub-application).
-        # The parent's ASM context already has the request data (body, headers, etc.)
-        # and is accessible via core.find_item thanks to context tree traversal.
-        if in_asm_context() and core.find_item("is_subapp"):
-            return
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
@@ -734,7 +726,7 @@ def _get_headers_if_appsec() -> Optional[Any]:
     return None
 
 
-## headers tags
+# Headers tags
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",

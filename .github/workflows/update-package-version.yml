@@ -3,8 +3,12 @@ name: Update riot package lockfiles
 on:
   workflow_dispatch:
     inputs:
-      package:
-        description: "Riot package/venv name to update"
+      integration_name:
+        description: "Riot integration/venv name to update"
+        required: true
+        type: string
+      package_name:
+        description: "Canonical package name for PR metadata"
         required: true
         type: string
 
@@ -91,7 +95,7 @@ jobs:
 
       - name: Run regenerate-riot-latest
         env:
-          TARGET_PACKAGE: ${{ inputs.package }}
+          TARGET_PACKAGE: ${{ inputs.integration_name }}
           # Opt riot's `requirements` compile step into `uv pip compile` so
           # that --exclude-newer can be forwarded for the cooldown. Older
           # riot versions ignore both variables silently, so this is safe
@@ -106,7 +110,7 @@ jobs:
       - name: Get latest version
         id: new-latest
         env:
-          TARGET_PACKAGE: ${{ inputs.package }}
+          TARGET_PACKAGE: ${{ inputs.package_name }}
         run: |
           NEW_LATEST=$(python scripts/get_latest_version.py "$TARGET_PACKAGE")
           echo "new_latest=$NEW_LATEST" >> "$GITHUB_OUTPUT"
@@ -133,12 +137,12 @@ jobs:
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
-          branch: "upgrade-latest-${{ inputs.package }}-version"
+          branch: "upgrade-latest-${{ inputs.package_name }}-version"
           commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update ${{ inputs.package }} latest version to ${{ steps.new-latest.outputs.new_latest }}"
+          title: "chore: update ${{ inputs.package_name }} latest version to ${{ steps.new-latest.outputs.new_latest }}"
           labels: changelog/no-changelog
           body: |
-            Update ${{ inputs.package }} lockfiles.
+            Update ${{ inputs.package_name }} lockfiles.
             This updates only the riot lockfiles for the selected package/venv.

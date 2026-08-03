@@ -20,6 +20,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
@@ -29,7 +30,6 @@ from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .schemas.schema_builder import SchemaBuilder

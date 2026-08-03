@@ -7,9 +7,11 @@
 // is for ddtrace/settings/profiling.py:ProfilingConfig.max_frames, but should conform
 constexpr unsigned int g_default_max_nframes = 64;
 
-// Maximum number of frames admissible in the Profiling backend.  If a user exceeds this number, then
-// their stacks may be silently truncated, which is unfortunate.
-constexpr unsigned int g_backend_max_nframes = 512;
+// Maximum number of locations admissible in the Profiling backend. Reserve one location for the
+// synthetic "<N frames omitted>" frame emitted when a stack is truncated.
+// Keep in sync with BACKEND_MAX_LOCATIONS and MAX_FRAMES in ddtrace/internal/settings/profiling.py.
+constexpr unsigned int g_backend_max_nlocations = 600;
+constexpr unsigned int g_backend_max_nframes = g_backend_max_nlocations - 1;
 
 // Default value for the max number of samples to keep in the StaticSamplePool
 constexpr size_t g_default_sample_pool_capacity = 4;

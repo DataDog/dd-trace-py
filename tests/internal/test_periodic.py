@@ -79,6 +79,68 @@ def test_periodic_join_positional_timeout_is_honored():
         t.join()
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="requires Linux pthread id reuse behavior")
+@pytest.mark.subprocess
+def test_periodic_thread_dealloc_does_not_evict_reused_ident():
+    """Regression: stale PeriodicThread dealloc must not evict a new worker.
+
+    PeriodicThread objects are registered in ``periodic_threads`` by native
+    thread id. Linux can quickly recycle a thread id after the old worker exits.
+    The old Python PeriodicThread may then be deallocated while its stale
+    ``ident`` still matches a new live worker. Dealloc must not blindly delete
+    ``periodic_threads[ident]`` in that case.
+    """
+    import gc
+
+    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.periodic import PeriodicThread
+
+    class Holder:
+        """NativeWriter-like owner for a PeriodicThread."""
+
+        def __init__(self, name):
+            self.thread = PeriodicThread(60.0, self.work, name=name)
+            self.thread.start()
+
+        def work(self):
+            pass
+
+    holder = Holder("initial")
+    saw_reused_ident = False
+
+    try:
+        for i in range(1000):
+            old_holder = holder
+            old_thread = old_holder.thread
+            old_ident = old_thread.ident
+
+            old_thread.stop()
+            old_thread.join(timeout=1.0)
+
+            holder = Holder("replacement-%d" % i)
+            new_thread = holder.thread
+            new_ident = new_thread.ident
+
+            # Simulate NativeWriter-like owner teardown after replacement: drop
+            # the old holder -> PeriodicThread edge while old_thread.ident is
+            # still populated. On buggy builds, old_thread.tp_dealloc deletes
+            # periodic_threads[old_ident] even when it now belongs to new_thread.
+            old_holder.thread = None
+            del old_thread
+            gc.collect()
+
+            if old_ident == new_ident:
+                saw_reused_ident = True
+                assert periodic_threads.get(new_ident) is new_thread
+    finally:
+        if holder.thread is not None:
+            holder.thread.stop()
+            holder.thread.join(timeout=1.0)
+
+    if not saw_reused_ident:
+        pytest.skip("thread id was not recycled during the stress loop")
+
+
 def test_periodic_awake_after_stop_returns_not_hangs():
     """Regression: awake() after a completed stop() used to block forever.
 
@@ -882,6 +944,46 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     # Exit hard so the code reflects only whether a child hung/faulted, skipping
     # the interpreter's atexit join of the periodic threads.
     os._exit(2 if failed else 0)
+
+
+def test_recycled_ident_dealloc_does_not_evict_live_worker():
+    """Deterministic regression test for the same registry corruption exercised
+    probabilistically by ``test_writer_recreate_fork_child_does_not_deadlock``
+    (see that test's docstring for the full root-cause narrative).
+
+    Reproducing the bug for real requires the OS to recycle a freed thread id
+    and GC to run the stale dealloc at just the right moment, which is
+    libc/timing dependent. ``ident`` is a writable attribute on PeriodicThread
+    though, so recycling can be simulated directly instead:
+
+      1. Start a real worker; it registers ``periodic_threads[ident] = live``.
+      2. Create a second, never-started worker and force its ``ident`` to match
+         the live worker's -- simulating the OS reissuing that freed id.
+      3. Drop the stale worker and force a GC pass so its ``tp_dealloc`` runs.
+
+    Pre-fix, dealloc deleted ``periodic_threads[ident]`` by ident alone,
+    evicting the live worker's entry. Post-fix, the delete is guarded by an
+    identity check, so the live worker's entry survives.
+    """
+    from ddtrace.internal._threads import periodic_threads
+
+    live = periodic.PeriodicThread(1.0, lambda: None)
+    live.start()
+    try:
+        assert periodic_threads.get(live.ident) is live
+
+        stale = periodic.PeriodicThread(1.0, lambda: None)
+        stale.ident = live.ident  # simulate the OS recycling the freed thread id
+        del stale
+        gc.collect()
+
+        assert periodic_threads.get(live.ident) is live, (
+            "live worker's periodic_threads entry was evicted by a stale worker's "
+            "dealloc after simulated thread-id recycling"
+        )
+    finally:
+        live.stop()
+        live.join()
 
 
 def test_periodic_thread_naming():

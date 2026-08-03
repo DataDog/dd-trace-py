@@ -14,6 +14,14 @@ class ExportedLLMObsSpan(TypedDict):
     trace_id: str
 
 
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
+
+
 class Document(TypedDict, total=False):
     name: str
     id: str
@@ -188,6 +196,7 @@ class _Meta(TypedDict, total=False):
     tool: _ToolField
     tool_definitions: list[ToolDefinition]
     intent: str
+    agent_attribution: dict[str, Optional[str]]
 
 
 class _SpanLink(TypedDict):
