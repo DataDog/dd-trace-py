@@ -1,0 +1,62 @@
+[[
+  {
+    "name": "azure.frontdoor",
+    "service": "my-app.azurefd.net",
+    "resource": "GET /api/{resource}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.falcon",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a514f3700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.falcon",
+      "component": "azure-fd",
+      "http.method": "GET",
+      "http.route": "/api/{resource}",
+      "http.status_code": "200",
+      "http.url": "https://my-app.azurefd.net/api/my-function",
+      "http.useragent": "custom-client/1.0",
+      "language": "python",
+      "runtime-id": "39d569d46c13460d823362ba441fcc29",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.inferred_span": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 697.0
+    },
+    "duration": 741597,
+    "start": 1783713591087000000
+  },
+     {
+       "name": "falcon.request",
+       "service": "falcon",
+       "resource": "GET tests.contrib.falcon.test_inferred_proxy_snapshot.ProxiedResource",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.falcon",
+         "_dd.svc_src": "m",
+         "component": "falcon",
+         "http.method": "GET",
+         "http.route": "/api/my-function",
+         "http.status_code": "200",
+         "http.url": "http://falconframework.org/api/my-function",
+         "span.kind": "server"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 390663,
+       "start": 1783713591087330685
+     }]]
