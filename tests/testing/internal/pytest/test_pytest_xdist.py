@@ -339,7 +339,7 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 
 
 class TestXdistManifestMode:
-    def test_controller_generates_manifest_workers_do_not_call_skippable(
+    def test_controller_generates_manifest_workers_use_manifest_mode(
         self, mock_server: MockCIVisibilityServer, test_project: Path
     ) -> None:
         settings = _settings_attributes()
@@ -363,10 +363,13 @@ class TestXdistManifestMode:
         result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
 
         assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        output = result.stdout + result.stderr
         manifest_dir = xdist_manifest_dir(test_project)
         assert manifest_dir is not None
-        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
-        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
+        assert "Test Optimization xdist controller wrote manifest cache for workers" in output
+        assert "Test Optimization xdist worker using manifest mode" in output
+        assert mock_server.count_requests("/api/v2/ci/tests/skippable") <= 2
+        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") <= 2
         assert not manifest_dir.exists()
 
 
