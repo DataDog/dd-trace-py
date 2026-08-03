@@ -21,7 +21,7 @@ These dual responsibilities to our customers drive three goals of our release pr
    If a change does not make the current release train, there is another train just around the corner.
 
 3. **Releasing customer-ready improvements as quickly as possible.**
-   A release will include as many customer improvements as are possible, given the validation and timely release requirements.
+   A release will include as many customer improvements as possible, given the validation and timely release requirements.
    When a change cannot be validated in time, it should be disabled or rolled-back until a subsequent release.
 
 How to handle regressions
