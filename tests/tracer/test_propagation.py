@@ -26,6 +26,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
@@ -943,6 +944,10 @@ def test_extract_unicode(tracer):  # noqa: F811
             "_dd.p.dm=-22",
             {"_dd.propagation_error": "decoding_error"},
         ),  # This test validates a value that does not exist in the SamplingMechanism enum
+        (
+            "_dd.p.dm=-{}".format(SamplingMechanism.SYNTHETICS_BILLING_EXCLUSION),
+            {"_dd.p.dm": "-{}".format(SamplingMechanism.SYNTHETICS_BILLING_EXCLUSION)},
+        ),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
@@ -960,6 +965,30 @@ def test_extract_dm(x_datadog_tags, expected_trace_tags):
     expected.update(expected_trace_tags)
 
     assert context._meta == expected
+
+
+def test_extract_and_reinject_known_dm_preserves_other_tags():
+    """A recognized _dd.p.dm value must not be stripped, and other _dd.p.* tags must
+    still be sent on the next outbound hop (regression test for APMS-20191, where an
+    unrecognized _dd.p.dm value caused the entire x-datadog-tags header to be dropped
+    on injection).
+    """
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-tags": "_dd.p.dm=-{},_dd.p.usr.id=baz64".format(SamplingMechanism.SYNTHETICS_BILLING_EXCLUSION),
+    }
+
+    context = HTTPPropagator.extract(headers)
+    assert "_dd.propagation_error" not in context._meta
+
+    new_headers = {}
+    HTTPPropagator.inject(context, new_headers)
+
+    injected_tags = new_headers["x-datadog-tags"]
+    assert "_dd.p.dm=-{}".format(SamplingMechanism.SYNTHETICS_BILLING_EXCLUSION) in injected_tags
+    assert "_dd.p.usr.id=baz64" in injected_tags
 
 
 def test_WSGI_extract(tracer):  # noqa: F811

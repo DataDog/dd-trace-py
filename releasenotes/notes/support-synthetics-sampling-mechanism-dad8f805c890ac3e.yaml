@@ -1,6 +1,4 @@
 ---
 other:
   - |
-    tracing: Adds recognition of an additional Datadog-internal sampling mechanism used by
-    Datadog Synthetics, so traces using it no longer log a decoding warning or stop
-    propagating trace-level tags to downstream services.
+    tracing: Adds recognition of a new sampling mechanism used by Datadog Synthetics.
