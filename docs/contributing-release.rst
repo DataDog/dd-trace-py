@@ -172,7 +172,7 @@ See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <htt
 Find the change(s) that contributed the most to performance regression.
 You can check from the `Benchmarking Platform - Benchmarks tab <https://benchmarking.us1.prod.dog/benchmarks?projectId=3&ciJobDateStart=1753290587498&ciJobDateEnd=1753895387498&gitBranch=main>`_ and filter by project and branch to see these commits.
 Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/archives/C04MK6NNDG9>`_ to see if there are any easy fixes (less than a day of work) that can be pushed to the release branch.
-Follow the revert/fix/allow policy dercribed above to remediate the issue.
+Follow the revert/fix/allow policy described above to remediate the issue.
 See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
 
 Pre-Release dogfooding
