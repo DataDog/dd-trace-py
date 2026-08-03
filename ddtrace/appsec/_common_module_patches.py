@@ -19,9 +19,8 @@ _is_patched = False
 def patch_common_modules() -> None:
     global _is_patched
 
-    # AIDEV-NOTE: subprocess is patched before the _is_patched guard on purpose: one-click remote
-    # activation can call this a second time after the subprocess module was imported, and the
-    # ModuleWatchdog hook has to be re-armed then.
+    # Patched before the _is_patched guard: one-click activation calls this again after subprocess
+    # has been imported, and the ModuleWatchdog hook needs to be re-armed then.
     subprocess_rasp_patch.patch()
     if _is_patched:
         return
@@ -50,7 +49,7 @@ def unpatch_common_modules() -> None:
     urllib3_rasp_patch.unpatch()
     stripe_patch.unpatch()
     subprocess_rasp_patch.unpatch()
-    # AIDEV-NOTE: dbapi has no unpatch(): its patch() only registers a core listener. See its docstring.
+    # dbapi has no unpatch(): its patch() only registers a core listener.
 
     log.debug("Unpatching common AppSec modules")
     _is_patched = False

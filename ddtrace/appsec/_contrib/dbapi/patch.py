@@ -27,9 +27,9 @@ _DIALECTS = {
 def patch() -> None:
     """Register the SQLi listener.
 
-    AIDEV-NOTE: unlike the other ``ddtrace/appsec/_contrib/*/patch.py`` modules, this one installs no
-    wrapper: ``ddtrace/contrib/dbapi.py`` already dispatches ``asm.block.dbapi.execute``, so there is
-    nothing to undo and no ``unpatch()``. ``core.on`` dedupes by callback, so re-registering is a no-op.
+    Unlike the other ``_contrib/*/patch.py`` modules, this one installs no wrapper: ``ddtrace/contrib/
+    dbapi.py`` already dispatches ``asm.block.dbapi.execute``. There is therefore nothing to undo and
+    no ``unpatch()``, and re-registering is a no-op because ``core.on`` dedupes by callback.
     """
     core.on("asm.block.dbapi.execute", on_execute)
 
