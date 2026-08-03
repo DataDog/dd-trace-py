@@ -90,7 +90,11 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
         Context().run(core.dispatch, "python.context.switch")
-        assert _published_span_id() is None
+        # CPython's context watcher restores the outer context after Context.run().
+        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+            assert _published_span_id() == span.span_id
+        else:
+            assert _published_span_id() is None
 
         core.dispatch("python.context.switch")
         assert _published_span_id() == span.span_id
