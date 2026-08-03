@@ -243,8 +243,29 @@ class GILGuard
     }
     inline ~GILGuard()
     {
-        if (_acquired && !_mstate->is_finalizing() && PyGILState_Check())
-            PyGILState_Release(_gil_state);
+        if (!_acquired || _mstate->is_finalizing() || !PyGILState_Check())
+            return;
+
+#if PY_VERSION_HEX < 0x030D0000
+        // Work around CPython GH-119585, which was not fixed on 3.9-3.11.
+        // A cp312 wheel must also apply the workaround to the entire 3.12 ABI
+        // because a wheel built on 3.12.4+ can run on affected 3.12.0-3.12.3.
+        // Mirror the fixed CPython 3.12.4 release sequence by clearing the
+        // complete state, including its context, while gilstate_counter is
+        // still nonzero.
+        PyThreadState* tstate = PyThreadState_Get();
+        // An auto-created state has counter 1 here. PyGILState_Ensure raises a
+        // pre-existing state's initial counter from 1 to at least 2, so it must
+        // use the normal release path below instead of being deleted.
+        if (_gil_state == PyGILState_UNLOCKED && tstate->gilstate_counter == 1) {
+            PyThreadState_Clear(tstate);
+            --tstate->gilstate_counter;
+            PyThreadState_DeleteCurrent();
+            return;
+        }
+#endif
+
+        PyGILState_Release(_gil_state);
     }
 
     GILGuard(const GILGuard&) = delete;
@@ -818,27 +839,13 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                         unregister_periodic_thread_if_self(state->periodic_threads, self->ident, (PyObject*)self);
                     }
 
-                    // Release the worker's Python reference before the final
-                    // thread-local sweep so its deallocator cannot repopulate
-                    // the thread dictionary after the sweep.
+                    // Release the worker's Python reference before GILGuard
+                    // clears the thread state so values added by its deallocator
+                    // are included in that clear.
                     _ref.reset();
 
-#if PY_VERSION_HEX < 0x030C04F0
-                    // Work around CPython GH-119585. PyGILState_Release clears
-                    // the thread dictionary after setting gilstate_counter to zero,
-                    // so a thread-local destructor that re-enters PyGILState can
-                    // delete the active state. Clear the dictionary while the
-                    // counter is still nonzero; the subsequent clear is harmless.
-                    if (!state->is_finalizing()) {
-                        PyObject* thread_dict = PyThreadState_GetDict();
-                        if (thread_dict != nullptr)
-                            PyDict_Clear(thread_dict);
-                    }
-#endif
-
-                    // Inner scope ends here. GILGuard::~GILGuard releases the GIL.
-                    // The worker reference and thread-local values were already
-                    // released while gilstate_counter was nonzero.
+                    // Inner scope ends here. GILGuard::~GILGuard clears and deletes
+                    // the worker's thread state, then releases the GIL.
                 }
 
                 // All Python VM interactions are done. Signal that the thread has fully
@@ -1171,10 +1178,10 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // 2. The thread is always detached at creation, so destroying _thread
     //    (non-joinable std::thread) is a no-op regardless of which thread
     //    calls it.
-    // 3. After dealloc returns, the lambda only calls stopped_event->set()
-    //    via its captured shared_ptr — it never accesses self again.
+    // 3. After dealloc returns, the lambda only tears down its current thread
+    //    state and calls stopped_event->set() — it never accesses self again.
     // 4. GILGuard::~GILGuard (which runs after PyRef::~PyRef) only accesses
-    //    its own _mstate copy, not self.
+    //    its own _mstate copy and the current thread state, not self.
     //
     // Full cleanup is therefore correct in all cases;
 

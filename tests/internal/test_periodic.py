@@ -52,8 +52,9 @@ def test_periodic_double_start():
 
 
 @pytest.mark.subprocess(timeout=10)
-def test_periodic_thread_gilstate_reentry_during_thread_local_cleanup():
-    """A thread-local destructor may safely re-enter PyGILState during worker teardown."""
+def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
+    """Thread and context-local destructors may re-enter PyGILState during worker teardown."""
+    import contextvars
     import ctypes
     import threading
 
@@ -68,19 +69,28 @@ def test_periodic_thread_gilstate_reentry_during_thread_local_cleanup():
     release.restype = None
 
     local = threading.local()
+    context_value = contextvars.ContextVar("context_value")
+    finalized = []
 
     class ReenterPyGILState:
+        def __init__(self, kind):
+            self.kind = kind
+
         def __del__(self):
+            finalized.append(self.kind)
             state = ensure()
             release(state)
 
     def target():
-        local.value = ReenterPyGILState()
+        local.value = ReenterPyGILState("thread-local")
+        context_value.set(ReenterPyGILState("context-local"))
         return PERIODIC_STOP
 
     thread = PeriodicThread(0.001, target, name="SignalUploader", no_wait_at_start=True)
     thread.start()
     thread.join()
+
+    assert sorted(finalized) == ["context-local", "thread-local"]
 
 
 def test_periodic_join_positional_timeout_is_honored():

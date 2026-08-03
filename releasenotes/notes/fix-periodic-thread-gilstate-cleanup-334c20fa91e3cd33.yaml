@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    internal: Fixes an issue where applications can crash when background worker threads clean up thread-local data.
+    internal: Fixes an issue on Python 3.9 through 3.12.3 where applications can crash when
+    background worker threads clean up thread-local or context-local data.
