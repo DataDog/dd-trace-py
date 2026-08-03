@@ -15,7 +15,8 @@ else:
 
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
-    tracer.shutdown()
+    # Keep this below the test client's timeout so a delayed flush cannot fail fixture teardown.
+    tracer.shutdown(timeout=5)
     return HttpResponse(status=200)
 
 
