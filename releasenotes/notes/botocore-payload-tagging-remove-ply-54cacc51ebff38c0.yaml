@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    botocore: Fixes an issue where payload tagging raised an ``AttributeError`` when a redaction path matched a list element, such as the default path ``$..phoneNumbers[*]``. These values are now redacted correctly.
+other:
+  - |
+    botocore: Payload tagging redaction now uses ``python-jsonpath`` in place of the vendored ``jsonpath-ng`` and ``ply``, so ``ddtrace`` no longer ships ``ply``, which is unmaintained and reported by dependency scanners as ``CVE-2025-56005``. Existing redaction paths continue to work.

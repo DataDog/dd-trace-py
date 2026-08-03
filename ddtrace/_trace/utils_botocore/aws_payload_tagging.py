@@ -1,15 +1,27 @@
 import copy
 from decimal import Decimal
 import json
+import re
 from typing import Any
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.vendor.jsonpath_ng.parser import JsonPathParser
+from ddtrace.vendor import jsonpath
 
 
 _MAX_TAG_VALUE_LENGTH = 5000
+
+_DOT_BEFORE_BRACKET = re.compile(r"(?<!\.)\.\[")
+
+
+def _compile_redaction_path(path: str) -> Union["jsonpath.JSONPath", "jsonpath.CompoundJSONPath"]:
+    try:
+        return jsonpath.compile(path)
+    except jsonpath.JSONPathError:
+        # jsonpath-ng allowed "$..Entries.[*].Message"; RFC 9535 does not.
+        return jsonpath.compile(_DOT_BEFORE_BRACKET.sub("[", path))
 
 
 class AWSPayloadTagging:
@@ -77,9 +89,8 @@ class AWSPayloadTagging:
         Expands the JSON payload from various AWS services into tags and sets them on the Span.
         """
         if not self.validated:
-            parser = JsonPathParser()  # build LALR parser just once
-            self.request_redaction_paths = [parser.parse(p) for p in self._get_redaction_paths_request(parser)]
-            self.response_redaction_paths = [parser.parse(p) for p in self._get_redaction_paths_response(parser)]
+            self.request_redaction_paths = [_compile_redaction_path(p) for p in self._get_redaction_paths_request()]
+            self.response_redaction_paths = [_compile_redaction_path(p) for p in self._get_redaction_paths_response()]
             self.validated = True
 
         if not self.request_redaction_paths and not self.response_redaction_paths:
@@ -108,7 +119,7 @@ class AWSPayloadTagging:
             return True
         return False
 
-    def _validate_json_paths(self, paths: Optional[str], parser: JsonPathParser) -> bool:
+    def _validate_json_paths(self, paths: Optional[str]) -> bool:
         """
         Checks whether paths is "all" or all valid JSONPaths
         """
@@ -125,7 +136,7 @@ class AWSPayloadTagging:
                 if not path.startswith("$"):
                     return False
                 try:
-                    parser.parse(path)
+                    _compile_redaction_path(path)
                 except Exception:
                     return False
             else:
@@ -138,10 +149,11 @@ class AWSPayloadTagging:
         Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
         """
         for expression in expressions:
-            for match in expression.find(data):
-                match.context.value[match.path.fields[0]] = "redacted"
+            for match in list(expression.finditer(data)):
+                if match.parent is not None:
+                    match.parent.obj[match.parts[-1]] = "redacted"
 
-    def _get_redaction_paths_response(self, parser: JsonPathParser) -> list:
+    def _get_redaction_paths_response(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
@@ -149,7 +161,7 @@ class AWSPayloadTagging:
             return []
 
         response_redaction = config.botocore.get("payload_tagging_response")
-        if self._validate_json_paths(response_redaction, parser):
+        if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
                 return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
             return (
@@ -158,7 +170,7 @@ class AWSPayloadTagging:
 
         return []
 
-    def _get_redaction_paths_request(self, parser: JsonPathParser) -> list:
+    def _get_redaction_paths_request(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
@@ -166,7 +178,7 @@ class AWSPayloadTagging:
             return []
 
         request_redaction = config.botocore.get("payload_tagging_request")
-        if self._validate_json_paths(request_redaction, parser):
+        if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
                 return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
             return (

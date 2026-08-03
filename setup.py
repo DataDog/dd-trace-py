@@ -1746,6 +1746,7 @@ setup(
         # Type stubs and markers for all packages
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
+        "ddtrace.vendor.jsonpath": ["LICENSE"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
