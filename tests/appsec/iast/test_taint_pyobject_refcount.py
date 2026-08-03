@@ -1,10 +1,6 @@
 import pytest
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="api_taint_pyobject returns a borrowed input when its request slot is gone",
-)
 @pytest.mark.subprocess(err=None)
 def test_taint_pyobject_in_copied_context_returns_owned_reference():
     import contextvars
