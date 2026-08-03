@@ -101,7 +101,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
 
     #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
-    context_watcher::register(m.py())?;
+    context_watcher::register(m.py());
 
     Ok(())
 }
