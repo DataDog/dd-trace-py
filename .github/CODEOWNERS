@@ -36,14 +36,14 @@ docker-compose.yml                  @DataDog/python-guild
 repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
-.gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
-.github/                            @DataDog/python-guild  @DataDog/apm-core-python
-.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
-.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
-README.md                           @DataDog/python-guild  @DataDog/apm-core-python
+.gitlab-ci.yml                      @DataDog/python-guild
+.circleci/                          @DataDog/python-guild
+.github/                            @DataDog/python-guild
+.gitlab/                            @DataDog/python-guild
+.readthedocs.yml                    @DataDog/python-guild
+README.md                           @DataDog/python-guild
 scripts/lint                        @DataDog/python-guild
-mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+mypy.ini                            @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 setup.py                            @DataDog/python-guild
@@ -65,13 +65,13 @@ tests/contrib/django/django1_app/urls.py @DataDog/python-guild
 tests/contrib/flask/app.py         @DataDog/python-guild
 tests/contrib/suitespec.yml         @DataDog/python-guild
 tests/smoke_test.py                 @DataDog/python-guild
-tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
-tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.py                  @DataDog/python-guild
+tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 # docs and scripts
 docs/                               @DataDog/python-guild
 scripts/bump_ddtrace.py             @DataDog/python-guild
-scripts/update-system-tests-version.py @DataDog/python-guild  @DataDog/apm-core-python
+scripts/update-system-tests-version.py @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
@@ -280,20 +280,20 @@ ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities
 ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities-python
-ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities-python
-scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
-supported-configurations.json                     @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
-.github/workflows/config-registry.yml             @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
-.gitlab/config-registry.yml                       @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python
+supported-configurations.json                     @DataDog/apm-sdk-capabilities-python
+.github/workflows/config-registry.yml             @DataDog/apm-sdk-capabilities-python
+.gitlab/config-registry.yml                       @DataDog/apm-sdk-capabilities-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
 tests/internal/test_env.py                         @DataDog/apm-sdk-capabilities-python
 tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
-tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
-tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
+tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
+tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
