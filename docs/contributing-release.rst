@@ -18,9 +18,9 @@ These dual responsibilities to our customers drive three goals of our release pr
    We aim to release on a predictable, frequent cadence.
    Given the time necessary to validate a release including full dogfooding, we currently target a 2 week release cadence.
    We prefer to delay the release of a particular feature to the next release rather than delaying the entire release to fix one broken feature.
-   If a change does not make the current release train, there is another train just around the corner.
+   Our goal is to ensure that if a change does not make the current release train, there is another train just around the corner.
 
-3. **Releasing customer-ready improvements as quickly as possible.**
+3. **Including as many new features in the upcoming release as possible.**
    A release will include as many customer improvements as possible, given the validation and timely release requirements.
    When a change cannot be validated in time, it should be disabled or rolled-back until a subsequent release.
 
@@ -180,9 +180,9 @@ Pre-Release dogfooding
 
 Following the example of dd-trace-go, all release candidates must be successfully deployed
 
-1. In **staging** for **24 hours**.
+1. In **staging** for **24 hours** running the current RC without incident.
 
-2. In **prod** for **three days**.
+2. In **prod** for **three days** running the current RC without incident.
    For dd-source, this means that all relevant internal services have successfully deployed and run the new RC without incident for that time.
    Due to the slower deployment pipelines in dogweb, it may be infeasible to test on all services before release.
    We will make a best effort to deploy an RC on as many dogweb services as possible, and will treat any dogweb incidents on those services as launch-blocking.
