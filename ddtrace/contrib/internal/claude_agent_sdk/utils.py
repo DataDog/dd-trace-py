@@ -9,7 +9,20 @@ from ddtrace.llmobs._utils import _get_attr
 log = get_logger(__name__)
 
 
-def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
+def _caller_opted_into_partial_messages(options: Any) -> bool:
+    """Whether the caller already asked for partial streaming.
+
+    A caller can opt in two ways: the typed ``include_partial_messages`` field, or the
+    ``extra_args`` escape hatch (``extra_args={"include-partial-messages": None}``), which
+    the SDK renders as the same ``--include-partial-messages`` CLI flag. Either counts as
+    an opt-in, so we neither force (avoiding a duplicate CLI flag) nor filter their stream.
+    """
+    return getattr(options, "include_partial_messages", False) or "include-partial-messages" in (
+        getattr(options, "extra_args", None) or {}
+    )
+
+
+def force_include_partial_messages(options: Any, in_place: bool = False) -> tuple[Any, bool]:
     """Ensure ``options.include_partial_messages`` is True.
 
     Partial streaming is the only place the SDK surfaces accurate per-turn output
@@ -18,19 +31,21 @@ def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
     Returns ``(options, forced)`` where ``forced`` is True only when we had to flip
     the flag ourselves. ``forced`` tells the stream handler to swallow the extra
     events (StreamEvent, SystemMessage status) so the caller's stream is unchanged.
-    A defensive copy is made via ``dataclasses.replace`` so the caller's own options
-    object is never mutated. When the caller already opted in, we leave the flag (and
-    their stream) alone but still read the deltas.
+    When the caller already opted in, we leave the flag (and their stream) alone but
+    still read the deltas.
 
-    A caller can opt in two ways: the typed ``include_partial_messages`` field, or the
-    ``extra_args`` escape hatch (``extra_args={"include-partial-messages": None}``), which
-    the SDK renders as the same ``--include-partial-messages`` CLI flag. Either counts as
-    an opt-in, so we neither force (avoiding a duplicate CLI flag) nor filter their stream.
+    ``in_place`` selects how we flip the flag:
 
-    When ``options`` is None (the caller passed none to ``query()``), we build a default
-    options object with the flag on. The SDK itself constructs a default
-    ``ClaudeAgentOptions()`` when none is given, so this matches its behavior save for
-    the single forced flag.
+    - ``False`` (the ``query()`` path): return a defensive copy via ``dataclasses.replace``
+      so the caller's throwaway per-call kwarg — which they may reuse across calls — is
+      never mutated. When ``options`` is None, build a default ``ClaudeAgentOptions`` with
+      the flag on (matching the SDK, which constructs a default when none is given).
+    - ``True`` (the ``ClaudeSDKClient`` path): mutate the given object in place and return
+      it. The client stores the caller's options (``self.options = options``) and reads its
+      fields lazily at ``connect()`` time, so swapping in a copy would sever
+      ``client.options is opts`` and silently drop any field the caller mutates after
+      construction. The SDK has already ensured ``instance.options`` is a real
+      ``ClaudeAgentOptions`` by the time we run, so ``options`` is never None here.
     """
     if options is None:
         try:
@@ -40,12 +55,12 @@ def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
         except Exception:
             log.debug("Could not build default claude_agent_sdk options for partial messages", exc_info=True)
             return options, False
-    caller_opted_in = getattr(options, "include_partial_messages", False) or "include-partial-messages" in (
-        getattr(options, "extra_args", None) or {}
-    )
-    if caller_opted_in:
+    if _caller_opted_into_partial_messages(options):
         return options, False
     try:
+        if in_place:
+            options.include_partial_messages = True
+            return options, True
         return replace(options, include_partial_messages=True), True
     except Exception:
         log.debug("Could not force include_partial_messages on claude_agent_sdk options", exc_info=True)

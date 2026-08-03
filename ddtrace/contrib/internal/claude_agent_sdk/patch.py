@@ -31,14 +31,15 @@ def traced_client_init(func, instance, args, kwargs):
     """Force partial streaming on the client's options before it connects.
 
     ClaudeSDKClient reads options at construction/connect time (before query()), so
-    the flag must be set here rather than on the query() call. We stash whether we
-    forced it so receive_messages() can tell the handler to filter the extra events.
+    the flag must be set here rather than on the query() call. We flip the flag in
+    place on the client's own options object rather than swapping in a copy, so we
+    don't sever ``client.options is opts`` or drop later caller mutations. We stash
+    whether we forced it so receive_messages() can tell the handler to filter the
+    extra events.
     """
     func(*args, **kwargs)
     try:
-        options, forced_partial = force_include_partial_messages(getattr(instance, "options", None))
-        if forced_partial:
-            instance.options = options
+        _, forced_partial = force_include_partial_messages(getattr(instance, "options", None), in_place=True)
         instance._dd_forced_partial = forced_partial
     except Exception:
         instance._dd_forced_partial = False
