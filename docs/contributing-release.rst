@@ -156,7 +156,7 @@ that comes next on that minor release line. For example:
 
 If ever you discover that one of these guarantees is not upheld, please open a pull request adjusting the version string accordingly.
 
-5. Declare an internal Sev5 incident to track release progress.
+5. Declare an internal SEV-5 incident to track release progress.
 
 Pre-Release Performance Gates
 -----------------------------
