@@ -79,6 +79,44 @@ log = get_logger(__name__)
 
 T = t.TypeVar("T")
 
+StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
+
+# Free lists of storage context variables, keyed by variable name.
+#
+# Once a ContextVar has been set, the running Context holds a strong reference
+# to it for the lifetime of the thread, and there is no way to drop that entry
+# again (ContextVar.reset is not usable here, see the note on _pop_storage).
+# Since wrapping contexts are created per function object, code that decorates
+# ephemeral functions on every call would otherwise pin one variable per
+# invocation. Recycling the variables of collected wrapping contexts bounds the
+# number of live ones by the peak number of concurrently live wrapping
+# contexts.
+_storage_var_pools: dict[str, list[StorageVar]] = {}
+
+# Reentrant because the release happens from a finalizer, which can run at
+# any point, including in the middle of an acquisition on the same thread.
+_storage_var_pools_lock = RLock()
+
+
+def _acquire_storage_var(name: str) -> StorageVar:
+    with _storage_var_pools_lock:
+        pool = _storage_var_pools.get(name)
+        if pool:
+            var = pool.pop()
+            if not pool:
+                # Drop exhausted pools so that the names of wrapping contexts
+                # that are no longer in use don't accumulate either.
+                del _storage_var_pools[name]
+            return var
+
+    return ContextVar(name, default=None)
+
+
+def _release_storage_var(name: str, var: StorageVar) -> None:
+    with _storage_var_pools_lock:
+        _storage_var_pools.setdefault(name, []).append(var)
+
+
 # This module implements utilities for wrapping a function with a context
 # manager. The rough idea is to re-write the function's bytecode to look like
 # this:
@@ -350,9 +388,10 @@ class BaseWrappingContext(ABC):
         # reference count to reach zero (and be freed) as soon as all external
         # strong refs drop, without relying on the cyclic GC at all.
         self._wrapped_ref: weakref.ref[FunctionType] = weakref.ref(f)
-        self._storage: ContextVar[t.Optional[dict[str, t.Any]]] = ContextVar(
-            f"{type(self).__name__}__storage", default=None
-        )
+
+        name = f"{type(self).__name__}__storage"
+        self._storage: StorageVar = _acquire_storage_var(name)
+        weakref.finalize(self, _release_storage_var, name, self._storage).atexit = False
 
     @property
     def __wrapped__(self) -> FunctionType:

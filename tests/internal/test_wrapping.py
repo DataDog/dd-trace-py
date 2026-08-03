@@ -1298,6 +1298,48 @@ def test_wrapping_context_lazy_no_memory_leak_invoked():
     assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
 
 
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_storage_vars_are_recycled():
+    """A ContextVar that has been set is retained by the running Context for the
+    lifetime of the thread. Wrapping ephemeral functions must therefore recycle
+    the storage variables of collected contexts, or the thread's context grows
+    without bound (two entries per wrapped function).
+    """
+    import contextvars
+    import gc
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    def make_wrap_and_call() -> contextvars.ContextVar:
+        def ephemeral() -> int:
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+
+        # Collect eagerly so that the number of storage variables in flight does
+        # not depend on when the garbage collector happens to run.
+        var = wc._storage
+        del wc, ephemeral
+        gc.collect()
+
+        return var
+
+    # The storage variable of a collected context is handed straight back out.
+    assert make_wrap_and_call() is make_wrap_and_call()
+
+    for _ in range(20):
+        make_wrap_and_call()
+    baseline = len(contextvars.copy_context())
+
+    for _ in range(n := 200):
+        make_wrap_and_call()
+
+    growth = len(contextvars.copy_context()) - baseline
+    assert growth <= 4, f"{growth} context variables pinned by {n} ephemeral wrapped functions"
+
+
 @pytest.mark.asyncio
 async def test_async_wrapper_frames_have_valid_linenos():
     """Regression test: async wrapping must not inject instructions with lineno=None.
