@@ -235,6 +235,16 @@
         ]
       }
     ],
+    "DD_ANYIO_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ANYIO_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_API_KEY": [
       {
         "implementation": "A",
@@ -3875,6 +3885,13 @@
       }
     ],
     "DD_TRACE_ANTHROPIC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_ANYIO_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

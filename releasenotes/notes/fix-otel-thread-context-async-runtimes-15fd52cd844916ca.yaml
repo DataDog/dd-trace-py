@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the OpenTelemetry thread context reports a stale span for code
+    running on asyncio or uvloop event loops or AnyIO worker threads,
+    causing compatible external profiling and security tools to correlate samples with the wrong
+    trace and span.
