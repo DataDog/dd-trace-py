@@ -25,7 +25,7 @@ log = get_logger(__name__)
 XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
-XDIST_MANIFEST_DIRNAME = "dd-trace-py.testoptimization"
+XDIST_MANIFEST_DIRNAME = ".xdist_testoptimization"
 XDIST_WORKER_MANIFEST_WAIT_SECONDS = 5.0
 XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS = 0.05
 
@@ -33,10 +33,7 @@ XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS = 0.05
 def xdist_manifest_dir(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
     if workspace_path is None:
         return None
-    git_path = workspace_path / ".git"
-    if git_path.is_dir():
-        return git_path / XDIST_MANIFEST_DIRNAME
-    return workspace_path / ("." + XDIST_MANIFEST_DIRNAME)
+    return workspace_path / XDIST_MANIFEST_DIRNAME
 
 
 def xdist_manifest_path(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
@@ -58,9 +55,8 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
 
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
     manifest_path = Path(manifest_env) if manifest_env else xdist_manifest_path(workspace_path)
-    generated_manifest_dirnames = {XDIST_MANIFEST_DIRNAME, "." + XDIST_MANIFEST_DIRNAME}
-    if manifest_path is None or not generated_manifest_dirnames.intersection(manifest_path.parts):
-        log.warning(
+    if manifest_path is None or XDIST_MANIFEST_DIRNAME not in manifest_path.parts:
+        log.debug(
             "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s path=%s",
             worker,
             manifest_env,
@@ -69,7 +65,7 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
         )
         return None
 
-    log.warning(
+    log.debug(
         "Test Optimization xdist worker waiting for generated manifest: worker=%s env=%r path=%s cwd=%s",
         worker,
         manifest_env,
@@ -80,14 +76,14 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     while time.time() < deadline:
         if manifest_path.exists():
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
-            log.warning(
+            log.debug(
                 "Test Optimization xdist worker using generated manifest: worker=%s path=%s",
                 worker,
                 manifest_path,
             )
             return manifest_path
         time.sleep(XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS)
-    log.warning(
+    log.debug(
         "Test Optimization xdist worker timed out waiting for generated manifest: worker=%s path=%s",
         worker,
         manifest_path,

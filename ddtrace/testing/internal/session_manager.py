@@ -134,7 +134,7 @@ class SessionManager:
         if offline.manifest_enabled:
             if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
                 raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
-            log.warning(
+            log.debug(
                 "Test Optimization SessionManager using manifest data provider: pid=%s worker=%s dir=%s",
                 os.getpid(),
                 env.get("PYTEST_XDIST_WORKER"),
@@ -146,7 +146,7 @@ class SessionManager:
                 telemetry_api=self.telemetry_api,
             )
         else:
-            log.warning(
+            log.debug(
                 "Test Optimization SessionManager using online API data provider: pid=%s worker=%s manifest_env=%r",
                 os.getpid(),
                 env.get("PYTEST_XDIST_WORKER"),

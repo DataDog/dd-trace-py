@@ -1576,7 +1576,7 @@ def pytest_load_initial_conftests(
         if controller_generated_manifest_path:
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(controller_generated_manifest_path)
             controller_set_manifest_env = True
-            log.warning(
+            log.debug(
                 "Test Optimization xdist controller reserved generated manifest env: path=%s cwd=%s args=%s",
                 controller_generated_manifest_path,
                 Path.cwd(),
@@ -1595,7 +1595,7 @@ def pytest_load_initial_conftests(
     controller_manifest_env = None
     if controller_set_manifest_env:
         controller_manifest_env = os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
-        log.warning(
+        log.debug(
             "Test Optimization xdist controller temporarily removed generated manifest env before "
             "SessionManager: path=%s",
             controller_manifest_env,
@@ -1610,7 +1610,7 @@ def pytest_load_initial_conftests(
         return
     if controller_manifest_env:
         os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = controller_manifest_env
-        log.warning(
+        log.debug(
             "Test Optimization xdist controller restored generated manifest env after SessionManager: path=%s",
             controller_manifest_env,
         )
@@ -1621,7 +1621,7 @@ def pytest_load_initial_conftests(
         if manifest_path:
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
             git_metadata_exported = export_git_metadata_for_workers(session_manager.env_tags)
-            log.warning(
+            log.debug(
                 "Test Optimization xdist controller writing generated manifest cache: path=%s workspace=%s",
                 manifest_path,
                 session_manager.workspace_path,
@@ -1635,7 +1635,7 @@ def pytest_load_initial_conftests(
                 session_manager.itr_correlation_id,
             )
         if manifest_path:
-            log.warning(
+            log.debug(
                 "Test Optimization xdist controller wrote generated manifest cache: path=%s git_metadata_exported=%s",
                 manifest_path,
                 git_metadata_exported,
