@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Fixes crashes that occurred when ``list_topics`` was called from within a Kafka delivery callback.
