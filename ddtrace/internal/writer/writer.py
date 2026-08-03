@@ -949,6 +949,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             )
 
     def _intake_endpoint(self, client=None):
+        if self._otlp_endpoint is not None:
+            return self._otlp_endpoint
         return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
 
     @property
