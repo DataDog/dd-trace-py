@@ -477,7 +477,6 @@ context = HTTPPropagator.extract(headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
     # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
     # agentless (intake) and the metrics would never reach the local test agent.
@@ -525,7 +524,6 @@ HTTPPropagator.inject(context, headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
     # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
     # agentless (intake) and the metrics would never reach the local test agent.
@@ -579,7 +577,6 @@ HTTPPropagator.inject(context_items, headers_items)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
     # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
     # agentless (intake) and the metrics would never reach the local test agent.
@@ -619,7 +616,6 @@ HTTPPropagator.inject(context_bytes, headers_bytes)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
     # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
     # agentless (intake) and the metrics would never reach the local test agent.
@@ -653,7 +649,6 @@ HTTPPropagator.extract(malformed_headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
     # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
     # agentless (intake) and the metrics would never reach the local test agent.

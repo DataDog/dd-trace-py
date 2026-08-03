@@ -96,7 +96,6 @@ else:
     print(get_runtime_id())
     """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -152,7 +151,6 @@ import sys
 subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
 """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -182,7 +180,6 @@ import sys
 subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
 """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -370,7 +367,6 @@ patch(raise_errors=False, sqlite3=True)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
@@ -458,7 +454,6 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
             "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     # Generate a trace to trigger app-started event
@@ -538,7 +533,6 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     env = os.environ.copy()
     env["OTEL_TRACES_EXPORTER"] = "none"
     env["DD_TRACE_ENABLED"] = "false"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, err, status, _ = run_python_code_in_subprocess(
         "from ddtrace import config; config._tracing_enabled = True", env=env
@@ -586,7 +580,6 @@ else:
     os.waitpid(pid1, 0)
 """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     from ddtrace.internal.telemetry.writer import get_runtime_id
 
@@ -647,7 +640,6 @@ def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_i
     env["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
     env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # The native worker self-schedules the extended heartbeat on libdatadog's own timer (1s here),
     # independently of the Python-side dependency discovery that runs in ``periodic()``. To make the
@@ -689,7 +681,7 @@ time.sleep(1.5)
     # Filter session events to that same process by runtime_id so the in-process telemetry_writer
     # fixture and the ddtrace-run launcher process don't pollute the comparison.
     #
-    # Note: app-started is forced out very early here (via _DD_..._FORCE_APP_STARTED), before most
+    # Note: app-started goes out as soon as products load, before most
     # configuration values have been registered, so its configuration list is a small subset. The
     # remaining values register slightly later and are surfaced only in the (later) extended-heartbeat
     # snapshot rather than being re-emitted as app-client-configuration-change events. So the faithful

@@ -119,7 +119,6 @@ def _find_all_cve_metadata(events, dep_name, cve_id):
 
 _SCA_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
 }
 
@@ -162,7 +161,6 @@ class TestSCAFlaskTelemetry:
             token=iast_test_token,
             port=8051,
             env={
-                "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
                 "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
             },
         ) as context:
@@ -365,7 +363,6 @@ class TestSCAFlaskTelemetry:
 
 _SCA_EXTENDED_HEARTBEAT_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
     # Force the extended-heartbeat payload to fire on every heartbeat tick so we
     # can inspect it within the test's lifetime instead of waiting 24h.

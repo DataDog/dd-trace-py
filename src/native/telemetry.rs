@@ -286,7 +286,9 @@ impl TelemetryWorkerPy {
             let _ = self.shared_runtime.block_on(async {
                 let _ = self
                     .handle
-                    .send_msg(TelemetryActions::Lifecycle(LifecycleAction::FlushMetricAggr))
+                    .send_msg(TelemetryActions::Lifecycle(
+                        LifecycleAction::FlushMetricAggr,
+                    ))
                     .await;
                 let _ = self
                     .handle
@@ -457,8 +459,9 @@ impl TelemetryWorkerPy {
 
     /// Report an instrumented endpoint (ASM app-endpoints). `method`/`path` are
     /// optional; `operation_name`/`resource_name` default to empty strings.
-    /// `request_body_type`/`response_body_type`/`response_code` carry the declared
-    /// response media types and status codes (API Security inventory); both default to empty.
+    /// `request_body_type`/`response_body_type` carry the declared request/response media types
+    /// and `response_code` the declared status codes (API Security inventory); all default to
+    /// empty.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (method, path, operation_name, resource_name, request_body_type=None, response_body_type=None, response_code=None))]
     fn add_endpoint(

@@ -7,7 +7,7 @@ class NoOpTelemetryWriter(object):
     """No-op TelemetryWriter used when DD_INSTRUMENTATION_TELEMETRY_ENABLED=false.
 
     Keeps method-for-method parity with the native-backed TelemetryWriter so callers
-    can use the singleton unconditionally.
+    can use the singleton unconditionally, except for purely internal methods.
     """
 
     started = False
@@ -102,7 +102,22 @@ class NoOpTelemetryWriter(object):
     def set_payload_file_dir(self, output_dir: str) -> None:
         pass
 
-    def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        pass
+
+    def _restart_sequence(self) -> None:
+        pass
+
+    def _fork_writer(self) -> None:
+        pass
+
+    def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
+        return None
+
+    def _subscribe_worker_changes(self, callback: Any) -> None:
+        pass
+
+    def periodic(self, force_flush: bool = False) -> None:
         pass
 
     def app_shutdown(self) -> None:
