@@ -1,4 +1,4 @@
 fixes:
   - |
-    ASM: Fixes an issue where applications using Interactive Application Security Testing (IAST)
-    can crash when asynchronous tasks access request data after the originating request has completed.
+    IAST: Fixes an issue where applications can crash when asynchronous tasks access request data
+    after the originating request has completed.
