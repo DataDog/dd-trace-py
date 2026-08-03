@@ -3,7 +3,7 @@ Release Philosophy
 Our customers run dd-trace-py in their production environments.
 They rely on the stability, correctness, and performance of every release we make.
 The reason customers install dd-trace-py is that it offers them features that help them solve critical business problems.
-The faster and more reliability we can deliver and iterate on these features, the more value we can provide.
+The faster and more reliably we can deliver and iterate on these features, the more value we can provide.
 
 These dual responsibilities to our customers drive three goals of our release process, described in priority order.
 
