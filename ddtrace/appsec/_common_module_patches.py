@@ -81,8 +81,6 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
-    try_unwrap("_io", "BytesIO.read")
-    try_unwrap("_io", "StringIO.read")
 
     unpatch_stripe_for_appsec()
 
