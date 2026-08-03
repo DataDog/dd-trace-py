@@ -64,5 +64,5 @@ def import_ddtrace_in_subprocess(env):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    p.communicate()
     return p
