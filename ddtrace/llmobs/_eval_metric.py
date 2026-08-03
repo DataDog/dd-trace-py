@@ -74,7 +74,7 @@ def _build_evaluation_metric_event(
     submission_error_cls: type[Exception],
     telemetry_context: _SubmissionTelemetryContext,
     status: Optional[str] = None,
-    error: Optional[dict] = None,
+    error: Any = None,
 ) -> LLMObsEvaluationMetricEvent:
     join_on = telemetry_context.join_on
     has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)

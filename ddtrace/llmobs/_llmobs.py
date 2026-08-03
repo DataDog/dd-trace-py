@@ -2875,10 +2875,10 @@ class LLMObs(Service):
                     "message": str(exc),
                     "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
                 },
-                span=evaluated_span,
+                span=cast(dict, evaluated_span),
                 eval_scope=eval_scope,
                 reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
-                judge_span=_ref,
+                judge_span=cast(dict, _ref),
                 agent_service=evaluated_ml_app,
             )
 
