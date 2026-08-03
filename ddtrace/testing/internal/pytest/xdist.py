@@ -26,8 +26,11 @@ XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
 XDIST_MANIFEST_DIRNAME = ".xdist_testoptimization"
-XDIST_WORKER_MANIFEST_WAIT_SECONDS = 5.0
+XDIST_WORKER_MANIFEST_WAIT_SECONDS = 60.0
 XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS = 0.05
+
+_xdist_worker_manifest_wait_done = False
+_xdist_worker_manifest_wait_result: t.Optional[Path] = None
 
 
 def xdist_manifest_dir(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
@@ -49,9 +52,16 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     The controller exports DD_TEST_OPTIMIZATION_MANIFEST_FILE before writing the manifest so workers spawned early
     inherit manifest mode. Since manifest.txt is written last, its existence is the cache-readiness signal.
     """
+    global _xdist_worker_manifest_wait_done
+    global _xdist_worker_manifest_wait_result
+
     worker = os.environ.get("PYTEST_XDIST_WORKER")
     if not worker:
         return None
+    if _xdist_worker_manifest_wait_done:
+        if _xdist_worker_manifest_wait_result is not None:
+            os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(_xdist_worker_manifest_wait_result)
+        return _xdist_worker_manifest_wait_result
 
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
     manifest_path = Path(manifest_env) if manifest_env else xdist_manifest_path(workspace_path)
@@ -63,6 +73,7 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
             Path.cwd(),
             manifest_path,
         )
+        _xdist_worker_manifest_wait_done = True
         return None
 
     log.debug(
@@ -76,6 +87,8 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     while time.time() < deadline:
         if manifest_path.exists():
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
+            _xdist_worker_manifest_wait_done = True
+            _xdist_worker_manifest_wait_result = manifest_path
             log.debug(
                 "Test Optimization xdist worker using generated manifest: worker=%s path=%s",
                 worker,
@@ -88,6 +101,7 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
         worker,
         manifest_path,
     )
+    _xdist_worker_manifest_wait_done = True
     return None
 
 
