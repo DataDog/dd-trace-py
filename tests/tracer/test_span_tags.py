@@ -93,6 +93,31 @@ def test_set_tag_metric():
     assert s.get_metrics() == dict(test=1)
 
 
+def test_tag_metric_mutual_exclusion():
+    # A key lives in exactly one of meta/metrics; re-setting it with the other type moves it.
+    # test_set_tag_metric covers the meta -> metrics direction, this covers the reverse.
+    s = Span(name="test.span")
+
+    s.set_metric("n", 3.5)  # ast-grep-ignore: span-set-metric
+    assert s.get_metric("n") == 3.5
+    assert s.get_tag("n") is None
+    s.set_tag("n", "now-a-string")
+    assert s.get_tag("n") == "now-a-string"
+    assert s.get_metric("n") is None
+    assert s.get_tags() == {"n": "now-a-string"}
+    assert s.get_metrics() == {}
+
+
+def test_set_tag_lone_surrogate_key_is_dropped():
+    # A key with no valid UTF-8 representation (e.g. a lone surrogate out of os.fsdecode()) is
+    # silently dropped rather than raising or landing under a collapsed key.
+    s = Span(name="test.span")
+
+    s.set_tag("\udcff", "value")
+    assert s.get_tags() == {}
+    assert s.get_metrics() == {}
+
+
 def test_set_valid_metrics():
     s = Span(name="test.span")
     s.set_metric("a", 0)  # ast-grep-ignore: span-set-metric
