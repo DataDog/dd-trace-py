@@ -27,10 +27,16 @@ These dual responsibilities to our customers drive three goals of our release pr
 How to handle regressions
 -------------------------
 
+The goal is to address the regression as quickly as possible to unblock the release.
+If the fastest way to address the regression is to revert the change, we will do that.
+If the fastest way to address the regression is to write, push, and test a patch, we will do that.
+A good guideline is: if we expect the fix to take less than a day, do the fix.
+Otherwise, do the roolback.
+
 1. **Revert the change(s) that contributed the most to the regression.**
    This should be considered if the regression is not acceptable, but the fix will take longer than a day to merge to the release branch.
 2. **Merge a fix to resolve the  regression.**
-   If the author(s) for the change(s) that introduced significant regression(s) consider the change to be of high priority, and are willing and able to commit to merging a fix within one day, the release manager can consider merging the change and restarting the RC process.
+   If the author(s) for the change(s) that introduced significant regression(s) believe that a fix would provide faster time to resolution than a rollback, the release manager can consider merging the patch and restarting the RC process.
 3. **Bump the SLO(s) to accommodate for the regressions.**
    This should only be considered if the regressions are reasonable for the change(s) introduced (ex - new feature with expected overhead, crash fixes, major security issues, etc.).
    When updating the SLO thresholds, authors must add a comment to their PR justifying the trade offs.
