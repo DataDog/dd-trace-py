@@ -70,6 +70,7 @@ def func5() -> None:
 def test_collect_truncate() -> None:
     import os
 
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
@@ -82,6 +83,8 @@ def test_collect_truncate() -> None:
     p = profiler.Profiler()
     p.start()
 
+    assert _stack._get_frame_limits() == (max_nframes, 1024)
+
     func1()
 
     p.stop()
@@ -92,6 +95,22 @@ def test_collect_truncate() -> None:
     for sample in samples:
         # stack adds one extra frame for "%d frames omitted" message
         assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
+
+
+@pytest.mark.subprocess
+def test_native_frame_limit() -> None:
+    # Clamping to the backend limit happens at the config layer. The native
+    # sampler passes configured values through and only enforces a floor of one.
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.set_max_frames(0)
+    assert _stack._get_frame_limits() == (1, 1024)
+
+    _stack.set_max_frames(65)
+    assert _stack._get_frame_limits() == (65, 1024)
+
+    _stack.set_max_frames(10_000)
+    assert _stack._get_frame_limits() == (10_000, 1024)
 
 
 def test_stack_locations(tmp_path: Path) -> None:
@@ -830,7 +849,7 @@ def test_gevent_cpu_time_total_accuracy() -> None:
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
-        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, tracer=None)",
     )
 
 
