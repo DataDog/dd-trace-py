@@ -81,6 +81,7 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
+    core.reset_listeners("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
 
     unpatch_stripe_for_appsec()
 
