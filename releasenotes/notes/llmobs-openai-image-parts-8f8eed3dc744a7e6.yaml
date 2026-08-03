@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI integration now captures inline base64 data URL image inputs on
+    chat completions as ``image_parts`` on LLM span messages, so they can be rendered in LLM
+    Observability. Image inputs referenced by a remote URL or ``file_id`` are not captured yet. A very
+    large inline image, or several whose combined size would exceed the per-event size limit, is left
+    as a text placeholder rather than captured, so the surrounding message text and the model response
+    are preserved instead of the whole span input/output being dropped.
