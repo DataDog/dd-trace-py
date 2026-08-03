@@ -138,13 +138,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         never reach the caller, and storing the status message in ``self.chunks`` would
         corrupt agent-span output (it flows through ``_extract_output_data``).
         """
-        if not self._filter_partial:
-            return False
-        if chunk_type == "StreamEvent":
-            return True
-        if chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status":
-            return True
-        return False
+        return self._filter_partial and (
+            chunk_type == "StreamEvent"
+            or (chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status")
+        )
 
     def _capture_partial_output(self, chunk) -> None:
         """Record true per-turn output tokens from a StreamEvent's raw Anthropic event."""
