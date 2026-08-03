@@ -12,7 +12,7 @@ These dual responsibilities to our customers drive three goals of our release pr
    For a new minor release, this means that all automated tests pass, long-running integration tests have successfully completed, and we have successfully deployed the release candidate internally without incident.
    This is our top priority.
    If a release cannot be validated, we WILL roll-back or disable new features until we find a set of features that can successfully pass all validation, including internal dogfooding.
-   The release manager MAY declare a code-freeze speed the process of stabilizing a release.
+   The release manager MAY declare a code-freeze to speed the process of stabilizing a release.
 
 2. **Timely release to enable rapid customer-centric iteration.**
    We aim to release on a predictable, frequent cadence.
