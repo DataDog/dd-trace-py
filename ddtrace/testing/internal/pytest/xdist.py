@@ -52,20 +52,46 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     The controller exports DD_TEST_OPTIMIZATION_MANIFEST_FILE before writing the manifest so workers spawned early
     inherit manifest mode. Since manifest.txt is written last, its existence is the cache-readiness signal.
     """
-    if not os.environ.get("PYTEST_XDIST_WORKER"):
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if not worker:
         return None
 
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
     manifest_path = Path(manifest_env) if manifest_env else xdist_manifest_path(workspace_path)
-    if manifest_path is None or XDIST_MANIFEST_DIRNAME not in manifest_path.parts:
+    generated_manifest_dirnames = {XDIST_MANIFEST_DIRNAME, "." + XDIST_MANIFEST_DIRNAME}
+    if manifest_path is None or not generated_manifest_dirnames.intersection(manifest_path.parts):
+        log.warning(
+            "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s path=%s",
+            worker,
+            manifest_env,
+            Path.cwd(),
+            manifest_path,
+        )
         return None
 
+    log.warning(
+        "Test Optimization xdist worker waiting for generated manifest: worker=%s env=%r path=%s cwd=%s",
+        worker,
+        manifest_env,
+        manifest_path,
+        Path.cwd(),
+    )
     deadline = time.time() + XDIST_WORKER_MANIFEST_WAIT_SECONDS
     while time.time() < deadline:
         if manifest_path.exists():
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
+            log.warning(
+                "Test Optimization xdist worker using generated manifest: worker=%s path=%s",
+                worker,
+                manifest_path,
+            )
             return manifest_path
         time.sleep(XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS)
+    log.warning(
+        "Test Optimization xdist worker timed out waiting for generated manifest: worker=%s path=%s",
+        worker,
+        manifest_path,
+    )
     return None
 
 

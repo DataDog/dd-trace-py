@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import time
@@ -21,6 +22,7 @@ from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.env_tags import get_env_tags
@@ -132,12 +134,24 @@ class SessionManager:
         if offline.manifest_enabled:
             if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
                 raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            log.warning(
+                "Test Optimization SessionManager using manifest data provider: pid=%s worker=%s dir=%s",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                offline.test_optimization_dir,
+            )
             self.api_client = CachedFileDataProvider(
                 test_optimization_dir=offline.test_optimization_dir,
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
         else:
+            log.warning(
+                "Test Optimization SessionManager using online API data provider: pid=%s worker=%s manifest_env=%r",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE),
+            )
             self.api_client = APIClient(
                 service=self.service,
                 env=self.env,
