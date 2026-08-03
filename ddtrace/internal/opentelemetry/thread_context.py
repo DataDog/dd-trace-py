@@ -19,16 +19,21 @@ if sys.platform == "linux":
     from ddtrace.internal.native._native import update_otel_thread_context
 
     def register_otel_thread_context_listener(tracer: TracerProtocol) -> None:
-        def _sync_otel_thread_context(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
-            if provider is not tracer.context_provider:
-                return
-
+        def _sync_otel_thread_context(ctx: Optional[Union[Context, Span]]) -> None:
             if type(ctx) is Span:
                 update_otel_thread_context(ctx, ctx._local_root_value)
             else:
                 detach_otel_thread_context()
 
-        core.on("ddtrace.context_provider.activate", _sync_otel_thread_context)
+        def _sync_active_otel_thread_context() -> None:
+            _sync_otel_thread_context(tracer.context_provider.active())
+
+        def _on_context_provider_activate(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
+            if provider is tracer.context_provider:
+                _sync_otel_thread_context(ctx)
+
+        core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
+        core.on("python.context.switch", _sync_active_otel_thread_context)
 
 else:
 
