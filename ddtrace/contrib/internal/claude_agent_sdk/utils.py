@@ -13,9 +13,7 @@ def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
     """Ensure ``options.include_partial_messages`` is True.
 
     Partial streaming is the only place the SDK surfaces accurate per-turn output
-    tokens (the ``message_delta`` events); the ``AssistantMessage.usage`` block the
-    integration otherwise reads carries only the ``message_start`` snapshot, whose
-    ``output_tokens`` is the pre-generation value (~1).
+    tokens.
 
     Returns ``(options, forced)`` where ``forced`` is True only when we had to flip
     the flag ourselves. ``forced`` tells the stream handler to swallow the extra

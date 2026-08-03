@@ -105,8 +105,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         super().__init__(integration, span, args, kwargs)
         self.operation = operation
         self.instance = instance
-        # When True, we enabled include_partial_messages ourselves — swallow the
-        # StreamEvent / status SystemMessage chunks so the caller's stream is unchanged.
+        # Indicates whether we enabled include_partial_messages ourselves
         self._filter_partial = filter_partial
         # True per-turn output tokens read from message_delta events, keyed by message_id.
         self._partial_output_by_id: dict[str, int] = {}
@@ -156,7 +155,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if message_id is not None:
             self._partial_current_id = message_id
         elif output_tokens is not None and self._partial_current_id is not None:
-            # message_delta: last one seen for this turn is the true cumulative output.
+            # last message_delta seen for this turn is the true cumulative output
             self._partial_output_by_id[self._partial_current_id] = output_tokens
 
     def should_yield_chunk(self, chunk) -> bool:
@@ -165,8 +164,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         chunk_type = type(chunk).__name__
 
-        # Always mine StreamEvents for per-turn output, even if the caller opted into
-        # partial messages themselves (then filter_partial is False and we don't hide them).
         if chunk_type == "StreamEvent":
             self._capture_partial_output(chunk)
 
@@ -447,14 +444,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._finalize_step_span(response)
 
     def _apply_partial_output(self, response: Any, message_id: Optional[str]) -> Any:
-        """Replace the turn's snapshot output_tokens with the true value from the deltas.
-
-        ``AssistantMessage.usage.output_tokens`` is the pre-generation message_start
-        snapshot (~1). The accurate per-turn output only appears in the message_delta
-        stream, captured in ``self._partial_output_by_id``. Input/cache tokens are left
-        as-is since they are already final on the snapshot. Returns a corrected response
-        object without mutating the SDK's original message.
-        """
+        """Replace the turn's snapshot output_tokens with the true value from the deltas."""
         if message_id is None or not self._partial_output_by_id:
             return response
         true_output = self._partial_output_by_id.get(message_id)

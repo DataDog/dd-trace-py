@@ -51,8 +51,7 @@ def traced_query_async_generator(func, _instance, args, kwargs):
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     # Turn on partial streaming so the handler can read accurate per-turn output tokens
-    # from the message_delta events. If we flip it ourselves, the handler filters the
-    # extra events back out so the caller's stream is unchanged.
+    # from the message_delta events.
     forced_partial = False
     options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
     if forced_partial:
