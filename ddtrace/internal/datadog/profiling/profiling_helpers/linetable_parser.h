@@ -28,24 +28,35 @@ read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
     if (*i >= guard)
         return 0;
 
-    uint32_t val = table[++*i] & 63;
-    uint32_t shift = 0;
-    while (*i < guard && table[*i] & 64) {
+    // Accumulate in 64 bits: on malformed input the 6-bit groups are
+    // attacker-controlled, and a 32-bit accumulator overflows on the `<< shift`
+    // below (e.g. 63 << 30) long before the shift guard trips. That overflow is
+    // reported by sanitizers, so use a type wide enough to hold every shifted
+    // group.
+    uint64_t val = table[++*i] & 63;
+    unsigned int shift = 0;
+    while (*i < guard && (table[*i] & 64)) {
         shift += 6;
 
         if (shift >= 32) {
-            // Guard against UB from over-large shift on malformed input;
-            // advance `i` past remaining continuation bytes to leave it in a
-            // consistent state, even though callers don't rely on the value of
-            // i or reuse it
-            for (; *i < guard && table[*i] & 64; ++*i)
+            // Bail out on over-large varints from malformed input; advance `i`
+            // past remaining continuation bytes to leave it in a consistent
+            // state, even though callers don't rely on the value of i or reuse
+            // it.
+            for (; *i < guard && (table[*i] & 64); ++*i)
                 ;
 
             return 0;
         }
 
-        val |= static_cast<uint32_t>(table[++*i] & 63) << shift;
+        val |= static_cast<uint64_t>(table[++*i] & 63) << shift;
     }
+
+    // shift stays below 32, so val holds at most 36 significant bits and can
+    // exceed INT_MAX; clamp to avoid a signed conversion that sanitizers flag
+    // on hostile input.
+    if (val > static_cast<uint64_t>(INT_MAX))
+        return INT_MAX;
     return static_cast<int>(val);
 }
 
@@ -84,7 +95,11 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
         return firstlineno;
     }
 
-    unsigned int lineno = static_cast<unsigned int>(firstlineno);
+    // Accumulate in a signed 64-bit value: the deltas below are signed and, on
+    // malformed input, attacker-controlled. A narrower or unsigned accumulator
+    // would wrap (flagged by sanitizers as unsigned overflow) and could not
+    // represent the intermediate negative values the delta encoding produces.
+    int64_t lineno = firstlineno;
 
 #if PY_VERSION_HEX >= 0x030b0000
     /* Python 3.11+: PEP 657 location table in co_linetable.
@@ -171,7 +186,9 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
 
 #endif /* PY_VERSION_HEX >= 0x030b0000 */
 
-    return lineno > 0 ? static_cast<int>(lineno) : 0;
+    if (lineno <= 0)
+        return 0;
+    return lineno > INT_MAX ? INT_MAX : static_cast<int>(lineno);
 }
 
 } /* namespace DataDog */
