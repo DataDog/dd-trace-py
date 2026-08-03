@@ -12,25 +12,6 @@ from unittest.mock import patch
 
 from bm import Scenario
 
-from ddtrace.internal.settings._telemetry import config as telemetry_config
-
-
-try:
-    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
-except ModuleNotFoundError as error:
-    if error.name != "ddtrace.internal.settings.appsec_telemetry":
-        raise
-
-    from ddtrace.internal.settings._config import config as tracer_config
-
-    def _enable_sca():
-        tracer_config._sca_enabled = True
-
-else:
-
-    def _enable_sca():
-        appsec_telemetry_config.SCA_ENABLED = True
-
 
 # --- Backward-compatible imports ---
 # New API (this branch): DependencyTracker with collect_report()
@@ -43,6 +24,26 @@ try:
     HAS_DEPENDENCY_TRACKER = True
 except ImportError:
     HAS_DEPENDENCY_TRACKER = False
+
+if HAS_DEPENDENCY_TRACKER:
+    from ddtrace.internal.settings._telemetry import config as telemetry_config
+
+    try:
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+    except ModuleNotFoundError as error:
+        if error.name != "ddtrace.internal.settings.appsec_telemetry":
+            raise
+
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        def _enable_sca():
+            tracer_config._sca_enabled = True
+
+    else:
+
+        def _enable_sca():
+            appsec_telemetry_config.SCA_ENABLED = True
+
 
 # Old API (main): update_imported_dependencies from data.py
 try:
