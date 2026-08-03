@@ -35,6 +35,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -513,14 +514,17 @@ class Tracer(object):
         parent_id: Optional[int] = None
 
         if child_of is not None:
+            # Both Context and Span expose trace_id/span_id; reading them off the
+            # parent span (native) avoids materializing its Context here.
+            trace_id = child_of.trace_id
+            parent_id = child_of.span_id
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of.context
                 parent = child_of
-
-            trace_id = context.trace_id
-            parent_id = context.span_id
+                # PERF: reuse an existing context that already holds the shared
+                # trace-level state instead of building one Context per span.
+                context = child_of._context_for_child()
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -656,6 +660,16 @@ class Tracer(object):
 
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
+
+        integration_name = span._get_str_attribute(COMPONENT) or span._span_api
+        existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
+        if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+            if not existing_service_source or (
+                existing_service_source
+                and not existing_service_source.startswith("opt.")
+                and integration_name != span._span_api
+            ):
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:

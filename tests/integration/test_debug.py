@@ -342,10 +342,10 @@ def test_error_output_ddtracerun_debug_mode():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    assert b"Test success" in p.stdout.read()
-    assert b"DATADOG TRACER CONFIGURATION" in p.stderr.read()
-    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in p.stderr.read()
+    stdout, stderr = p.communicate()
+    assert b"Test success" in stdout
+    assert b"DATADOG TRACER CONFIGURATION" in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
     # No connection to agent, debug mode enabled
     p = subprocess.Popen(
@@ -354,9 +354,8 @@ def test_error_output_ddtracerun_debug_mode():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    assert b"Test success" in p.stdout.read()
-    stderr = p.stderr.read()
+    stdout, stderr = p.communicate()
+    assert b"Test success" in stdout
     assert b"DATADOG TRACER CONFIGURATION" in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr
 
@@ -369,9 +368,8 @@ def test_error_output_ddtracerun():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    assert b"Test success" in p.stdout.read()
-    stderr = p.stderr.read()
+    stdout, stderr = p.communicate()
+    assert b"Test success" in stdout
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
@@ -382,9 +380,8 @@ def test_error_output_ddtracerun():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    assert b"Test success" in p.stdout.read()
-    stderr = p.stderr.read()
+    stdout, stderr = p.communicate()
+    assert b"Test success" in stdout
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
@@ -396,8 +393,7 @@ def test_debug_span_log():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    stderr = p.stderr.read()
+    _, stderr = p.communicate()
     assert b"finishing span - Span(name='span'" in stderr
 
 
