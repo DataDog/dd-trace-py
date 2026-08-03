@@ -444,7 +444,12 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._finalize_step_span(response)
 
     def _apply_partial_output(self, response: Any, message_id: Optional[str]) -> Any:
-        """Replace the turn's snapshot output_tokens with the true value from the deltas."""
+        """Replace the turn's snapshot output_tokens with the true value from the deltas.
+
+        ``response`` is always a fresh ``_MergedAssistantMessage`` with its own usage dict
+        (see ``_merge_assistant_chunks``), so we mutate it in place without touching the
+        message object the caller received from the stream.
+        """
         if message_id is None or not self._partial_output_by_id:
             return response
         true_output = self._partial_output_by_id.get(message_id)
@@ -453,21 +458,16 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         usage = getattr(response, "usage", None)
         if not isinstance(usage, dict) or not usage:
             return response
-        corrected_usage = dict(usage)
-        corrected_usage["output_tokens"] = true_output
-        return _MergedAssistantMessage(
-            content=getattr(response, "content", []) or [],
-            model=getattr(response, "model", "") or "",
-            usage=corrected_usage,
-            error=getattr(response, "error", None),
-            message_id=message_id,
-        )
+        usage["output_tokens"] = true_output
+        return response
 
     def _merge_assistant_chunks(self, chunks: list) -> Any:
-        """Combine AssistantMessage chunks sharing a message_id into one response object."""
-        if len(chunks) == 1:
-            return chunks[0]
+        """Combine AssistantMessage chunks sharing a message_id into one response object.
 
+        Always returns a fresh ``_MergedAssistantMessage`` (never an SDK chunk), so later
+        corrections like ``_apply_partial_output`` can mutate it safely without affecting the
+        message object the caller received from the stream.
+        """
         merged_content: list = []
         usage: Optional[dict] = None
         error: Any = None
@@ -475,10 +475,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         message_id: Optional[str] = None
         for c in chunks:
             merged_content.extend(getattr(c, "content", []) or [])
-            # All chunks of one message repeat the same message-level usage; keep the
-            # last non-empty one (most complete) so it is counted exactly once.
+            # All chunks of one message repeat the same message-level usage; keep a copy of
+            # the last non-empty one (most complete) so it is counted exactly once and our
+            # later corrections never reach the SDK's own usage dict.
             if getattr(c, "usage", None):
-                usage = c.usage
+                usage = dict(c.usage)
             if error is None:
                 error = getattr(c, "error", None)
             if not model:
