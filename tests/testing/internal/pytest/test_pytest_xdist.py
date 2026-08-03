@@ -30,6 +30,10 @@ import typing as t
 import msgpack
 import pytest
 
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
 from ddtrace.testing.internal.pytest.xdist import xdist_manifest_dir
 
 
@@ -241,6 +245,13 @@ def _make_env(mock_server_url: str, extra: t.Optional[dict[str, str]] = None) ->
     env = os.environ.copy()
     env.pop("PYTEST_XDIST_WORKER", None)
     env.pop("PYTEST_XDIST_WORKER_COUNT", None)
+    for name in (
+        DD_TEST_OPTIMIZATION_ENV_DATA_FILE,
+        DD_TEST_OPTIMIZATION_MANIFEST_FILE,
+        DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
+        TEST_UNDECLARED_OUTPUTS_DIR,
+    ):
+        env.pop(name, None)
     env.update(
         {
             "DD_API_KEY": "test-api-key-xdist",
