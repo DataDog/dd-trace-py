@@ -64,6 +64,7 @@ suites:
       - '@remoteconfig'
     retry: 2
   iast_aggregated_leak_testing:
+    itr_enabled: false
     venvs_per_job: 1
     paths:
       - '@appsec_iast'

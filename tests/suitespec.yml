@@ -156,6 +156,7 @@ suites:
       - '@profiling'
     snapshot: true
   conftest:
+    itr_enabled: false
     parallelism: 1
     paths:
       - 'conftest.py'

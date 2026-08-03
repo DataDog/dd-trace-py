@@ -364,6 +364,7 @@ suites:
     services:
       - postgres
   asynctest:
+    itr_enabled: false
     parallelism: 1
     paths:
       - '@bootstrap'
