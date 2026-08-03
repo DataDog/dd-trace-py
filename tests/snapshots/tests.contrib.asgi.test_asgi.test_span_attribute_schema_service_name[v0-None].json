@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "asgi.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "GET /",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a5fc81800000000",
+      "_dd.svc_src": "asgi",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://dev:8000/",
+      "language": "python",
+      "runtime-id": "9546127da6c043c89b12618353fbdd8c",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 522.0
+    },
+    "duration": 156625,
+    "start": 1784662040860640210
+  }]]
