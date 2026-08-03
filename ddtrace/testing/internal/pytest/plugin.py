@@ -1561,7 +1561,10 @@ def pytest_load_initial_conftests(
     setup_logging()
 
     using_xdist = is_xdist_enabled_from_args(args)
-    user_manifest_enabled = bool(os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE))
+    manifest_file = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
+    user_manifest_enabled = bool(manifest_file)
+    if os.environ.get("PYTEST_XDIST_WORKER") and manifest_file:
+        log.warning("Test Optimization xdist worker using manifest mode: %s", manifest_file)
 
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(

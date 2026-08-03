@@ -72,7 +72,7 @@ def write_xdist_manifest_cache(
     if manifest_dir is None:
         return None
     try:
-        return write_manifest_cache(
+        manifest_path = write_manifest_cache(
             manifest_dir,
             settings,
             known_tests,
@@ -80,6 +80,8 @@ def write_xdist_manifest_cache(
             skippable_items,
             itr_correlation_id,
         )
+        log.warning("Test Optimization xdist controller wrote manifest cache for workers: %s", manifest_path)
+        return manifest_path
     except (OSError, TypeError) as e:
         log.debug("Could not write xdist manifest cache %s: %s", manifest_dir, e)
         return None

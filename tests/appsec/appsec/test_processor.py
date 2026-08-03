@@ -1,8 +1,8 @@
 import json
 import logging
 import os.path
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -11,7 +11,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
+from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -392,8 +392,7 @@ def test_appsec_abort_on_waf_failure():
     completely if an error is found in the bindings layer.
     """
     import ctypes
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config

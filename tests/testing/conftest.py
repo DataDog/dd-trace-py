@@ -99,7 +99,7 @@ def clear_outer_xdist_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Iterator[Mock]:
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Generator[Mock, None, None]:
     """
     Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """
