@@ -26,7 +26,7 @@ from ddtrace.internal._exceptions import BlockingException
 
 
 T = TypeVar("T")
-HeaderSource = Union[Mapping[object, object], Iterable[tuple[object, object]]]
+HeaderSource = Union[Mapping[str, object], Iterable[tuple[str, object]]]
 
 
 def patch() -> None:
@@ -46,7 +46,7 @@ def unpatch() -> None:
     try_unwrap("urllib3.request", "RequestMethods.request")
 
 
-def _parse_headers(headers: object) -> dict[object, object]:
+def _parse_headers(headers: object) -> dict[str, object]:
     try:
         return dict(cast(HeaderSource, headers))
     except Exception:
@@ -56,9 +56,9 @@ def _parse_headers(headers: object) -> dict[object, object]:
 def wrapped_make_request(
     original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> T:
-    # AIDEV-NOTE: "full_url"/"use_body" are published by the outer wrappers that own the caller-visible
-    # URL (wrapped_urlopen / wrapped_request below, urllib's wrapped_open) and consumed here and in
-    # ddtrace/appsec/_contrib/httplib/patch.py. Changing the item names requires updating all of them.
+    # "full_url" and "use_body" are published by the outer wrappers that own the caller-visible URL
+    # (wrapped_urlopen and wrapped_request below, plus urllib's wrapped_open) and consumed here and
+    # in ddtrace/appsec/_contrib/httplib/patch.py.
     full_url = core.find_item("full_url")
     environment = _get_asm_context()
     if not (get_rasp_capability("ssrf") and full_url is not None and environment is not None):
@@ -91,7 +91,7 @@ def wrapped_make_request(
         environment.downstream_requests += 1
         if result and must_block(result.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        # AIDEV-NOTE: the call must stay inside the context so nested response wrappers see the subcontext.
+        # The call stays inside the context so nested response wrappers see the same subcontext.
         response = original(*args, **kwargs)
     return response
 

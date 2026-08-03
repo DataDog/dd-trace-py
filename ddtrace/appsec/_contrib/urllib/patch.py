@@ -4,7 +4,6 @@ import io
 import json
 from typing import Any
 from typing import Callable
-from typing import Iterable
 from typing import TypeVar
 from typing import cast
 from urllib.error import HTTPError
@@ -19,6 +18,7 @@ from ddtrace.appsec._contrib.urllib.types import Request
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
+from ddtrace.appsec._rasp import build_headers
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.internal import core
 
@@ -32,14 +32,6 @@ def patch() -> None:
 
 def unpatch() -> None:
     try_unwrap("urllib.request", "OpenerDirector.open")
-
-
-def _build_headers(headers: Iterable[tuple[str, str]]) -> dict[str, str | list[str]]:
-    result: dict[str, str | list[str]] = {}
-    for key, value in headers:
-        current = result.get(key)
-        result[key] = value if current is None else [current, value] if isinstance(current, str) else [*current, value]
-    return result
 
 
 def _parse_body(response: HTTPResponse) -> object | None:
@@ -80,13 +72,13 @@ def wrapped_open(original: Callable[..., T], instance: object, args: tuple[Any, 
             if typed_response is not None and not (300 <= typed_response.status < 400):
                 addresses: dict[str, object] = {
                     "DOWN_RES_STATUS": str(typed_response.status),
-                    "DOWN_RES_HEADERS": _build_headers(typed_response.getheaders()),
+                    "DOWN_RES_HEADERS": build_headers(typed_response.getheaders()),
                 }
                 if use_body:
                     addresses["DOWN_RES_BODY"] = _parse_body(typed_response)
                 call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
         except HTTPError as error:
-            headers = _build_headers(error.headers.items()) if error.headers is not None else None
+            headers = build_headers(error.headers.items()) if error.headers is not None else None
             call_waf_callback(
                 {"DOWN_RES_STATUS": str(error.code), "DOWN_RES_HEADERS": headers},
                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,

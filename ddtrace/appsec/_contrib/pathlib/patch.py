@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import TypeVar
@@ -30,8 +31,9 @@ def unpatch() -> None:
 
 def wrapped_open(original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> T:
     if get_rasp_capability("lfi"):
+        # Only Path.open is wrapped, so instance is always a Path.
         try:
-            filename = os.fspath(cast(Any, instance))
+            filename = os.fspath(cast(Path, instance))
         except Exception:
             filename = ""
         if filename:

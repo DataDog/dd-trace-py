@@ -2,7 +2,7 @@ import os
 from typing import Any
 from typing import Callable
 from typing import TypeVar
-from typing import cast
+from typing import Union
 
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -31,10 +31,15 @@ def unpatch() -> None:
 def wrapped_open(original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> T:
     if get_rasp_capability("lfi"):
         filename_arg = args[0] if args else kwargs.get("file")
-        try:
-            filename = os.fspath(cast(Any, filename_arg))
-        except Exception:
-            filename = ""
+        # open() also accepts a file descriptor, which has no path to report.
+        filename: Union[str, bytes] = ""
+        if isinstance(filename_arg, (str, bytes)):
+            filename = filename_arg
+        elif isinstance(filename_arg, os.PathLike):
+            try:
+                filename = os.fspath(filename_arg)
+            except Exception:
+                filename = ""
         if filename:
             if in_asm_context():
                 result = call_waf_callback(
