@@ -705,25 +705,23 @@ def test_evaluation_sets_evaluated_span_name_metadata(llmobs):
 
 
 def test_evaluation_no_evaluated_span_name_when_absent(llmobs):
-    # Older exports (no name) and session scope carry no evaluated_span_name metadata.
+    # Older exports (no name) carry no evaluated_span_name metadata.
     with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
         pass
     assert EVALUATED_SPAN_NAME_METADATA_KEY not in (get_llmobs_metadata(judge) or {})
 
 
-def test_evaluation_span_session_scope(llmobs):
-    with llmobs.evaluation(
-        name="relevance",
-        eval_scope="session",
-        evaluated_session_id="sess-123",
-        evaluated_ml_app="my-app",
-    ) as judge:
-        pass
-    assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
-    tags = get_llmobs_tags(judge)
-    assert tags[EVALUATED_SESSION_ID_TAG] == "sess-123"
-    assert EVALUATED_SPAN_ID_TAG not in tags
-    assert EVALUATED_TRACE_ID_TAG not in tags
+def test_evaluation_detaches_from_active_agent_trace(llmobs):
+    # evaluation() called INSIDE an active agent span must still be a standalone judge trace, and must
+    # restore the agent context on exit so the agent's trace is unaffected.
+    with llmobs.agent(name="qa_agent") as agent_span:
+        agent_ref = llmobs.export_span(agent_span)
+        with llmobs.evaluation(name="relevance", evaluated_span=agent_ref) as judge:
+            assert llmobs._instance._current_span() is judge  # judge is active within its own block
+            judge_ref = llmobs.export_span(judge)
+        assert llmobs._instance._current_span() is agent_span  # caller's context restored on exit
+    assert get_llmobs_parent_id(judge) == "undefined"  # standalone LLMObs root, not a child of the agent
+    assert judge_ref["trace_id"] != agent_ref["trace_id"]  # its own LLMObs trace, not the agent's
 
 
 def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
@@ -744,7 +742,7 @@ def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
         {"name": "", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # empty name
         {"name": "has.dot", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # dotted name
         {"name": "relevance", "eval_scope": "typo", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # bad scope
-        {"name": "relevance", "eval_scope": "session"},  # session without evaluated_session_id
+        {"name": "relevance", "eval_scope": "session"},  # session scope no longer supported
         {"name": "relevance", "evaluated_span": {"span_id": "1"}},  # malformed evaluated_span (no trace_id)
         {"name": "relevance"},  # span scope without evaluated_span
     ],
@@ -824,14 +822,6 @@ def test_evaluation_error_metric_opt_out(llmobs, mock_llmobs_eval_metric_writer)
         with llmobs.evaluation(
             name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, emit_error_metric=False
         ):
-            raise ValueError("boom")
-    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
-
-
-def test_evaluation_session_scope_no_error_metric(llmobs, mock_llmobs_eval_metric_writer):
-    # session scope has no span to join a metric on -> no auto error metric even on failure.
-    with pytest.raises(ValueError):
-        with llmobs.evaluation(name="relevance", eval_scope="session", evaluated_session_id="s-1"):
             raise ValueError("boom")
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 

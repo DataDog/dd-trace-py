@@ -2,6 +2,6 @@
 features:
   - |
     LLM Observability: Add ``LLMObs.evaluated_span()``, a context manager that marks the LLM
-    span(s) created inside it as an evaluation target and yields a ref for
+    span created inside it as an evaluation target and yields a reference for
     ``submit_evaluation(span_with_tag_value=...)`` — a one-line way to evaluate an
     auto-instrumented span (e.g. an OpenAI call) without managing a join id or tag key.

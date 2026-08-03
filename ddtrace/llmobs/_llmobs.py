@@ -67,7 +67,6 @@ from ddtrace.llmobs._constants import EVAL_JOIN_TAG_KEY
 from ddtrace.llmobs._constants import EVAL_NAME_TAG
 from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
-from ddtrace.llmobs._constants import EVALUATED_SESSION_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_NAME_METADATA_KEY
 from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
@@ -2566,9 +2565,14 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
+        _detach: bool = False,
     ) -> Span:
         if name is None:
             name = operation_kind
+        if _detach:
+            # Detach from any active LLMObs trace so this span becomes a standalone LLMObs root
+            # (fresh llmobs_trace_id, parent_id=undefined):
+            self._llmobs_context_provider.activate(None)
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
 
         if not self.enabled:
@@ -2765,7 +2769,6 @@ class LLMObs(Service):
         evaluated_span: Optional[ExportedLLMObsSpan] = None,
         evaluated_ml_app: Optional[str] = None,
         eval_scope: str = "span",
-        evaluated_session_id: Optional[str] = None,
         emit_error_metric: bool = True,
         _decorator: bool = False,
     ) -> Union[Span, EvaluationContext]:
@@ -2785,21 +2788,19 @@ class LLMObs(Service):
                                     the span being judged (from ``LLMObs.export_span``). Required for
                                     "span" and "trace" scope (for "trace", pass the trace's root span).
         :param str evaluated_ml_app: The ml_app of the application being judged.
-        :param str eval_scope: The scope of the evaluation. One of "span" (default), "trace", or
-                               "session". "span"/"trace" require ``evaluated_span``; "session"
-                               requires ``evaluated_session_id``.
-        :param str evaluated_session_id: The id of the session being judged, for "session" scope.
+        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace"; both
+                               require ``evaluated_span`` (for "trace", pass the trace's root span).
         :param bool emit_error_metric: If True (default), when the ``with`` block raises an unhandled
                                        exception the judge span is recorded as errored AND a failed
                                        eval metric (categorical "error", linked to the judge trace)
                                        is submitted for the evaluated span — so an evaluator crash is
                                        surfaced on the evaluated span's Evaluation tab without a
-                                       user ``try/except``. Applies to "span"/"trace" scope only
-                                       (the metric joins on ``evaluated_span``). Set False to opt out.
+                                       user ``try/except``. Set False to opt out.
 
         :returns: The judge root span, wrapped so ``with LLMObs.evaluation(...) as judge:`` yields the
-                  span. (When ``emit_error_metric`` is disabled, "session" scope, or LLMObs is
-                  disabled, the bare span is returned; it is also a valid ``with`` target.)
+                  span. The judge is a standalone trace even when called inside an active span, and the
+                  caller's context is restored on exit. (When LLMObs is disabled, the bare span is
+                  returned; it is also a valid ``with`` target.)
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
@@ -2810,42 +2811,39 @@ class LLMObs(Service):
         # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
         if not name or "." in name:
             raise ValueError("name must be a non-empty string that does not contain a '.'.")
-        if eval_scope not in ("span", "trace", "session"):
-            raise ValueError("eval_scope must be one of 'span', 'trace', or 'session'.")
+        # NOTE: eval_scope="session" is intentionally unsupported. submit_evaluation() can only join a
+        # score on a span (or span_with_tag_value), not a session, so a session-scoped judge trace
+        # could never be linked to its score — a half-feature. Add "session" here only once
+        # submit_evaluation() supports session joins.
+        if eval_scope not in ("span", "trace"):
+            raise ValueError("eval_scope must be one of 'span' or 'trace'.")
         scope_tags: dict[str, str] = {}
         evaluated_span_name: Optional[str] = None
-        if eval_scope == "session":
-            if not evaluated_session_id:
-                raise ValueError("eval_scope='session' requires a non-empty evaluated_session_id.")
-            scope_tags[EVALUATED_SESSION_ID_TAG] = evaluated_session_id
-        else:  # "span" or "trace" (for "trace", evaluated_span is the trace's root span)
-            if (
-                not isinstance(evaluated_span, dict)
-                or not isinstance(evaluated_span.get("span_id"), str)
-                or not isinstance(evaluated_span.get("trace_id"), str)
-            ):
-                raise ValueError(
-                    "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
-                    "'trace_id' keys (use LLMObs.export_span())." % eval_scope
-                )
-            scope_tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
-            scope_tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
-            # export_span() carries the evaluated span's display name; keep it if present.
-            name_val = evaluated_span.get("name")
-            if isinstance(name_val, str) and name_val:
-                evaluated_span_name = name_val
-
-        if cls._instance._current_span() is not None:
-            log.warning(
-                "LLMObs.evaluation() was called while another LLMObs span is active; the judge trace "
-                "will nest under it. Call it outside an active LLMObs span for a standalone judge trace."
+        # "span" or "trace" (for "trace", evaluated_span is the trace's root span).
+        if (
+            not isinstance(evaluated_span, dict)
+            or not isinstance(evaluated_span.get("span_id"), str)
+            or not isinstance(evaluated_span.get("trace_id"), str)
+        ):
+            raise ValueError(
+                "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
+                "'trace_id' keys (use LLMObs.export_span())." % eval_scope
             )
+        scope_tags[EVALUATED_TRACE_ID_TAG] = evaluated_span["trace_id"]
+        scope_tags[EVALUATED_SPAN_ID_TAG] = evaluated_span["span_id"]
+        # export_span() carries the evaluated span's display name; keep it if present.
+        name_val = evaluated_span.get("name")
+        if isinstance(name_val, str) and name_val:
+            evaluated_span_name = name_val
 
+        # Capture the caller's LLMObs context so EvaluationContext can restore it on exit,
+        prev_active = cls._instance._llmobs_context_provider.active()
         span = cls._instance._start_span(
             "workflow",
             name="custom_evaluator.%s" % name,
             agent_service=EVALUATIONS_ML_APP,
             _decorator=_decorator,
+            _detach=not _decorator,
         )
         tags = {
             "source": EVALUATIONS_ML_APP,
@@ -2860,39 +2858,50 @@ class LLMObs(Service):
         metadata = {EVALUATED_SPAN_NAME_METADATA_KEY: evaluated_span_name} if evaluated_span_name else None
         cls.annotate(span=span, tags=tags, metadata=metadata)
 
-        if _decorator or not emit_error_metric or eval_scope == "session":
+        # The decorator path manages its own (non-detached) span; return it bare.
+        if _decorator:
             return span
 
-        judge_ref = cls.export_span(span)  # capture while the judge span is live (correct trace id)
+        # Auto-emit a failed eval metric when emit_error_metric is on (opt-out disables it).
+        on_error = None
+        if emit_error_metric:
+            judge_ref = cls.export_span(span)  # capture while the judge span is live (correct trace id)
 
-        def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
-            cls.submit_evaluation(
-                label=name,
-                metric_type="categorical",  # required by the API; no value is sent for an errored eval
-                status="ERROR",
-                error={
-                    "type": type(exc).__name__,
-                    "message": str(exc),
-                    "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
-                },
-                span=cast(dict, evaluated_span),
-                eval_scope=eval_scope,
-                reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
-                judge_span=cast(dict, _ref),
-                agent_service=evaluated_ml_app,
-            )
+            def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
+                cls.submit_evaluation(
+                    label=name,
+                    metric_type="categorical",  # required by the API; no value is sent for an errored eval
+                    status="ERROR",
+                    error={
+                        "type": type(exc).__name__,
+                        "message": str(exc),
+                        "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+                    },
+                    span=cast(dict, evaluated_span),
+                    eval_scope=eval_scope,
+                    reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
+                    judge_span=cast(dict, _ref),
+                    agent_service=evaluated_ml_app,
+                )
 
-        return EvaluationContext(span, _emit_error_metric)
+            on_error = _emit_error_metric
+
+        # Wrap so the judge span finishes AND the caller's (detached) LLMObs context is restored on exit.
+        return EvaluationContext(
+            span, on_error, ctx_provider=cls._instance._llmobs_context_provider, prev_active=prev_active
+        )
 
     @classmethod
     def evaluated_span(cls) -> EvaluatedSpanContext:
         """
-        Mark the LLM span(s) created inside this block as an evaluation target.
+        Mark the LLM span created inside this block as an evaluation target.
 
         Use this to evaluate an auto-instrumented span (e.g. an OpenAI/Anthropic call) that has no
-        ``export_span`` handle: it stamps a reserved join tag on spans started within the block and
-        returns a ``span_with_tag_value`` ref, so you don't manage a join id or tag key yourself.
-        Pass the yielded value straight to ``submit_evaluation``::
+        ``export_span`` handle: it stamps a reserved join tag on the span in the block and returns a
+        ``span_with_tag_value`` ref, so you don't manage a join id or tag key yourself. Wrap a
+        **single** evaluated call: a submitted evaluation joins to exactly one span, so if the block
+        contains more than one span only one is scored — use a separate ``evaluated_span()`` block
+        per span to evaluate several. Pass the yielded value straight to ``submit_evaluation``::
 
             with LLMObs.evaluated_span() as target:
                 resp = client.chat.completions.create(...)   # the auto llm span is tagged
