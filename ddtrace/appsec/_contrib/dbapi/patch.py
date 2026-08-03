@@ -25,6 +25,12 @@ _DIALECTS = {
 
 
 def patch() -> None:
+    """Register the SQLi listener.
+
+    AIDEV-NOTE: unlike the other ``ddtrace/appsec/_contrib/*/patch.py`` modules, this one installs no
+    wrapper: ``ddtrace/contrib/dbapi.py`` already dispatches ``asm.block.dbapi.execute``, so there is
+    nothing to undo and no ``unpatch()``. ``core.on`` dedupes by callback, so re-registering is a no-op.
+    """
     core.on("asm.block.dbapi.execute", on_execute)
 
 
@@ -37,7 +43,7 @@ def on_execute(instrument_self: object, query: object, args: tuple[Any, ...], kw
     if in_asm_context():
         result = call_waf_callback(
             {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: dialect},
-            crop_trace="execute_4C9BAC8E228EB347",
+            crop_trace=on_execute.__name__,
             rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
         )
         if result and must_block(result.actions):

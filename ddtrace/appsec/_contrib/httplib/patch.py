@@ -45,6 +45,8 @@ def _build_headers(response: HTTPResponse) -> dict[str, str | list[str]]:
 
 
 def wrapped_request(original: Callable[..., T], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> T:
+    # AIDEV-NOTE: "full_url"/"use_body" are published by the outer SSRF wrappers (see
+    # ddtrace/appsec/_contrib/urllib3/patch.py and ddtrace/appsec/_contrib/urllib/patch.py).
     full_url = core.find_item("full_url")
     environment = _get_asm_context()
     if get_rasp_capability("ssrf") and full_url is not None and environment is not None:
@@ -66,7 +68,7 @@ def wrapped_request(original: Callable[..., T], instance: object, args: tuple[An
                 pass  # nosec
         result = call_waf_callback(
             addresses,
-            crop_trace="wrapped_request_A7F2C6E4D3B10958",
+            crop_trace=wrapped_request.__name__,
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         environment.downstream_requests += 1
