@@ -72,3 +72,27 @@ def test_tracing_minimal_patching():
     from ddtrace.internal.wrapping import is_wrapped
 
     assert is_wrapped(django.template.base.Template.render)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings"},
+)
+def test_setup_does_not_import_root_urlconf():
+    """django.setup() must not pull in ROOT_URLCONF.
+
+    Reading resolver.url_patterns imports the URLconf and the entire view import
+    closure behind it. Processes that never serve a request (Celery/dramatiq
+    workers, management commands, cron jobs) would otherwise load all of it for
+    nothing, which cost one reporter 150MB of RSS per worker.
+    """
+    import sys
+
+    import django
+    from django.conf import settings
+
+    django.setup()
+
+    assert settings.ROOT_URLCONF not in sys.modules, (
+        f"django.setup() imported {settings.ROOT_URLCONF}; endpoint discovery must stay lazy"
+    )

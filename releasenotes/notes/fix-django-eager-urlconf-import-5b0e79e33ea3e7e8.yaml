@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    django: Fixes an issue where ``django.setup()`` imported ``ROOT_URLCONF`` and every module
+    reachable from it, causing large resident memory increases and slower startup in processes that
+    never serve HTTP requests, such as Celery and dramatiq workers, management commands, and cron
+    jobs. API endpoint discovery now walks the URLconf at startup only when it is already imported,
+    and otherwise collects the same routes on the first request.

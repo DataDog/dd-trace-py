@@ -11,6 +11,7 @@ import asyncio
 from inspect import getmro
 from inspect import iscoroutinefunction
 from inspect import unwrap
+import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -170,15 +171,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         except Exception:
             log.debug("Error patching rest_framework", exc_info=True)
 
-    # Eager endpoint discovery: walk the ROOT_URLCONF resolver now that apps
-    # are ready, so the telemetry "app-endpoints" payload is populated at
-    # startup (not only when a request arrives). Dynamic per-tenant urlconfs
-    # set by middleware are still picked up by the per-request walk in
-    # traced_get_response / traced_get_response_async.
+    # Eager endpoint discovery, but only for a URLconf that is already imported.
+    # Reading resolver.url_patterns imports ROOT_URLCONF and, through include(),
+    # every view module behind it. A process that never serves a request (worker,
+    # management command, cron) would otherwise load that whole graph for nothing.
+    # When the walk is skipped, the per-request walk in traced_get_response /
+    # traced_get_response_async still collects the endpoints.
     try:
         from django.urls import get_resolver
 
-        _collect_routes_once(get_resolver(None))
+        root_urlconf = getattr(settings, "ROOT_URLCONF", None)
+        if root_urlconf is not None and root_urlconf in sys.modules:
+            _collect_routes_once(get_resolver(None))
     except Exception:
         log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
 
