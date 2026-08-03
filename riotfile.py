@@ -97,6 +97,7 @@ _base_env = {
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",  # 2-second timeout
+    "_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS": "20000",  # 20-second pagination budget
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
     # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
