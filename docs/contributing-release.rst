@@ -183,7 +183,7 @@ Following the example of dd-trace-go, all release candidates must be successfull
 1. In **staging** for **24 hours**.
 
 2. In **prod** for **three days**.
-   This means all relevant internal services (Rapid, Dogweb, McNulty etc) have successfully deployed and run the new RC without incident for that time.
+   This means all relevant internal services (both dd-source and dogweb services) have successfully deployed and run the new RC without incident for that time.
    Given the nature of services internal deployment pipelines, etc, there may be some services where it is infeasible to upgrade during the release window.
    These services should be noted, the guild should sign-off on not dogfooding them for the current release, and an action item should be created on the tracking incident to schedule and monitor the upgrade as soon as possible.
 
