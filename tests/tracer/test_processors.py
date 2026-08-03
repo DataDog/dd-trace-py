@@ -209,6 +209,31 @@ def test_aggregator_reset_with_args():
     assert len(aggr._span_metrics["spans_created"]) == 1
 
 
+def test_aggregator_reset_after_fork_does_not_recreate_writer():
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=1,
+        dd_processors=[DummyProcessor()],
+    )
+    writer = NativeWriter("http://localhost:8126")
+    aggr.writer = writer
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+
+    with (
+        mock.patch.object(writer, "recreate") as mock_recreate,
+        mock.patch.object(writer, "reset_after_fork") as mock_reset_after_fork,
+    ):
+        mock_reset_after_fork.return_value = writer
+        aggr.reset_after_fork()
+
+    mock_recreate.assert_not_called()
+    mock_reset_after_fork.assert_called_once_with()
+    assert aggr.writer is writer
+    assert not aggr._traces
+    assert not aggr._span_metrics["spans_created"]
+
+
 def test_aggregator_bad_processor():
     class Proc(TraceProcessor):
         def process_trace(self, trace):

@@ -21,6 +21,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -993,6 +994,40 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_reset_after_fork_discards_exporter_without_shutdown():
+    writer = NativeWriter("http://dne:1234")
+    old_exporter = mock.Mock(spec=writer._exporter)
+    writer._exporter = old_exporter
+    old_clients = list(writer._clients)
+
+    writer.reset_after_fork()
+
+    old_exporter.drop.assert_called_once_with()
+    old_exporter.shutdown.assert_not_called()
+    assert writer._exporter is not old_exporter
+    assert writer._clients != old_clients
+    assert writer._worker is None
+    assert writer.status == ServiceStatus.STOPPED
+
+
+def test_http_writer_reset_after_fork_drops_connection_and_buffer():
+    writer = AgentlessTraceWriter("http://dne:1234", "api-key")
+    writer._encoder.put([Span("span")])
+    connection = mock.Mock()
+    writer._conn = connection
+    old_clients = list(writer._clients)
+
+    reset_writer = writer.reset_after_fork()
+
+    connection.close.assert_called_once_with()
+    assert reset_writer is writer
+    assert writer._conn is None
+    assert writer._clients != old_clients
+    assert len(writer._encoder) == 0
+    assert writer._worker is None
+    assert writer.status == ServiceStatus.STOPPED
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
@@ -1154,6 +1189,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_tracer_version",
         "set_git_commit_sha",
         "set_client_computed_top_level",
+        "set_restart_after_fork",
         "set_input_format",
         "set_output_format",
         "enable_telemetry",
@@ -1163,6 +1199,8 @@ def test_writer_telemetry_enabled_on_linux(
     with mock_sys_platform(platform):
         with override_global_config(dict(_telemetry_enabled=config_value)):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+            mock_builder.set_restart_after_fork.assert_called_once_with(False)
 
             if expected_enabled:
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)

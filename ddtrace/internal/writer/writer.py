@@ -125,6 +125,10 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def stop(self, timeout: Optional[float] = None) -> None:
         pass
 
+    def reset_after_fork(self) -> "TraceWriter":
+        """Reset fork-unsafe writer state in a child process."""
+        return self.recreate()
+
     @abc.abstractmethod
     def write(self, spans: Optional[list["Span"]] = None) -> None:
         pass
@@ -157,6 +161,9 @@ class LogWriter(TraceWriter):
 
     def stop(self, timeout: Optional[float] = None) -> None:
         return
+
+    def reset_after_fork(self) -> "LogWriter":
+        return self
 
     def write(self, spans: Optional[list["Span"]] = None) -> None:
         if not spans:
@@ -508,6 +515,18 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         super(HTTPWriter, self)._stop_service()
         self.join(timeout=timeout)
 
+    def reset_after_fork(self) -> "HTTPWriter":
+        self._reset_connection()
+        self._clients = [
+            client.__class__(self._buffer_size, self._max_payload_size)  # type: ignore[call-arg,arg-type]
+            for client in self._clients
+        ]
+        self._metrics = defaultdict(int)
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._worker = None
+        self.status = service.ServiceStatus.STOPPED
+        return self
+
     def on_shutdown(self):
         try:
             self.periodic()
@@ -699,6 +718,7 @@ def _build_base_exporter_builder(
         .set_tracer_version(__version__)
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
+        .set_restart_after_fork(False)
     )
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
     # from both the trace payload and the OTLP resource attributes (host.name).
@@ -1118,6 +1138,22 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
         self.join(timeout=timeout)
+
+    def reset_after_fork(self) -> "NativeWriter":
+        # AIDEV-NOTE: Exporter workers are deliberately not restarted by the shared runtime in a child.
+        # Discarding this inherited exporter is therefore safe and avoids running its
+        # blocking, non-cancel-safe worker shutdown from an at-fork callback.
+        self._exporter.drop()
+        self._exporter = self._create_exporter()
+        self._clients = [
+            client.__class__(self._buffer_size, self._max_payload_size)  # type: ignore[call-arg,arg-type]
+            for client in self._clients
+        ]
+        self._metrics = defaultdict(int)
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._worker = None
+        self.status = service.ServiceStatus.STOPPED
+        return self
 
     def on_shutdown(self):
         try:

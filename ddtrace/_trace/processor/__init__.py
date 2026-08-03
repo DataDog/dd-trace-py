@@ -582,3 +582,12 @@ class SpanAggregator(SpanProcessor):
                 "spans_created": defaultdict(int),
                 "spans_finished": defaultdict(int),
             }
+
+    def reset_after_fork(self) -> None:
+        """Reset child-process state without stopping inherited background workers."""
+        self.writer = self.writer.reset_after_fork()
+        self._traces = defaultdict(lambda: _Trace())
+        self._span_metrics = {
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
+        }

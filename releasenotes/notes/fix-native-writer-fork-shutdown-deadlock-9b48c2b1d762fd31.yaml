@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue that could cause forked child processes to hang
+    while shutting down the tracer.

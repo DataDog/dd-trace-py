@@ -406,13 +406,20 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        self._reset_after_fork()
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
+
+    def _reset_after_fork(self) -> None:
+        """Reinitialize processors and writer state without blocking in the child fork hook."""
+        self._span_aggregator.reset_after_fork()
+        self._span_processors = _default_span_processors_factory(
+            self._endpoint_call_counter_span_processor,
+        )
 
     def _recreate(
         self,

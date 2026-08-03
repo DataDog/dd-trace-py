@@ -1890,6 +1890,55 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
+def test_child_after_fork_resets_writer_without_recreating_it(tracer):
+    with (
+        mock.patch.object(tracer._span_aggregator, "reset_after_fork") as mock_reset_after_fork,
+        mock.patch.object(tracer._span_aggregator, "reset") as mock_reset,
+    ):
+        tracer._child_after_fork()
+
+    mock_reset_after_fork.assert_called_once_with()
+    mock_reset.assert_not_called()
+
+
+@pytest.mark.subprocess(timeout=10, err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_child_after_fork_does_not_shutdown_inherited_native_exporter():
+    import os
+    import threading
+    import time
+
+    from ddtrace.trace import tracer
+
+    class BlockingExporter:
+        def shutdown(self, timeout):
+            threading.Event().wait()
+
+        def drop(self):
+            return None
+
+    writer = tracer._span_aggregator.writer
+    original_exporter = writer._exporter
+    writer._exporter = BlockingExporter()
+    pid = os.fork()
+
+    if pid == 0:
+        os._exit(0)
+
+    writer._exporter = original_exporter
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        child_pid, status = os.waitpid(pid, os.WNOHANG)
+        if child_pid == pid:
+            assert os.WIFEXITED(status)
+            assert os.WEXITSTATUS(status) == 0
+            break
+        time.sleep(0.01)
+    else:
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+        raise AssertionError("child blocked while resetting the inherited native exporter")
+
+
 @pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_different_contexts():
     import ddtrace.auto  # noqa
