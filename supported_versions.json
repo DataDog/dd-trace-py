@@ -129,38 +129,38 @@
                 ]
             },
             "3.10": {
-                "minimum_package_version": "3.14.1",
-                "maximum_package_version": "3.14.1",
+                "minimum_package_version": "3.14.3",
+                "maximum_package_version": "3.14.3",
                 "tested_versions": [
-                    "3.14.1"
+                    "3.14.3"
                 ]
             },
             "3.11": {
-                "minimum_package_version": "3.14.1",
-                "maximum_package_version": "3.14.1",
+                "minimum_package_version": "3.14.3",
+                "maximum_package_version": "3.14.3",
                 "tested_versions": [
-                    "3.14.1"
+                    "3.14.3"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "3.14.1",
-                "maximum_package_version": "3.14.1",
+                "minimum_package_version": "3.14.3",
+                "maximum_package_version": "3.14.3",
                 "tested_versions": [
-                    "3.14.1"
+                    "3.14.3"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.14.1",
-                "maximum_package_version": "3.14.1",
+                "minimum_package_version": "3.14.3",
+                "maximum_package_version": "3.14.3",
                 "tested_versions": [
-                    "3.14.1"
+                    "3.14.3"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "3.14.1",
-                "maximum_package_version": "3.14.1",
+                "minimum_package_version": "3.14.3",
+                "maximum_package_version": "3.14.3",
                 "tested_versions": [
-                    "3.14.1"
+                    "3.14.3"
                 ]
             }
         }
