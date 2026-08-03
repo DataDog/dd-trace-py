@@ -22,6 +22,11 @@ def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
     object is never mutated. When the caller already opted in, we leave the flag (and
     their stream) alone but still read the deltas.
 
+    A caller can opt in two ways: the typed ``include_partial_messages`` field, or the
+    ``extra_args`` escape hatch (``extra_args={"include-partial-messages": None}``), which
+    the SDK renders as the same ``--include-partial-messages`` CLI flag. Either counts as
+    an opt-in, so we neither force (avoiding a duplicate CLI flag) nor filter their stream.
+
     When ``options`` is None (the caller passed none to ``query()``), we build a default
     options object with the flag on. The SDK itself constructs a default
     ``ClaudeAgentOptions()`` when none is given, so this matches its behavior save for
@@ -35,7 +40,10 @@ def force_include_partial_messages(options: Any) -> tuple[Any, bool]:
         except Exception:
             log.debug("Could not build default claude_agent_sdk options for partial messages", exc_info=True)
             return options, False
-    if getattr(options, "include_partial_messages", False):
+    caller_opted_in = getattr(options, "include_partial_messages", False) or "include-partial-messages" in (
+        getattr(options, "extra_args", None) or {}
+    )
+    if caller_opted_in:
         return options, False
     try:
         return replace(options, include_partial_messages=True), True
