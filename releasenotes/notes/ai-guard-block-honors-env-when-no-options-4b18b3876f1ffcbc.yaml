@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    AI Guard: Calling the public SDK ``AIGuardClient.evaluate(messages)`` without an
+    explicit ``Options`` argument now honors the ``DD_AI_GUARD_BLOCK`` environment
+    variable instead of always blocking on a non-``ALLOW`` decision. Previously the
+    environment variable was ignored on the no-options code path, so ``DD_AI_GUARD_BLOCK=false``
+    (monitor-only mode) did not take effect for direct SDK callers. Auto-instrumentation
+    callers already passed explicit options and are unaffected.

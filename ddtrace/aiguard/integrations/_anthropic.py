@@ -34,7 +34,7 @@ from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
-from ddtrace.aiguard._common import wrap_abort_error
+from ddtrace.aiguard._common import wrap_provider_abort_error
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
@@ -70,22 +70,9 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     Falls back to *cause* unchanged when the Anthropic SDK is not importable;
     catch-by-``AIGuardAbortError`` still works either way.
     """
-    exception_class: type[AIGuardAbortError] = AIGuardAbortError
-    try:
-        # AIDEV-NOTE: import lazily -- ``_anthropic_errors`` pulls in the optional
-        # Anthropic SDK at import time. Python's import lock guarantees all
-        # concurrent cold imports observe the same class object.
-        from ddtrace.aiguard.integrations._anthropic_errors import AnthropicAIGuardAbortError
-
-        exception_class = AnthropicAIGuardAbortError
-    except ImportError:
-        logger.warning(
-            "AI Guard: failed to import the Anthropic SDK; falling back to bare "
-            "AIGuardAbortError. Install ``anthropic`` to get SDK-hierarchy "
-            "compatibility (``except anthropic.UnprocessableEntityError``)."
-        )
-
-    return wrap_abort_error(cause, exception_class)
+    return wrap_provider_abort_error(
+        cause, "ddtrace.aiguard.integrations._anthropic_errors", "AnthropicAIGuardAbortError", "Anthropic"
+    )
 
 
 # ---------------------------------------------------------------------------

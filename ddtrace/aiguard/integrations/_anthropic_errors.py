@@ -15,64 +15,25 @@
     time. Do not bypass it.
 """
 
-from typing import Any
-
 import anthropic
 
-from ddtrace.aiguard._api_client import AIGuardAbortError
+from ddtrace.aiguard._common import make_provider_abort_error
 
 
-class AnthropicAIGuardAbortError(anthropic.UnprocessableEntityError, AIGuardAbortError):  # type: ignore[misc]
-    """AI Guard block error that also satisfies the Anthropic SDK hierarchy.
-
-    AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
-    ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)`` so a
-    generic ``except Exception:`` does NOT catch it. This subclass also inherits
-    from Anthropic's ``UnprocessableEntityError``, which is ``Exception``-derived,
-    so it IS catchable by ``except Exception:``. That asymmetry is intentional:
-    Anthropic users' existing ``except anthropic.APIError`` blocks should keep
-    working. Code that wants uniform block detection should branch on
-    ``isinstance(e, AIGuardAbortError)``.
-    """
-
-    def __init__(
-        self,
-        action: str,
-        reason: str,
-        tags: Any = None,
-        sds: Any = None,
-        tag_probs: Any = None,
-    ) -> None:
-        self.action = action
-        self.reason = reason
-        self.tags = tags
-        self.sds = sds or []
-        self.tag_probs = tag_probs
-
-        message = f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')"
-        # AIDEV-NOTE: We can't call the SDK ``UnprocessableEntityError.__init__``
-        # here. Its MRO super() chain ends up at ``AIGuardAbortError.__init__``
-        # (which requires ``(action, reason)``), not ``Exception.__init__``, so
-        # the SDK's ``APIError`` initializer raises ``TypeError: missing
-        # 'reason'``. Initialize the SDK-side attributes directly instead. The
-        # block originates from AI Guard, not an HTTP call, so ``response`` /
-        # ``request`` / ``request_id`` are ``None``; only ``status_code`` and
-        # ``body`` carry semantic meaning.
-        self.message = message
-        self.request = None
-        self.body = {"action": action, "reason": reason, "source": "datadog_ai_guard"}
-        self.code = "ai_guard_block"
-        self.param = None
-        self.type = "ai_guard_abort"
-        self.response = None
-        self.status_code = 422
-        self.request_id = None
-        Exception.__init__(self, message)
-
-
-# Preserve the public module identity for span ``error.type`` values: the
-# concrete class is intended to read as living in ``_anthropic``.
-AnthropicAIGuardAbortError.__module__ = "ddtrace.aiguard.integrations.anthropic"
+# AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
+# ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)`` so a generic
+# ``except Exception:`` does NOT catch it. This subclass also inherits from Anthropic's
+# ``UnprocessableEntityError`` (``Exception``-derived), so it IS catchable by
+# ``except Exception:``. That asymmetry is intentional: Anthropic users' existing
+# ``except anthropic.APIError`` blocks should keep working. Code that wants uniform
+# block detection should branch on ``isinstance(e, AIGuardAbortError)``.
+#
+# The ``__module__`` is stamped to preserve historical span ``error.type`` values.
+AnthropicAIGuardAbortError = make_provider_abort_error(
+    "AnthropicAIGuardAbortError",
+    anthropic.UnprocessableEntityError,
+    "ddtrace.aiguard.integrations.anthropic",
+)
 
 
 __all__ = ["AnthropicAIGuardAbortError"]

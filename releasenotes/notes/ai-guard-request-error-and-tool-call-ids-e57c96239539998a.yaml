@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    AI Guard: Fix an error-masking bug where a failure while opening the connection
+    to the AI Guard service (e.g. a malformed endpoint URL) raised an
+    ``UnboundLocalError`` from the request cleanup path, hiding the real cause. The
+    original error is now surfaced correctly.
+  - |
+    AI Guard: Synthetic identifiers generated for legacy ``function_call`` responses
+    (OpenAI Chat Completions and the LiteLLM guardrail) now use a deterministic
+    per-response counter instead of ``id()``, which CPython can reuse after garbage
+    collection. This prevents rare tool-call/tool-result correlation collisions in
+    the evaluated conversation.
