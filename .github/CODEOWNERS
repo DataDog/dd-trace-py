@@ -3,6 +3,14 @@
 # APM Core Python is the default owner of all files
 *                                   @DataDog/apm-core-python
 
+# Core runtime defaults. More-specific rules below override these.
+ddtrace/internal/                   @DataDog/apm-core-python
+ddtrace/errortracking/              @DataDog/apm-core-python
+src/native/                         @DataDog/apm-core-python
+lib-injection/                      @DataDog/apm-core-python
+tests/wrapping/                     @DataDog/apm-core-python
+tests/lib_injection/                @DataDog/apm-core-python
+
 # Framework Integrations
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-idm-python
@@ -29,6 +37,21 @@ ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
 
 # Guild
+# Repository tooling defaults. Domain-specific rules below take precedence.
+AGENTS.md                           @DataDog/python-guild
+.claude/                            @DataDog/python-guild
+.cursor/                            @DataDog/python-guild
+.sg/                                @DataDog/python-guild
+hooks/                              @DataDog/python-guild
+scripts/                            @DataDog/python-guild
+tests/vendor/                       @DataDog/python-guild
+
+# Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
+benchmarks/                         @DataDog/apm-ecosystems-performance
+scripts/perf-*                      @DataDog/apm-ecosystems-performance
+scripts/profiles/                   @DataDog/apm-ecosystems-performance
+scripts/run-benchmarks              @DataDog/apm-ecosystems-performance
+
 # Root level config files
 conftest.py                         @DataDog/python-guild
 docker-compose.gpu.yml              @DataDog/python-guild
@@ -90,8 +113,8 @@ ddtrace/ext/git.py                                    @DataDog/ci-app-libraries 
 ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
 ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py                        @DataDog/ci-app-libraries
+ddtrace/internal/coverage                             @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
 ddtrace/sourcecode/                                   @DataDog/ci-app-libraries
@@ -106,9 +129,10 @@ tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
 tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
-tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/coverage                                        @DataDog/ci-app-libraries
 tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
 tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
+tests/sourcecode/                                     @DataDog/ci-app-libraries
 tests/snapshots/test_api_fake_runners*                @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
 tests/snapshots/tests.contrib.pytest.*                @DataDog/ci-app-libraries
@@ -207,6 +231,7 @@ ddtrace/contrib/internal/mcp                                  @DataDog/ml-observ
 ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
+tests/cassettes                                               @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                        @DataDog/ml-observability
@@ -343,8 +368,7 @@ docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-
 
 # Supported versions
 supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/                   @DataDog/apm-core-python @DataDog/apm-idm-python
 
 # Benchmarks CI setup
-/.gitlab/benchmarks             @DataDog/python-guild @DataDog/apm-core-python @DataDog/apm-ecosystems-performance
+/.gitlab/benchmarks             @DataDog/apm-ecosystems-performance
