@@ -661,6 +661,16 @@ AI Guard
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
 
+   DD_AI_GUARD_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Global switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
+       AI Guard service asks for redaction, the tracer replaces the affected message content with the
+       redacted values returned by the AI Guard, and reports the redacted messages instead of the
+       originals. Set to ``False`` to disable the transformation without a tracer rollback: evaluations
+       still run and sensitive data findings are still reported, but no message is modified.
+
    DD_AI_GUARD_OPENAI_ENABLED:
      type: Boolean
      default: True
