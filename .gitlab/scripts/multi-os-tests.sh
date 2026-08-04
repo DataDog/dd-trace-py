@@ -8,7 +8,12 @@ GITLAB_API_PRIVATE_TOKEN=""
 get_gitlab_api_private_token() {
   local auth_header
   local authanywhere_bin
+  local authanywhere_url
+  local uname_arch
+  local uname_os
   local curl_exit
+  local os_arch
+  local os_name
   local status
   local token_headers="$TMPDIR/gitlab-artifacts/gitlab-token.headers"
   local token_response="$TMPDIR/gitlab-artifacts/gitlab-token.json"
@@ -19,8 +24,35 @@ get_gitlab_api_private_token() {
 
   authanywhere_bin="$(command -v authanywhere || true)"
   if [[ -z "$authanywhere_bin" ]]; then
-    echo "ERROR: GitLab API job-token auth failed and authanywhere is not available to request a BTI GitLab token."
-    exit 1
+    uname_os="$(uname -s)"
+    uname_arch="$(uname -m)"
+
+    case "$uname_os" in
+      Darwin) os_name="darwin" ;;
+      Linux) os_name="linux" ;;
+      *)
+        echo "ERROR: Cannot download authanywhere for unsupported OS $uname_os."
+        exit 1
+        ;;
+    esac
+
+    case "$uname_arch" in
+      arm64|aarch64) os_arch="arm64" ;;
+      x86_64|amd64) os_arch="amd64" ;;
+      *)
+        echo "ERROR: Cannot download authanywhere for unsupported architecture $uname_arch."
+        exit 1
+        ;;
+    esac
+
+    authanywhere_bin="$TMPDIR/gitlab-artifacts/authanywhere-${os_name}-${os_arch}"
+    authanywhere_url="https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-${os_name}-${os_arch}"
+    echo "authanywhere is not available; downloading $authanywhere_url..."
+    if ! curl --location --silent --show-error --fail --output "$authanywhere_bin" "$authanywhere_url"; then
+      echo "ERROR: Failed to download authanywhere from $authanywhere_url."
+      exit 1
+    fi
+    chmod +x "$authanywhere_bin"
   fi
 
   echo "GitLab API job-token auth failed; requesting a short-lived GitLab API token from BTI..."
@@ -116,6 +148,105 @@ curl_gitlab_api() {
   exit 1
 }
 
+urlencode() {
+  "$PYTHON_BIN" -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+}
+
+curl_gitlab_artifacts_by_ref() {
+  local ref_name="$1"
+  local job_name="$2"
+  local output_file="$3"
+  local headers_file="$4"
+  local encoded_ref
+  local encoded_job
+  local token_header
+  local curl_exit
+  local status
+  local url
+
+  encoded_ref="$(urlencode "$ref_name")"
+  encoded_job="$(urlencode "$job_name")"
+  url="$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$encoded_ref/download?job=$encoded_job"
+
+  for token_header in JOB-TOKEN PRIVATE-TOKEN; do
+    curl_exit=0
+    status=$(curl --location --silent --show-error --globoff \
+      --header "$token_header: $CI_JOB_TOKEN" \
+      --dump-header "$headers_file" \
+      --output "$output_file" \
+      --write-out "%{http_code}" \
+      "$url") || curl_exit=$?
+
+    if [[ "$curl_exit" -eq 0 && "$status" == 2?? ]]; then
+      return 0
+    fi
+
+    if [[ "$curl_exit" -ne 0 ]]; then
+      echo "GitLab artifact-by-ref request for $job_name at $ref_name failed with curl exit $curl_exit using $token_header."
+    else
+      echo "GitLab artifact-by-ref request for $job_name at $ref_name returned HTTP $status using $token_header."
+    fi
+  done
+
+  return 1
+}
+
+extract_pywheel_artifacts() {
+  local artifact_zip="$1"
+  local description="$2"
+
+  if ! unzip -o -qq "$artifact_zip" "pywheels/*" -d "$CI_PROJECT_DIR"; then
+    echo "ERROR: Failed to extract pywheels/ from $description."
+    return 1
+  fi
+}
+
+download_macos_arm64_wheels_by_ref() {
+  local artifacts_dir="$1"
+  local ref_name
+  local job_name
+  local artifact_zip
+  local artifact_headers
+  local download_ok
+  local ref_names=()
+  local job_names=(
+    "build macos arm64: [3.9 3.10 3.11]"
+    "build macos arm64: [3.12 3.13 3.14]"
+  )
+
+  ref_names+=("refs/pipelines/$CI_PIPELINE_ID")
+  if [[ -n "${CI_COMMIT_REF_NAME:-}" ]]; then
+    ref_names+=("$CI_COMMIT_REF_NAME")
+  fi
+
+  for ref_name in "${ref_names[@]}"; do
+    download_ok=1
+    echo "Trying direct artifact download for build macos arm64 jobs at ref $ref_name..."
+
+    for job_name in "${job_names[@]}"; do
+      artifact_zip="$artifacts_dir/$(echo "$job_name-$ref_name" | tr -cs '[:alnum:]' '-').zip"
+      artifact_headers="${artifact_zip%.zip}.headers"
+
+      if ! curl_gitlab_artifacts_by_ref "$ref_name" "$job_name" "$artifact_zip" "$artifact_headers"; then
+        download_ok=0
+        break
+      fi
+
+      if ! extract_pywheel_artifacts "$artifact_zip" "artifacts for $job_name at $ref_name"; then
+        download_ok=0
+        break
+      fi
+    done
+
+    if [[ "$download_ok" -eq 1 ]]; then
+      echo "Downloaded macOS wheel artifacts by ref $ref_name."
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 download_macos_arm64_wheels() {
   local pywheels_dir="$CI_PROJECT_DIR/pywheels"
   local artifacts_dir="$TMPDIR/gitlab-artifacts"
@@ -133,6 +264,12 @@ download_macos_arm64_wheels() {
 
   echo "pywheels directory is missing; downloading artifacts from successful build macos arm64 jobs in pipeline $CI_PIPELINE_ID..."
   mkdir -p "$artifacts_dir"
+
+  if download_macos_arm64_wheels_by_ref "$artifacts_dir"; then
+    return 0
+  fi
+
+  echo "Direct artifact download by ref failed; falling back to GitLab Jobs API lookup..."
 
   while true; do
     local jobs_response="$artifacts_dir/jobs-page-${page}.json"
@@ -194,8 +331,7 @@ PY
       "$artifact_headers" \
       "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/$job_id/artifacts"
 
-    if ! unzip -o -qq "$artifact_zip" "pywheels/*" -d "$CI_PROJECT_DIR"; then
-      echo "ERROR: Failed to extract pywheels/ from artifacts for build macos arm64 job $job_id."
+    if ! extract_pywheel_artifacts "$artifact_zip" "artifacts for build macos arm64 job $job_id"; then
       exit 1
     fi
   done
