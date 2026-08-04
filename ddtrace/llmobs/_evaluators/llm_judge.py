@@ -760,8 +760,7 @@ class LLMJudge(BaseEvaluator):
         try:
             judge_cm = LLMObs.evaluation(
                 name=self.name,
-                # Experiment task spans are native LLMObs spans, never OTel gen_ai spans.
-                evaluated_span=ExportedLLMObsSpan(span_id=context.span_id, trace_id=context.trace_id, is_otel=False),
+                evaluated_span=ExportedLLMObsSpan(span_id=context.span_id, trace_id=context.trace_id),
                 evaluated_ml_app=context.evaluated_ml_app,
                 # The experiments SDK records evaluator failures on the metric itself, so leave the
                 # error metric to it and avoid submitting a second, competing one from here.

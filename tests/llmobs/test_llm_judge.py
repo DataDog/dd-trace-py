@@ -1112,7 +1112,10 @@ class TestLLMJudgeJudgeTrace:
         assert result.value == 8
 
     def test_export_failure_yields_no_judge_span(self, llmobs):
+        # Build the context first, so the patched export_span only affects the judge's own export
+        # (inside evaluate), not the context setup which also calls export_span.
+        context = _anchored_context(llmobs)
         with mock.patch.object(llmobs, "export_span", side_effect=RuntimeError("export blew up")):
-            result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+            result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(context)
         assert result.value == 8
         assert result.judge_span is None

@@ -249,20 +249,25 @@ class EvaluationContext:
     """Context manager returned by ``LLMObs.evaluation()``.
 
     Wraps the judge root :class:`Span`: it yields the span on enter (``as judge``) and finishes it
-    on exit exactly as the bare span would. The only added behavior is on the unhappy path — if the
-    block exits with an unhandled exception, it invokes ``on_error(exc)`` *after* the judge span has
-    recorded the error, so an evaluator crash is surfaced on the evaluated span automatically (via a
-    failed eval metric) without the user writing a ``try/except``. A failure inside ``on_error`` is
-    logged and swallowed so it never masks the user's original exception, and the user's exception is
-    never suppressed.
+    on exit. The judge is started as a *detached* trace root, so on exit this restores the caller's
+    previously-active context (``tracer``/``prev_active``) — a trace the evaluation was invoked inside
+    (e.g. an agent run) is left unaffected. On the unhappy path — if the block exits with an unhandled
+    exception, it invokes ``on_error(exc)`` *after* the judge span has recorded the error, so an
+    evaluator crash is surfaced on the evaluated span automatically (via a failed eval metric) without
+    the user writing a ``try/except``. A failure inside ``on_error`` is logged and swallowed so it
+    never masks the user's original exception, and the user's exception is never suppressed.
     """
 
-    def __init__(self, span, on_error=None):
+    def __init__(self, span, on_error=None, ctx_provider=None, prev_active=None):
         self._span = span
         self._on_error = on_error
+        self._ctx_provider = ctx_provider
+        self._prev_active = prev_active
 
     def _finish(self, exc_type, exc_val, exc_tb):
         suppress = self._span.__exit__(exc_type, exc_val, exc_tb)
+        if self._ctx_provider is not None:
+            self._ctx_provider.activate(self._prev_active)
         if exc_type is not None and not suppress and self._on_error is not None:
             try:
                 self._on_error(exc_val)
@@ -323,14 +328,14 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
     _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
     and every mapping key stringified. The original structure is never mutated.
-    A warning is logged for each stringified field, including its dotted path.
+    A debug log is emitted for each stringified field, including its dotted path.
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
         if not isinstance(node, (dict, list)):
             return node
         if depth >= _MAX_NESTED_META_DEPTH:
-            log.warning(
+            log.debug(
                 "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
                 "stringified to avoid backend parsing errors.",
                 path,
