@@ -43,7 +43,7 @@ AGENTS.md                           @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
 hooks/                              @DataDog/python-guild
-scripts/*                            @DataDog/python-guild
+scripts/**                            @DataDog/python-guild
 tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
