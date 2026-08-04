@@ -47,20 +47,24 @@ function(dd_wrapper_add_test name)
 
     add_ddup_config(${name})
 
-    # Test executable needs to find _stack in parent directory Append to INSTALL_RPATH instead of replacing to preserve
-    # sanitizer library paths set by add_ddup_config
+    # Test executables need to find _stack in the parent build directory. Tests that use dd_wrapper directly also need
+    # its standalone install directory. Append both without replacing sanitizer library paths from add_ddup_config.
     if(APPLE)
         set(_rpath_prefix "@loader_path")
     else()
         set(_rpath_prefix "$ORIGIN")
     endif()
+    set(_test_rpath "${_rpath_prefix}/..")
+    if(LIB_INSTALL_DIR)
+        list(APPEND _test_rpath "${LIB_INSTALL_DIR}")
+    endif()
 
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_test_rpath}"
                                                  BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_test_rpath}" BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running

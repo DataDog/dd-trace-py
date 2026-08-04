@@ -5,3 +5,11 @@
     ...
     fun:*ddcommon*entity_id*unix*container_id*
 }
+{
+    sampler_process_lifetime_allocations
+    Memcheck:Leak
+    match-leak-kinds: definite
+    fun:_Znwm
+    ...
+    fun:_ZN7Datadog7SamplerC1Ev
+}

@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <new>
 #include <pthread.h>
 #include <thread>
 #include <utility>
@@ -573,7 +574,10 @@ Sampler::get()
 {
     // Native exit stops the detached sampling thread explicitly. Retain its state
     // until process exit so a delayed thread can never observe destroyed members.
-    static Sampler* const instance = new Sampler();
+    // Static storage keeps the object reachable without registering its destructor
+    // or leaking its allocation.
+    alignas(Sampler) static unsigned char storage[sizeof(Sampler)];
+    static Sampler* const instance = ::new (static_cast<void*>(storage)) Sampler();
     return *instance;
 }
 

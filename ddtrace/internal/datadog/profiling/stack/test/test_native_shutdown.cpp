@@ -16,7 +16,7 @@ keep_process_alive_after_profiler_teardown()
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-[[noreturn]] [[noreturn]] void
+[[noreturn]] void
 exit_without_stopping_sampler()
 {
     Py_Initialize();
