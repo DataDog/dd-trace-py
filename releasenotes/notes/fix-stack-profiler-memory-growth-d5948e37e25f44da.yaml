@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where process memory can grow when stack profiling cannot read a sampled thread's CPU time.
