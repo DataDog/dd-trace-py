@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Experiment evaluators can emit linked judge traces. ``LLMJudge`` accepts
+    ``emit_judge_trace`` (default ``False``); when ``True``, each judge inference runs inside a
+    standalone judge trace under ``ml_app:datadog-evaluations``, and its ids are recorded on the
+    experiment evaluation metric so the score links back to the judge run.
