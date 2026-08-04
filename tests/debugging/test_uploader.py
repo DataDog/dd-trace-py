@@ -11,6 +11,8 @@ from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import SignalUploaderError
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal.native import DebuggerSenderError
+from ddtrace.internal.native import DebuggerType
 
 
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError
@@ -24,7 +26,7 @@ class MockSignalUploader(SignalUploader):
         self.queue = Queue()
         self._state = self._online
 
-    def _write(self, payload, endpoint):
+    def _write(self, payload, debugger_type):
         self.queue.put(payload.decode())
 
     @property
@@ -78,42 +80,17 @@ def test_uploader_full_buffer():
 
 
 def test_uploader_502_error():
-    """Test that _write raises SignalUploaderError for 502 Bad Gateway errors."""
-    from ddtrace.debugging._uploader import SignalUploader
-    from ddtrace.debugging._uploader import SignalUploaderError
-
-    class MockResponse:
-        status = 502
-
-        def read(self):
-            return b"Bad Gateway"
-
-    class MockConnection:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
-        def request(self, *args, **kwargs):
-            pass
-
-        def getresponse(self):
-            return MockResponse()
-
+    """Test that _write raises SignalUploaderError when the payload is rejected."""
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    uploader._connect = lambda: MockConnection()
+    uploader._sender = _make_sender(rejected=(502, "Bad Gateway"))
 
     # Assert that 502 errors raise SignalUploaderError
     with pytest.raises(SignalUploaderError):
-        uploader._write(b'{"test": "data"}', "/debugger/v1/input")
+        uploader._write(b'{"test": "data"}', DebuggerType.Logs)
 
 
 def test_info_check_endpoint_selection():
     """Test info_check endpoint selection and fallback behavior for both LOGS and SNAPSHOT tracks."""
-    from ddtrace.debugging._signal.model import SignalTrack
-    from ddtrace.debugging._uploader import SignalUploader
-
     # Test 1: v2 endpoint available (agent reports endpoints without a leading
     # slash) - both tracks use v2
     uploader = SignalUploader(interval=LONG_INTERVAL)
@@ -121,15 +98,13 @@ def test_info_check_endpoint_selection():
     assert uploader.info_check(agent_info) is True
     assert uploader._tracks[SignalTrack.LOGS].enabled is True
     assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is True
-    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.LOGS].endpoint
-    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
+    assert uploader._sender.downgraded is False
 
     # Test 2: Only diagnostics available (leading-slash form) - both tracks fallback
     uploader = SignalUploader(interval=LONG_INTERVAL)
     agent_info = {"endpoints": ["/debugger/v1/diagnostics"]}
     assert uploader.info_check(agent_info) is True
-    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.LOGS].endpoint
-    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
+    assert uploader._sender.downgraded is True
 
     # Test 3: No supported endpoints - both tracks disabled
     uploader = SignalUploader(interval=LONG_INTERVAL)
@@ -143,12 +118,21 @@ def test_info_check_endpoint_selection():
     assert uploader.info_check({"version": "7.48.0"}) is False
     assert uploader.info_check(None) is False
 
-    # Test 5: _downgrade_to_diagnostics updates both tracks
+    # Test 5: an agent that regains the v2 endpoint undoes an earlier downgrade
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.LOGS].endpoint
-    uploader._downgrade_to_diagnostics()
-    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.LOGS].endpoint
-    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
+    assert uploader._downgrade_to_diagnostics() is True
+    assert uploader._sender.downgraded is True
+    assert uploader.info_check({"endpoints": ["debugger/v2/input"]}) is True
+    assert uploader._sender.downgraded is False
+
+
+def test_downgrade_to_diagnostics_is_idempotent():
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+
+    assert uploader._downgrade_to_diagnostics() is True
+    # A second downgrade is a no-op, which is what stops _flush_track from
+    # retrying the same endpoint forever.
+    assert uploader._downgrade_to_diagnostics() is False
 
 
 # ---------------------------------------------------------------------------
@@ -156,16 +140,20 @@ def test_info_check_endpoint_selection():
 # ---------------------------------------------------------------------------
 
 
-def _make_conn(status=200, read_body=b""):
-    resp = MagicMock()
-    resp.status = status
-    resp.read.return_value = read_body
+def _make_sender(rejected=None, error=None, agentless=False, downgraded=False):
+    """A stand-in for the native DebuggerSender.
 
-    conn = MagicMock()
-    conn.__enter__ = MagicMock(return_value=conn)
-    conn.__exit__ = MagicMock(return_value=False)
-    conn.getresponse.return_value = resp
-    return conn
+    ``rejected`` is the ``(status, body)`` tuple the send should report, ``error``
+    an exception it should raise instead.
+    """
+    sender = MagicMock()
+    sender.agentless = agentless
+    sender.downgraded = downgraded
+    if error is not None:
+        sender.send.side_effect = error
+    else:
+        sender.send.return_value = rejected
+    return sender
 
 
 def _put_data(uploader, track=SignalTrack.LOGS, data=b"data"):
@@ -174,25 +162,33 @@ def _put_data(uploader, track=SignalTrack.LOGS, data=b"data"):
 
 def test_write_success_meters():
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    uploader._connect = lambda: _make_conn(status=200)
+    uploader._sender = _make_sender()
 
     with patch("ddtrace.debugging._uploader.meter") as mock_meter:
-        uploader._write(b"payload", "/debugger/v1/input")
+        uploader._write(b"payload", DebuggerType.Logs)
 
     mock_meter.increment.assert_called_with("upload.success")
     mock_meter.distribution.assert_called_with("upload.size", len(b"payload"))
 
 
-def test_write_connection_exception_is_caught():
+def test_write_rejection_meters_status():
     uploader = SignalUploader(interval=LONG_INTERVAL)
+    uploader._sender = _make_sender(rejected=(404, "Not Found"))
 
-    conn = MagicMock()
-    conn.__enter__ = MagicMock(side_effect=OSError("refused"))
-    conn.__exit__ = MagicMock(return_value=False)
-    uploader._connect = lambda: conn
+    with patch("ddtrace.debugging._uploader.meter") as mock_meter, pytest.raises(SignalUploaderError):
+        uploader._write(b"payload", DebuggerType.Snapshots)
+
+    mock_meter.increment.assert_called_with("upload.error", tags={"status": "404"})
+
+
+def test_write_connection_exception_is_caught():
+    # A request that never completed is dropped rather than raised: there is no
+    # endpoint to fall back to, unlike a rejection.
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    uploader._sender = _make_sender(error=DebuggerSenderError("connection refused"))
 
     with patch("ddtrace.debugging._uploader.meter") as mock_meter, patch("ddtrace.debugging._uploader.log") as mock_log:
-        uploader._write(b"payload", "/debugger/v1/input")
+        uploader._write(b"payload", DebuggerType.Logs)
 
     mock_meter.increment.assert_called_with("error")
     mock_log.error.assert_called_once()
@@ -234,8 +230,8 @@ def test_flush_track_downgrades_and_retries_on_signal_uploader_error():
 
     calls = []
 
-    def write_side_effect(payload, endpoint):
-        calls.append(endpoint)
+    def write_side_effect(payload, debugger_type):
+        calls.append(debugger_type)
         if len(calls) == 1:
             raise SignalUploaderError("first attempt")
 
@@ -246,7 +242,10 @@ def test_flush_track_downgrades_and_retries_on_signal_uploader_error():
         uploader._flush_track(uploader._tracks[SignalTrack.LOGS])
 
     assert len(calls) == 2
-    assert calls[1].startswith("/debugger/v1/diagnostics")
+    # The retry goes to the same track; it is the sender that now resolves it to
+    # the diagnostics endpoint.
+    assert calls == [DebuggerType.Logs, DebuggerType.Logs]
+    assert uploader._sender.downgraded is True
 
 
 def test_flush_track_reraises_when_already_on_diagnostics():
@@ -259,6 +258,38 @@ def test_flush_track_reraises_when_already_on_diagnostics():
         pytest.raises(SignalUploaderError),
     ):
         uploader._flush_track(uploader._tracks[SignalTrack.LOGS])
+
+
+def test_flush_track_swallows_rejection_when_agentless():
+    # Agentless has no fallback endpoint and no agent to re-negotiate with, so a
+    # rejection must not bubble up and flip the service back to agent checking.
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    uploader._sender = _make_sender(agentless=True)
+    uploader._sender.downgrade_to_diagnostics.return_value = False
+    _put_data(uploader)
+
+    with (
+        patch.object(uploader, "_write_with_backoff", side_effect=SignalUploaderError("rejected")),
+        patch("ddtrace.debugging._uploader.log") as mock_log,
+    ):
+        uploader._flush_track(uploader._tracks[SignalTrack.LOGS])
+
+    mock_log.debug.assert_called_once()
+
+
+def test_agentless_uploader_starts_online_and_skips_info():
+    from ddtrace.internal import agent as agent_module
+
+    with patch("ddtrace.debugging._uploader.build_debugger_sender", return_value=_make_sender(agentless=True)):
+        uploader = SignalUploader(interval=LONG_INTERVAL)
+
+    assert uploader._state == uploader._online
+
+    # Nothing to negotiate: /info is never polled, and info_check passes even
+    # when the agent is unreachable.
+    with patch.object(agent_module, "info") as mock_info:
+        assert uploader.info_check(None) is True
+    mock_info.assert_not_called()
 
 
 def test_flush_track_swallows_generic_exception():

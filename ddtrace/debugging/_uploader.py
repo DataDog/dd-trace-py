@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Optional
-from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
@@ -13,8 +12,9 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal import logger
+from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import connector
+from ddtrace.internal.native import DebuggerType
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
@@ -37,7 +37,7 @@ class UploaderProduct(str, Enum):
 @dataclass
 class UploaderTrack:
     track: SignalTrack
-    endpoint: str
+    debugger_type: DebuggerType
     queue: SignalQueue
     enabled: bool = True
 
@@ -67,31 +67,28 @@ class SignalUploader(agent.AgentCheckPeriodicService):
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
-        self._endpoint_suffix = endpoint_suffix = (
-            f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
-        )
+        self._sender = build_debugger_sender()
 
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
                 track=SignalTrack.LOGS,
-                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
+                debugger_type=DebuggerType.Logs,
                 queue=self.__queue__(
                     encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
                 ),
             ),
             SignalTrack.SNAPSHOT: UploaderTrack(
                 track=SignalTrack.SNAPSHOT,
-                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
+                debugger_type=DebuggerType.Snapshots,
                 queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
             ),
         }
         self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
-        self._headers = {
-            "Content-type": "application/json; charset=utf-8",
-            "Accept": "text/plain",
-        }
 
-        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
+        if self._sender.agentless:
+            # There is no agent to negotiate endpoints with, so skip the agent
+            # check state and start uploading straight away.
+            self._state = self._online
 
         # Make it retry-able
         self._write_with_backoff = fibonacci_backoff_with_jitter(
@@ -99,16 +96,16 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             attempts=self.RETRY_ATTEMPTS,
         )(self._write)
 
-        log.debug(
-            "Signal uploader initialized (url: %s, endpoints: %s, interval: %f)",
-            di_config._intake_url,
-            {t: ut.endpoint for t, ut in self._tracks.items()},
-            self.interval,
-        )
+        log.debug("Signal uploader initialized (sender: %r, interval: %f)", self._sender, self.interval)
 
         self._flush_full = False
 
     def info_check(self, agent_info: Optional[dict[str, Any]]) -> bool:
+        if self._sender.agentless:
+            # Payloads go straight to the intake, on paths that are fixed at
+            # construction: there is nothing to negotiate with the agent.
+            return True
+
         if agent_info is None:
             # Agent is unreachable
             return False
@@ -129,12 +126,11 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         if "debugger/v2/input" in endpoints:
             log.debug("Detected /debugger/v2/input endpoint")
-            logs_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
-            snapshot_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
+            # Undo any downgrade from an earlier online cycle.
+            self._sender.reset_endpoints()
         elif "debugger/v1/diagnostics" in endpoints:
             log.debug("Detected /debugger/v1/diagnostics endpoint fallback")
-            logs_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
-            snapshot_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
+            self._sender.downgrade_to_diagnostics()
         else:
             logs_track.enabled = False
             snapshot_track.enabled = False
@@ -153,25 +149,25 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         return True
 
-    def _write(self, payload: bytes, endpoint: str) -> None:
+    def _write(self, payload: bytes, debugger_type: DebuggerType) -> None:
         try:
-            with self._connect() as conn:
-                conn.request("POST", endpoint, payload, headers=self._headers)
-                resp = conn.getresponse()
-                if not (200 <= resp.status < 300):
-                    log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
-                    meter.increment("upload.error", tags={"status": str(resp.status)})
-                    if 400 <= resp.status:
-                        msg = "Failed to upload payload"
-                        raise SignalUploaderError(msg)
-                else:
-                    meter.increment("upload.success")
-                    meter.distribution("upload.size", len(payload))
-        except SignalUploaderError:
-            raise
+            rejected = self._sender.send(payload, debugger_type)
         except Exception:
-            log.error("Failed to write payload to endpoint %s", endpoint, exc_info=True)
+            # The request never completed (transport failure or timeout). Drop the
+            # batch: unlike a rejection, there is no endpoint to fall back to.
+            log.error("Failed to write payload to the %s track", debugger_type, exc_info=True)
             meter.increment("error")
+            return
+
+        if rejected is not None:
+            status, body = rejected
+            log.error("Failed to upload payload to the %s track: [%d] %r", debugger_type, status, body)
+            meter.increment("upload.error", tags={"status": str(status)})
+            msg = "Failed to upload payload"
+            raise SignalUploaderError(msg)
+
+        meter.increment("upload.success")
+        meter.distribution("upload.size", len(payload))
 
     def _on_buffer_full(self, _item: Any, _encoded: bytes) -> None:
         self._flush_full = True
@@ -188,25 +184,32 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
 
-    def _downgrade_to_diagnostics(self) -> None:
-        """Downgrade both tracks to the diagnostics endpoint."""
-        diagnostics_endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
-        self._tracks[SignalTrack.LOGS].endpoint = diagnostics_endpoint
-        self._tracks[SignalTrack.SNAPSHOT].endpoint = diagnostics_endpoint
-        log.debug("Downgrading debugger endpoints to %s", diagnostics_endpoint)
+    def _downgrade_to_diagnostics(self) -> bool:
+        """Downgrade the logs and snapshots tracks to the diagnostics endpoint.
+
+        Returns whether the downgrade happened; it does not when the tracks are
+        already downgraded, or in agentless mode where all tracks share one path.
+        """
+        if not self._sender.downgrade_to_diagnostics():
+            return False
+
+        log.debug("Downgraded debugger endpoints to the diagnostics endpoint")
+
+        return True
 
     def _flush_track(self, track: UploaderTrack) -> None:
         if (data := track.queue.flush()) is not None and track.enabled:
             payload, count = data
             try:
-                self._write_with_backoff(payload, track.endpoint)
+                self._write_with_backoff(payload, track.debugger_type)
                 meter.distribution("batch.cardinality", count)
             except SignalUploaderError:
-                if not track.endpoint.startswith("/debugger/v1/diagnostics"):
-                    # Downgrade both tracks to diagnostics endpoint and retry once
-                    self._downgrade_to_diagnostics()
-                    self._write_with_backoff(payload, track.endpoint)
+                if self._downgrade_to_diagnostics():
+                    # Retry once against the diagnostics endpoint
+                    self._write_with_backoff(payload, track.debugger_type)
                     meter.distribution("batch.cardinality", count)
+                elif self._sender.agentless:
+                    log.debug("Cannot upload payload to the intake", exc_info=True)
                 else:
                     raise  # Propagate error to transition to agent check state
             except Exception:

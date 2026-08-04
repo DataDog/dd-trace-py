@@ -2,6 +2,7 @@
 components:
   debugging:
     - ddtrace/debugging/*
+    - ddtrace/internal/debugger_sender.py
     - ddtrace/internal/settings/dynamic_instrumentation.py
     - ddtrace/internal/settings/exception_replay.py
 suites:

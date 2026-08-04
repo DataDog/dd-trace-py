@@ -7,6 +7,9 @@ from ._native import AgentResponse  # noqa: F401
 from ._native import BuilderError  # noqa: F401
 from ._native import ConfigurationOrigin  # noqa: F401
 from ._native import ConnectionFailedError  # noqa: F401
+from ._native import DebuggerSender  # noqa: F401
+from ._native import DebuggerSenderError  # noqa: F401
+from ._native import DebuggerType  # noqa: F401
 from ._native import DeserializationError  # noqa: F401
 from ._native import HTTPClient  # noqa: F401
 from ._native import HttpClientError  # noqa: F401

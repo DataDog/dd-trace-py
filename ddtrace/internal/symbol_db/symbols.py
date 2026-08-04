@@ -29,6 +29,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
@@ -36,12 +37,10 @@ from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
-from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
@@ -636,16 +635,20 @@ class ScopeContext:
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", compressed)
 
-        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
-            log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
-            conn.request("POST", "/symdb/v1/input", body, headers)
-
-            try:
-                log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
-                if (result := conn.getresponse()).status // 100 != 2:
-                    log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
-            except Exception:
-                log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
+        try:
+            rejected = build_debugger_sender().send_symdb(body, headers["Content-Type"])
+        except Exception:
+            log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        else:
+            if rejected is not None:
+                status, response_body = rejected
+                log.error(
+                    "[PID %d] SymDB: Bad response while uploading symbols: [%d] %r",
+                    os.getpid(),
+                    status,
+                    response_body,
+                )
 
     def __bool__(self) -> bool:
         with self._scopes_lock:

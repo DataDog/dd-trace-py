@@ -6,11 +6,14 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.version import __version__
 
+
+log = get_logger(__name__)
 
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
@@ -28,6 +31,18 @@ def _derive_tags(c: DDConfig) -> str:
     gitmetadata.add_tags(_tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
+
+
+def _resolve_agentless(c: DDConfig) -> bool:
+    """Whether the APM trace writer should run in agentless mode.
+
+    Falls back when agentless is requested but ``DD_API_KEY`` is unset.
+    """
+    if not ddconfig._trace_agentless_enabled:
+        return False
+    if not ddconfig._dd_api_key:
+        return False
+    return True
 
 
 def normalize_ident(ident: str) -> str:
@@ -64,6 +79,8 @@ class DynamicInstrumentationConfig(DDConfig):
         help_type="Boolean",
         help="Enable Dynamic Instrumentation",
     )
+
+    _agentless = DDConfig.d(bool, _resolve_agentless)
 
     metrics = DDConfig.v(
         bool,
