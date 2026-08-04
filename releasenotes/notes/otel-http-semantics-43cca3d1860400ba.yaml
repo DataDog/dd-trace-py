@@ -6,9 +6,8 @@ features:
     spans carry attributes such as ``http.request.method``, ``url.path``, ``url.full``,
     ``server.address``, ``http.response.status_code`` and ``http.route`` instead of the
     Datadog names, and HTTP client spans are marked as errors for 4xx as well as 5xx
-    responses. The new ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` setting overrides which client
-    response statuses are treated as errors; it applies only when OTel semantics are enabled,
-    since the default path continues to use ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` for both
-    span kinds. The rename covers the HTTP attributes written through ``set_http_meta``;
+    responses. The client range is fixed at 400-599 under the flag; the default path is
+    unchanged and still uses ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` for both span kinds.
+    The rename covers the HTTP attributes written through ``set_http_meta``;
     integrations that write HTTP tags directly, such as botocore and elasticsearch, keep the
     Datadog names. The default remains the existing Datadog behavior.

@@ -1446,29 +1446,6 @@ def test_otel_semantics_error_statuses_defaults():
 
 
 @pytest.mark.subprocess(
-    env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true", "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "500-599"}
-)
-def test_otel_semantics_client_error_statuses_env_takes_precedence():
-    from ddtrace._trace.span import Span
-    from ddtrace.contrib.internal.trace_utils import set_http_meta
-    from ddtrace.ext import SpanTypes
-    from ddtrace.internal.settings._config import Config
-    from ddtrace.internal.settings.integration import IntegrationConfig
-
-    cfg = Config()
-    cfg.myint = IntegrationConfig(cfg, "myint")
-    span = Span("http.request", span_type=SpanTypes.HTTP)
-    set_http_meta(span, cfg.myint, status_code=404)
-    assert span.error == 0
-    assert span.get_tag("error.type") is None
-
-    span = Span("http.request", span_type=SpanTypes.HTTP)
-    set_http_meta(span, cfg.myint, status_code=500)
-    assert span.error == 1
-    assert span.get_tag("error.type") == "500"
-
-
-@pytest.mark.subprocess(
     env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true", "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}
 )
 def test_otel_semantics_server_error_statuses_configured():

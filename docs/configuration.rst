@@ -230,19 +230,6 @@ Traces
      default: True
      description: Send query strings in http.url tag in http client integrations.
 
-   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
-     type: String
-     default: ""
-
-     description: |
-        Comma-separated list of HTTP status codes that should be considered errors when received by an HTTP client,
-        in the same format as ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES``.
-        Only read when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is true; otherwise client spans keep using the server
-        ranges, as they always have. When unset under OTel semantics the range is ``400-599``.
-
-     version_added:
-        v4.15.0:
-
    DD_TRACE_HTTP_SERVER_ERROR_STATUSES:
      type: String
      default: "500-599"

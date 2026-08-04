@@ -4310,13 +4310,6 @@
         "default": "true"
       }
     ],
-    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
       {
         "implementation": "A",
