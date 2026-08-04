@@ -1,6 +1,9 @@
+import asyncio
 from datetime import datetime
+from datetime import timedelta
 from datetime import timezone
 import os
+import time
 from typing import Union
 from uuid import uuid4
 
@@ -16,10 +19,12 @@ from azure.servicebus.amqp import AmqpAnnotatedMessage
 import pytest
 
 
-CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
-QUEUE_NAME = "queue.1"
-TOPIC_NAME = "topic.1"
-SUBSCRIPTION_NAME = "subscription.3"
+CONNECTION_STRING = (
+    "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;"
+    "SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+)
+DEFAULT_QUEUE_NAME = "queue.1"
+# AIDEV-NOTE: The stock Service Bus emulator ships queue.1; each CI job gets its own emulator instance.
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
     "x-datadog-trace-id",
@@ -29,6 +34,9 @@ TRACE_CONTEXT_KEYS = [
     "traceparent",
     "tracestate",
 ]
+RECEIVE_TIMEOUT_SECONDS = 5
+SCHEDULE_MESSAGE_DELAY_SECONDS = 1
+TEST_RUN_ID_PROPERTY = "dd.azure_servicebus.test_run_id"
 
 
 def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]):
@@ -38,6 +46,60 @@ def normalize_properties(message: Union[ServiceBusMessage, AmqpAnnotatedMessage]
         props = {}
 
     return {k.decode() if isinstance(k, bytes) else k: v for k, v in props.items()}
+
+
+def tag_test_run_id(message: Union[ServiceBusMessage, AmqpAnnotatedMessage], test_run_id: str):
+    props = dict(message.application_properties or {})
+    props[TEST_RUN_ID_PROPERTY] = test_run_id
+    message.application_properties = props
+    return message
+
+
+def message_matches_test_run_id(message: Union[ServiceBusMessage, AmqpAnnotatedMessage], test_run_id: str) -> bool:
+    return normalize_properties(message).get(TEST_RUN_ID_PROPERTY) == test_run_id
+
+
+def _wait_for_scheduled_messages(method: Union[str, None]):
+    if method == "schedule_messages":
+        time.sleep(SCHEDULE_MESSAGE_DELAY_SECONDS + 0.5)
+
+
+async def _wait_for_scheduled_messages_async(method: Union[str, None]):
+    if method == "schedule_messages":
+        await asyncio.sleep(SCHEDULE_MESSAGE_DELAY_SECONDS + 0.5)
+
+
+def _schedule_time() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=SCHEDULE_MESSAGE_DELAY_SECONDS)
+
+
+def receive_test_run_messages(receiver: ServiceBusReceiver, message_length: int, test_run_id: str):
+    # AIDEV-NOTE: RECEIVE_AND_DELETE discards non-matching stragglers while polling for this run's messages.
+    received_queue_messages = []
+    deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
+    while len(received_queue_messages) < message_length and time.monotonic() < deadline:
+        messages = receiver.receive_messages(
+            max_message_count=10,
+            max_wait_time=min(2, max(0.5, deadline - time.monotonic())),
+        )
+        for message in messages:
+            if message_matches_test_run_id(message, test_run_id):
+                received_queue_messages.append(message)
+    return received_queue_messages
+
+
+async def receive_test_run_messages_async(receiver: ServiceBusReceiverAsync, message_length: int, test_run_id: str):
+    received_queue_messages = []
+    deadline = time.monotonic() + RECEIVE_TIMEOUT_SECONDS
+    while len(received_queue_messages) < message_length and time.monotonic() < deadline:
+        messages = await receiver.receive_messages(
+            max_message_count=10,
+            max_wait_time=min(2, max(0.5, deadline - time.monotonic())),
+        )
+        for message in messages:
+            if message_matches_test_run_id(message, test_run_id):
+                received_queue_messages.append(message)
+    return received_queue_messages
 
 
 def make_servicebus_messages():
@@ -70,11 +132,12 @@ def run_test(
     distributed_tracing_enabled: bool,
     batch_links_enabled: bool,
 ):
-    servicebus_messages = make_servicebus_messages()
-    amqp_annotated_messages = make_amqp_annotated_messages()
+    test_run_id = str(uuid4())
+    servicebus_messages = [tag_test_run_id(message, test_run_id) for message in make_servicebus_messages()]
+    amqp_annotated_messages = [tag_test_run_id(message, test_run_id) for message in make_amqp_annotated_messages()]
 
     message_length = len(servicebus_messages) + len(amqp_annotated_messages)
-    now = datetime.now(timezone.utc)
+    schedule_time = _schedule_time()
 
     if method == "send_messages" and message_payload_type == "single":
         for servicebus_message in servicebus_messages:
@@ -96,14 +159,15 @@ def run_test(
         sender.send_messages(amqp_annotated_message_batch)
     elif method == "schedule_messages" and message_payload_type == "single":
         for servicebus_message in servicebus_messages:
-            sender.schedule_messages(servicebus_message, now)
+            sender.schedule_messages(servicebus_message, schedule_time)
         for amqp_annotated_message in amqp_annotated_messages:
-            sender.schedule_messages(amqp_annotated_message, now)
+            sender.schedule_messages(amqp_annotated_message, schedule_time)
     elif method == "schedule_messages" and message_payload_type == "list":
-        sender.schedule_messages(servicebus_messages, now)
-        sender.schedule_messages(amqp_annotated_messages, now)
+        sender.schedule_messages(servicebus_messages, schedule_time)
+        sender.schedule_messages(amqp_annotated_messages, schedule_time)
 
-    received_queue_messages = receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
+    _wait_for_scheduled_messages(method)
+    received_queue_messages = receive_test_run_messages(receiver, message_length, test_run_id)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
@@ -120,11 +184,12 @@ async def run_test_async(
     distributed_tracing_enabled: bool,
     batch_links_enabled: bool,
 ):
-    servicebus_messages = make_servicebus_messages()
-    amqp_annotated_messages = make_amqp_annotated_messages()
+    test_run_id = str(uuid4())
+    servicebus_messages = [tag_test_run_id(message, test_run_id) for message in make_servicebus_messages()]
+    amqp_annotated_messages = [tag_test_run_id(message, test_run_id) for message in make_amqp_annotated_messages()]
 
     message_length = len(servicebus_messages) + len(amqp_annotated_messages)
-    now = datetime.now(timezone.utc)
+    schedule_time = _schedule_time()
 
     if method == "send_messages" and message_payload_type == "single":
         for servicebus_message in servicebus_messages:
@@ -146,20 +211,74 @@ async def run_test_async(
         await sender.send_messages(amqp_annotated_message_batch)
     elif method == "schedule_messages" and message_payload_type == "single":
         for servicebus_message in servicebus_messages:
-            await sender.schedule_messages(servicebus_message, now)
+            await sender.schedule_messages(servicebus_message, schedule_time)
         for amqp_annotated_message in amqp_annotated_messages:
-            await sender.schedule_messages(amqp_annotated_message, now)
+            await sender.schedule_messages(amqp_annotated_message, schedule_time)
     elif method == "schedule_messages" and message_payload_type == "list":
-        await sender.schedule_messages(servicebus_messages, now)
-        await sender.schedule_messages(amqp_annotated_messages, now)
+        await sender.schedule_messages(servicebus_messages, schedule_time)
+        await sender.schedule_messages(amqp_annotated_messages, schedule_time)
 
-    received_queue_messages = await receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
+    await _wait_for_scheduled_messages_async(method)
+    received_queue_messages = await receive_test_run_messages_async(receiver, message_length, test_run_id)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
         assert not any(key in normalize_properties(m) for m in received_queue_messages for key in TRACE_CONTEXT_KEYS)
     else:
         assert all(key in normalize_properties(m) for m in received_queue_messages for key in TRACE_CONTEXT_KEYS)
+
+
+async def _run_from_env_async(
+    method: Union[str, None],
+    message_payload_type: Union[str, None],
+    distributed_tracing_enabled: bool,
+    batch_links_enabled: bool,
+):
+    client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
+    sender = client.get_queue_sender(queue_name=DEFAULT_QUEUE_NAME)
+    receiver = client.get_queue_receiver(
+        queue_name=DEFAULT_QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+    )
+    try:
+        await run_test_async(
+            sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+        )
+    finally:
+        await receiver.close()
+        await sender.close()
+        await client.close()
+
+
+def _run_from_env_sync(
+    method: Union[str, None],
+    message_payload_type: Union[str, None],
+    distributed_tracing_enabled: bool,
+    batch_links_enabled: bool,
+):
+    client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
+    sender = client.get_queue_sender(queue_name=DEFAULT_QUEUE_NAME)
+    receiver = client.get_queue_receiver(
+        queue_name=DEFAULT_QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+    )
+    try:
+        run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
+    finally:
+        receiver.close()
+        sender.close()
+        client.close()
+
+
+def run_from_env():
+    method = os.environ.get("METHOD")
+    is_async = os.environ.get("IS_ASYNC") == "True"
+    message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
+    distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
+    batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
+
+    if is_async:
+        asyncio.run(_run_from_env_async(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled))
+    else:
+        _run_from_env_sync(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
 
 
 @pytest.mark.asyncio
@@ -171,34 +290,18 @@ async def test_common():
     batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
 
     if is_async:
-        client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
-        receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-        )
-        try:
-            await run_test_async(
-                sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
-            )
-        finally:
-            await receiver.close()
-            await sender.close()
-            await client.close()
+        await _run_from_env_async(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
     else:
-        client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
-        receiver = client.get_queue_receiver(
-            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-        )
-        try:
-            run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
-        finally:
-            receiver.close()
-            sender.close()
-            client.close()
+        _run_from_env_sync(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
 
 
 if __name__ == "__main__":
     import sys
 
-    sys.exit(pytest.main(["-x", __file__]))
+    try:
+        run_from_env()
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
