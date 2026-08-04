@@ -735,6 +735,10 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 bool
 Datadog::Sample::push_allocator_domain(std::string_view allocator_domain)
 {
+    /*
+     * Copies the domain string into the sample's string arena, which is pre-reserved and
+     * retained across clear(), so this does not allocate on the hook path.
+     */
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::allocator_domain, allocator_domain)) {
         if (!already_warned) {
