@@ -230,7 +230,7 @@ def _iter_agent_tools(agent: Any):
         function_toolset = getattr(agent, "_function_toolset", None)
         user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", None) or []
         # Only a FunctionToolset exposes a {name: tool} dict. A custom toolset's .tools may be something
-        # else entirely, and is captured under capability.toolsets instead, so gate on the class and on
+        # else entirely, and is captured as a custom capability instead, so gate on the class and on
         # dict-ness before reading.
         fn_cls = PydanticAIIntegration._function_toolset_cls()
         toolsets = [t for t in user_toolsets if fn_cls is None or isinstance(t, fn_cls)]
@@ -566,7 +566,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
             for key, value in settings.items():
                 if key not in _ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
                     continue
-                allowed[_MODEL_SETTINGS_RENAMES.get(key, key)] = _wire_value(value)
+                # Through _put_field, not a direct assignment: _wire_value returns None for a value
+                # it cannot encode, such as NaN, and a direct assignment would ship that as an
+                # explicit null. Absence has to keep meaning "not configured".
+                _put_field(allowed, _MODEL_SETTINGS_RENAMES.get(key, key), _wire_value(value))
             _put_field(fields, "model_settings", allowed)
         return fields
 
@@ -657,7 +660,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return entry
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """Function tools as {name, description?, parameters?} in registration order, each exactly once.
+        """Function tools as {name, description?, parameters?}, each exactly once.
 
         For pydantic-ai below 0.4.4 tools live on the agent's _function_tools. From 0.4.4 on they live
         on _function_toolset and on any user-supplied FunctionToolset in _user_toolsets.
@@ -750,7 +753,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return entries
 
     def _get_agent_output_type(self, agent: Any) -> dict[str, Any]:
-        """The output contract as {name, schema?}. Output-function callables go to handoff instead.
+        """The output contract as {name, schema?}. An output function is not a declared type, so it is skipped.
 
         A union such as [Fruit, Vehicle] is captured in full, so changing any alternative is reflected.
         """

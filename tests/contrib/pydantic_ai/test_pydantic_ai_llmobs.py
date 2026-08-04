@@ -257,7 +257,7 @@ class TestLLMObsPydanticAI:
                 instructions=instructions,
                 tools=expected_calculate_square_tool(),
                 # A TypedDict output yields a name but no schema, since only a pydantic model has one.
-                contract={"output_name": "Output"},
+                data_contracts={"output": {"name": "Output"}},
             ),
             tags=PYDANTIC_AI_TAGS,
         )
@@ -463,13 +463,13 @@ class TestLLMObsPydanticAI:
         await agent.run("Hello, world!")
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        model_group = _manifest_of(spans[0])["model"]
+        settings = _manifest_of(spans[0])["model_settings"]
         # The whole manifest has to survive the encoder, which is what the sentinel used to break.
         json.dumps(_manifest_of(spans[0]))
-        assert model_group["max_tokens"] == 100
+        assert settings["max_output_tokens"] == 100
         # A sentinel stands for "not set", so the field is absent rather than holding the string
         # "Omit()" in a slot that is meant to hold a number.
-        assert "temperature" not in model_group
+        assert "temperature" not in settings
 
 
 class TestLLMObsPydanticAISpanLinks:
@@ -772,6 +772,36 @@ class TestPydanticAIAgentManifest:
         trace = test_spans.pop_traces()[0]
         return agent, _manifest_of(trace[0])
 
+    @pytest.mark.parametrize("make_kwargs,expected,min_version", MANIFEST_FIELD_CASES)
+    async def test_field_mapping_cases(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans, make_kwargs, expected, min_version
+    ):
+        """One case per field mapping, asserted as a subset so unrelated keys do not couple."""
+        if min_version and PYDANTIC_AI_VERSION < min_version:
+            pytest.skip("pydantic-ai < {} does not support this field".format(min_version))
+
+        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", **make_kwargs())
+
+        _assert_contains(manifest, expected)
+
+    @pytest.mark.parametrize("make_kwargs,forbidden,expected,min_version", MANIFEST_LEAK_CASES)
+    async def test_secrets_never_ship_cases(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans, make_kwargs, forbidden, expected, min_version
+    ):
+        """The security contract, one case per carrier, in one reviewable table.
+
+        expected is asserted alongside so a case cannot pass by emitting nothing at all.
+        """
+        if min_version and PYDANTIC_AI_VERSION < min_version:
+            pytest.skip("pydantic-ai < {} does not support this field".format(min_version))
+
+        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", **make_kwargs())
+
+        blob = safe_json(manifest)
+        for canary in forbidden:
+            assert canary not in blob, "{} reached the manifest".format(canary)
+        _assert_contains(manifest, expected)
+
     async def test_shape_is_one_flat_document(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """One flat document whose keys all come from the shared schema.
 
@@ -829,6 +859,8 @@ class TestPydanticAIAgentManifest:
             tools=[calculate_square_tool],
             output_type=Resolution,
             deps_type=Deps,
+            # A plain-text model cannot satisfy a structured output_type; it exhausts output retries.
+            model=_test_model(),
             retries=3,
             end_strategy="exhaustive",
             model_settings={"temperature": 0.2, "max_tokens": 1024},
@@ -1052,7 +1084,9 @@ class TestPydanticAIAgentManifest:
             answer: str
             confidence: float
 
-        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", output_type=Resolution)
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=Resolution, model=_test_model()
+        )
 
         output = manifest["data_contracts"]["output"]
         assert output["name"] == "Resolution"
@@ -1135,9 +1169,12 @@ class TestPydanticAIAgentManifest:
 
         A repr leaks a memory address and whatever the object's __repr__ chooses to include.
         """
-        _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", system_prompt=("real prompt", _UnserializableSentinel())
-        )
+        agent = pydantic_ai.Agent(model=_function_model(), name="test_agent", system_prompt="real prompt")
+        # Installed after construction: pydantic-ai does not validate system_prompt, but run() itself
+        # raises on a non-string, so the agent has to be built clean and then corrupted.
+        agent._system_prompts = ("real prompt", _UnserializableSentinel())
+        await agent.run("Hello, world!")
+        manifest = _manifest_of(test_spans.pop_traces()[0][0])
 
         assert manifest["system_prompts"] == ["real prompt"]
         assert "object at 0x" not in safe_json(manifest)
@@ -1158,13 +1195,22 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest)
 
     async def test_non_finite_floats_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """NaN and Infinity are valid Python floats and invalid JSON."""
+        """NaN and Infinity are valid Python floats and invalid JSON.
+
+        The key drops rather than shipping null. json.dumps alone does not catch that, because a null
+        encodes fine: an earlier version of this test passed while NaN was landing as an explicit null.
+        """
         _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", model_settings={"temperature": float("nan")}
+            pydantic_ai,
+            test_spans,
+            name="test_agent",
+            model_settings={"temperature": float("nan"), "top_p": 0.9},
         )
 
         json.dumps(manifest, allow_nan=False)
+        assert manifest["model_settings"] == {"top_p": 0.9}
 
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no agent metadata")
     async def test_cyclic_metadata_does_not_cost_the_section(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A self-referential value terminates instead of recursing until the interpreter gives up."""
         cyclic: dict = {"team": "cx"}
@@ -1181,7 +1227,9 @@ class TestPydanticAIAgentManifest:
         class Row(BaseModel):
             value: int
 
-        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", output_type=list[Row])
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=list[Row], model=_test_model()
+        )
 
         assert manifest["data_contracts"]["output"]["name"]
 

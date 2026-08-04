@@ -14,6 +14,8 @@ MANIFEST_VERSION = 1
 # MANIFEST_VERSION is restated rather than imported from the integration on purpose: an independent
 # copy is what makes an unannounced bump fail a test instead of silently agreeing with itself.
 # pydantic-ai's own defaults, which every agent reports whether or not the caller set them.
+MODEL_SETTINGS_RENAMES = {"max_tokens": "max_output_tokens"}
+
 DEFAULT_DATA_CONTRACTS = {"output": {"name": "str"}}
 DEFAULT_AGENT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
 
@@ -67,7 +69,11 @@ def expected_agent_manifest(
     if model:
         manifest["model"] = model
     if model_params:
-        manifest["model_settings"] = dict(model_params)
+        # The integration renames max_tokens on the way out, so a test can keep passing the framework
+        # spelling it configured the agent with and still expect the canonical name on the wire.
+        manifest["model_settings"] = {
+            MODEL_SETTINGS_RENAMES.get(key, key): value for key, value in model_params.items()
+        }
     if tools:
         manifest["tools"] = tools
         manifest["capabilities"] = [_as_expected_capability(tool) for tool in tools]
