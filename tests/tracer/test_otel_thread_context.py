@@ -70,6 +70,25 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
 
+@pytest.mark.subprocess(env={"_DD_OTEL_THREAD_CONTEXT_ENABLED": "false"})
+def test_thread_context_listeners_can_be_disabled():
+    import sys
+
+    assert "ddtrace" not in sys.modules
+
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+
+    assert config._otel_thread_context_enabled is False
+    assert core.has_listeners("ddtrace.context_provider.activate") is False
+    assert core.has_listeners("python.context.switch") is False
+
+    if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+        from ddtrace.internal.native._native import is_context_watcher_registered
+
+        assert is_context_watcher_registered() is False
+
+
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
     with tracer.trace("test") as span:
         detach_otel_thread_context()

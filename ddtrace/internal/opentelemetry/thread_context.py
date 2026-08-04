@@ -20,6 +20,9 @@ if sys.platform == "linux":
     from ddtrace.internal.native._native import update_otel_thread_context
 
     def register_otel_thread_context_listener(tracer: TracerProtocol) -> None:
+        if not config._otel_thread_context_enabled:
+            return
+
         def _sync_otel_thread_context(ctx: Optional[Union[Context, Span]]) -> None:
             if type(ctx) is Span:
                 update_otel_thread_context(ctx, ctx._local_root_value)
@@ -36,7 +39,7 @@ if sys.platform == "linux":
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
         core.on("python.context.switch", _sync_active_otel_thread_context)
 
-        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14) and config._otel_thread_context_enabled:
+        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
             from ddtrace.internal.native._native import register_context_watcher
 
             register_context_watcher()
