@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 import ddtrace.testing.internal.offline_mode as offline_module
@@ -367,6 +368,40 @@ class TestEnvTagsStripping:
 # ---------------------------------------------------------------------------
 # Skipping forced off in manifest mode
 # ---------------------------------------------------------------------------
+
+
+class TestBazelProviderFallbackWithGeneratedManifest:
+    """The "manifest mode implies Bazel" heuristic must not apply to a manifest we generated ourselves."""
+
+    @staticmethod
+    def _env_tags_without_ci_provider() -> dict[str, str]:
+        from ddtrace.testing.internal.env_tags import get_env_tags
+
+        with (
+            patch("ddtrace.testing.internal.env_tags.ci.get_ci_tags", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_git_command", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_dd_variables", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_head_tags_from_git_command", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.get_workspace_path", return_value=Path("/workspace")),
+        ):
+            return get_env_tags()
+
+    def test_external_manifest_falls_back_to_bazel(self, monkeypatch, tmp_path):
+        opt_dir = _make_manifest_dir(tmp_path)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        assert self._env_tags_without_ci_provider()["ci.provider.name"] == "bazel"
+
+    def test_generated_manifest_does_not_fall_back_to_bazel(self, monkeypatch, tmp_path):
+        """A plain `pytest -n auto` run on a machine with no CI provider must not report itself as Bazel."""
+        generated_dir = tmp_path / f"{XDIST_MANIFEST_DIR_PREFIX}{os.getpid()}_abc"
+        generated_dir.mkdir()
+        (generated_dir / "manifest.txt").write_text("version = 1\n")
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(generated_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        assert "ci.provider.name" not in self._env_tags_without_ci_provider()
 
 
 class TestSkippingInManifestMode:

@@ -11,6 +11,7 @@ import typing as t
 from ddtrace.internal.logger import get_logger
 from ddtrace.testing.internal.constants import DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.manifest import write_manifest_cache
 from ddtrace.testing.internal.offline_mode import get_offline_mode
@@ -27,11 +28,11 @@ XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
 
-# AIDEV-NOTE: The controller-generated manifest cache lives in a private temp directory instead of the workspace: the
-# workspace path is derived differently by different components (git root vs. CI provider env vars), and two concurrent
-# pytest runs of the same repo would otherwise clobber each other's cache.  The controller pid is embedded in the
-# directory name so descendant processes can tell whether an inherited manifest env var was meant for them.
-XDIST_MANIFEST_DIR_PREFIX = "dd_xdist_manifest_"
+# AIDEV-NOTE: The controller-generated manifest cache lives in a private temp directory (XDIST_MANIFEST_DIR_PREFIX)
+# instead of the workspace: the workspace path is derived differently by different components (git root vs. CI provider
+# env vars), and two concurrent pytest runs of the same repo would otherwise clobber each other's cache.  The controller
+# pid is embedded in the directory name so descendant processes can tell whether an inherited manifest was meant for
+# them, and so OfflineMode can tell a generated manifest from an externally provided (Bazel) one.
 
 
 def is_xdist_worker_process() -> bool:
@@ -58,6 +59,15 @@ def generate_xdist_manifest(session_manager: SessionManager, args: list[str]) ->
     already in effect and workers inherit it as-is.
     """
     if not is_xdist_enabled_from_args(args) or is_xdist_worker_process() or get_offline_mode().manifest_enabled:
+        return None
+
+    if session_manager.configuration_errors:
+        # Some of what we fetched is default or partial data. Publishing it would hand the same degraded state to every
+        # worker; leaving them online means each one retries on its own, as it did before manifest generation existed.
+        log.debug(
+            "Not caching backend data for xdist workers: this session has configuration errors (%s)",
+            sorted(session_manager.configuration_errors),
+        )
         return None
 
     # This is only an optimization: nothing that happens here may break the test session.  A read-only or full
@@ -107,6 +117,13 @@ def resolve_inherited_manifest_env() -> None:
     A worker that keeps a manifest it cannot read falls back to querying the backend.  That is safe, and the spawn
     ordering makes it unreachable, but it defeats the point of generating the manifest -- so say so out loud rather
     than degrade silently.
+
+    AIDEV-NOTE: Known limitation. A nested pytest session started *in-process* from inside a worker
+    (``pytest.main()``, ``pytester.inline_run()``) shares the worker's pid, so it looks like the manifest's rightful
+    owner and reads the outer session's cache. Dropping the env var would not help either: ``OfflineMode`` is a
+    process-wide singleton that the worker already resolved. Fixing it properly means scoping offline mode to a
+    session rather than a process. In practice the nested run usually has the plugin disabled, and ``tests/testing``
+    clears the variable for the in-process cases that do enable it.
     """
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
     if not manifest_env:

@@ -36,8 +36,8 @@ from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FIL
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
+from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 import ddtrace.testing.internal.pytest.xdist as xdist_module
-from ddtrace.testing.internal.pytest.xdist import XDIST_MANIFEST_DIR_PREFIX
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 
@@ -137,7 +137,9 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/v2/ci/tests/skippable":
-            self._send_json({"data": [], "meta": {}})
+            # NOTE: meta.correlation_id is required. Without it the API client records a configuration error, which
+            # (among other things) makes the controller decline to cache its data for the xdist workers.
+            self._send_json({"data": [], "meta": {"correlation_id": "test-correlation-id"}})
             return
 
         if self.path == "/api/v2/git/repository/search_commits":
@@ -532,6 +534,11 @@ class TestResolveInheritedManifestEnv:
         assert warning.call_count == 0
 
 
+def _session_manager_without_errors() -> mock.Mock:
+    """A SessionManager stand-in whose backend fetches all succeeded."""
+    return mock.Mock(configuration_errors={})
+
+
 class TestGenerateXdistManifestFailures:
     """Generating the manifest is an optimization: a failure must degrade to online mode, never break the session."""
 
@@ -540,10 +547,20 @@ class TestGenerateXdistManifestFailures:
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
         monkeypatch.delenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, raising=False)
 
+    def test_returns_none_when_the_controller_fetch_had_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Degraded data must not be handed to the workers: leave them online so each retries on its own."""
+        session_manager = mock.Mock(configuration_errors={"test.configuration_error.settings": "true"})
+        mkdtemp = mock.Mock()
+        monkeypatch.setattr(tempfile, "mkdtemp", mkdtemp)
+
+        assert generate_xdist_manifest(session_manager, ["-n", "2"]) is None
+        assert mkdtemp.call_count == 0
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+
     def test_returns_none_when_temp_dir_cannot_be_created(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(tempfile, "mkdtemp", mock.Mock(side_effect=OSError("read-only file system")))
 
-        assert generate_xdist_manifest(mock.Mock(), ["-n", "2"]) is None
+        assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
         assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
 
     def test_returns_none_and_cleans_up_when_cache_cannot_be_written(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -557,7 +574,7 @@ class TestGenerateXdistManifestFailures:
         monkeypatch.setattr(tempfile, "mkdtemp", record_mkdtemp)
         monkeypatch.setattr(xdist_module, "write_manifest_cache", mock.Mock(side_effect=OSError("no space left")))
 
-        assert generate_xdist_manifest(mock.Mock(), ["-n", "2"]) is None
+        assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
         assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
         assert created_dirs and not Path(created_dirs[0]).exists()
 

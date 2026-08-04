@@ -41,3 +41,7 @@ TEST_OPTIMIZATION_SETTINGS_FILE = "settings.json"
 TEST_OPTIMIZATION_KNOWN_TESTS_FILE = "known_tests.json"
 TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE = "test_management.json"
 TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE = "skippable_tests.json"
+
+# Prefix of the temp directory holding a manifest cache we generated ourselves for pytest-xdist workers, as opposed to
+# one provided by an external tool such as the Bazel rule. The controller pid follows the prefix.
+XDIST_MANIFEST_DIR_PREFIX = "dd_xdist_manifest_"
