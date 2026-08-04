@@ -81,6 +81,9 @@ T = t.TypeVar("T")
 
 StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
+_STORAGE_PREV = "__dd_wrapping_context_prev__"
+_STORAGE_OWNER = "__dd_wrapping_context_owner__"
+
 # Free lists of storage context variables, keyed by variable name.
 #
 # Once a ContextVar has been set, the running Context holds a strong reference
@@ -88,9 +91,19 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 # again (ContextVar.reset is not usable here, see the note on _pop_storage).
 # Since wrapping contexts are created per function object, code that decorates
 # ephemeral functions on every call would otherwise pin one variable per
-# invocation. Recycling the variables of collected wrapping contexts bounds the
-# number of live ones by the peak number of concurrently live wrapping
-# contexts.
+# invocation. Recycling the variables of collected wrapping contexts caps the
+# number of live ones at the peak number of concurrently live wrapping
+# contexts. The pool is deliberately never trimmed: dropping a variable from it
+# would not release the Context entries it already holds, and would only force
+# the allocation of a new variable, adding entries instead of reusing them. That
+# peak is therefore retained for the lifetime of the process, but it no longer
+# grows with the number of functions that get wrapped.
+#
+# A recycled variable may still be set in some Context when it is handed out: a
+# context that is collected without exiting leaves its storage behind, and the
+# finalizer cannot reset it because it runs in an unrelated Context. Storage
+# dicts are tagged with an owner token so that the new owner can tell a leftover
+# value apart from one of its own; see __enter__.
 _storage_var_pools: dict[str, list[StorageVar]] = {}
 
 # Reentrant because the release happens from a finalizer, which can run at
@@ -389,7 +402,14 @@ class BaseWrappingContext(ABC):
         # strong refs drop, without relying on the cyclic GC at all.
         self._wrapped_ref: weakref.ref[FunctionType] = weakref.ref(f)
 
-        name = f"{type(self).__name__}__storage"
+        # Identifies the storage dicts written by this context. A dedicated token
+        # is used rather than self so that the storage dict cannot keep the
+        # context, and therefore the wrapped function, alive.
+        self._storage_owner = object()
+
+        # Qualified so that same-named context types (e.g. the two
+        # LazyWrappingContext classes in this package) do not share a pool.
+        name = f"{type(self).__module__}.{type(self).__qualname__}__storage"
         self._storage: StorageVar = _acquire_storage_var(name)
         weakref.finalize(self, _release_storage_var, name, self._storage).atexit = False
 
@@ -406,13 +426,21 @@ class BaseWrappingContext(ABC):
 
     def __enter__(self) -> "BaseWrappingContext":
         prev = self._storage.get()
-        self._storage.set({"__dd_wrapping_context_prev__": prev})
+        if prev is not None and prev.get(_STORAGE_OWNER) is not self._storage_owner:
+            # Storage left behind by a previous owner of this recycled variable.
+            # Chaining it into our own prev would restore it on every exit from
+            # now on, pinning it (and the frame it holds, for a universal
+            # wrapping context) for the lifetime of the thread. Dropping it here
+            # instead frees it as soon as we overwrite the variable below.
+            prev = None
+        self._storage.set({_STORAGE_PREV: prev, _STORAGE_OWNER: self._storage_owner})
 
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
         storage = t.cast(dict[str, t.Any], self._storage.get())
-        self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
+        self._storage.set(storage.pop(_STORAGE_PREV))
+        del storage[_STORAGE_OWNER]
         return storage
 
     def __return__(self, value: T) -> T:
