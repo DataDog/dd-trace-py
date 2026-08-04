@@ -81,9 +81,10 @@ def test_tracing_minimal_patching():
 def test_setup_does_not_import_root_urlconf():
     """django.setup() must not pull in ROOT_URLCONF.
 
-    Reading resolver.url_patterns imports the URLconf and the entire view import closure behind it. Processes that
-    never serve a request (Celery/dramatiq workers, management commands, cron jobs) would otherwise load all of it
-    for nothing, which cost one reporter 150MB of RSS per worker.
+    Reading resolver.url_patterns imports the URLconf and the entire view import closure behind it. A process that
+    never serves a request, such as a Celery or dramatiq worker, would otherwise load all of it for nothing, which
+    cost one reporter 154MB of RSS per worker. Management commands are not in scope: Django's own check_url_config
+    imports the URLconf whenever system checks run.
     """
     import sys
 
@@ -129,6 +130,13 @@ def test_wsgi_application_collects_endpoints():
     # joining from #17695 at startup rather than only per-request.
     assert "include/test/" in paths, paths
 
+    # Counterpart of test_wsgi_application_collects_endpoints_without_middleware_instrumentation: with the flag at
+    # its default, moving the middleware wrapping under a runtime check must not have stopped it happening.
+    from ddtrace.internal.wrapping import is_wrapped
+    from tests.contrib.django.middleware import ClsMiddleware
+
+    assert is_wrapped(ClsMiddleware.__call__)
+
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
@@ -141,7 +149,8 @@ def test_wsgi_application_collects_endpoints_without_middleware_instrumentation(
     """Endpoint discovery must not be gated on DD_DJANGO_INSTRUMENT_MIDDLEWARE.
 
     The walk hangs off BaseHandler.load_middleware, which used to be wrapped only when middleware instrumentation
-    was enabled.
+    was enabled. The middleware assertion keeps the flag itself honest: without it this test would still pass if
+    wrapping had accidentally stayed on.
     """
     from django.core.wsgi import get_wsgi_application
 
@@ -150,3 +159,8 @@ def test_wsgi_application_collects_endpoints_without_middleware_instrumentation(
     from ddtrace.internal.endpoints import endpoint_collection
 
     assert endpoint_collection.endpoints
+
+    from ddtrace.internal.wrapping import is_wrapped
+    from tests.contrib.django.middleware import ClsMiddleware
+
+    assert not is_wrapped(ClsMiddleware.__call__)

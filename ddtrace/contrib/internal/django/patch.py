@@ -395,8 +395,9 @@ def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]",
 def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
     """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
 
-    Called once per BaseHandler from traced_load_middleware, and from traced_get_response /
-    traced_get_response_async on every request. The WeakSet gate makes repeated calls O(1), and naturally handles
+    Called from traced_load_middleware when a request handler is built, and from traced_get_response /
+    traced_get_response_async on every request; the walk itself happens once per distinct resolver rather than once
+    per call site. The WeakSet gate makes repeated calls O(1), and naturally handles
     per-request request.urlconf swaps (each distinct urlconf gets its own resolver from django.urls.get_resolver,
     walked on first use). When the endpoint-collection flag is off, the walk is skipped entirely — telemetry would
     discard the collected entries anyway, and if the flag is later flipped on the WeakSet stays empty so the next

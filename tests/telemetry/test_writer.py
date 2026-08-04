@@ -127,9 +127,11 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 _SERVING_BOOTSTRAP = """from django.core.wsgi import get_wsgi_application
     get_wsgi_application()"""
 
-# A management command: calls django.setup() but never builds a handler.
-_NON_SERVING_BOOTSTRAP = """from django.core import management
-    management.execute_from_command_line()
+# What a Celery or dramatiq worker does: django.setup() and nothing else. Not a management
+# command -- Django's own check_url_config imports the URLconf whenever system checks run, so
+# most manage.py invocations import it with or without ddtrace.
+_WORKER_BOOTSTRAP = """import django
+    django.setup()
     assert this not in __import__('sys').modules, 'django.setup() imported the URLconf'"""
 
 
@@ -167,14 +169,14 @@ def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in
 def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """A process that never builds a request handler must not import the URLconf.
 
-    Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. Celery
-    and dramatiq workers, management commands and cron jobs would otherwise load that whole import closure for
-    nothing, which cost one reporter 154MB of RSS per worker.
+    Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. A Celery
+    or dramatiq worker would otherwise load that whole import closure for nothing, which cost one reporter 154MB of
+    RSS per worker.
     """
     env = os.environ.copy()
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _NON_SERVING_BOOTSTRAP}
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _WORKER_BOOTSTRAP}
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
     assert status == 0, stderr
