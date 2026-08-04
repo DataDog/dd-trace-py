@@ -3,6 +3,7 @@ from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
@@ -52,7 +53,7 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase:
     vulnerability_type = ""
-    secure_mark = 0
+    secure_mark: Union[int, VulnerabilityType] = 0
 
     @staticmethod
     def has_quota():

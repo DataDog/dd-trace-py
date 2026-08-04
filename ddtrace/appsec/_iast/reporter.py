@@ -4,12 +4,14 @@ import json
 import operator
 from typing import Any
 from typing import Optional
+from typing import Union
 import zlib
 
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
@@ -129,7 +131,7 @@ class Vulnerability:
 
 @dataclasses.dataclass
 class Source(NotNoneDictable):
-    origin: str
+    origin: Union[str, OriginType]
     name: str
     redacted: Optional[bool] = dataclasses.field(default=None, repr=False)
     value: Optional[str] = dataclasses.field(default=None, repr=False)

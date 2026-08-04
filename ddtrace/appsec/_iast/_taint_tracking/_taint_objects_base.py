@@ -1,17 +1,26 @@
 from typing import Any
+from typing import Optional
+from typing import Sequence
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
 
 
-def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None, contextid=None) -> Any:
+def _taint_pyobject_base(
+    pyobject: Any,
+    source_name: Any,
+    source_value: Any,
+    source_origin: Optional[OriginType] = None,
+    contextid: Optional[int] = None,
+) -> Any:
     """Mark a Python object as tainted with information about its origin.
 
     This function is the base for marking objects as tainted, setting their origin and range.
@@ -63,7 +72,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         return pyobject
 
 
-def get_tainted_ranges(pyobject: Any) -> tuple:
+def get_tainted_ranges(pyobject: Any) -> Sequence[TaintRange]:
     context_id = _get_iast_context_id()
     if context_id is None:
         return tuple()
@@ -72,7 +81,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
     try:
         return get_ranges(pyobject, context_id)
     except ValueError as e:
-        iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)
+        iast_propagation_error_log("get_tainted_ranges error", exc=e)
     return tuple()
 
 

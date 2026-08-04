@@ -4,6 +4,8 @@ limit. It will measure operations being executed in a request and it will deacti
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
 
+from typing import Optional
+
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
@@ -28,10 +30,10 @@ class OverheadControl(object):
     _lock = threading.Lock()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def reconfigure(self):
+    def reconfigure(self) -> None:
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span: Span) -> bool:
+    def acquire_request(self, span: Optional[Span]) -> bool:
         """Decide whether if IAST analysis will be done for this request.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """

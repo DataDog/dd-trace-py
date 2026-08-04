@@ -118,7 +118,7 @@ def _should_iast_patch(module_name: str) -> bool:
     if IAST_PATCHING_LAZY_LOADED:
         initialize_iast_lists()
         IAST_PATCHING_LAZY_LOADED = False
-    result = False
+    result: int = False
     try:
         result = iastpatch.should_iast_patch(module_name)
         if asm_config._iast_debug:

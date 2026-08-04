@@ -64,7 +64,7 @@ def _current_iast_context_id() -> Optional[int]:
     return _CACHE_GET_IAST_CONTEXT_ID()
 
 
-def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
+def get_ranges(string_input: Any, context_id: Optional[int] = None) -> list[TaintRange]:
     if context_id is None:
         global _CACHE_GET_IAST_CONTEXT_ID
         if _CACHE_GET_IAST_CONTEXT_ID is None:

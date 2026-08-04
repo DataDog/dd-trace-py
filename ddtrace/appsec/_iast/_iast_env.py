@@ -18,8 +18,8 @@ class IASTEnvironment:
     It is contained into a ContextVar.
     """
 
-    def __init__(self, span: Optional[Span] = None):
-        self.span = span or span_bus.get_span()
+    def __init__(self, span: Optional[Span] = None) -> None:
+        self.span: Optional[Span] = span or span_bus.get_span()
 
         self.iast_reporter: Optional["IastSpanReporter"] = None
         self.iast_span_metrics: dict[str, int] = {}
@@ -48,8 +48,8 @@ class IASTEnvironment:
 
 
 def _get_iast_env() -> Optional[IASTEnvironment]:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY)
+    return core.find_item(IAST.REQUEST_CONTEXT_KEY)  # type: ignore[no-any-return]
 
 
 def in_iast_env() -> bool:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY) is not None
+    return _get_iast_env() is not None

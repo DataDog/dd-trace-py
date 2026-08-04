@@ -1,6 +1,8 @@
 import itertools
 from typing import Any
+from typing import Optional
 from typing import Sequence
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -18,8 +20,12 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+TextType = TypeVar("TextType", str, bytes, bytearray)
 
-def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
+
+def taint_pyobject(
+    pyobject: Any, source_name: Any, source_value: Any, source_origin: Optional[OriginType] = None
+) -> Any:
     try:
         if (contextid := _get_iast_context_id()) is not None and _is_iast_taint_source_enabled():
             if source_origin is None:
@@ -33,7 +39,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     return pyobject
 
 
-def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
+def copy_ranges_to_string(pyobject: TextType, ranges: Sequence[TaintRange]) -> TextType:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     if (contextid := _get_iast_context_id()) is not None:
         if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
@@ -83,7 +89,7 @@ def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequen
     return iterable_type(new_result)  # type: ignore[call-arg]
 
 
-def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> bool:
+def taint_pyobject_with_ranges(pyobject: Any, ranges: Sequence[TaintRange]) -> bool:
     if (contextid := _get_iast_context_id()) is None:
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):

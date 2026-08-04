@@ -732,7 +732,7 @@ def lower_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
 def _distribute_ranges_and_escape(
     split_elements: list[Optional[TEXT_TYPES]],
     len_separator: int,
-    ranges: tuple[TaintRange, ...],
+    ranges: list[TaintRange],
 ) -> list[Optional[TEXT_TYPES]]:
     # FIXME: converts to set, and then to list again, probably to remove
     # duplicates. This should be removed once the ranges values on the

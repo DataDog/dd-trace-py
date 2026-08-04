@@ -1,4 +1,6 @@
 import re
+from typing import Optional
+from typing import Pattern
 
 from ddtrace.appsec._iast.constants import DBAPI_MARIADB
 from ddtrace.appsec._iast.constants import DBAPI_MYSQL
@@ -7,6 +9,9 @@ from ddtrace.appsec._iast.constants import DBAPI_PSYCOPG
 from ddtrace.appsec._iast.constants import DBAPI_PYMYSQL
 from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.internal.logger import get_logger
+
+from ._types import EvidenceLike
+from ._types import SensitiveRange
 
 
 log = get_logger(__name__)
@@ -26,7 +31,7 @@ NUMERIC_LITERAL = (
     r"[-+]?(?:" + "|".join([HEX_NUMBER, BIN_NUMBER, DECIMAL_NUMBER + EXPONENT, INTEGER_NUMBER + EXPONENT]) + r")"
 )
 
-patterns = {
+patterns: dict[str, Pattern[str]] = {
     DBAPI_MYSQL: re.compile(
         f"({NUMERIC_LITERAL})|({MYSQL_STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})", re.IGNORECASE | re.MULTILINE
     ),
@@ -41,7 +46,12 @@ patterns[DBAPI_PYMYSQL] = patterns[DBAPI_MYSQL]
 patterns[DBAPI_MYSQLDB] = patterns[DBAPI_MYSQL]
 
 
-def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern=None):
+def sql_sensitive_analyzer(
+    evidence: EvidenceLike,
+    name_pattern: Optional[Pattern[str]],
+    value_pattern: Optional[Pattern[str]],
+    query_string_pattern: Optional[Pattern[bytes]] = None,
+) -> list[SensitiveRange]:
     """
     SQL sensitive analyzer for evidence redaction.
 
@@ -54,8 +64,10 @@ def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_p
     Returns:
     - list: List of sensitive ranges to redact
     """
-    pattern = patterns.get(evidence.dialect, patterns[DBAPI_MYSQL])
-    tokens = []
+    if evidence.value is None:
+        return []
+    pattern = patterns.get(evidence.dialect or DBAPI_MYSQL, patterns[DBAPI_MYSQL])
+    tokens: list[SensitiveRange] = []
 
     regex_result = pattern.search(evidence.value)
     while regex_result is not None:

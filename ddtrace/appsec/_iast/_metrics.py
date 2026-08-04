@@ -96,7 +96,7 @@ def _set_metric_iast_request_tainted():
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 
 
-def _metric_key_as_snake_case(key):
+def _metric_key_as_snake_case(key: Union[str, OriginType]) -> str:
     if isinstance(key, OriginType):
         key = origin_to_str(key)
     key = key.replace(".", "_")

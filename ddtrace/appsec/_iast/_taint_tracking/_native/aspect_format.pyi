@@ -1,0 +1,3 @@
+from typing import Any
+
+def _format_aspect(*args: Any, **kwargs: Any) -> str: ...
