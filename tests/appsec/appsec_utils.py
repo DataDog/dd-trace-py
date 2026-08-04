@@ -270,13 +270,23 @@ def _describe_server_output(server_process) -> str:
 def _dump_hung_server(server_process, known_worker_pids=()) -> None:
     """Dump every stack of a server that would not shut down, so the hang can be diagnosed.
 
-    Opt-in through _DD_TEST_ABORT_HUNG_SERVER because it is expensive. SIGABRT is the whole
-    mechanism: the server runs with PYTHONFAULTHANDLER=1, so it prints every thread's Python stack
-    to stderr, and it then leaves a core file behind for the native backtrace — the only way to see
-    the Rust/Tokio threads. Attaching gdb to the live process is not an option: kernel.yama
-    .ptrace_scope is 1 on the runners and gdb would be a sibling of the target, not an ancestor.
+    Opt-in through _DD_TEST_ABORT_HUNG_SERVER because it is expensive. The server runs with
+    PYTHONFAULTHANDLER=1, so a fatal signal makes it print every thread's Python stack to stderr and
+    leave a core file behind for the native backtrace — the only way to see the Rust/Tokio threads.
 
-    Only the workers are aborted; killing the arbiter would reap them mid-dump.
+    The signal has to be SIGSEGV, not SIGABRT. Gunicorn's worker replaces faulthandler's SIGABRT
+    handler with its own Python-level handle_abort (gunicorn/workers/base.py init_signals), and a
+    Python-level handler can never run here: the thread we want to dump is blocked inside native
+    code while still holding the GIL, so the interpreter never reaches a point where it would run
+    pending signal handlers. Measured in the testrunner image: SIGABRT leaves the process alive with
+    no output and no core, while SIGSEGV dumps every thread — including one wedged in C holding the
+    GIL — because faulthandler's SIGSEGV handler runs at the C level and needs no GIL. Gunicorn does
+    not touch SIGSEGV.
+
+    Attaching gdb to the live process is not an option either: kernel.yama.ptrace_scope is 1 on the
+    runners and gdb would be a sibling of the target, not an ancestor.
+
+    Only the workers are signalled; killing the arbiter would reap them mid-dump.
     """
     if os.environ.get("_DD_TEST_ABORT_HUNG_SERVER", "") != "1":
         return
@@ -295,18 +305,25 @@ def _dump_hung_server(server_process, known_worker_pids=()) -> None:
 
     aborted = []
     for proc in workers:
-        print("=== SIGABRT on hung worker %s (faulthandler python stacks follow) ===" % proc.pid, flush=True)
+        print("=== SIGSEGV on hung worker %s (faulthandler python stacks follow) ===" % proc.pid, flush=True)
         try:
             cwd = proc.cwd()
         except Exception:
             cwd = os.getcwd()
         try:
-            proc.send_signal(signal.SIGABRT)
+            proc.send_signal(signal.SIGSEGV)
         except Exception:
             continue
         aborted.append((proc.pid, cwd))
     # Let the faulthandler output reach stderr and the kernel finish writing the cores.
     time.sleep(10)
+    for pid, _ in aborted:
+        try:
+            if psutil.Process(pid).is_running():
+                # Nothing dumped, so record that rather than let the caller assume the probe worked.
+                print("=== Worker %s survived SIGSEGV; no stacks were produced ===" % pid, flush=True)
+        except Exception:
+            pass
     _collect_cores(aborted)
 
 
