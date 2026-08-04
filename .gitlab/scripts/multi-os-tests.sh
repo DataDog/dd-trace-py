@@ -2,38 +2,115 @@
 # Multi-OS test script for Unix-like systems (Linux/macOS)
 set -eo pipefail
 
+GITLAB_API_PRIVATE_TOKEN=""
+
+# AIDEV-NOTE: ddbuild returns 404 for CI_JOB_TOKEN on pipeline job listing; use a BTI GitLab token fallback.
+get_gitlab_api_private_token() {
+  local auth_header
+  local authanywhere_bin
+  local curl_exit
+  local status
+  local token_headers="$TMPDIR/gitlab-artifacts/gitlab-token.headers"
+  local token_response="$TMPDIR/gitlab-artifacts/gitlab-token.json"
+
+  if [[ -n "$GITLAB_API_PRIVATE_TOKEN" ]]; then
+    return 0
+  fi
+
+  authanywhere_bin="$(command -v authanywhere || true)"
+  if [[ -z "$authanywhere_bin" ]]; then
+    echo "ERROR: GitLab API job-token auth failed and authanywhere is not available to request a BTI GitLab token."
+    exit 1
+  fi
+
+  echo "GitLab API job-token auth failed; requesting a short-lived GitLab API token from BTI..."
+  if ! auth_header="$("$authanywhere_bin" --audience rapid-devex-ci)"; then
+    echo "ERROR: Failed to get a BTI auth header from authanywhere."
+    exit 1
+  fi
+
+  curl_exit=0
+  status=$(curl --location --silent --show-error \
+    --header "$auth_header" \
+    --dump-header "$token_headers" \
+    --output "$token_response" \
+    --write-out "%{http_code}" \
+    "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository=dd-trace-py") || curl_exit=$?
+
+  if [[ "$curl_exit" -ne 0 || "$status" != 2?? ]]; then
+    echo "ERROR: Failed to request a GitLab API token from BTI; curl exit $curl_exit, HTTP $status."
+    exit 1
+  fi
+
+  GITLAB_API_PRIVATE_TOKEN=$("$PYTHON_BIN" - "$token_response" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as fp:
+    print(json.load(fp)["token"])
+PY
+  ) || {
+    echo "ERROR: Failed to parse GitLab API token response from BTI."
+    exit 1
+  }
+}
+
+curl_gitlab_api_once() {
+  local description="$1"
+  local output_file="$2"
+  local headers_file="$3"
+  local url="$4"
+  local token_header="$5"
+  local token_value="$6"
+  local curl_exit
+  local status
+
+  curl_exit=0
+  status=$(curl --location --silent --show-error --globoff \
+    --header "$token_header: $token_value" \
+    --dump-header "$headers_file" \
+    --output "$output_file" \
+    --write-out "%{http_code}" \
+    "$url") || curl_exit=$?
+
+  if [[ "$curl_exit" -eq 0 && "$status" == 2?? ]]; then
+    return 0
+  fi
+
+  if [[ "$curl_exit" -ne 0 ]]; then
+    echo "GitLab API request for $description failed with curl exit $curl_exit using $token_header."
+  else
+    echo "GitLab API request for $description returned HTTP $status using $token_header."
+  fi
+
+  CURL_GITLAB_API_LAST_EXIT="$curl_exit"
+  CURL_GITLAB_API_LAST_STATUS="$status"
+  return 1
+}
+
 curl_gitlab_api() {
   local description="$1"
   local output_file="$2"
   local headers_file="$3"
   local url="$4"
   local token_header
-  local status
-  local curl_exit
 
   for token_header in JOB-TOKEN PRIVATE-TOKEN; do
-    curl_exit=0
-    status=$(curl --location --silent --show-error --globoff \
-      --header "$token_header: $CI_JOB_TOKEN" \
-      --dump-header "$headers_file" \
-      --output "$output_file" \
-      --write-out "%{http_code}" \
-      "$url") || curl_exit=$?
-
-    if [[ "$curl_exit" -eq 0 && "$status" == 2?? ]]; then
+    if curl_gitlab_api_once "$description" "$output_file" "$headers_file" "$url" "$token_header" "$CI_JOB_TOKEN"; then
       return 0
     fi
 
-    if [[ "$curl_exit" -ne 0 ]]; then
-      echo "GitLab API request for $description failed with curl exit $curl_exit using $token_header."
-    else
-      echo "GitLab API request for $description returned HTTP $status using $token_header."
-    fi
-
-    if [[ "$curl_exit" -eq 0 && "$status" != "403" && "$status" != "404" ]]; then
+    if [[ "$CURL_GITLAB_API_LAST_EXIT" -eq 0 && ! "$CURL_GITLAB_API_LAST_STATUS" =~ ^40[134]$ ]]; then
       break
     fi
   done
+
+  if [[ "$CURL_GITLAB_API_LAST_EXIT" -eq 0 && "$CURL_GITLAB_API_LAST_STATUS" =~ ^40[134]$ ]]; then
+    get_gitlab_api_private_token
+    if curl_gitlab_api_once "$description" "$output_file" "$headers_file" "$url" "PRIVATE-TOKEN" "$GITLAB_API_PRIVATE_TOKEN"; then
+      return 0
+    fi
+  fi
 
   echo "ERROR: Failed to fetch $description from GitLab API."
   exit 1
