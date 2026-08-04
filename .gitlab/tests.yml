@@ -103,7 +103,10 @@ core/repro_iast_django_shutdown:
     # Preference order: py3.13 and py3.11 carry the most observed failures in CI Visibility.
     # Whichever base venv build_base_venvs actually produced wins.
     REPRO_PYTHONS: "3.13 3.11 3.12 3.10"
-    REPRO_ITERATIONS: "120"
+    # Upper bound only; REPRO_DEADLINE_SECONDS is what actually ends the loop, so the job always
+    # gets to print how many iterations it managed instead of being killed mid-run by GitLab.
+    REPRO_ITERATIONS: "400"
+    REPRO_DEADLINE_SECONDS: "3900"
     # Every third node runs under CPU contention: the failing CI runs were on a machine roughly
     # 2x slower than normal (~11.6s before gunicorn even started, against 5-6s when healthy).
     REPRO_STRESS: "4"
@@ -145,17 +148,41 @@ core/repro_iast_django_shutdown:
       fi
       trap '[[ ${#stress_pids[@]} -gt 0 ]] && kill "${stress_pids[@]}" 2>/dev/null' EXIT
 
+      # These three params carry unrelated flakes of their own ("Incorrect number of spans",
+      # "X-Datadog-Origin" KeyError). Stopping on any non-zero exit would end the job on one of
+      # those long before the hang shows up, so we only stop on the hang's own signature — the
+      # message _dump_hung_server prints. Note the absence of --ddtrace: Auto Test Retries would
+      # otherwise turn a hit into a green run and swallow it, which is how this flake stayed hidden.
+      deadline=$(( SECONDS + REPRO_DEADLINE_SECONDS ))
+      unrelated=0
+      completed=0
       for i in $(seq 1 "${REPRO_ITERATIONS}"); do
+        if (( SECONDS >= deadline )); then
+          echo "=== Wall-clock budget exhausted after ${completed} iterations ==="
+          break
+        fi
         echo "=== node ${node} hash ${hash} iteration ${i}/${REPRO_ITERATIONS} ==="
         if ! riot -P -v run --pass-env -s "${hash}" -- \
             -k "test_iast_vulnerable_request_downstream_django and (config3 or config4 or config5)" \
-            -p no:randomly -x -q; then
-          echo "=== REPRODUCED on node ${node}, hash ${hash}, iteration ${i} ==="
-          echo "=== after_script turns these cores into backtraces; both are kept as artifacts ==="
-          ls -la core core.* 2>/dev/null || echo "no core file"
-          exit 1
+            -p no:randomly -x -q 2>&1 | tee /tmp/repro_iteration.log; then
+          if grep -q "did not answer /shutdown" /tmp/repro_iteration.log; then
+            echo "=== REPRODUCED on node ${node}, hash ${hash}, iteration ${i} ==="
+            echo "=== after_script turns these cores into backtraces, kept as artifacts ==="
+            ls -la core core.* 2>/dev/null || echo "no core file"
+            exit 1
+          fi
+          unrelated=$(( unrelated + 1 ))
+          echo "=== Unrelated failure on iteration ${i} (${unrelated} so far), continuing ==="
         fi
+        completed=$(( completed + 1 ))
       done
-      echo "=== No reproduction in ${REPRO_ITERATIONS} iterations on node ${node} (hash ${hash}) ==="
+      echo "=== No reproduction in ${completed} iterations on node ${node} (hash ${hash}),"
+      echo "=== ${unrelated} of them failed for unrelated reasons ==="
+  # A gunicorn worker with the native extensions loaded cores out at hundreds of MB. The artifact
+  # path is core.*, so keeping the raw dumps risks the upload failing and taking the .bt.txt
+  # backtraces — the only thing we actually need — down with them.
+  after_script:
+    - !reference [.testrunner, after_script]
+    - rm -f core core.[0-9]*
 
 # Required jobs will appear here
