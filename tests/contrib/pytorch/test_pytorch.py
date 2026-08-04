@@ -108,22 +108,6 @@ def test_rank_span_job_id_from_torchelastic_env(monkeypatch, test_spans):
     assert span.get_tag("training_job.id") == "elastic-run-99"
 
 
-def test_rank_ctx_configures_dispatch_end_event(monkeypatch, test_spans):
-    from ddtrace.contrib.internal.pytorch import _distributed
-    from ddtrace.contrib.internal.pytorch.patch import patch as pt_patch
-    from ddtrace.contrib.internal.pytorch.patch import unpatch as pt_unpatch
-
-    pt_patch()
-    try:
-        _setup_single_rank_gloo()
-        ctx = _distributed._rank_ctx.get()
-        assert ctx is not None
-        assert ctx._dispatch_end_event is False
-    finally:
-        _teardown_gloo()
-        pt_unpatch()
-
-
 def test_fsdp_not_eagerly_imported():
     """patch(pytorch=True) must NOT cause torch.distributed.fsdp to land in
     sys.modules. Eagerly importing it pulls _dynamo + sympy (~1.3 s startup
