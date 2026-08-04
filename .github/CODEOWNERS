@@ -47,10 +47,11 @@ scripts/                            @DataDog/python-guild
 tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
-benchmarks/                         @DataDog/apm-ecosystems-performance
-scripts/perf-*                      @DataDog/apm-ecosystems-performance
-scripts/profiles/                   @DataDog/apm-ecosystems-performance
-scripts/run-benchmarks              @DataDog/apm-ecosystems-performance
+benchmarks/                         @DataDog/apm-core-python
+scripts/perf-*                      @DataDog/apm-core-python
+scripts/perf_*                      @DataDog/apm-core-python
+scripts/profiles/                   @DataDog/profiling-python
+scripts/run-benchmarks              @DataDog/apm-core-python
 
 # Root level config files
 conftest.py                         @DataDog/python-guild
@@ -59,14 +60,14 @@ docker-compose.yml                  @DataDog/python-guild
 repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
-.gitlab-ci.yml                      @DataDog/python-guild
-.circleci/                          @DataDog/python-guild
-.github/                            @DataDog/python-guild
-.gitlab/                            @DataDog/python-guild
-.readthedocs.yml                    @DataDog/python-guild
-README.md                           @DataDog/python-guild
+.gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
+.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
+.github/                            @DataDog/python-guild  @DataDog/apm-core-python
+.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
+.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
+/README.md                          @DataDog/python-guild  @DataDog/apm-core-python
 scripts/lint                        @DataDog/python-guild
-mypy.ini                            @DataDog/python-guild
+mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 setup.py                            @DataDog/python-guild
@@ -88,7 +89,7 @@ tests/contrib/django/django1_app/urls.py @DataDog/python-guild
 tests/contrib/flask/app.py         @DataDog/python-guild
 tests/contrib/suitespec.yml         @DataDog/python-guild
 tests/smoke_test.py                 @DataDog/python-guild
-tests/suitespec.py                  @DataDog/python-guild
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 # docs and scripts
@@ -232,6 +233,9 @@ ddtrace/contrib/internal/vllm                                 @DataDog/ml-observ
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/cassettes                                               @DataDog/ml-observability
+tests/cassettes/openai/openai_chat_completions_post_9e52f9d0.json @DataDog/asm-python @DataDog/ml-observability
+tests/cassettes/openai/openai_chat_completions_post_caac525c.json @DataDog/asm-python @DataDog/ml-observability
+tests/cassettes/openai/openai_chat_completions_post_c180b8dd.json @DataDog/asm-python @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                        @DataDog/ml-observability
@@ -371,4 +375,4 @@ supported_versions.json                         @DataDog/apm-core-python @DataDo
 scripts/integration_registry/                   @DataDog/apm-idm-python
 
 # Benchmarks CI setup
-/.gitlab/benchmarks             @DataDog/apm-ecosystems-performance
+/.gitlab/benchmarks             @DataDog/apm-ecosystems-performance @DataDog/apm-core-python
