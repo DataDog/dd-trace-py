@@ -14,6 +14,7 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
+#include "clock.hpp"
 
 /* Use Abseil's flat_hash_map for tracking sampled allocations.
  * flat_hash_map provides excellent performance with low memory overhead,
@@ -423,6 +424,10 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     auto tb =
       heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(size, allocated_memory_val, max_nframe);
+
+    // Stamp the birth time once. it persists across all future export_sample() calls.
+    tb->birth_ns = Datadog::get_monotonic_ns();
+    tb->sample.push_monotonic_ns(tb->birth_ns);
 
     // Export allocation sample right away to avoid holding it
     tb->sample.export_sample();
