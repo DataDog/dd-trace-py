@@ -58,12 +58,12 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     worker = os.environ.get("PYTEST_XDIST_WORKER")
     if not worker:
         return None
-    if _xdist_worker_manifest_wait_done:
-        if _xdist_worker_manifest_wait_result is not None:
-            os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(_xdist_worker_manifest_wait_result)
-        return _xdist_worker_manifest_wait_result
 
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
+    if _xdist_worker_manifest_wait_done:
+        if manifest_env and _xdist_worker_manifest_wait_result is not None:
+            return _xdist_worker_manifest_wait_result
+        return None
     if not manifest_env:
         log.debug(
             "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s",
