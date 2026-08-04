@@ -26,7 +26,7 @@ def enabled() -> bool:
     return bool(appsec_telemetry_config.SCA_ENABLED) and not in_aws_lambda()
 
 
-def _get_installed_packages():
+def _get_installed_packages() -> dict[str, str]:
     """Build a dict of {package_name: version} from all installed distributions.
 
     Uses importlib.metadata directly (not the telemetry writer) so we can
@@ -35,17 +35,18 @@ def _get_installed_packages():
     try:
         from importlib.metadata import distributions
 
-        return {
-            name.lower(): dist.version
-            for dist in distributions()
-            if (name := dist.metadata.get("Name"))  # type: ignore[attr-defined]
-        }
+        installed_packages: dict[str, str] = {}
+        for dist in distributions():
+            name = dist.metadata["Name"]
+            if name:
+                installed_packages[name.lower()] = dist.version
+        return installed_packages
     except Exception:
         log.debug("Could not enumerate installed packages", exc_info=True)
         return {}
 
 
-def _load_and_instrument(after_fork: bool = False):
+def _load_and_instrument(after_fork: bool = False) -> None:
     """Load CVE targets from static JSON and instrument applicable functions.
 
     Groups targets by qualified name and collects all CVE IDs per target.
@@ -60,6 +61,7 @@ def _load_and_instrument(after_fork: bool = False):
     """
     from ddtrace.appsec.sca._cve_loader import load_cve_targets
     from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+    from ddtrace.appsec.sca._types import CveTarget
 
     installed = _get_installed_packages()
     if not installed:
@@ -72,25 +74,20 @@ def _load_and_instrument(after_fork: bool = False):
         return
 
     # Group CVE IDs per target so each registry entry has the full list.
-    grouped: dict[str, dict] = {}
+    grouped: dict[str, CveTarget] = {}
     for entry in applicable:
         target = entry["target"]
         if target not in grouped:
             grouped[target] = {
                 "target": target,
                 "dependency_name": entry["dependency_name"],
-                "cve_ids": set(),
+                "cve_ids": [],
             }
-        grouped[target]["cve_ids"].add(entry["cve_id"])
+        for cve_id in entry["cve_ids"]:
+            if cve_id not in grouped[target]["cve_ids"]:
+                grouped[target]["cve_ids"].append(cve_id)
 
-    targets = [
-        {
-            "target": info["target"],
-            "dependency_name": info["dependency_name"],
-            "cve_ids": list(info["cve_ids"]),
-        }
-        for info in grouped.values()
-    ]
+    targets = list(grouped.values())
 
     log.info(
         "SCA: loading %d targets for %d CVEs",
@@ -110,7 +107,7 @@ def _load_and_instrument(after_fork: bool = False):
     apply_instrumentation_updates(targets=targets, after_fork=after_fork)
 
 
-def post_preload():
+def post_preload() -> None:
     """Load CVE data and instrument targets after ddtrace integrations finish patching.
 
     This runs after patch_all() completes (called from
@@ -129,7 +126,7 @@ def post_preload():
         log.debug("Failed SCA post_preload instrumentation", exc_info=True)
 
 
-def start():
+def start() -> None:
     """Initialize SCA detection when DD_APPSEC_SCA_ENABLED=true.
 
     Enables SCA metadata on tracked dependencies (metadata: []).

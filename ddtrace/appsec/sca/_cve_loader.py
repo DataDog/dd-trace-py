@@ -8,9 +8,10 @@ package versions so only applicable vulnerabilities are registered.
 
 import json
 import os
-from typing import Any
 from typing import Optional
+from typing import TypedDict
 
+from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
@@ -19,6 +20,25 @@ from ddtrace.vendor.packaging.version import Version
 log = get_logger(__name__)
 
 _CVE_DATA_PATH = os.path.join(os.path.dirname(__file__), "_cve_data.json")
+
+
+class _Vulnerability(TypedDict):
+    id: str
+    severity: str
+    description: str
+
+
+class _CveDataEntry(TypedDict):
+    id: str
+    targets: list[str]
+    lang: str
+    dependency_name: str
+    package_versions: list[str]
+    vulnerability: _Vulnerability
+
+
+class _CveData(TypedDict):
+    targets: list[_CveDataEntry]
 
 
 def _parse_version_constraint(constraint: str) -> Optional[tuple[str, Version]]:
@@ -106,7 +126,11 @@ def _any_version_matches(installed_version: str, constraints: list[str]) -> bool
     return any(_compound_constraint_matches(installed_version, c) for c in constraints)
 
 
-def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]:
+def _load_cve_data(raw_data: str) -> _CveData:
+    return json.loads(raw_data)  # type: ignore[no-any-return]
+
+
+def load_cve_targets(installed_packages: dict[str, str]) -> list[CveTarget]:
     """Load CVE targets from the static JSON, filtering by installed versions.
 
     Args:
@@ -116,26 +140,26 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
 
     Returns:
         List of target dicts that apply to the installed packages.
-        Each dict contains: target, dependency_name, cve_id, line.
+        Each dict contains target, dependency_name, and cve_ids.
     """
     try:
         with open(_CVE_DATA_PATH) as f:
-            data = json.load(f)
+            data = _load_cve_data(f.read())
     except (OSError, json.JSONDecodeError) as e:
         log.debug("Failed to load CVE data from %s: %s", _CVE_DATA_PATH, e)
         return []
 
-    applicable_targets: list[dict[str, Any]] = []
+    applicable_targets: list[CveTarget] = []
 
-    for entry in data.get("targets", []):
-        dep_name = entry.get("dependency_name", "")
+    for entry in data["targets"]:
+        dep_name = entry["dependency_name"]
         installed_ver = installed_packages.get(dep_name)
         if installed_ver is None:
             # Package not installed — skip
             continue
 
-        advisory_id = entry.get("id", "")
-        constraints = entry.get("package_versions", [])
+        advisory_id = entry["id"]
+        constraints = entry["package_versions"]
         if not _any_version_matches(installed_ver, constraints):
             log.debug(
                 "Skipping %s: installed %s does not match %s",
@@ -145,7 +169,7 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
             )
             continue
 
-        targets = entry.get("targets", [])
+        targets = entry["targets"]
 
         if not targets or not advisory_id:
             continue
@@ -157,7 +181,7 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
                 {
                     "target": target_name,
                     "dependency_name": dep_name,
-                    "cve_id": advisory_id,
+                    "cve_ids": [advisory_id],
                 }
             )
             log.debug(
@@ -169,5 +193,5 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
                 target_name,
             )
 
-    log.debug("Loaded %d applicable CVE targets out of %d total", len(applicable_targets), len(data.get("targets", [])))
+    log.debug("Loaded %d applicable CVE targets out of %d total", len(applicable_targets), len(data["targets"]))
     return applicable_targets

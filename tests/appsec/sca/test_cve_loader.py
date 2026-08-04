@@ -1,9 +1,21 @@
 """Tests for the static CVE data loader."""
 
+import json
+from pathlib import Path
+
+import jsonschema
+
+from ddtrace.appsec.sca._cve_loader import _CVE_DATA_PATH
 from ddtrace.appsec.sca._cve_loader import _any_version_matches
 from ddtrace.appsec.sca._cve_loader import _compound_constraint_matches
 from ddtrace.appsec.sca._cve_loader import _version_matches
 from ddtrace.appsec.sca._cve_loader import load_cve_targets
+
+
+def test_bundled_cve_data_conforms_to_schema():
+    schema_path = Path(__file__).with_name("cve_data.schema.json")
+    with open(_CVE_DATA_PATH) as data_file, open(schema_path) as schema_file:
+        jsonschema.validate(instance=json.load(data_file), schema=json.load(schema_file))
 
 
 class TestVersionMatches:
@@ -99,14 +111,14 @@ class TestLoadCveTargets:
         """GHSA-652x-xj99-gmcc applies to requests < 2.32.0."""
         installed = {"requests": "2.28.0"}
         targets = load_cve_targets(installed)
-        advisory_ids = [t["cve_id"] for t in targets]
+        advisory_ids = [cve_id for target in targets for cve_id in target["cve_ids"]]
         assert "GHSA-652x-xj99-gmcc" in advisory_ids
 
     def test_skips_non_matching_version(self):
         """requests 2.32.5 is not vulnerable to GHSA-652x-xj99-gmcc."""
         installed = {"requests": "2.32.5"}
         targets = load_cve_targets(installed)
-        advisory_ids = [t["cve_id"] for t in targets]
+        advisory_ids = [cve_id for target in targets for cve_id in target["cve_ids"]]
         assert "GHSA-652x-xj99-gmcc" not in advisory_ids
 
     def test_skips_uninstalled_packages(self):
@@ -119,7 +131,7 @@ class TestLoadCveTargets:
         """jinja2 < 3.1.3 is vulnerable to both vuln-003 and vuln-004."""
         installed = {"jinja2": "3.1.2"}
         targets = load_cve_targets(installed)
-        advisory_ids = {t["cve_id"] for t in targets}
+        advisory_ids = {cve_id for target in targets for cve_id in target["cve_ids"]}
         assert "vuln-003" in advisory_ids
         assert "vuln-004" in advisory_ids
 
@@ -127,7 +139,7 @@ class TestLoadCveTargets:
         """jinja2 3.1.4 matches <3.1.5 but not <3.1.3."""
         installed = {"jinja2": "3.1.4"}
         targets = load_cve_targets(installed)
-        advisory_ids = {t["cve_id"] for t in targets}
+        advisory_ids = {cve_id for target in targets for cve_id in target["cve_ids"]}
         assert "vuln-003" not in advisory_ids  # fixed in 3.1.3
         assert "vuln-004" in advisory_ids  # fixed in 3.1.5
 
@@ -138,7 +150,7 @@ class TestLoadCveTargets:
         t = targets[0]
         assert "target" in t
         assert "dependency_name" in t
-        assert "cve_id" in t
+        assert "cve_ids" in t
         assert t["dependency_name"] == "requests"
         assert ":" in t["target"]  # qualified name format
 
@@ -159,12 +171,11 @@ class TestLoadCveTargets:
         """No duplicate entries for the same CVE+target pair."""
         installed = {"requests": "2.28.0"}
         targets = load_cve_targets(installed)
-        pairs = [(t["cve_id"], t["target"]) for t in targets]
+        pairs = [(cve_id, target["target"]) for target in targets for cve_id in target["cve_ids"]]
         assert len(pairs) == len(set(pairs))
 
     def test_multiple_targets_per_entry(self, tmp_path):
         """An entry with multiple targets emits one result per target."""
-        import json
         from unittest.mock import patch
 
         cve_json = {
@@ -192,11 +203,10 @@ class TestLoadCveTargets:
         assert len(targets) == 2
         target_names = {t["target"] for t in targets}
         assert target_names == {"mod.a:func_a", "mod.b:func_b"}
-        assert all(t["cve_id"] == "vuln-test" for t in targets)
+        assert all(t["cve_ids"] == ["vuln-test"] for t in targets)
 
     def test_multiple_version_constraints(self, tmp_path):
         """An entry with multiple version constraints uses OR logic."""
-        import json
         from unittest.mock import patch
 
         cve_json = {

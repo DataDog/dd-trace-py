@@ -11,14 +11,15 @@ from threading import Lock
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
+from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 
@@ -38,7 +39,7 @@ _registry: Optional[InstrumentationRegistry] = None
 # operations so per-target locks are preserved.
 _instrumenter_instance: Optional[Instrumenter] = None
 _instrumenter_lock = Lock()
-_lazy_module_hooks: dict[str, Any] = {}
+_lazy_module_hooks: dict[str, ModuleHookType] = {}
 _lazy_module_targets: dict[str, set[str]] = {}
 _lazy_hooks_lock = Lock()
 
@@ -215,7 +216,7 @@ class Instrumenter:
                 return False
 
 
-def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False) -> None:
+def apply_instrumentation_updates(targets: list[CveTarget], after_fork: bool = False) -> None:
     """Apply instrumentation updates from CVE data or Remote Configuration.
 
     For each target:
@@ -242,7 +243,7 @@ def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False)
 def _process_additions(
     instrumenter: Instrumenter,
     registry: InstrumentationRegistry,
-    targets: list[dict],
+    targets: list[CveTarget],
     after_fork: bool = False,
 ) -> None:
     """Process target additions: resolve and instrument, or defer via ModuleWatchdog.
@@ -257,8 +258,8 @@ def _process_additions(
 
     for target_info in targets:
         target_name = target_info["target"]
-        dep_name = target_info.get("dependency_name", "")
-        cve_ids = target_info.get("cve_ids", [])
+        dep_name = target_info["dependency_name"]
+        cve_ids = target_info["cve_ids"]
 
         try:
             if registry.has_target(target_name) and registry.is_instrumented(target_name):
