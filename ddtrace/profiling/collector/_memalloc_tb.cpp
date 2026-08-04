@@ -142,7 +142,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
     size_t count = (size_t)scaled_count;
 
     sample.push_alloc(weighted_size, count);
-    // Copies 3 bytes into the sample's string arena, which is pre-reserved and
+    // Copies the domain string into the sample's string arena, which is pre-reserved and
     // retained across clear(), so this does not allocate on the hook path.
     sample.push_allocator_domain(allocator_domain_to_sv(domain));
     push_threadinfo_to_sample(sample);
