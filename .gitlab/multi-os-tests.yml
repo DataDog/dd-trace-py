@@ -40,6 +40,7 @@ os tests macos:
   tags: ["macos:tart"]
   needs: [ "build macos arm64" ]
   variables:
+    GIT_FETCH_EXTRA_FLAGS: "--no-tags"
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
     # Use bash instead of the Tart VM's default zsh
