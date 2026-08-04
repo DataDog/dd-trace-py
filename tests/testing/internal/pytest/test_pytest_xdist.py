@@ -953,7 +953,10 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project)
 
-            env = _make_env(server_without.url)
+            env = _make_env(
+                server_without.url,
+                extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+            )
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_without = [e["content"]["meta"]["test.name"] for e in server_without.get_test_events()]
@@ -964,7 +967,13 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project, message="re-commit for second run")
 
-            env = _make_env(server_with.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
+            env = _make_env(
+                server_with.url,
+                extra={
+                    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1",
+                    DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt"),
+                },
+            )
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
@@ -1002,7 +1011,13 @@ class TestXdistPartialFlush:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
+        env = _make_env(
+            mock_server.url,
+            extra={
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1",
+                DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt"),
+            },
+        )
         result = _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()
