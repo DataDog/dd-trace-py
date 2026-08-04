@@ -34,6 +34,7 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_p_stable_window_s: int
     adaptive_sampling_p_stable_percentile: float
     max_threads: int
+    max_tasks: int
     native_frames: bool
     fast_copy: bool
 
