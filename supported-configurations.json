@@ -4783,6 +4783,13 @@
         "default": null
       }
     ],
+    "DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_RATE_LIMIT": [
       {
         "implementation": "A",
