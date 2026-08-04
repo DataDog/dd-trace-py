@@ -494,8 +494,9 @@ def _is_otel_error_status(int_status_code: int, is_client: bool) -> bool:
     Server spans keep the Datadog default of 5xx, which already matches OTel and stays
     configurable through DD_TRACE_HTTP_SERVER_ERROR_STATUSES. Client spans use 4xx and
     5xx, which is where OTel deliberately differs from the Datadog client default of 4xx
-    only. There is no client-side equivalent of the server setting in any tracer yet, so
-    the client range is fixed here rather than invented as new configuration.
+    only. Java, .NET, Go, Ruby and PHP expose DD_TRACE_HTTP_CLIENT_ERROR_STATUSES for the
+    client side, but Python does not, so the range is fixed here. Wiring up that setting is
+    its own change, not something to smuggle in behind this flag.
     """
     if is_client:
         return 400 <= int_status_code < 600
