@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    MCP: Fixes an issue where MCP instrumentation can fail to initialize when LLM
+    Observability is imported during application startup.

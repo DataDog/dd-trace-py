@@ -31,6 +31,16 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if provider:
             span.set_tag("google_adk.request.provider", provider)
 
+    def set_session_id(self, span: Span, session_id: Optional[str]) -> None:
+        """Set the ADK session id as the LLMObs session for this span.
+
+        Called at agent-span creation so the session id propagates to child tool and
+        code-execute spans, which are created before the agent span finishes.
+        """
+        if not self.llmobs_enabled or not session_id:
+            return
+        _annotate_llmobs_span_data(span, session_id=session_id)
+
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -71,11 +81,21 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
+        # Surface the ADK session metadata (user id, app name) as searchable span tags.
+        session_tags = {}
+        user_id = kwargs.get("user_id")
+        if user_id:
+            session_tags["user_id"] = user_id
+        app_name = kwargs.get("app_name")
+        if app_name:
+            session_tags["app_name"] = app_name
+
         _annotate_llmobs_span_data(
             span,
             name=agent_name or "Google ADK Agent",
             input_value=message,
             output_value=result,
+            tags=session_tags or None,
         )
 
     def _llmobs_set_tags_tool(
@@ -123,6 +143,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         manifest["session_management"] = {
             "session_id": kwargs.get("session_id", ""),
             "user_id": kwargs.get("user_id", ""),
+            "app_name": kwargs.get("app_name", ""),
         }
         manifest["tools"] = self._get_agent_tools(getattr(agent, "tools", []))
 

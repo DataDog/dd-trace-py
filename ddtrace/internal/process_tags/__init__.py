@@ -7,6 +7,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
+from ddtrace.internal._service_state import is_user_provided_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.utils.fnv import fnv1_64
@@ -108,7 +109,6 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
     if not process_tags_config.enabled:
         return None, None
 
-    from ddtrace import config as ddtrace_config
     from ddtrace.internal.settings._inferred_base_service import detect_service
 
     tag_definitions = [
@@ -116,12 +116,10 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
         (ENTRYPOINT_BASEDIR_TAG, lambda: Path(sys.argv[0]).resolve().parent.name),
         (ENTRYPOINT_NAME_TAG, _get_entrypoint_name),
         (ENTRYPOINT_TYPE_TAG, _get_entrypoint_type),
-        (SVC_USER_TAG, lambda: "true" if ddtrace_config._is_user_provided_service else None),
+        (SVC_USER_TAG, lambda: "true" if is_user_provided_service() else None),
         (
             SVC_AUTO_TAG,
-            lambda: (detect_service(sys.argv) or _get_entrypoint_name())
-            if not ddtrace_config._is_user_provided_service
-            else None,
+            lambda: (detect_service(sys.argv) or _get_entrypoint_name()) if not is_user_provided_service() else None,
         ),
     ]
 

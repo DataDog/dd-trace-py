@@ -6,6 +6,7 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 
 from __future__ import annotations
 
+import sys
 from threading import Lock
 import types
 from types import FunctionType
@@ -42,29 +43,35 @@ _lazy_module_targets: dict[str, set[str]] = {}
 _lazy_hooks_lock = Lock()
 
 
-def _first_instr_line(code: types.CodeType) -> int:
-    """Return the line number of the first real bytecode instruction.
+if sys.version_info < (3, 11):
 
-    On Python <3.11, co_firstlineno is the ``def`` line, which has no
-    bytecode instructions.  inject_hook needs the first *instruction*
-    line, which is the first line of the function body.
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the first body-instruction line on Python 3.9 and 3.10."""
+        import dis
 
-    In CPython, ``dis.Instruction.starts_line`` is typically the absolute
-    line number (or ``None``).  We also defensively handle instruction
-    objects that expose a ``line_number`` attribute and prefer it when
-    present before falling back to ``starts_line``.
-    """
-    import dis
+        for instr in dis.get_instructions(code):
+            if instr.starts_line is not None:
+                return instr.starts_line
+        return code.co_firstlineno
 
-    for instr in dis.get_instructions(code):
-        # Prefer explicit line_number when provided by the instruction object.
-        line = getattr(instr, "line_number", None)
-        if line is not None:
-            return line
-        # Otherwise use starts_line when it carries the absolute line number.
-        if instr.starts_line is not None and isinstance(instr.starts_line, int):
-            return instr.starts_line
-    return code.co_firstlineno
+
+elif sys.version_info < (3, 14):
+
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the RESUME instruction's line on Python 3.11 through 3.13."""
+        return code.co_firstlineno
+
+
+else:
+
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the first instruction line on Python 3.14 and later."""
+        import dis
+
+        for instr in dis.get_instructions(code):
+            if instr.line_number is not None:
+                return instr.line_number
+        return code.co_firstlineno
 
 
 def _get_caller_info() -> tuple[str, int, str]:

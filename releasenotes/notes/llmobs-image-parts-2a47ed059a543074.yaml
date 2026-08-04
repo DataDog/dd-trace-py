@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: This introduces support for attaching images to messages on LLM spans. Input and
+    output messages annotated via ``LLMObs.annotate`` now accept an optional ``image_parts`` field, a list
+    of images each with a ``mime_type`` and either inline base64 ``content`` or an ``attachment_key``.
+    This lets images be collected and rendered in LLM Observability.

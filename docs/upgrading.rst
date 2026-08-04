@@ -104,7 +104,7 @@ Upgrade to 4.0
 Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
-Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v3.0. Refer to the migration guide below for next steps::
+Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v4.0. Refer to the migration guide below for next steps::
 
     git grep -P -e "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL" \
     -e "DD_EXCEPTION_DEBUGGING_ENABLED" \

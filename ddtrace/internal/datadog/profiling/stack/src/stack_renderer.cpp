@@ -1,5 +1,6 @@
 #include "stack_renderer.hpp"
 
+#include "origin_task_links.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
@@ -55,6 +56,15 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         sample->push_local_root_span_id(active_span->local_root_span_id);
         sample->push_trace_type(std::string_view(active_span->span_type));
     }
+
+    // If this thread is a ThreadPoolExecutor worker running work offloaded by an
+    // asyncio task, record the originating task so the sample can be correlated
+    // back to it
+    const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_id);
+    if (origin_task) {
+        sample->push_origin_task_id(origin_task->task_id);
+        sample->push_origin_task_name(std::string_view(origin_task->task_name));
+    }
 }
 
 void
@@ -95,6 +105,12 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
             sample->push_span_id(active_span->span_id);
             sample->push_local_root_span_id(active_span->local_root_span_id);
             sample->push_trace_type(std::string_view(active_span->span_type));
+        }
+
+        const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
+        if (origin_task) {
+            sample->push_origin_task_id(origin_task->task_id);
+            sample->push_origin_task_name(std::string_view(origin_task->task_name));
         }
     }
 
@@ -187,13 +203,18 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
         return;
     }
 
-    auto maybe_name_id = Datadog::intern_string(name);
+    std::string display_name = module.empty() ? name : module + "." + name;
+    auto maybe_name_id = Datadog::intern_string(display_name);
     if (!maybe_name_id) {
         return;
     }
     auto name_id = *maybe_name_id;
 
-    auto maybe_filename_id = Datadog::intern_string(module);
+    // Native frames have no source file. Use a synthetic filename so the backend
+    // attributes them to third-party ("library") code via the code-provenance
+    // manifest. This sentinel must match the entry added in code_provenance.py.
+    static constexpr std::string_view native_filename = "<native>";
+    auto maybe_filename_id = Datadog::intern_string(native_filename);
     if (!maybe_filename_id) {
         return;
     }
@@ -239,6 +260,18 @@ StackRenderer::render_stack_end()
     }
 
     sample->flush_sample();
+    SampleManager::drop_sample(sample);
+    sample = nullptr;
+}
+
+void
+StackRenderer::abort_sample()
+{
+    if (sample == nullptr) {
+        return;
+    }
+
+    // Return the partially-built sample to the pool without flushing it.
     SampleManager::drop_sample(sample);
     sample = nullptr;
 }

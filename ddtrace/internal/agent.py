@@ -7,11 +7,15 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.process_tags import compute_base_hash
 from ddtrace.internal.settings._agent import config
+from ddtrace.internal.utils.time import HourGlass
 
 from .utils.http import get_connection
 
 
 log = get_logger(__name__)
+
+# Bound how often /info is polled while the agent is unreachable or unsupported.
+AGENT_CHECK_INTERVAL = 60.0
 
 
 def process_info_headers(resp):
@@ -51,11 +55,25 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
         super().__init__(interval=interval)
 
         self._state = self._agent_check
+        self._agent_check_throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
 
     @abc.abstractmethod
     def info_check(self, agent_info: t.Optional[dict]) -> bool: ...
 
+    def _throttle_agent_check(self) -> None:
+        """Back off from checking the agent until the throttle window elapses.
+
+        Call this only for a confirmed unsupported agent (reachable, but not
+        advertising the required endpoints). Transient ``/info`` failures and
+        upload failures on a supported agent are left to recover on the next
+        tick rather than being suppressed for ``AGENT_CHECK_INTERVAL``.
+        """
+        self._agent_check_throttle.turn()
+
     def _agent_check(self) -> None:
+        if self._agent_check_throttle.trickling():
+            return
+
         try:
             agent_info = info()
         except Exception:
@@ -71,6 +89,12 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
         except Exception:
             self._state = self._agent_check
             log.debug("Error during online operation, reverting to agent check", exc_info=True)
+
+    def reset(self) -> None:
+        # On fork, re-check the agent immediately rather than inheriting the
+        # parent's throttle window.
+        super().reset()
+        self._agent_check_throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
 
     @abc.abstractmethod
     def online(self) -> None: ...

@@ -25,7 +25,6 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -36,6 +35,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -45,6 +45,7 @@ from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -192,6 +193,9 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._store_metadata()
+
+    def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=__version__,
@@ -405,10 +409,11 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
-            core.dispatch("ddtrace.context_provider.activate", (active,))
+            core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
     def _recreate(
         self,
@@ -501,14 +506,17 @@ class Tracer(object):
         parent_id: Optional[int] = None
 
         if child_of is not None:
+            # Both Context and Span expose trace_id/span_id; reading them off the
+            # parent span (native) avoids materializing its Context here.
+            trace_id = child_of.trace_id
+            parent_id = child_of.span_id
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of.context
                 parent = child_of
-
-            trace_id = context.trace_id
-            parent_id = context.span_id
+                # PERF: reuse an existing context that already holds the shared
+                # trace-level state instead of building one Context per span.
+                context = child_of._context_for_child()
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -559,7 +567,7 @@ class Tracer(object):
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
+                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, TRACE_SOURCE_PROPAGATION_KEY):
                     span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
@@ -586,11 +594,11 @@ class Tracer(object):
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
 
-        if config.env:
+        if config.env and not config._otel_trace_semantics_enabled:
             span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        if config.version and not config._otel_trace_semantics_enabled:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
@@ -631,14 +639,29 @@ class Tracer(object):
         return span
 
     def _on_span_finish(self, span: Span) -> None:
-        active = self.current_span()
-        # Debug check: if the finishing span has a parent and its parent
-        # is not the next active span then this is an error in synchronous tracing.
-        if span._parent is not None and active is not span._parent:
-            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
+        # PERF: active() pops finished spans off the active context (via _update_active), so it must
+        # run unconditionally. Skip current_span()'s extra isinstance check when debug logging is off.
+        active = self.context_provider.active()
+        if log.isEnabledFor(logging.DEBUG):
+            # Debug check: if the finishing span has a parent and its parent
+            # is not the next active span then this is an error in synchronous tracing.
+            if span._parent is not None and active is not span._parent:
+                log.debug(
+                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                )
 
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
+
+        integration_name = span._get_str_attribute(COMPONENT) or span._span_api
+        existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
+        if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+            if not existing_service_source or (
+                existing_service_source
+                and not existing_service_source.startswith("opt.")
+                and integration_name != span._span_api
+            ):
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
