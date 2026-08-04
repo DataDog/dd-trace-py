@@ -2,6 +2,43 @@
 # Multi-OS test script for Unix-like systems (Linux/macOS)
 set -eo pipefail
 
+curl_gitlab_api() {
+  local description="$1"
+  local output_file="$2"
+  local headers_file="$3"
+  local url="$4"
+  local token_header
+  local status
+  local curl_exit
+
+  for token_header in JOB-TOKEN PRIVATE-TOKEN; do
+    curl_exit=0
+    status=$(curl --location --silent --show-error --globoff \
+      --header "$token_header: $CI_JOB_TOKEN" \
+      --dump-header "$headers_file" \
+      --output "$output_file" \
+      --write-out "%{http_code}" \
+      "$url") || curl_exit=$?
+
+    if [[ "$curl_exit" -eq 0 && "$status" == 2?? ]]; then
+      return 0
+    fi
+
+    if [[ "$curl_exit" -ne 0 ]]; then
+      echo "GitLab API request for $description failed with curl exit $curl_exit using $token_header."
+    else
+      echo "GitLab API request for $description returned HTTP $status using $token_header."
+    fi
+
+    if [[ "$curl_exit" -eq 0 && "$status" != "403" && "$status" != "404" ]]; then
+      break
+    fi
+  done
+
+  echo "ERROR: Failed to fetch $description from GitLab API."
+  exit 1
+}
+
 download_macos_arm64_wheels() {
   local pywheels_dir="$CI_PROJECT_DIR/pywheels"
   local artifacts_dir="$TMPDIR/gitlab-artifacts"
@@ -25,11 +62,11 @@ download_macos_arm64_wheels() {
     local jobs_headers="$artifacts_dir/jobs-page-${page}.headers"
     local page_job_ids="$artifacts_dir/job-ids-page-${page}.txt"
 
-    curl --fail --location --silent --show-error --globoff \
-      --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-      --dump-header "$jobs_headers" \
-      --output "$jobs_response" \
-      "$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=success&per_page=100&page=$page"
+    curl_gitlab_api \
+      "jobs for pipeline $CI_PIPELINE_ID page $page" \
+      "$jobs_response" \
+      "$jobs_headers" \
+      "$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?per_page=100&page=$page&include_retried=true"
 
     if ! "$PYTHON_BIN" - "$jobs_response" > "$page_job_ids" <<'PY'; then
 import json
@@ -71,11 +108,13 @@ PY
   mkdir -p "$pywheels_dir"
   for job_id in "${job_ids[@]}"; do
     local artifact_zip="$artifacts_dir/build-macos-arm64-${job_id}.zip"
+    local artifact_headers="$artifacts_dir/build-macos-arm64-${job_id}.headers"
 
     echo "Downloading artifacts for build macos arm64 job $job_id..."
-    curl --fail --location --silent --show-error \
-      --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-      --output "$artifact_zip" \
+    curl_gitlab_api \
+      "artifacts for build macos arm64 job $job_id" \
+      "$artifact_zip" \
+      "$artifact_headers" \
       "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/$job_id/artifacts"
 
     if ! unzip -o -qq "$artifact_zip" "pywheels/*" -d "$CI_PROJECT_DIR"; then
