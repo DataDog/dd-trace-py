@@ -77,9 +77,21 @@ def get_caller_frame_info() -> tuple:
 
 
 _DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
+_MODULE_HOOKS: dict[tuple[str, str], list[Callable[[Any], None]]] = {}
+
+
+def _module_name(module: Any) -> str:
+    return module if isinstance(module, str) else module.__name__
+
+
+def _unregister_module_hooks(module: Any, name: str) -> None:
+    module_name = _module_name(module)
+    for hook in _MODULE_HOOKS.pop((module_name, name), ()):
+        ModuleWatchdog.unregister_module_hook(module_name, hook)
 
 
 def try_unwrap(module: Any, name: str) -> None:
+    _unregister_module_hooks(module, name)
     try:
         (parent, attribute, _) = resolve_path(module, name)
         if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
@@ -91,12 +103,14 @@ def try_unwrap(module: Any, name: str) -> None:
 
 
 def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[..., Any]) -> None:
-    @ModuleWatchdog.after_module_imported(module_name)
     def _(module: Any) -> None:
         try:
             wrap_object(module, name, FunctionWrapper, (wrapper,))
         except (ImportError, AttributeError):
             log.debug("Module %s.%s does not exist", module_name, name)
+
+    _MODULE_HOOKS.setdefault((module_name, name), []).append(_)
+    ModuleWatchdog.register_module_hook(module_name, _)
 
 
 def wrap_object(
