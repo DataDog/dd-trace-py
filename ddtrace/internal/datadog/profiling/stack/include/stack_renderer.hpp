@@ -66,6 +66,7 @@ class StackRenderer
   public:
     class [[nodiscard]] RenderCycle
     {
+        // Non-owning scope guard. The StackRenderer that creates this guard must outlive it.
         StackRenderer* renderer = nullptr;
         std::uint64_t cycle_id = 0;
 
