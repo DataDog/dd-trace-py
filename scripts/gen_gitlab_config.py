@@ -30,6 +30,13 @@ import typing as t
 MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+GITLAB_TRUE = "true"
+GITLAB_FALSE = "false"
+
+
+def _get_bool_env(name: str) -> str:
+    """Return a normalized GitLab boolean string from an environment variable."""
+    return GITLAB_TRUE if os.getenv(name) == GITLAB_TRUE else GITLAB_FALSE
 
 
 @dataclass
@@ -112,7 +119,7 @@ class JobSpec:
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
-        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
+        _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
@@ -132,7 +139,7 @@ class JobSpec:
         )
         if not self.skip_pip_cache:
             lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{_get_testrunner_image_hash()}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -720,7 +727,7 @@ def gen_cached_testrunner() -> None:
             template(
                 "cached-testrunner",
                 current_week=datetime.datetime.now().isocalendar().week,
-                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
+                testrunner_image_hash=_get_testrunner_image_hash(),
             )
         )
 
@@ -748,8 +755,8 @@ def gen_build_base_venvs() -> None:
             template(
                 "build-base-venvs",
                 python_versions=python_versions_str,
-                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
-                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
+                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
 
@@ -788,18 +795,8 @@ argp.add_argument(
     metavar="FILE",
     help="Treat this file as changed for suite/precheck detection (can be repeated). Bypasses PR detection.",
 )
-args = argp.parse_args()
-if args.debug:
-    LOGGER.setLevel(logging.DEBUG)
-elif args.verbose:
-    LOGGER.setLevel(logging.INFO)
-
-# If --file args are provided, inject them into needs_testrun so gen_build_docs and
-# gen_pre_checks also use the supplied files instead of querying GitHub.
-if args.files:
-    import needs_testrun as _needs_testrun
-
-    _needs_testrun._changed_files_override = set(args.files)
+args: t.Any = None
+_testrunner_image_hash: t.Optional[str] = None
 
 ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
@@ -809,17 +806,23 @@ MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
 
-# Compute a short hash of the testrunner image so cache keys are automatically
-# invalidated whenever the image changes (e.g. Python patch version bumps).
-import ruamel.yaml as _ruamel_yaml  # noqa: E402
-
-
-_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
-TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the project root, scripts, and tests folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+
+def _get_testrunner_image_hash() -> str:
+    global _testrunner_image_hash
+
+    if _testrunner_image_hash is not None:
+        return _testrunner_image_hash
+
+    import ruamel.yaml as _ruamel_yaml
+
+    testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+    _testrunner_image_hash = hashlib.sha256(testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
+    return _testrunner_image_hash
 
 
 def template(name: str, **params):
@@ -829,18 +832,38 @@ def template(name: str, **params):
     return "\n" + template_path.read_text().format(**params).strip() + "\n"
 
 
-has_error = False
+def main(argv: t.Optional[list[str]] = None) -> int:
+    global args
 
-LOGGER.info("Configuration generation steps:")
-for name, func in dict(globals()).items():
-    if name.startswith("gen_"):
-        desc = func.__doc__.splitlines()[0]
-        try:
-            start = time()
-            func()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
-        except Exception as e:
-            LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
-            has_error = True
+    args = argp.parse_args(argv)
+    if args.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif args.verbose:
+        LOGGER.setLevel(logging.INFO)
 
-sys.exit(has_error)
+    # If --file args are provided, inject them into needs_testrun so gen_build_docs and
+    # gen_pre_checks also use the supplied files instead of querying GitHub.
+    if args.files:
+        import needs_testrun as _needs_testrun
+
+        _needs_testrun._changed_files_override = set(args.files)
+
+    has_error = False
+
+    LOGGER.info("Configuration generation steps:")
+    for name, func in dict(globals()).items():
+        if name.startswith("gen_"):
+            desc = func.__doc__.splitlines()[0]
+            try:
+                start = time()
+                func()
+                LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
+            except Exception as e:
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
+
+    return int(has_error)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
