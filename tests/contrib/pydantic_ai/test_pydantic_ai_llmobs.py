@@ -1098,6 +1098,38 @@ class TestPydanticAIAgentManifest:
 
         assert manifest["model"] == "gpt-4o"
 
+    @pytest.mark.parametrize(
+        "declared,expected",
+        [
+            ("openai:gpt-4o", "gpt-4o"),
+            # A bedrock or azure model name contains its own colon. Splitting on the last one reports
+            # the version suffix as the model, which is wrong data rather than missing data.
+            ("bedrock:anthropic.claude-v1:0", "anthropic.claude-v1:0"),
+            ("gpt-4o", "gpt-4o"),
+        ],
+    )
+    async def test_declared_model_string_splits_on_the_first_colon(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans, declared, expected
+    ):
+        agent = pydantic_ai.Agent(declared, name="test_agent", defer_model_check=True)
+        await agent.run("Hello, world!", model=_function_model())
+        manifest = _manifest_of(test_spans.pop_traces()[0][0])
+
+        assert manifest["model"] == expected
+
+    async def test_non_string_description_never_ships(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """description takes whatever the caller passed, so a non-string would ship as a repr.
+
+        The same guard system_prompts and metadata already have; description was the one that lacked it.
+        """
+        agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
+        object.__setattr__(agent, "_description", _UnserializableSentinel())
+        await agent.run("Hello, world!")
+        manifest = _manifest_of(test_spans.pop_traces()[0][0])
+
+        assert "description" not in manifest
+        assert "object at 0x" not in safe_json(manifest)
+
     async def test_non_string_system_prompts_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """pydantic-ai does not validate system_prompt, so a non-string would ship as a repr.
 

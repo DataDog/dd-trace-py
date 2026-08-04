@@ -509,7 +509,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # like one. pydantic-ai may still infer a name from the caller's frame, which we cannot detect.
         _put_field(fields, "name", getattr(agent, "name", None))
         # _description exists from 1.107.1 on, so on older versions the key never appears.
-        _put_field(fields, "description", getattr(agent, "_description", None))
+        description = getattr(agent, "_description", None)
+        _put_field(fields, "description", description if isinstance(description, str) else None)
         metadata = getattr(agent, "_metadata", None)
         _put_field(fields, "metadata", _wire_value(metadata) if isinstance(metadata, dict) else None)
         return fields
@@ -551,8 +552,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         model = getattr(agent, "model", None)
         if isinstance(model, str):
-            # With defer_model_check the declared value stays a string like "openai:gpt-4o".
-            _, _, declared_name = model.rpartition(":")
+            # With defer_model_check the declared value stays a string like "openai:gpt-4o". Split on
+            # the FIRST colon: a bedrock or azure model name contains its own, and rpartition would
+            # report "bedrock:anthropic.claude-v1:0" as the model "0".
+            _, _, declared_name = model.partition(":")
             _put_field(fields, "model", declared_name or model)
         elif model:
             model_name, _ = self._get_model_and_provider(model)
