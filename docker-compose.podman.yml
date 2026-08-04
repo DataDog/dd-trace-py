@@ -190,7 +190,9 @@ services:
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
           CARGO_BUILD_JOBS: "12"
           CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
-          DD_USE_SCCACHE: "${DD_USE_SCCACHE:-1}"
+          # sccache intermittently loses temporary compiler files in the Bits Podman environment.
+          # TODO(dubloom): Re-enable it after upgrading sccache in the testrunner image and validating the fix.
+          DD_USE_SCCACHE: "${DD_USE_SCCACHE:-0}"
           SCCACHE_DIR: "/home/bits/.cache/sccache"
           DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
         network_mode: host
