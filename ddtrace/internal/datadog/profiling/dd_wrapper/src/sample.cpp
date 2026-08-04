@@ -733,6 +733,20 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 }
 
 bool
+Datadog::Sample::push_allocator_domain(std::string_view allocator_domain)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::allocator_domain, allocator_domain)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
 Datadog::Sample::push_gpu_device_name(std::string_view device_name)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety

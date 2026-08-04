@@ -109,8 +109,29 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 }
 
+/* Map a CPython allocator domain to the value we report in the "allocator
+ * domain" sample label.
+ *
+ * The returned views point at string literals, so they stay valid for the
+ * lifetime of the process and this helper never allocates. Only OBJ and MEM
+ * are hooked today; RAW is mapped anyway so a future hook can't silently
+ * report an unlabelled sample. */
+static inline std::string_view
+allocator_domain_to_sv(PyMemAllocatorDomain domain)
+{
+    switch (domain) {
+        case PYMEM_DOMAIN_OBJ:
+            return "obj";
+        case PYMEM_DOMAIN_MEM:
+            return "mem";
+        case PYMEM_DOMAIN_RAW:
+            return "raw";
+    }
+    return "unknown";
+}
+
 void
-traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -121,17 +142,20 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
     size_t count = (size_t)scaled_count;
 
     sample.push_alloc(weighted_size, count);
+    // Copies 3 bytes into the sample's string arena, which is pre-reserved and
+    // retained across clear(), so this does not allocate on the hook path.
+    sample.push_allocator_domain(allocator_domain_to_sv(domain));
     push_threadinfo_to_sample(sample);
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
 }
 
 // AIDEV-NOTE: Constructor calls init_sample() which reads CPython structs directly
-traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     if (max_nframe == 0) {
         return;
     }
 
-    init_sample(size, weighted_size, max_nframe);
+    init_sample(size, weighted_size, max_nframe, domain);
 }
