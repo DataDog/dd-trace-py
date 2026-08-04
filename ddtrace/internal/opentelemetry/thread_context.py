@@ -8,7 +8,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
-from ddtrace.internal.context_watcher import register_context_watcher
 from ddtrace.internal.settings._config import config
 
 
@@ -39,8 +38,6 @@ if sys.platform == "linux":
                 detach_otel_thread_context()
 
         def _sync_active_otel_thread_context() -> None:
-            # active() is the provider contract and also discards finished
-            # spans before their context is published to native thread-local storage.
             _sync_otel_thread_context(tracer.context_provider.active())
 
         def _on_context_provider_activate(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
@@ -49,9 +46,11 @@ if sys.platform == "linux":
 
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
         core.on("python.context.switch", _sync_active_otel_thread_context)
-        # Keep this listener installed when native watching is unavailable:
-        # greenlet and the compatibility integrations publish the same event.
-        register_context_watcher()
+
+        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14) and config._otel_thread_context_enabled:
+            from ddtrace.internal.native._native import register_context_watcher
+
+            register_context_watcher()
         return _on_context_provider_activate, _sync_active_otel_thread_context
 
 else:
