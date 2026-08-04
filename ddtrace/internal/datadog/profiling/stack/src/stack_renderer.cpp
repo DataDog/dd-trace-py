@@ -33,8 +33,9 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         return;
     }
 
-    // Return an incomplete Sample before acquiring storage for the next cycle.
+    // Return an incomplete Sample before asking the pool for its replacement.
     sample.reset();
+    // Keep acquisition separate from the reset above so start_sample() can reuse the slot we just returned.
     sample.reset(SampleManager::start_sample());
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
