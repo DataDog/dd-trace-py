@@ -117,14 +117,13 @@ def test_aggregator_reset_default_args():
     sampling_proc = aggr.sampling_processor
     dm_writer = DummyWriter()
     aggr.writer = dm_writer
-    # Generate a span to init _traces and _span_metrics
+    # Generate a span to init _traces
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
     # Expect SpanAggregator to have the processors and span in _traces
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
     # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
     aggr.reset()
     assert dd_proc in aggr.dd_processors
@@ -132,7 +131,6 @@ def test_aggregator_reset_default_args():
     assert aggr.writer is not dm_writer
     assert sampling_proc is aggr.sampling_processor
     assert not aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 0
 
 
 def test_aggregator_reset_apm_opt_out_preserves_sampling():
@@ -193,7 +191,6 @@ def test_aggregator_reset_with_args():
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
     assert aggr.writer._api_version == "v0.5"
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
@@ -206,7 +203,6 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
 
 
 def test_aggregator_bad_processor():
@@ -489,39 +485,36 @@ def test_trace_128bit_processor(trace_id, tracer):
     }
 )
 def test_span_creation_metrics():
-    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
+    """Each span start/finish records a spans_created/spans_finished telemetry point directly, with
+    no in-Python batching (the native worker aggregates the points). The integration_name tag is
+    resolved at that moment, so a component set during the span is only reflected at finish.
+    """
     import mock
 
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import tracer
 
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+    # autospec keeps ``self`` in the recorded args (the recorder is __slots__-ed, so a per-instance
+    # patch is not possible). A recorder is bound to one metric *and* one tag set, so both the
+    # created/finished split and the integration name are read off the recorder itself.
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
         for _ in range(300):
             tracer.trace("span").finish()
 
+        # component is set after the span starts, so it is only reflected at finish time
         with tracer.trace("span") as span:
             span.set_tag("component", "custom")
 
-        mock_tm.assert_has_calls(
-            [
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-            ]
-        )
+    def _integration_name(recorder):
+        return dict(recorder._tags)["integration_name"]
 
-        mock_tm.reset_mock()
-        tracer.shutdown()
-        # On span finished the span has a different integration name:
-        mock_tm.assert_has_calls(
-            [
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
-            ]
-        )
+    created = [_integration_name(c.args[0]) for c in mock_add.call_args_list if c.args[0]._name == "spans_created"]
+    finished = [_integration_name(c.args[0]) for c in mock_add.call_args_list if c.args[0]._name == "spans_finished"]
+
+    # One spans_created point per started span; integration_name is "datadog" (component unset at start)
+    assert created == ["datadog"] * 301
+    # One spans_finished point per finished span; the last span reports integration_name "custom"
+    assert finished == ["datadog"] * 300 + ["custom"]
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler(tracer):
