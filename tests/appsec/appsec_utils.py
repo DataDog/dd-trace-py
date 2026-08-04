@@ -315,8 +315,11 @@ def _dump_hung_server(server_process, known_worker_pids=()) -> None:
         except Exception:
             continue
         aborted.append((proc.pid, cwd))
-    # Let the faulthandler output reach stderr and the kernel finish writing the cores.
-    time.sleep(10)
+    # Let the faulthandler output reach stderr, then wait for the kernel to finish writing. A worker
+    # with the native extensions loaded dumps hundreds of MB, so a fixed sleep can easily glob a core
+    # that is still growing and hand gdb a truncated file.
+    time.sleep(5)
+    _wait_for_cores(aborted)
     for pid, _ in aborted:
         try:
             if psutil.Process(pid).is_running():
@@ -327,6 +330,53 @@ def _dump_hung_server(server_process, known_worker_pids=()) -> None:
     _collect_cores(aborted)
 
 
+def _find_core(pid, cwd):
+    """Return the path of the core the given worker left in cwd, or None.
+
+    core_pattern is core.%p on some hosts and a bare "core" on others, so both names are candidates.
+    """
+    for name in ("core.%d" % pid, "core"):
+        candidate = os.path.join(cwd, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _wait_for_cores(aborted, timeout=180.0) -> None:
+    """Block until every core stops growing, so gdb is never handed a half-written file.
+
+    Size stability is the only signal available: the kernel gives no notification that a dump is
+    complete, and the file appears at full inode size immediately on some filesystems.
+    """
+    deadline = time.time() + timeout
+    for pid, cwd in aborted:
+        previous = -1
+        stable_for = 0
+        while time.time() < deadline:
+            path = _find_core(pid, cwd)
+            if path is None:
+                time.sleep(1)
+                continue
+            try:
+                current = os.path.getsize(path)
+            except OSError:
+                time.sleep(1)
+                continue
+            if current == previous and current > 0:
+                stable_for += 1
+                if stable_for >= 3:
+                    break
+            else:
+                stable_for = 0
+            previous = current
+            time.sleep(1)
+        path = _find_core(pid, cwd)
+        if path is None:
+            print("=== No core appeared for worker %s within %.0fs ===" % (pid, timeout), flush=True)
+        else:
+            print("=== Core for worker %s settled at %d bytes ===" % (pid, os.path.getsize(path)), flush=True)
+
+
 def _collect_cores(aborted) -> None:
     """Move the cores the aborted workers left behind where .gitlab/scripts/generate-core-backtraces.sh looks.
 
@@ -335,20 +385,17 @@ def _collect_cores(aborted) -> None:
     """
     target_dir = os.environ.get("CI_PROJECT_DIR") or os.getcwd()
     for pid, cwd in aborted:
-        for name in ("core.%d" % pid, "core"):
-            source = os.path.join(cwd, name)
-            if not os.path.isfile(source):
-                continue
-            destination = os.path.join(target_dir, "core.%d" % pid)
-            try:
-                if source != destination:
-                    os.replace(source, destination)
-                print("Core dump of worker %s available at %s" % (pid, destination), flush=True)
-            except Exception as exc:
-                print("Could not move core dump %s: %r" % (source, exc), flush=True)
-            break
-        else:
+        source = _find_core(pid, cwd)
+        if source is None:
             print("No core dump found for worker %s in %s" % (pid, cwd), flush=True)
+            continue
+        destination = os.path.join(target_dir, "core.%d" % pid)
+        try:
+            if source != destination:
+                os.replace(source, destination)
+            print("Core dump of worker %s available at %s" % (pid, destination), flush=True)
+        except Exception as exc:
+            print("Could not move core dump %s: %r" % (source, exc), flush=True)
 
 
 def appsec_application_server(

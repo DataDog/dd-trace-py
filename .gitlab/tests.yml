@@ -180,9 +180,10 @@ core/repro_iast_django_shutdown:
       echo "=== ${unrelated} of them failed for unrelated reasons ==="
   # A gunicorn worker with the native extensions loaded cores out at hundreds of MB. The artifact
   # path is core.*, so keeping the raw dumps risks the upload failing and taking the .bt.txt
-  # backtraces — the only thing we actually need — down with them.
+  # backtraces — the only thing we actually need — down with them. Delete by exclusion rather than
+  # with a core.[0-9]* glob, which would also match core.<pid>.bt.txt and throw away the output.
   after_script:
     - !reference [.testrunner, after_script]
-    - rm -f core core.[0-9]*
+    - find . -maxdepth 1 \( -name 'core' -o -name 'core.*' \) ! -name '*.bt.txt' -print -delete
 
 # Required jobs will appear here
