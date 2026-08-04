@@ -47,6 +47,7 @@ from ddtrace.testing.internal.pytest.xdist import discard_foreign_generated_mani
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import is_xdist_enabled_from_args
 from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
+from ddtrace.testing.internal.pytest.xdist import warn_if_worker_manifest_unusable
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -1557,6 +1558,7 @@ def pytest_load_initial_conftests(
 
     # A manifest env var inherited from an unrelated pytest session must not put this process in manifest mode.
     discard_foreign_generated_manifest_env()
+    warn_if_worker_manifest_unusable()
 
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
