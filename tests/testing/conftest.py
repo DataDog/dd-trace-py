@@ -7,10 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
-from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
+from ddtrace.testing.internal.offline_mode import reset_offline_mode
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
@@ -90,42 +88,19 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def clear_test_optimization_subprocess_env() -> t.Iterator[None]:
-    """Prevent outer Test Optimization mode from leaking into subprocess-based tests.
+def clear_outer_manifest_env() -> t.Iterator[None]:
+    """Do not let the manifest of an outer xdist session leak into these tests.
 
-    Many tests in this package run nested pytest subprocesses from an outer xdist worker. The outer process can have
-    Test Optimization manifest/payload-file env vars that are only valid for the outer run; if copied into a nested
-    subprocess, its controller can be misclassified as manifest/offline mode for the wrong workspace.
+    These tests run inside an xdist worker, which shares its process environment with the controller that generated
+    the manifest -- so unlike a subprocess, they cannot rely on the plugin's ownership check to ignore it.  Reset the
+    cached OfflineMode too, since it is resolved from the environment on first use.
     """
-    for name in (
-        DD_TEST_OPTIMIZATION_ENV_DATA_FILE,
-        DD_TEST_OPTIMIZATION_MANIFEST_FILE,
-        DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
-        TEST_UNDECLARED_OUTPUTS_DIR,
-    ):
-        os.environ.pop(name, None)
-    try:
-        import ddtrace.testing.internal.offline_mode as offline_mode
-
-        offline_mode._offline_mode = None
-    except Exception:
-        pass
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
     yield
-    # Clear again after the test: some tests intentionally set these vars while building subprocess environments. We do
-    # not want pytest's next test to inherit either the original outer-run values or values created by this test.
-    for name in (
-        DD_TEST_OPTIMIZATION_ENV_DATA_FILE,
-        DD_TEST_OPTIMIZATION_MANIFEST_FILE,
-        DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
-        TEST_UNDECLARED_OUTPUTS_DIR,
-    ):
-        os.environ.pop(name, None)
-    try:
-        import ddtrace.testing.internal.offline_mode as offline_mode
-
-        offline_mode._offline_mode = None
-    except Exception:
-        pass
+    # Again after the test: some tests set the var themselves while building subprocess environments.
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
 
 
 @pytest.fixture(autouse=True)

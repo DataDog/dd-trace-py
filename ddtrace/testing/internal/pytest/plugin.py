@@ -43,11 +43,8 @@ from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
-from ddtrace.testing.internal.pytest.xdist import discard_foreign_generated_manifest_env
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
-from ddtrace.testing.internal.pytest.xdist import is_xdist_enabled_from_args
-from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
-from ddtrace.testing.internal.pytest.xdist import warn_if_worker_manifest_unusable
+from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -1556,9 +1553,8 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
-    # A manifest env var inherited from an unrelated pytest session must not put this process in manifest mode.
-    discard_foreign_generated_manifest_env()
-    warn_if_worker_manifest_unusable()
+    # An inherited manifest env var only applies to this process if our own controller generated it.
+    resolve_inherited_manifest_env()
 
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
@@ -1574,10 +1570,8 @@ def pytest_load_initial_conftests(
         yield
         return
 
-    if is_xdist_enabled_from_args(args) and not is_xdist_worker_process():
-        xdist_manifest = generate_xdist_manifest(session_manager)
-        if xdist_manifest is not None:
-            _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, xdist_manifest)
+    # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
+    _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
