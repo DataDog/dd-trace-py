@@ -2020,7 +2020,8 @@ venv = Venv(
         ),
         Venv(
             name="testing",
-            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
+            # command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
