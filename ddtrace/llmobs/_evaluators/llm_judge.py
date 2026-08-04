@@ -13,6 +13,7 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.llmobs._constants import EVALUATED_EXPERIMENT_ID_TAG
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
@@ -775,6 +776,13 @@ class LLMJudge(BaseEvaluator):
         # propagating to the experiments SDK (which records them on the metric).
         judge_ref = None
         with judge_cm as judge_span:
+            # Record the evaluated span's experiment scope so the UI can resolve the back-link to it
+            if context.evaluated_experiment_id:
+                _best_effort(
+                    LLMObs.annotate,
+                    judge_span,
+                    tags={EVALUATED_EXPERIMENT_ID_TAG: context.evaluated_experiment_id},
+                )
             _best_effort(LLMObs.annotate, judge_span, input_data=messages)
             response = self._client(self._provider, messages, json_schema, model, self._model_params)
             _best_effort(LLMObs.annotate, judge_span, output_data=response)

@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.llmobs._constants import EVAL_NAME_TAG
 from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import EVALUATED_EXPERIMENT_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
 from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
 from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
@@ -1003,6 +1004,7 @@ def _anchored_context(llmobs):
         span_id=ref["span_id"],
         trace_id=ref["trace_id"],
         evaluated_ml_app="my-app",
+        evaluated_experiment_id="exp-1",
     )
 
 
@@ -1056,6 +1058,22 @@ class TestLLMJudgeJudgeTrace:
         tags = get_llmobs_tags(seen["span"])
         assert tags[EVALUATED_SPAN_ID_TAG] == ctx.span_id
         assert tags[EVALUATED_TRACE_ID_TAG] == ctx.trace_id
+
+    def test_judge_span_carries_evaluated_experiment_id(self, llmobs):
+        # The judge records the evaluated span's experiment id as a scope hint for the UI back-link.
+        # That this does NOT flip the judge into the experiments scope is guarded by
+        # test_judge_runs_outside_experiment_scope (same anchored context, asserts SCOPE is None).
+        seen = {}
+        ctx = _anchored_context(llmobs)
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(ctx)
+        assert get_llmobs_tags(seen["span"])[EVALUATED_EXPERIMENT_ID_TAG] == ctx.evaluated_experiment_id
+
+    def test_no_evaluated_experiment_id_no_tag(self, llmobs):
+        # Non-experiment evaluators (no experiment id on the context) must not carry the tag.
+        seen = {}
+        ctx = EvaluatorContext(input_data={}, output_data="hi", span_id="1", trace_id="2")
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(ctx)
+        assert EVALUATED_EXPERIMENT_ID_TAG not in get_llmobs_tags(seen["span"])
 
     def test_judge_runs_outside_experiment_scope(self, llmobs):
         """Evaluators run after the experiment span closes, so the judge trace must be a

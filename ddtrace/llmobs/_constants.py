@@ -193,6 +193,11 @@ EVALUATED_ML_APP_TAG = "evaluated_ml_app"
 EVALUATED_SPAN_ID_TAG = "evaluated_span_id"
 EVALUATED_TRACE_ID_TAG = "evaluated_trace_id"
 EVALUATED_SESSION_ID_TAG = "evaluated_session_id"
+# Experiment id of the evaluated span, recorded on a judge span so the UI can resolve the
+# evaluated-span back-link (experiment task spans live in the experiments index, not the default
+# trace scope). Deliberately NOT the reserved ``experiment_id`` tag/baggage — that would flip the
+# judge span into ``dd_scope="experiments"`` and out of ``datadog-evaluations``.
+EVALUATED_EXPERIMENT_ID_TAG = "evaluated_experiment_id"
 EVAL_SOURCE_TYPE_TAG = "eval_source_type"
 # meta.metadata key (NOT a tag — tags are lowercased) carrying the evaluated span's display name,
 # case-preserved. Matches managed judge spans and the eval Health page's "Evaluated" column read.

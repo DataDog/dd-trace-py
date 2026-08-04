@@ -257,6 +257,9 @@ class EvaluatorContext:
     :param evaluated_ml_app: The ml_app of the application under evaluation (read-only). Optional string.
                              Pass through to ``LLMObs.evaluation(evaluated_ml_app=...)`` when emitting a
                              judge trace, so the judge trace can be grouped with the app it judges.
+    :param evaluated_experiment_id: The id of the experiment the evaluated task span belongs to
+                                    (read-only). Recorded on the judge span as a scope hint so the UI
+                                    can resolve the evaluated span in the experiments index.
     """
 
     input_data: JSONType
@@ -266,6 +269,7 @@ class EvaluatorContext:
     span_id: Optional[str] = None
     trace_id: Optional[str] = None
     evaluated_ml_app: Optional[str] = None
+    evaluated_experiment_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -2898,6 +2902,7 @@ class Experiment:
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
                                 evaluated_ml_app=evaluated_ml_app,
+                                evaluated_experiment_id=self._id,
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
@@ -2921,6 +2926,7 @@ class Experiment:
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
                                 evaluated_ml_app=evaluated_ml_app,
+                                evaluated_experiment_id=self._id,
                             )
                             eval_result = await asyncio.to_thread(
                                 evaluator.evaluate,  # type: ignore[union-attr]
