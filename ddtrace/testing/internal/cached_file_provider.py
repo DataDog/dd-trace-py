@@ -220,8 +220,10 @@ class CachedFileDataProvider:
         tags: t.Optional[dict[str, str]] = None,
     ) -> bool:
         # AIDEV-NOTE: No-op because manifest mode used to imply Bazel's payload-files mode, where there is no network.
-        # A process in manifest mode *without* payload-files mode (an xdist worker reusing its controller's cache) does
-        # have a backend, and uses SessionManager.coverage_upload_client instead. See coverage_report_upload_xdist.md.
+        # That assumption no longer holds: a process in manifest mode *without* payload-files mode (an xdist worker
+        # reusing its controller's cache) does have a backend and is expected to upload its own report, because the
+        # intake merges the reports of a session. Such processes go through SessionManager.coverage_upload_client
+        # instead. Do not add an upload here — this provider is the offline path and holds no connection.
         return False
 
     def close(self) -> None:

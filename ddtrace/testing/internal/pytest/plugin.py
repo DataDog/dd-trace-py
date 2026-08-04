@@ -438,9 +438,20 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: This runs in workers too, so an xdist session uploads one report per process, each covering only
-        # what that process ran. See ../coverage_report_upload_xdist.md for why that is questionable and how to move to
-        # merging on the controller and uploading once.
+        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
+        # for a session, so the partial uploads add up to full coverage.
+        #
+        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
+        # owns coverage.py:
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
+        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
+        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
+        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
+        #     all the real data.
+        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
+        # Uploading once from the controller would only save bandwidth, and would first require implementing the
+        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:

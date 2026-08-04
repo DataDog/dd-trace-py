@@ -147,10 +147,13 @@ class SessionManager:
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
-            # AIDEV-NOTE: CachedFileDataProvider.upload_coverage_report() is a no-op because Bazel's manifest mode goes
-            # hand in hand with payload-files mode, where there is no network. An xdist worker reusing its controller's
-            # manifest is in manifest mode *without* payload-files mode, so it does have a backend to upload to — keep
-            # a real client for that, or its coverage report would be generated and silently dropped.
+            # AIDEV-NOTE: Reads come from the manifest, but coverage reports still go over HTTP. This is the intended
+            # design, not a workaround: the intake merges the coverage reports of a session, so every process that ran
+            # tests is expected to upload its own (see TestOptPlugin.pytest_sessionfinish).
+            # CachedFileDataProvider cannot upload — manifest mode used to imply Bazel's payload-files mode, where
+            # there is no network, and that is exactly the assumption an xdist worker reusing its controller's cache
+            # breaks. Payload-files mode keeps no client: there, coverage is written to files and there is nowhere to
+            # upload to.
             if not offline.payload_files_enabled:
                 self.coverage_upload_client = self._build_api_client()
         else:
@@ -336,6 +339,8 @@ class SessionManager:
         Upload a coverage report to Datadog CI Intake.
 
         This creates a temporary API client connection to upload the coverage report.
+
+        Under xdist every process that ran tests uploads its own partial report; the intake merges them per session.
 
         Args:
             coverage_report_bytes: The coverage report content (will be gzipped by the API client)
