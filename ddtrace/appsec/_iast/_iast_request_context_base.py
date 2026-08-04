@@ -1,7 +1,9 @@
 import contextlib
 import contextvars
+from typing import Iterator
 from typing import Optional
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
@@ -31,7 +33,7 @@ _IAST_TAINT_SOURCES_SUPPRESSED: contextvars.ContextVar[bool] = contextvars.Conte
 
 
 @contextlib.contextmanager
-def iast_suppress_context():
+def iast_suppress_context() -> Iterator[None]:
     """Temporarily disable IAST taint *source* generation for the current context."""
     token = _IAST_TAINT_SOURCES_SUPPRESSED.set(True)
     try:
@@ -44,11 +46,11 @@ def _is_iast_taint_source_enabled() -> bool:
     return not _IAST_TAINT_SOURCES_SUPPRESSED.get()
 
 
-def _set_span_tag_iast_request_tainted(span):
+def _set_span_tag_iast_request_tainted(span: Span) -> None:
     total_objects_tainted = _num_objects_tainted_in_request()
 
     if total_objects_tainted > 0:
-        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
+        span._set_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
 def get_iast_stacktrace_reported() -> bool:
@@ -64,7 +66,7 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def set_iast_request_endpoint(method, route) -> None:
+def set_iast_request_endpoint(method: Optional[str], route: Optional[str]) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
         if env:
@@ -76,7 +78,7 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-def _iast_start_request(span=None) -> Optional[int]:
+def _iast_start_request(span: Optional[Span] = None) -> Optional[int]:
     """Initialize the IAST request context for the current execution.
 
     This function acquires the IAST request budget via the Overhead Control Engine,
@@ -107,7 +109,7 @@ def _get_iast_context_id() -> Optional[int]:
     return IAST_CONTEXT.get()
 
 
-def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
+def _iast_finish_request(span: Optional[Span] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
     """Finalize the IAST request context and optionally update global limits.
 
     This function discards the per-request IAST environment, optionally updates the
@@ -145,27 +147,27 @@ def _num_objects_tainted_in_request() -> int:
     return 0
 
 
-def get_hash_object_tracking_len():
+def get_hash_object_tracking_len() -> int:
     env = _get_iast_env()
     if env:
         return len(env.iast_hash_object_tracking)
     return 0
 
 
-def get_hash_object_tracking(obj):
+def get_hash_object_tracking(obj: object) -> bool:
     env = _get_iast_env()
     if env:
         return env.iast_hash_object_tracking.get(id(obj), False)
     return False
 
 
-def set_hash_object_tracking(result, value):
+def set_hash_object_tracking(result: object, value: bool) -> None:
     env = _get_iast_env()
     if env:
         env.iast_hash_object_tracking[id(result)] = value
 
 
-def clear_hash_object_tracking():
+def clear_hash_object_tracking() -> None:
     env = _get_iast_env()
     if env:
         env.iast_hash_object_tracking.clear()

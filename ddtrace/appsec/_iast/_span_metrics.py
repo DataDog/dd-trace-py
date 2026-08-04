@@ -1,20 +1,13 @@
 from typing import Union
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
-from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._metrics import _metric_key_as_snake_case
 from ddtrace.appsec._iast._taint_tracking import OriginType
 
 
-def _set_span_tag_iast_request_tainted(span):
-    total_objects_tainted = _num_objects_tainted_in_request()
-
-    if total_objects_tainted > 0:
-        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
-
-
-def _set_span_tag_iast_executed_sink(span):
+def _set_span_tag_iast_executed_sink(span: Span) -> None:
     data = get_iast_span_metrics()
 
     if data is not None:
@@ -24,12 +17,12 @@ def _set_span_tag_iast_executed_sink(span):
                 or key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE)
                 or key.startswith(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY)
             ):
-                span.set_tag(key, value)
+                span._set_attribute(key, value)
 
     reset_iast_span_metrics()
 
 
-def get_iast_span_metrics() -> dict:
+def get_iast_span_metrics() -> dict[str, int]:
     if env := _get_iast_env():
         return env.iast_span_metrics
     return dict()

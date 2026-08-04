@@ -15,6 +15,8 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import span_bus
+from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -39,7 +41,7 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 
 def _create_and_attach_iast_report_to_span(
     req_span: "Span", existing_data: Optional[Union[str, dict[str, Any]]], merge: bool = False
-):
+) -> None:
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
         if isinstance(existing_data, str):
@@ -66,7 +68,10 @@ def _create_and_attach_iast_report_to_span(
         req_span._set_attribute(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
 
-def _iast_end_request(ctx=None, span=None, *args, **kwargs):
+def _iast_end_request(
+    ctx: Optional[ExecutionContext[Event]] = None,
+    span: Optional[Span] = None,
+) -> None:
     try:
         move_to_root = asm_config._iast_use_root_span
         if move_to_root:
@@ -74,8 +79,11 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
         else:
             if span:
                 req_span = span
-            else:
+            elif ctx is not None:
                 req_span = ctx.get_item("req_span")
+            else:
+                req_span = None
+
         if req_span is None:
             log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
             return
