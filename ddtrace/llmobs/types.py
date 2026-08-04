@@ -14,6 +14,14 @@ class ExportedLLMObsSpan(TypedDict):
     trace_id: str
 
 
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
+
+
 class Document(TypedDict, total=False):
     name: str
     id: str

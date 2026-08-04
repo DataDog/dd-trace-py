@@ -201,6 +201,13 @@
         "default": "true"
       }
     ],
+    "DD_AI_GUARD_REDACTION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_TIMEOUT": [
       {
         "implementation": "A",
@@ -5767,11 +5774,19 @@
         "internal": true
       }
     ],
-    "_DD_COVERAGE_FILE_LEVEL": [
+    "_DD_COVERAGE_ACCURATE_IMPORTS": [
       {
         "implementation": "A",
         "type": "boolean",
         "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_COVERAGE_FILE_LEVEL": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
         "internal": true
       }
     ],
