@@ -1,23 +1,37 @@
 import contextvars
 import sys
+import threading
 
 import pytest
 
 from ddtrace.internal import core
 
 
-@pytest.mark.skipif(
+pytestmark = pytest.mark.skipif(
     sys.implementation.name != "cpython" or sys.version_info < (3, 14),
     reason="requires the CPython 3.14 context watcher",
 )
+
+
+@pytest.fixture(autouse=True)
+def _register_context_watcher():
+    from ddtrace.internal.native._native import is_context_watcher_registered
+    from ddtrace.internal.native._native import register_context_watcher
+
+    assert register_context_watcher()
+    assert is_context_watcher_registered()
+
+
 def test_context_watcher_dispatches_context_switch_events():
     value = contextvars.ContextVar("value", default="outer")
     inner_context = contextvars.copy_context()
     inner_context.run(value.set, "inner")
     observed = []
+    test_thread_id = threading.get_ident()
 
     def record_context_switch():
-        observed.append(value.get())
+        if threading.get_ident() == test_thread_id:
+            observed.append(value.get())
 
     core.on("python.context.switch", record_context_switch)
     try:
@@ -28,19 +42,30 @@ def test_context_watcher_dispatches_context_switch_events():
     assert observed == ["inner", "outer"]
 
 
-@pytest.mark.skipif(
-    sys.implementation.name != "cpython" or sys.version_info < (3, 14),
-    reason="requires the CPython 3.14 context watcher",
-)
+def test_context_watcher_releases_listener_snapshot_immediately():
+    def record_context_switch():
+        pass
+
+    core.on("python.context.switch", record_context_switch)
+    try:
+        reference_count = sys.getrefcount(record_context_switch)
+        contextvars.Context().run(lambda: None)
+        assert sys.getrefcount(record_context_switch) == reference_count
+    finally:
+        core.reset_listeners("python.context.switch", record_context_switch)
+
+
 def test_context_watcher_preserves_pending_exception():
     inner_context = contextvars.copy_context()
     observed = []
+    test_thread_id = threading.get_ident()
 
     class ExpectedError(Exception):
         pass
 
     def record_context_switch():
-        observed.append(contextvars.copy_context())
+        if threading.get_ident() == test_thread_id:
+            observed.append(contextvars.copy_context())
 
     def raise_expected_error():
         raise ExpectedError
@@ -55,28 +80,142 @@ def test_context_watcher_preserves_pending_exception():
     assert len(observed) == 2
 
 
-@pytest.mark.skipif(
-    sys.implementation.name != "cpython" or sys.version_info < (3, 14),
-    reason="requires the CPython 3.14 context watcher",
-)
+def test_context_watcher_preserves_pending_exception_when_listener_fails():
+    inner_context = contextvars.copy_context()
+    observed = []
+    unraisable = []
+    test_thread_id = threading.get_ident()
+
+    class ExpectedError(Exception):
+        pass
+
+    class ListenerError(BaseException):
+        pass
+
+    def record_context_switch():
+        if threading.get_ident() != test_thread_id:
+            return
+        observed.append(contextvars.copy_context())
+        if len(observed) == 2:
+            raise ListenerError
+
+    def raise_expected_error():
+        raise ExpectedError
+
+    original_unraisablehook = sys.unraisablehook
+    sys.unraisablehook = lambda args: unraisable.append(args.exc_value)
+    core.on("python.context.switch", record_context_switch)
+    try:
+        with pytest.raises(ExpectedError):
+            inner_context.run(raise_expected_error)
+    finally:
+        core.reset_listeners("python.context.switch", record_context_switch)
+        sys.unraisablehook = original_unraisablehook
+
+    assert len(observed) == 2
+    assert len(unraisable) == 1
+    assert isinstance(unraisable[0], ListenerError)
+
+
 def test_context_watcher_slot_exhaustion_does_not_break_import(run_python_code_in_subprocess):
     stdout, stderr, status, _ = run_python_code_in_subprocess(
         """
 import ctypes
+import os
 import sys
 
 assert "ddtrace.internal.native._native" not in sys.modules
+os.environ["_DD_GLOBAL_TRACER_INIT"] = "false"
 
 callback_type = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint, ctypes.py_object)
 callback = callback_type(lambda event, obj: 0)
 add_watcher = ctypes.pythonapi.PyContext_AddWatcher
 add_watcher.argtypes = [callback_type]
 add_watcher.restype = ctypes.c_int
+clear_watcher = ctypes.pythonapi.PyContext_ClearWatcher
+clear_watcher.argtypes = [ctypes.c_int]
+clear_watcher.restype = ctypes.c_int
 
-for _ in range(8):
-    assert add_watcher(callback) >= 0
+watcher_ids = []
+for _ in range(64):
+    try:
+        watcher_ids.append(add_watcher(callback))
+    except RuntimeError:
+        break
+else:
+    raise AssertionError("context watcher slots were not exhausted")
 
-import ddtrace.internal.native._native
+try:
+    from ddtrace.internal.native._native import is_context_watcher_registered
+    from ddtrace.internal.native._native import register_context_watcher
+
+    assert register_context_watcher() is False
+    assert is_context_watcher_registered() is False
+finally:
+    for watcher_id in watcher_ids:
+        assert clear_watcher(watcher_id) == 0
+"""
+    )
+
+    assert status == 0, stderr.decode()
+    assert stdout == b""
+
+
+def test_context_watcher_registration_is_idempotent(run_python_code_in_subprocess):
+    stdout, stderr, status, _ = run_python_code_in_subprocess(
+        """
+from contextvars import Context
+import importlib
+import os
+import sys
+
+os.environ["_DD_GLOBAL_TRACER_INIT"] = "false"
+
+from ddtrace.internal import core
+
+module_name = "ddtrace.internal.native._native"
+native = importlib.import_module(module_name)
+assert native.is_context_watcher_registered() is False
+assert native.register_context_watcher() is True
+assert native.is_context_watcher_registered() is True
+
+for _ in range(16):
+    del sys.modules[module_name]
+    native = importlib.import_module(module_name)
+    assert native.register_context_watcher() is True
+    assert native.is_context_watcher_registered() is True
+
+observed = []
+core.on("python.context.switch", lambda: observed.append(None))
+Context().run(lambda: None)
+assert observed == [None, None]
+"""
+    )
+
+    assert status == 0, stderr.decode()
+    assert stdout == b""
+
+
+def test_context_watcher_can_be_disabled(run_python_code_in_subprocess):
+    stdout, stderr, status, _ = run_python_code_in_subprocess(
+        """
+from contextvars import Context
+import os
+import sys
+
+assert "ddtrace" not in sys.modules
+os.environ["DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED"] = "false"
+
+from ddtrace.internal import core
+from ddtrace.internal.context_watcher import register_context_watcher
+from ddtrace.internal.context_watcher import is_context_watcher_registered
+
+assert register_context_watcher() is False
+assert is_context_watcher_registered() is False
+observed = []
+core.on("python.context.switch", lambda: observed.append(None))
+Context().run(lambda: None)
+assert observed == []
 """
     )
 

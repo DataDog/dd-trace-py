@@ -337,6 +337,14 @@ Traces
        v2.6.0: Updated default value to ``datadog,tracecontext``.
        v2.16.0: Updated default value to ``datadog,tracecontex,baggage``.
 
+   DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        Enables the native CPython 3.14 context watcher used to synchronize the active trace across asynchronous context switches.
+        Set to ``False`` to disable the native watcher and use compatibility instrumentation instead.
+
    DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
       type: Integer
       default: 30

@@ -4,7 +4,7 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod config;
 mod context_provider;
-#[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+#[cfg(all(Py_3_14, not(Py_GIL_DISABLED), not(any(PyPy, GraalPy))))]
 mod context_watcher;
 mod contextvar;
 mod data_pipeline;
@@ -100,8 +100,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add tracer_flare submodule
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
 
-    #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
-    context_watcher::register(m.py());
+    #[cfg(all(Py_3_14, not(Py_GIL_DISABLED), not(any(PyPy, GraalPy))))]
+    context_watcher::register(m)?;
 
     Ok(())
 }

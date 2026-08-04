@@ -737,6 +737,7 @@ class Config(object):
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
         self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
+        self._python_context_watcher_enabled = _get_config("DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED", True, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
         # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
