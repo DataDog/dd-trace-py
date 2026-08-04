@@ -4,7 +4,46 @@ set -eo pipefail
 
 GITLAB_API_PRIVATE_TOKEN=""
 
-# AIDEV-NOTE: ddbuild returns 404 for CI_JOB_TOKEN on pipeline job listing; use a BTI GitLab token fallback.
+ensure_aws_credentials_for_authanywhere() {
+  local creds
+  local role
+
+  if [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" && -n "${AWS_SESSION_TOKEN:-}" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${AWS_EC2_METADATA_SERVICE_ENDPOINT:-}" ]]; then
+    echo "ERROR: AWS_EC2_METADATA_SERVICE_ENDPOINT is not set; authanywhere cannot use the Tart IAM proxy."
+    return 1
+  fi
+
+  echo "Resolving AWS credentials from the Tart IAM proxy for authanywhere..."
+  if ! role=$(curl --fail --silent --show-error "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/"); then
+    echo "ERROR: Failed to resolve the Tart IAM proxy role name."
+    return 1
+  fi
+
+  if ! creds=$(curl --fail --silent --show-error "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}"); then
+    echo "ERROR: Failed to resolve AWS credentials from the Tart IAM proxy."
+    return 1
+  fi
+
+  if ! AWS_ACCESS_KEY_ID=$("$PYTHON_BIN" -c 'import json, sys; print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds"); then
+    echo "ERROR: Failed to parse AWS access key from the Tart IAM proxy response."
+    return 1
+  fi
+  if ! AWS_SECRET_ACCESS_KEY=$("$PYTHON_BIN" -c 'import json, sys; print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds"); then
+    echo "ERROR: Failed to parse AWS secret key from the Tart IAM proxy response."
+    return 1
+  fi
+  if ! AWS_SESSION_TOKEN=$("$PYTHON_BIN" -c 'import json, sys; print(json.load(sys.stdin)["Token"])' <<<"$creds"); then
+    echo "ERROR: Failed to parse AWS session token from the Tart IAM proxy response."
+    return 1
+  fi
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+}
+
+# AIDEV-NOTE: ddbuild returns 404 for CI_JOB_TOKEN on pipeline job listing; BTI fallback needs Tart IAM credentials.
 get_gitlab_api_private_token() {
   local auth_header
   local authanywhere_bin
@@ -56,8 +95,15 @@ get_gitlab_api_private_token() {
   fi
 
   echo "GitLab API job-token auth failed; requesting a short-lived GitLab API token from BTI..."
+  if ! ensure_aws_credentials_for_authanywhere; then
+    exit 1
+  fi
   if ! auth_header="$("$authanywhere_bin" --audience rapid-devex-ci)"; then
     echo "ERROR: Failed to get a BTI auth header from authanywhere."
+    exit 1
+  fi
+  if [[ "$auth_header" != Authorization:* ]]; then
+    echo "ERROR: authanywhere returned an unexpected auth header."
     exit 1
   fi
 
