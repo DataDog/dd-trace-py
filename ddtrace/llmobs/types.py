@@ -176,10 +176,15 @@ class Agent(TypedDict, total=False):
     An Agent object that identifies the agent an LLMObs span belongs to.
         version: str - user tag for the version of the agent.
 
-    The agent's name is not set here. It is taken from the agent span's name, which is what
-    agent attribution propagates to child spans as `pagent_name`. Note that
-    `LLMObs.annotation_context(name=...)` renames every span in the context, not just the
-    agent span, so it is not a good way to name an agent; prefer `LLMObs.agent(name=...)`.
+    The version is a scope label rather than a pointer: it is set as an `agent_version` tag on the
+    agent span itself and on every span created under it, including across process boundaries.
+    Contrast `meta.agent_attribution`, which identifies *which* span the agent is and so is never
+    present on the agent span itself.
+
+    The agent's name is not set here. It is taken from the agent span's name, which is what agent
+    attribution propagates to child spans as `pagent_name`. Note that
+    `LLMObs.annotation_context(name=...)` renames every span in the context, not just the agent
+    span, so it is not a good way to name an agent; prefer `LLMObs.agent(name=...)`.
     """
 
     version: str

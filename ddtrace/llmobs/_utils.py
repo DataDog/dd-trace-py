@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
+from ddtrace.llmobs._constants import PROPAGATED_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import SESSION_ID
@@ -457,17 +458,21 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
 def _resolve_inherited_agent_version(active) -> Optional[str]:
     """Resolve the agent version a newly activated span inherits from its LLMObs parent.
 
-    Every span that carries an agent version stores it as an `agent_version` tag, whether it set
-    the version itself (an agent span) or inherited it. So reading the immediate parent is enough
-    to walk the whole chain: one level of lookup, no walk, matching _resolve_parent_agent.
+    Unlike _resolve_parent_agent, which resolves a pointer to another span and so never points at
+    self, the version is a scope label: an agent span carries its own version and every descendant
+    carries a copy. So both Span branches read the same `agent_version` tag off the parent, whether
+    the parent set the version itself or inherited it. That makes one level of lookup enough to
+    walk the whole chain.
 
-    Returns None for a Context parent (distributed): the agent version is deliberately not
-    propagated across process boundaries, to keep the x-datadog-tags budget for attribution.
+      - a Span: its `agent_version` tag, if any.
+      - a Context (distributed or cross-task parent): the propagated _dd.p.* key.
+      - None: no parent, so nothing to inherit.
     """
-    if not isinstance(active, Span):
+    if active is None:
         return None
-    tags = _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.TAGS, {})
-    return tags.get(AGENT_VERSION_TAG_KEY)
+    if isinstance(active, Span):
+        return _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.TAGS, {}).get(AGENT_VERSION_TAG_KEY)
+    return active._meta.get(PROPAGATED_AGENT_VERSION_KEY)
 
 
 # Budget for the entire _dd.p.* tagset when stamping agent attribution.
@@ -492,49 +497,78 @@ def _is_propagation_tags_within_budget(meta: dict) -> bool:
         return False
 
 
-def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
-    """Write the agent id/name ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
+def _try_add_propagation_tag(meta: dict, key: str, value: str) -> bool:
+    """Add ``key=value`` to ``meta`` if the ``_dd.p.*`` tagset still encodes within budget.
+
+    Rolls the write back and returns False otherwise, which also covers values the tagset encoder
+    rejects outright (commas, bytes outside 0x20-0x7E).
+    """
+    meta[key] = value
+    if _is_propagation_tags_within_budget(meta):
+        return True
+    del meta[key]
+    return False
+
+
+def _stamp_agent_propagation_tags(
+    meta: dict,
+    agent_name: Optional[str],
+    agent_span_id: Optional[str],
+    agent_version: Optional[str] = None,
+) -> None:
+    """Write the agent ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
 
     A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
-    llmobs_trace_id, parent_id with it), so attribution degrades gracefully instead:
-      1. both id and name when they fit within the budget;
-      2. id + truncated name when the full name exceeds the budget;
-      3. id only when even a truncated name cannot fit (e.g. the name is entirely invalid chars);
-      4. neither when even the id would exceed the budget.
+    llmobs_trace_id, parent_id with it), so these fields are added one at a time and each is
+    rolled back if it would not fit. Priority, highest first:
+
+      1. pagent_span_id — the join key; the backend can recover the other two fields from it.
+      2. agent_version  — short, bounded, and the only one of the three a user sets by hand.
+      3. pagent_name    — arbitrary user text, and the most easily recovered backend-side.
+
+    Two asymmetries between the version and the name are deliberate:
+
+      - The version is never truncated. A partial name is still useful for display, but a
+        truncated version string names a DIFFERENT agent revision, so it is dropped instead.
+      - The version is written even when there is no agent_span_id. annotation_context can set a
+        version on spans that have no agent ancestor, and integration-created agent spans do not
+        resolve attribution at all today, so anchoring the version to the id would silently
+        suppress it in exactly the cases it is needed.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
     """
-    if agent_span_id is None:
-        return
-    meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
-    if agent_name is not None:
-        meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name
-        if _is_propagation_tags_within_budget(meta):
-            return
-        # Full name doesn't fit (too long or invalid chars); try truncation.
-        del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
-        tags_id_only = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
-        try:
-            encoded_id_only = encode_tagset_values(tags_id_only, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
-        except TagsetEncodeError:
-            pass  # Id-only also overflows; fall through to the drop-id path below.
-        else:
-            # Overhead for `,name_key=` (comma is safe: other tags are already encoded before us).
-            name_entry_overhead = 1 + len(PROPAGATED_PARENT_AGENT_NAME_KEY) + 1
-            available_for_value = _AGENT_ATTRIBUTION_TAGSET_BUDGET - len(encoded_id_only) - name_entry_overhead
-            if available_for_value > 0:
-                meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name[:available_for_value]
-                if not _is_propagation_tags_within_budget(meta):
-                    # Truncated name is still invalid (e.g. contains commas): drop name.
-                    del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
-    if not _is_propagation_tags_within_budget(meta):
-        # Even id-only overflows: drop attribution entirely rather than risk the whole header.
-        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
+    id_written = agent_span_id is not None and _try_add_propagation_tag(
+        meta, PROPAGATED_PARENT_AGENT_ID_KEY, agent_span_id
+    )
+    if agent_span_id is not None and not id_written:
         log.debug(
-            "LLMObs: agent attribution dropped — x-datadog-tags budget exhausted. agent_name=%r agent_span_id=%r",
-            agent_name,
+            "LLMObs: agent attribution dropped — x-datadog-tags budget exhausted. agent_span_id=%r",
             agent_span_id,
         )
+
+    if agent_version is not None and not _try_add_propagation_tag(meta, PROPAGATED_AGENT_VERSION_KEY, agent_version):
+        log.debug(
+            "LLMObs: agent version not propagated — x-datadog-tags budget exhausted or value unsafe. agent_version=%r",
+            agent_version,
+        )
+
+    # The name only means anything alongside the id it names, so skip it if the id was dropped.
+    if agent_name is None or not id_written:
+        return
+    if _try_add_propagation_tag(meta, PROPAGATED_PARENT_AGENT_NAME_KEY, agent_name):
+        return
+    # Full name doesn't fit (too long or invalid chars); try truncation.
+    written_tags = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
+    try:
+        encoded = encode_tagset_values(written_tags, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
+    except TagsetEncodeError:
+        return  # Everything already written overflows; nothing left to give the name.
+    # Overhead for `,name_key=` (comma is safe: other tags are already encoded before us).
+    name_entry_overhead = 1 + len(PROPAGATED_PARENT_AGENT_NAME_KEY) + 1
+    available_for_value = _AGENT_ATTRIBUTION_TAGSET_BUDGET - len(encoded) - name_entry_overhead
+    if available_for_value > 0:
+        # A truncated name that is still unsafe (e.g. contains a comma) is rolled back by _try_add.
+        _try_add_propagation_tag(meta, PROPAGATED_PARENT_AGENT_NAME_KEY, agent_name[:available_for_value])
 
 
 def get_llmobs_parent_id(span: Span) -> Optional[str]:

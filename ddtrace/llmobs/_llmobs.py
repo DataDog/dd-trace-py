@@ -79,6 +79,7 @@ from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import PROPAGATED_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
@@ -155,7 +156,7 @@ from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _resolve_inherited_agent_version
 from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_depth
-from ddtrace.llmobs._utils import _stamp_agent_attribution
+from ddtrace.llmobs._utils import _stamp_agent_propagation_tags
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -1922,10 +1923,10 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent that the annotated spans belong to, of the form
                       `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
                       The version is set as an ``agent_version`` tag on every LLMObs span created within
-                      the returned context, so the agent span and its children are all attributed to that
-                      version. Spans created in a downstream service are not covered; the agent version is
-                      not propagated across process boundaries.
-                      To also set the agent's name, use the `name` argument of this method.
+                      the returned context, and is inherited by spans created under those spans,
+                      including in a downstream service.
+                      To version a manually instrumented agent, prefer ``LLMObs.agent(version=...)``,
+                      which sets the version on the agent span itself.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2441,11 +2442,16 @@ class LLMObs(Service):
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
                 context._meta[PROPAGATED_SAMPLING_DECISION] = sd
-            # Carry the nearest agent onto the context so spans created in in-process task
-            # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
-            # Stamped last so the budget check sees the full tagset.
+            # Carry the nearest agent and its version onto the context so spans created in
+            # in-process task boundaries (asyncio tasks, thread-pool executors) still attribute
+            # to it. Stamped last so the budget check sees the full tagset.
             parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
-            _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
+            _stamp_agent_propagation_tags(
+                context._meta,
+                parent_agent_name,
+                parent_agent_span_id,
+                _resolve_inherited_agent_version(active),
+            )
             return context
         return None
 
@@ -2724,8 +2730,9 @@ class LLMObs(Service):
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str version: The version of this agent. Set as an ``agent_version`` tag on this span and
-                            inherited by all of its child spans, so the whole agent invocation is attributed
-                            to one version. Not propagated to spans created in a downstream service.
+                            inherited by all of its child spans, including spans created in a downstream
+                            service, so the whole agent invocation is attributed to one version.
+                            A nested agent span with its own version overrides it for its own subtree.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3501,11 +3508,16 @@ class LLMObs(Service):
                 sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
             )
 
-        # Propagate the nearest agent so spans in the downstream process attribute correctly.
-        # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
+        # Propagate the nearest agent and its version so spans in the downstream process attribute
+        # correctly. Stamped last so the budget check sees the full tagset; degrades field by field
         # rather than overflowing x-datadog-tags.
         parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
-        _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
+        _stamp_agent_propagation_tags(
+            span_context._meta,
+            parent_agent_name,
+            parent_agent_span_id,
+            _resolve_inherited_agent_version(active_span),
+        )
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
@@ -3571,9 +3583,11 @@ class LLMObs(Service):
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
             propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
             # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
-            # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
+            # the agent attribution and version keys must be copied onto it explicitly
+            # (mirrors trace_id).
             propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
             propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
+            propagated_agent_version = context._meta.get(PROPAGATED_AGENT_VERSION_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3595,6 +3609,8 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
                 if propagated_agent_name is not None:
                     llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
+                if propagated_agent_version is not None:
+                    llmobs_context._meta[PROPAGATED_AGENT_VERSION_KEY] = propagated_agent_version
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3610,6 +3626,8 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
             if propagated_agent_name is not None:
                 llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
+            if propagated_agent_version is not None:
+                llmobs_context._meta[PROPAGATED_AGENT_VERSION_KEY] = propagated_agent_version
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

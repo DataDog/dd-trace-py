@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import PROPAGATED_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
@@ -1029,3 +1030,121 @@ def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events,
         "pagent_name": "my_agent",
         "pagent_span_id": holder["span_id"],
     }
+
+
+# --- Agent version propagation -------------------------------------------------------------
+
+
+def _tags_of(event):
+    return dict(t.split(":", 1) for t in event["tags"])
+
+
+def test_inject_agent_version_under_agent(llmobs):
+    """Injecting from within a versioned agent propagates its version."""
+    with llmobs.agent(name="my_agent", version="v3"):
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) == "v3"
+
+
+def test_inject_agent_version_inherited_through_tool(llmobs):
+    """Injecting from a tool under a versioned agent propagates the inherited version."""
+    with llmobs.agent(name="my_agent", version="v3"):
+        with llmobs.tool(name="my_tool"):
+            ctx = Context(trace_id=1, span_id=2)
+            llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) == "v3"
+
+
+def test_inject_no_agent_version_without_version(llmobs):
+    with llmobs.agent(name="my_agent"):
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) is None
+
+
+def test_inject_agent_version_without_attribution(llmobs):
+    """annotation_context can version a span that has no agent ancestor; the version still travels."""
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        with llmobs.workflow(name="w"):
+            ctx = Context(trace_id=1, span_id=2)
+            llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) == "v3"
+
+
+def test_inject_unsafe_agent_version_skipped_keeps_attribution(llmobs):
+    """A version with a comma is illegal in a tagset value; it is skipped, attribution survives."""
+    with llmobs.agent(name="my_agent", version="v1,v2") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) is None
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+
+
+def test_inject_oversized_agent_version_dropped_not_truncated(llmobs):
+    """A truncated version would name a different revision, so an oversized version is dropped."""
+    with llmobs.agent(name="my_agent", version="v" * 600) as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) is None
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+
+
+def test_inject_agent_version_survives_header_roundtrip(llmobs):
+    with llmobs.agent(name="my_agent", version="v3") as agent_span:
+        headers = llmobs.inject_distributed_headers({}, span=agent_span)
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_agent_version=v3" in tags_header
+    assert "_dd.propagation_error" not in tags_header
+
+
+def test_agent_version_outranks_agent_name_under_budget_pressure(llmobs):
+    """id > version > name: an oversized name is sacrificed before the version."""
+    with llmobs.agent(name="A" * 500, version="v3") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY) == "v3"
+    propagated_name = ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
+    assert propagated_name is not None and len(propagated_name) < 500
+
+
+def test_distributed_agent_version_round_trip(llmobs, llmobs_events):
+    """An inbound _dd.p.llmobs_agent_version is seeded locally and tagged onto a child span."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_AGENT_VERSION_KEY] = "v3"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.tool(name="downstream_tool"):
+        pass
+    assert len(llmobs_events) == 1
+    assert _tags_of(llmobs_events[0])["agent_version"] == "v3"
+
+
+def test_distributed_no_agent_version_round_trip(llmobs, llmobs_events):
+    """An upstream on an older SDK sends no version; the downstream span carries no tag."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.tool(name="downstream_tool"):
+        pass
+    assert len(llmobs_events) == 1
+    assert "agent_version" not in _tags_of(llmobs_events[0])
+
+
+def test_agent_version_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
+    """A tool span created in an asyncio task under a versioned agent still carries the version."""
+    import asyncio
+
+    async def main():
+        with llmobs.agent(name="my_agent", version="v3"):
+
+            async def child():
+                with llmobs.tool(name="async_tool"):
+                    pass
+
+            await asyncio.create_task(child())
+
+    asyncio.run(main())
+    matches = [e for e in llmobs_events if e["name"] == "async_tool"]
+    assert len(matches) == 1, f"expected exactly one async_tool event, got {len(matches)}"
+    assert _tags_of(matches[0])["agent_version"] == "v3"

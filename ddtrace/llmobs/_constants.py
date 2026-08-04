@@ -46,10 +46,15 @@ PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # Agent attribution: nearest-agent identity propagated across process boundaries.
 # The id is always str(span_id) (digit-safe); the name is an arbitrary user string. Both are
-# written via _stamp_agent_attribution, which drops the name (or both) rather than overflow
-# the x-datadog-tags budget (see _utils.py).
+# written via _stamp_agent_propagation_tags, which drops the name (or both) rather than
+# overflow the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
+# Agent version: the version of the agent whose execution a span is part of. A scope label like
+# _dd.p.llmobs_sid, NOT part of the attribution pointer record above — an agent span carries its
+# own version, whereas it never carries a pointer to itself. Subtree-scoped rather than
+# trace-scoped, so unlike the session id it is resolved per-span instead of first-writer-wins.
+PROPAGATED_AGENT_VERSION_KEY = "_dd.p.llmobs_agent_version"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
