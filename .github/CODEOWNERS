@@ -43,7 +43,7 @@ AGENTS.md                           @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
 hooks/                              @DataDog/python-guild
-scripts/                            @DataDog/python-guild
+scripts/*                            @DataDog/python-guild
 tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
@@ -66,7 +66,6 @@ static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 /README.md                          @DataDog/python-guild  @DataDog/apm-core-python
-scripts/lint                        @DataDog/python-guild
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
@@ -94,8 +93,6 @@ tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 # docs and scripts
 docs/                               @DataDog/python-guild
-scripts/bump_ddtrace.py             @DataDog/python-guild
-scripts/update-system-tests-version.py @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
