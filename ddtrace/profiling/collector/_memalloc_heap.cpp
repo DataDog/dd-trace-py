@@ -125,7 +125,8 @@ class heap_tracker_t
     /* Traceback pool operations */
     std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
                                                                           size_t weighted_size,
-                                                                          uint16_t max_nframe);
+                                                                          uint16_t max_nframe,
+                                                                          PyMemAllocatorDomain domain);
     void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
 
     /* Reset the heap tracker state after fork in child process */
@@ -175,19 +176,22 @@ class heap_tracker_t
 // Pool implementation
 // _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
-heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
+heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size,
+                                                         size_t weighted_size,
+                                                         uint16_t max_nframe,
+                                                         PyMemAllocatorDomain domain)
 {
     /* Try to get a traceback from the pool */
     if (!pool.empty()) {
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
-        tb->init_sample(size, weighted_size, max_nframe);
+        tb->init_sample(size, weighted_size, max_nframe, domain);
         return tb;
     }
 
     /* Pool is empty, create a new traceback */
-    return std::make_unique<traceback_t>(size, weighted_size, max_nframe);
+    return std::make_unique<traceback_t>(size, weighted_size, max_nframe, domain);
 }
 
 void
@@ -369,7 +373,6 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
         return;
     }
@@ -421,8 +424,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    auto tb =
-      heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(size, allocated_memory_val, max_nframe);
+    auto tb = heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(
+      size, allocated_memory_val, max_nframe, domain);
 
     // Export allocation sample right away to avoid holding it
     tb->sample.export_sample();
