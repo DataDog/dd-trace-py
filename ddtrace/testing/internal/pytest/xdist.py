@@ -64,8 +64,18 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
         return _xdist_worker_manifest_wait_result
 
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
-    manifest_path = Path(manifest_env) if manifest_env else xdist_manifest_path(workspace_path)
-    if manifest_path is None or XDIST_MANIFEST_DIRNAME not in manifest_path.parts:
+    if not manifest_env:
+        log.debug(
+            "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s",
+            worker,
+            manifest_env,
+            Path.cwd(),
+        )
+        _xdist_worker_manifest_wait_done = True
+        return None
+
+    manifest_path = Path(manifest_env)
+    if XDIST_MANIFEST_DIRNAME not in manifest_path.parts:
         log.debug(
             "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s path=%s",
             worker,

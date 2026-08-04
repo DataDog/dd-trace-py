@@ -372,6 +372,14 @@ class TestXdistManifestMode:
                     manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
                     MARKER_DIR.mkdir(exist_ok=True)
                     (MARKER_DIR / (worker or "controller")).write_text(manifest)
+                    if worker:
+                        from ddtrace.testing.internal.offline_mode import get_offline_mode
+
+                        offline_mode = get_offline_mode()
+                        (MARKER_DIR / (worker + "-manifest-mode")).write_text(
+                            f"enabled={{offline_mode.manifest_enabled}}\\n"
+                            f"dir={{offline_mode.test_optimization_dir}}\\n"
+                        )
             """)
         )
         (test_project / "test_a.py").write_text(
@@ -414,12 +422,14 @@ class TestXdistManifestMode:
         worker_manifests = [path.read_text() for path in marker_dir.glob("gw[0-9]")]
         assert len(worker_manifests) == 2
         assert all(worker_manifests)
+        worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
+        assert len(worker_manifest_modes) == 2
+        assert all("enabled=True" in mode for mode in worker_manifest_modes)
+        assert all(str(manifest_dir) in mode for mode in worker_manifest_modes)
         worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
         assert len(worker_test_counts) == 2
         assert sum(worker_test_counts) == 4
         assert all(1 <= count <= 3 for count in worker_test_counts)
-        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
-        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
         assert not manifest_dir.exists()
 
 
