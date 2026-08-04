@@ -204,8 +204,20 @@ def _llmobs_decorator(operation_kind):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
+        version: Optional[str] = None,
         _automatic_io_annotation: bool = True,
     ):
+        # Only agent spans carry a version; the other operation kinds inherit one from their
+        # nearest agent ancestor rather than declaring their own.
+        if version is not None and operation_kind != "agent":
+            log.warning(
+                "The `version` argument is only supported on @agent, ignoring it for @%s. "
+                "%s spans inherit the version of their nearest agent ancestor.",
+                operation_kind,
+                operation_kind,
+            )
+        version_kwargs = {"version": version} if operation_kind == "agent" and version is not None else {}
+
         def inner(func):
             if iscoroutinefunction(func) or isasyncgenfunction(func):
 
@@ -222,6 +234,7 @@ def _llmobs_decorator(operation_kind):
                         ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
+                        **version_kwargs,
                     )
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
@@ -242,6 +255,7 @@ def _llmobs_decorator(operation_kind):
                         ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
+                        **version_kwargs,
                     ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
@@ -269,6 +283,7 @@ def _llmobs_decorator(operation_kind):
                             ml_app=ml_app,
                             agent_service=agent_service,
                             _decorator=True,
+                            **version_kwargs,
                         )
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
@@ -298,6 +313,7 @@ def _llmobs_decorator(operation_kind):
                         ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
+                        **version_kwargs,
                     ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)

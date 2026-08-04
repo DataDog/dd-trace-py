@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for manually versioning agents. Pass ``version`` when starting an
+    agent span, either with ``LLMObs.agent(name="my-agent", version="v3")`` or with the
+    ``@agent(version="v3")`` decorator, and the version is set as an ``agent_version`` tag on the agent
+    span and inherited by all of its child spans. Alternatively, use
+    ``LLMObs.annotation_context(agent={"version": "v3"})`` to version spans created by an
+    auto-instrumented agent framework. Note that the agent version is not propagated to spans created
+    in a downstream service.

@@ -22,6 +22,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -451,6 +452,22 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
         ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
         ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
     )
+
+
+def _resolve_inherited_agent_version(active) -> Optional[str]:
+    """Resolve the agent version a newly activated span inherits from its LLMObs parent.
+
+    Every span that carries an agent version stores it as an `agent_version` tag, whether it set
+    the version itself (an agent span) or inherited it. So reading the immediate parent is enough
+    to walk the whole chain: one level of lookup, no walk, matching _resolve_parent_agent.
+
+    Returns None for a Context parent (distributed): the agent version is deliberately not
+    propagated across process boundaries, to keep the x-datadog-tags budget for attribution.
+    """
+    if not isinstance(active, Span):
+        return None
+    tags = _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.TAGS, {})
+    return tags.get(AGENT_VERSION_TAG_KEY)
 
 
 # Budget for the entire _dd.p.* tagset when stamping agent attribution.

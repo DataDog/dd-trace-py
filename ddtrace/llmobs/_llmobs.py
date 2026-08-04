@@ -48,6 +48,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
@@ -151,6 +152,7 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _resolve_inherited_agent_version
 from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_depth
 from ddtrace.llmobs._utils import _stamp_agent_attribution
@@ -178,6 +180,7 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import Agent
 from ddtrace.llmobs.types import ChatMessage
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
@@ -1887,6 +1890,7 @@ class LLMObs(Service):
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
         cost_tags: Optional[list[str]] = None,
+        agent: Optional[Union[dict, Agent]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -1915,6 +1919,13 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
+        :param agent: A dictionary declaring the agent that the annotated spans belong to, of the form
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
+                      The version is set as an ``agent_version`` tag on every LLMObs span created within
+                      the returned context, so the agent span and its children are all attributed to that
+                      version. Spans created in a downstream service are not covered; the agent version is
+                      not propagated across process boundaries.
+                      To also set the agent's name, use the `name` argument of this method.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -1951,6 +1962,7 @@ class LLMObs(Service):
                             "tags": tags,
                             "cost_tags": cost_tags,
                             "prompt": prompt,
+                            "agent": agent,
                             "_name": name,
                             "_linked_spans": _linked_spans,
                             "_telemetry_source": "annotation_context",
@@ -2500,6 +2512,12 @@ class LLMObs(Service):
             initial_tags[git.COMMIT_SHA] = self._git_commit_sha
         if session_id:
             initial_tags["session_id"] = session_id
+        # Inherit the nearest agent ancestor's version so every span under a versioned agent span
+        # carries it. An explicit version on this span (LLMObs.agent(version=...)) or an
+        # annotation_context both run after activation, so they override this.
+        inherited_agent_version = _resolve_inherited_agent_version(llmobs_parent)
+        if inherited_agent_version:
+            initial_tags[AGENT_VERSION_TAG_KEY] = inherited_agent_version
         for baggage_key, tag_key in (
             (EXPERIMENT_ID_KEY, "experiment_id"),
             (EXPERIMENT_RUN_ID_KEY, "run_id"),
@@ -2550,6 +2568,7 @@ class LLMObs(Service):
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
         agent_service: Optional[str] = None,
+        agent_version: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         if name is None:
@@ -2566,6 +2585,9 @@ class LLMObs(Service):
             model_provider=model_provider,
             session_id=session_id,
             ml_app=agent_service,
+            # Written after activation, so it overrides any version inherited from the parent.
+            # Child spans read it off this span's tags when they activate.
+            tags={AGENT_VERSION_TAG_KEY: agent_version} if agent_version else None,
         )
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
@@ -2690,6 +2712,7 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
+        version: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2700,6 +2723,9 @@ class LLMObs(Service):
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span and
+                            inherited by all of its child spans, so the whole agent invocation is attributed
+                            to one version. Not propagated to spans created in a downstream service.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2710,6 +2736,7 @@ class LLMObs(Service):
             name=name,
             session_id=session_id,
             agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_version=version,
             _decorator=_decorator,
         )
 
@@ -2887,6 +2914,7 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
+        agent: Optional[Union[dict, Agent]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -2955,6 +2983,10 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
+        :param agent: A dictionary declaring the agent that this span belongs to, of the form
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
+                      The version is set as an ``agent_version`` tag on the span. To version an agent
+                      and its child spans together, use ``LLMObs.annotation_context(agent=...)`` instead.
         """
         error = None
         try:
@@ -3003,6 +3035,12 @@ class LLMObs(Service):
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
                     _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
+            if agent is not None:
+                # Deliberately unvalidated: a malformed agent degrades to a missing tag rather than
+                # failing the annotation. Written after `tags` so an explicit agent wins a conflict.
+                agent_version = agent.get("version") if isinstance(agent, dict) else None
+                if agent_version:
+                    _annotate_llmobs_span_data(span, tags={AGENT_VERSION_TAG_KEY: agent_version})
             span_kind = get_llmobs_span_kind(span)
             if _name is not None:
                 span.name = _name

@@ -171,6 +171,20 @@ class Prompt(TypedDict, total=False):
     prompt_version_uuid: str
 
 
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that identifies the agent an LLMObs span belongs to.
+        version: str - user tag for the version of the agent.
+
+    The agent's name is not set here. It is taken from the agent span's name, which is what
+    agent attribution propagates to child spans as `pagent_name`. Note that
+    `LLMObs.annotation_context(name=...)` renames every span in the context, not just the
+    agent span, so it is not a good way to name an agent; prefer `LLMObs.agent(name=...)`.
+    """
+
+    version: str
+
+
 class _MetaIO(TypedDict, total=False):
     parameters: dict[str, Any]
     value: str
