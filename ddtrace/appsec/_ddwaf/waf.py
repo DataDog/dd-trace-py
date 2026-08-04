@@ -25,6 +25,8 @@ from ddtrace.appsec._metrics import report_error
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
+from ddtrace.internal import forksafe
+from ddtrace.internal._unpatched import threading_Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
 
@@ -56,6 +58,7 @@ class DDWaf:
         if not ruleset_map_object:
             raise ValueError("Invalid ruleset provided to DDWaf constructor")
         self._builder = py_ddwaf_builder_init()
+        self._builder_lock: threading_Lock = forksafe.Lock()
         # libddwaf 2.0 has no ddwaf_config: obfuscator regexes are a builder config. Both keys are
         # optional (defaults apply when omitted), so only add it when a regex is set. The builder
         # copies the config, so the source can be freed right after.
@@ -128,44 +131,47 @@ class DDWaf:
         self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
     ) -> bool:
         """update the rules of the WAF instance. return False if an error occurs."""
-        ok = True
-        for product, path in removals:
-            py_remove_config(self._builder, path)
-            self._rc_products.get(product, set()).discard(path)
-            if product == "ASM_DD":
-                self._asm_dd_cache.discard(path)
-        for product, path, rules in updates:
-            if product not in self._rc_products:
-                self._rc_products[product] = set()
-            self._rc_products[product].add(path)
-            if product == "ASM_DD":
-                if ASM_DD_DEFAULT in self._asm_dd_cache:
-                    # we need to remove the default ruleset before adding the new one
-                    ok &= py_remove_config(self._builder, ASM_DD_DEFAULT)
-                    self._asm_dd_cache.discard(ASM_DD_DEFAULT)
-                self._asm_dd_cache.add(path)
-            diagnostics = ddwaf_object()
-            ruleset_object = ddwaf_object.create_without_limits(rules)
-            res = py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
-            self._set_info(diagnostics, "update")
-            ddwaf_object_free(ruleset_object)
-            ok &= res
-            if not res:
-                self._rc_products[product].discard(path)
+        # ctypes releases the GIL, and libddwaf requires external synchronization for builder access.
+        # Keep native operations and their Python-side bookkeeping in the same critical section.
+        with self._builder_lock:
+            ok = True
+            for product, path in removals:
+                py_remove_config(self._builder, path)
+                self._rc_products.get(product, set()).discard(path)
                 if product == "ASM_DD":
                     self._asm_dd_cache.discard(path)
-        if not self._asm_dd_cache:
-            # we need to add the default ruleset back
-            diagnostics = ddwaf_object()
-            ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
-            self._set_info(diagnostics, "update")
-            self._asm_dd_cache.add(ASM_DD_DEFAULT)
-        new_handle = py_ddwaf_builder_build_instance(self._builder)
-        self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
-        if new_handle:
-            self._handle = new_handle
-            self._rc_updates += 1
-        return ok
+            for product, path, rules in updates:
+                if product not in self._rc_products:
+                    self._rc_products[product] = set()
+                self._rc_products[product].add(path)
+                if product == "ASM_DD":
+                    if ASM_DD_DEFAULT in self._asm_dd_cache:
+                        # we need to remove the default ruleset before adding the new one
+                        ok &= py_remove_config(self._builder, ASM_DD_DEFAULT)
+                        self._asm_dd_cache.discard(ASM_DD_DEFAULT)
+                    self._asm_dd_cache.add(path)
+                diagnostics = ddwaf_object()
+                ruleset_object = ddwaf_object.create_without_limits(rules)
+                res = py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
+                self._set_info(diagnostics, "update")
+                ddwaf_object_free(ruleset_object)
+                ok &= res
+                if not res:
+                    self._rc_products[product].discard(path)
+                    if product == "ASM_DD":
+                        self._asm_dd_cache.discard(path)
+            if not self._asm_dd_cache:
+                # we need to add the default ruleset back
+                diagnostics = ddwaf_object()
+                ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
+                self._set_info(diagnostics, "update")
+                self._asm_dd_cache.add(ASM_DD_DEFAULT)
+            new_handle = py_ddwaf_builder_build_instance(self._builder)
+            self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
+            if new_handle:
+                self._handle = new_handle
+                self._rc_updates += 1
+            return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
         ctx = None
