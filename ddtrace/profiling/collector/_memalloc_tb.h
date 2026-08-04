@@ -22,9 +22,7 @@ class traceback_t
     /* Initialize/populate this traceback with allocation data and collect frames.
      * Assumes sample buffers are already clean (cleared when returned to pool).
      * Stack walking uses direct CPython struct reads to avoid allocator reentry
-     * from refcount churn while still collecting Python frames.
-     * domain is the CPython allocator domain the intercepted allocation came
-     * from; it is recorded on the sample as the "allocator domain" label. */
+     * from refcount churn while still collecting Python frames.*/
     void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
     // Non-copyable, non-movable
