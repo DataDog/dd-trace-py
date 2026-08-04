@@ -207,6 +207,17 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    /// Select the OTLP export protocol: `http/json` or `http/protobuf`. Any other value raises
+    /// `ValueError`.
+    fn set_otlp_protocol(mut slf: PyRefMut<'_, Self>, protocol: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_protocol(
+            protocol
+                .parse()
+                .map_err(|e: String| PyValueError::new_err(e))?,
+        );
+        Ok(slf.into())
+    }
+
     fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
         Ok(slf.into())

@@ -80,7 +80,7 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
-    # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json for OTLP traces.
+    # Nothing configured: fall back to the local HTTP OTLP endpoint.
     return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
 
 
@@ -161,9 +161,7 @@ class ExporterConfig(DDConfig):
     METRICS_METRIC_READER_EXPORT_INTERVAL = DDConfig.d(int, _derive_metrics_metric_reader_export_interval)
     METRICS_METRIC_READER_EXPORT_TIMEOUT = DDConfig.d(int, _derive_metrics_metric_reader_export_timeout)
 
-    # TRACES_PROTOCOL is collected for telemetry but not yet used to switch transport:
-    # libdatadog currently only supports HTTP/JSON for OTLP traces. gRPC support will
-    # consume this field when added.
+    # OTLP trace encoding: http/json or http/protobuf (see NativeWriter for how it is applied).
     TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
     TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)

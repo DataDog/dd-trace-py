@@ -132,7 +132,7 @@ def test_evaluate_method(
             assert result["tags"] == tags
         assert result["sds"] == []
 
-    expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
+    expected_tags = {"ai_guard.target": target, "ai_guard.action": action, "ai_guard.redacted": "false"}
     if target == "tool":
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
@@ -152,6 +152,7 @@ def test_evaluate_method(
             ("action", action),
             ("block", "true" if should_block else "false"),
             ("error", "false"),
+            ("redacted", "false"),
         ),
     )
     assert_mock_execute_request_call(
