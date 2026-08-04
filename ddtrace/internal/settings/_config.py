@@ -426,7 +426,9 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
+        _error_statuses: str = _get_config(
+            ["DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "DD_HTTP_SERVER_ERROR_STATUSES"], "500-599"
+        )
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
@@ -451,6 +453,22 @@ class Config(object):
                 if error_range[0] <= status_code <= error_range[1]:
                     return True
             return False
+
+    class _HTTPClientConfig(_HTTPServerConfig):
+        """Error status ranges for HTTP client spans.
+
+        Historically dd-trace-py had no client-specific setting and applied the server
+        ranges to client spans as well. The default stays unset so that behavior is
+        preserved byte for byte; the OTel semantics path substitutes 400-599 when the user
+        has not configured anything, and any user-provided value wins in either mode.
+        """
+
+        _error_statuses: str = _get_config(["DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "DD_HTTP_CLIENT_ERROR_STATUSES"], "")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses) if _error_statuses else []
+
+        @property
+        def is_configured(self) -> bool:
+            return bool(self._error_ranges)
 
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
@@ -548,6 +566,7 @@ class Config(object):
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
