@@ -184,6 +184,8 @@ class TelemetryWriter:
         # metric can't both register it (which would create duplicate native contexts / split the
         # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
         self._metric_lock = forksafe.Lock()
+        # Serializes building and publishing the native worker in enable().
+        self._enable_lock = forksafe.Lock()
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
@@ -291,14 +293,19 @@ class TelemetryWriter:
         if self._worker is not None:
             return True
 
-        try:
-            worker = self._build_worker()
-        except Exception:
-            log.debug("Failed to build the native telemetry worker", exc_info=True)
-            return False
-        self._metric_contexts.clear()
-        self._worker = worker
-        self._notify_worker_changed(worker)
+        with self._enable_lock:
+            # extra check to skip the self._worker check on the hotter path
+            if self._worker is not None:
+                return True  # type: ignore[unreachable]
+
+            try:
+                worker = self._build_worker()
+            except Exception:
+                log.debug("Failed to build the native telemetry worker", exc_info=True)
+                return False
+            self._metric_contexts.clear()
+            self._worker = worker
+            self._notify_worker_changed(worker)
 
         # Every process starts its worker so it heartbeats with its own session id.
         # app-started is emitted only by the root process; this is enforced inside the
