@@ -11,7 +11,16 @@ class PeerServiceConfig(object):
     source_tag_name = "_dd.peer.service.source"
     tag_name = "peer.service"
     enabled_span_kinds = {SpanKind.CLIENT, SpanKind.PRODUCER}
-    prioritized_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "mongodb.db", "rpc.service", "out.host"]
+    # server.address is last so that it only takes effect when out.host is absent, which is
+    # the case for HTTP client spans under DD_TRACE_OTEL_SEMANTICS_ENABLED.
+    prioritized_data_sources = [
+        "messaging.kafka.bootstrap.servers",
+        "db.name",
+        "mongodb.db",
+        "rpc.service",
+        "out.host",
+        "server.address",
+    ]
 
     def __init__(self, set_defaults_enabled=None, peer_service_mapping=None):
         self._set_defaults_enabled = set_defaults_enabled
