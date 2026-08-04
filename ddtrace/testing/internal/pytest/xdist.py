@@ -100,6 +100,14 @@ def wait_for_xdist_worker_manifest(
     while time.time() < deadline:
         if manifest_path.exists():
             os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
+            # OfflineMode can be initialized by startup hooks before this wait runs. Reset the singleton after the
+            # generated manifest becomes ready so SessionManager re-validates manifest mode from the completed file.
+            from ddtrace.testing.internal.offline_mode import get_offline_mode
+            from ddtrace.testing.internal.offline_mode import reset_offline_mode
+
+            offline = get_offline_mode()
+            if not offline.manifest_enabled:
+                reset_offline_mode()
             _xdist_worker_manifest_wait_done = True
             _xdist_worker_manifest_wait_result = manifest_path
             log.debug(

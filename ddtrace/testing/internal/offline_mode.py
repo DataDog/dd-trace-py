@@ -211,6 +211,12 @@ def get_offline_mode() -> OfflineMode:
     return _offline_mode
 
 
+def reset_offline_mode() -> None:
+    """Clear the cached OfflineMode singleton so environment changes are re-read."""
+    global _offline_mode
+    _offline_mode = None
+
+
 # ---------------------------------------------------------------------------
 # Payload file writing
 # ---------------------------------------------------------------------------
