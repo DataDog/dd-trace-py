@@ -233,9 +233,6 @@ ddtrace/contrib/internal/vllm                                 @DataDog/ml-observ
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/cassettes                                               @DataDog/ml-observability
-tests/cassettes/openai/openai_chat_completions_post_9e52f9d0.json @DataDog/asm-python @DataDog/ml-observability
-tests/cassettes/openai/openai_chat_completions_post_caac525c.json @DataDog/asm-python @DataDog/ml-observability
-tests/cassettes/openai/openai_chat_completions_post_c180b8dd.json @DataDog/asm-python @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                        @DataDog/ml-observability
