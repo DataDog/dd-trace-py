@@ -338,7 +338,12 @@ codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  variables:
+    GIT_DEPTH: "0"
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
@@ -366,22 +371,29 @@ codeowners:
             echo "Please remove duplicates from .github/CODEOWNERS."
             exit 1
         fi
-    - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
-    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      > /tmp/changed_files.txt
-      while IFS= read -r f; do
-        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
-      done < /tmp/changed_all.txt
-    - |
-      if [ -s /tmp/changed_files.txt ]; then
-        echo '```' > codeowners.txt
-        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
-        echo '```' >> codeowners.txt
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+      git show "FETCH_HEAD:.github/CODEOWNERS" > /tmp/base-CODEOWNERS
+      git diff --name-only --diff-filter=ACMRTUXB -z "FETCH_HEAD...${CI_COMMIT_SHA}" > /tmp/changed_files.txt
+    - |
+      {
+        printf 'Resolved from the full PR diff against `%s` using the target branch CODEOWNERS file.\n' "${BASE_BRANCH}"
+        printf 'CODEOWNERS team requests not listed below are not required by the current file set.\n\n'
+        if [ -s /tmp/changed_files.txt ]; then
+          echo '```'
+          xargs -0 ./codeowners --file /tmp/base-CODEOWNERS < /tmp/changed_files.txt
+          echo '```'
+        else
+          echo 'No remaining files require a CODEOWNERS review.'
+        fi
+      } | tee codeowners.txt
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
 
 detect_circular_imports:
