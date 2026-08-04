@@ -127,6 +127,12 @@ core/repro_iast_django_shutdown:
         exit 1
       fi
       echo "Using Python ${python_version}"
+      # A reproduction produced faulthandler stacks but no core at all, and the core.* artifact then
+      # had nothing to upload. core_pattern is host-wide and a container cannot change it, so record
+      # what this runner is actually configured to do before spending an hour looping.
+      echo "core_pattern: $(cat /proc/sys/kernel/core_pattern 2>&1)"
+      echo "core_uses_pid: $(cat /proc/sys/kernel/core_uses_pid 2>&1)"
+      echo "ulimit -c: $(ulimit -c)  hard: $(ulimit -Hc)"
       hashes=( $(riot list --hash-only --python="${python_version}" appsec_integrations_django | sort) )
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found"

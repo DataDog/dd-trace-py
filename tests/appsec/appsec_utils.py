@@ -267,6 +267,51 @@ def _describe_server_output(server_process) -> str:
     )
 
 
+def _dump_server_greenlets(client) -> None:
+    """Ask a hung gevent server to describe its own greenlets, over a second HTTP request.
+
+    This works precisely because the hang does not stop the hub: on a real reproduction the main
+    thread was in gevent's hub run(), still turning the event loop, so a second connection is still
+    accepted and served while /shutdown is stuck. That makes it the only way to see the stack of the
+    suspended greenlet, which faulthandler cannot reach.
+
+    Best effort by design. If the hub is wedged after all, this request times out too, and that
+    negative result is itself worth printing.
+    """
+    if os.environ.get("_DD_TEST_ABORT_HUNG_SERVER", "") != "1":
+        return
+    print("=== Asking the hung server for its greenlet stacks ===", flush=True)
+    try:
+        response = client.get_ignored("/debug/greenlets", timeout=10)
+    except Exception as exc:
+        print("=== The hung server did not answer /debug/greenlets either: %r ===" % (exc,), flush=True)
+        print("=== That means the hub itself is not turning, not just one greenlet ===", flush=True)
+        return
+    print("=== /debug/greenlets responded %s ===" % response.status_code, flush=True)
+    print(response.text, flush=True)
+
+
+def _describe_core_dump_environment() -> None:
+    """Print why a core dump would or would not appear, so a missing core is never a mystery.
+
+    A reproduction produced faulthandler stacks but no core at all, and the artifact upload then had
+    nothing to pick up. core_pattern is host-wide and a container cannot change it, so it has to be
+    read rather than assumed.
+    """
+    try:
+        with open("/proc/sys/kernel/core_pattern") as core_pattern:
+            print("core_pattern: %r" % core_pattern.read().strip(), flush=True)
+    except Exception as exc:
+        print("core_pattern: unreadable (%r)" % (exc,), flush=True)
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
+        print("RLIMIT_CORE: soft=%s hard=%s" % (soft, hard), flush=True)
+    except Exception as exc:
+        print("RLIMIT_CORE: unreadable (%r)" % (exc,), flush=True)
+
+
 def _dump_hung_server(server_process, known_worker_pids=()) -> None:
     """Dump every stack of a server that would not shut down, so the hang can be diagnosed.
 
@@ -274,17 +319,19 @@ def _dump_hung_server(server_process, known_worker_pids=()) -> None:
     PYTHONFAULTHANDLER=1, so a fatal signal makes it print every thread's Python stack to stderr and
     leave a core file behind for the native backtrace — the only way to see the Rust/Tokio threads.
 
-    The signal has to be SIGSEGV, not SIGABRT. Gunicorn's worker replaces faulthandler's SIGABRT
-    handler with its own Python-level handle_abort (gunicorn/workers/base.py init_signals), and a
-    Python-level handler can never run here: the thread we want to dump is blocked inside native
-    code while still holding the GIL, so the interpreter never reaches a point where it would run
-    pending signal handlers. Measured in the testrunner image: SIGABRT leaves the process alive with
-    no output and no core, while SIGSEGV dumps every thread — including one wedged in C holding the
-    GIL — because faulthandler's SIGSEGV handler runs at the C level and needs no GIL. Gunicorn does
-    not touch SIGSEGV.
+    The signal has to be SIGSEGV, not SIGABRT. Gunicorn's worker installs its own Python-level
+    handle_abort over faulthandler's SIGABRT handler (gunicorn/workers/base.py init_signals), and
+    that handler just calls sys.exit(1): the worker dies quietly with no stacks and no core, which is
+    what CI showed. Gunicorn does not touch SIGSEGV, so faulthandler still services it.
 
     Attaching gdb to the live process is not an option either: kernel.yama.ptrace_scope is 1 on the
     runners and gdb would be a sibling of the target, not an ancestor.
+
+    What this can and cannot show, measured on a real reproduction (job 1921342140): faulthandler
+    dumps one stack per OS thread, and during this hang the main thread is sitting in the gevent
+    hub's run(). The greenlet that was serving /shutdown is suspended, so it appears nowhere. Use
+    _dump_server_greenlets for that side; this function is for the OS threads, including the ones
+    with no Python frame at all, which are only identifiable from the native backtrace.
 
     Only the workers are signalled; killing the arbiter would reap them mid-dump.
     """
@@ -532,6 +579,9 @@ def appsec_application_server(
         except ConnectionError:
             pass
         except Exception as exc:
+            # Order matters: the greenlet dump needs a live worker, and the signal below kills it.
+            _dump_server_greenlets(client)
+            _describe_core_dump_environment()
             _dump_hung_server(server_process, worker_pids)
             raise AssertionError(
                 "The application server did not answer /shutdown: %r\n%s"

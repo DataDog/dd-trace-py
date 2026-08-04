@@ -19,9 +19,23 @@ def shutdown(request):
     return HttpResponse(status=200)
 
 
+# AIDEV-NOTE: Diagnostic endpoint for the flaky /shutdown hang under `-w 1 --threads 1 -k gevent`.
+# When tracer.shutdown() above never returns, the gevent hub keeps turning, so this second request is
+# still served and reports the stack of the suspended greenlet — which faulthandler cannot show,
+# because a suspended greenlet is not on any OS thread. Called by _dump_server_greenlets in
+# tests/appsec/appsec_utils.py. Delete together with that helper once the hang is understood.
+def debug_greenlets(request):
+    try:
+        from gevent.util import format_run_info
+    except ImportError:
+        return HttpResponse("gevent is not in use in this configuration\n", content_type="text/plain")
+    return HttpResponse("\n".join(format_run_info()), content_type="text/plain")
+
+
 urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^shutdown$", shutdown),
+    handler(r"^debug/greenlets$", debug_greenlets),
     handler(r"^iast-enabled/$", views.iast_enabled),
     handler(r"^vulnerablerequestdownstream/$", views.vulnerable_request_downstream),
     # This must precede composed-view.
