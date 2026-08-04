@@ -405,6 +405,92 @@ class TelemetryWorker:
         """
         ...
 
+class DebuggerType:
+    """Which debugger track a payload belongs to. (decides the endpoint)"""
+
+    Diagnostics: "DebuggerType"
+    Snapshots: "DebuggerType"
+    Logs: "DebuggerType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DebuggerSenderError(Exception):
+    """A debugger payload could not be delivered (transport failure or timeout)."""
+
+class DebuggerSender:
+    """Sender for Dynamic Instrumentation / Exception Replay / Code Origin payloads.
+
+    Wraps the ``datadog-live-debugger`` sender.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "DebuggerSender":
+        """Build a sender on ``runtime``.
+
+        :param url: the trace agent URL (``http``, ``https`` or
+            ``unix:///path.sock``) for agent-proxied uploads. Combined with
+            ``api_key`` it becomes a direct intake URL, which is how tests point
+            agentless mode at a local intake.
+        :param site: e.g. ``"datadoghq.com"``; with ``api_key`` and no ``url``
+            the endpoint becomes ``https://debugger-intake.{site}``.
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path).
+        :param tags: unencoded ``"key:value,key:value"``; percent-encoded here
+            for the ``ddtags`` query string, and sent verbatim in the SymDB
+            ``X-Datadog-Additional-Tags`` header.
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    @property
+    def downgraded(self) -> bool:
+        """Whether the logs/snapshots tracks currently point at the diagnostics endpoint."""
+        ...
+    def downgrade_to_diagnostics(self) -> bool:
+        """Point the logs and snapshots tracks at the diagnostics endpoint.
+
+        For agents that do not proxy ``/debugger/v2/input``. A no-op in agentless
+        mode, where all three tracks already share one intake path. Returns
+        whether anything changed.
+        """
+        ...
+    def reset_endpoints(self) -> None:
+        """Undo a downgrade, restoring the endpoints derived at construction."""
+        ...
+    def send(self, payload: bytes, debugger_type: DebuggerType) -> Optional[tuple[int, str]]:
+        """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
+
+        :return: ``None`` when the payload was accepted, or ``(status, body)``
+            when the server rejected it with a >= 400 status.
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+    def send_symdb(self, payload: bytes, content_type: str) -> Optional[tuple[int, str]]:
+        """POST a SymDB payload verbatim to the symbol database endpoint.
+
+        Return value and errors match :meth:`send`.
+        """
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
