@@ -739,7 +739,7 @@ Datadog::Sample::push_allocator_domain(std::string_view allocator_domain)
     if (!push_label(ExportLabelKey::allocator_domain, allocator_domain)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "bad push" << std::endl;
+            std::cerr << "bad push allocator domain" << std::endl;
         }
         return false;
     }
