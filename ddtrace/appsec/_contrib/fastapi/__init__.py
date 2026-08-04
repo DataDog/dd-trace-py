@@ -18,6 +18,7 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
@@ -80,7 +81,7 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
     return receive, None
 
 
-def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
+def _asgi_make_block_content(ctx: ExecutionContext[Event], url: str) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")

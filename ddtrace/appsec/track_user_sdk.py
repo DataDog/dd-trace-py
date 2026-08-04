@@ -20,7 +20,7 @@ from ddtrace.internal._exceptions import BlockingException
 
 
 def track_login_success(
-    login: str, user_id: t.Any = None, metadata: t.Optional[dict[str, t.Any]] = None, _auto: bool = False
+    login: str, user_id: t.Any = None, metadata: t.Optional[dict[str, object]] = None, _auto: bool = False
 ) -> None:
     """
     Track a successful user login event.

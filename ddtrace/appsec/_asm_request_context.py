@@ -30,6 +30,7 @@ from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import Constant_Class
+from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -524,7 +525,7 @@ def get_ip() -> Optional[str]:
 # early point set_headers is usually called
 
 
-def set_headers(headers: Mapping) -> None:
+def set_headers(headers: Mapping[str, object]) -> None:
     if headers is not None:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
 
@@ -680,7 +681,7 @@ def end_context(span: Span) -> None:
 
 
 def _on_context_ended(
-    ctx: core.ExecutionContext,
+    ctx: core.ExecutionContext[Event],
     _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     env = ctx.get_item(_ASM_CONTEXT)

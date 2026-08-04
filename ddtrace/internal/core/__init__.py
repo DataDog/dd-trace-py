@@ -134,6 +134,7 @@ from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+from .events import Event
 from .events import EventType
 
 
@@ -340,12 +341,17 @@ def _reset_context():
     _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 
 
-def context_with_data(identifier, parent=None, **kwargs):
+def context_with_data(
+    identifier: str, parent: Optional[ExecutionContext[Event]] = None, **kwargs
+) -> ExecutionContext[Event]:
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
 def context_with_event(
-    event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
+    event: "EventType",
+    parent: Optional[ExecutionContext[Event]] = None,
+    context_name_override: Optional[str] = None,
+    dispatch_end_event=True,
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
     return _CONTEXT_CLASS(

@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -59,9 +60,9 @@ def _asm_manual_keep(span: Span) -> None:
     add_trace_source(span, TraceSource.ASM)
 
 
-def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) -> None:
+def _handle_metadata(entry_span: Span, prefix: str, metadata: Mapping[str, object]) -> None:
     MAX_DEPTH = 6
-    stack: list[tuple[str, Any, int]] = [(prefix, metadata, 1)]
+    stack: list[tuple[str, object, int]] = [(prefix, metadata, 1)]
     while stack:
         current_prefix, data, level = stack.pop()
         if isinstance(data, list):
@@ -81,7 +82,7 @@ def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) ->
 def _track_user_login_common(
     tracer: Any,
     success: bool,
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -137,7 +138,7 @@ def _track_user_login_common(
 def track_user_login_success_event(
     tracer: Any,
     user_id: Optional[object],
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
@@ -210,7 +211,7 @@ def track_user_login_failure_event(
     tracer: Any,
     user_id: Optional[object],
     exists: Optional[bool] = None,
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -290,7 +291,7 @@ def track_user_signup_event(
         log.warning(_NO_ROOT_SPAN_WARNING, "track_user_signup")
 
 
-def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -> None:
+def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, object]) -> None:
     """
     Add a new custom tracking event.
 

@@ -28,6 +28,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -262,7 +263,7 @@ def _on_django_signup_user(
 
 def _on_traced_get_response_pre(
     block_callable: Callable[[], None],
-    _ctx: ExecutionContext,
+    _ctx: ExecutionContext[Event],
     _request: Any,
     _before_request_tags: Any,
 ) -> None:
