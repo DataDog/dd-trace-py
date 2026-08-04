@@ -21,6 +21,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._trace_utils import track_user_login_failure_event
 from ddtrace.appsec._trace_utils import track_user_login_success_event
 from ddtrace.appsec._utils import _hash_user_id
+from ddtrace.appsec._utils import _UserExtraInfo
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
@@ -99,12 +100,11 @@ def _on_django_auth(
 
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     if not result_user:
         with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
@@ -115,7 +115,7 @@ def _on_django_auth(
                 name=django_config.include_user_realname,
             )
             if user_extra.get("login") is None:
-                user_extra["login"] = user_id
+                user_extra["login"] = str(user_id) if user_id is not None else None
             user_id = user_id_found or user_id
             user_login = user_extra.get("login")
 
@@ -135,17 +135,16 @@ def get_user_info(
     info_retriever: _DjangoUserInfoRetriever,
     django_config: IntegrationConfig,
     kwargs: Optional[dict[str, Any]] = None,
-) -> tuple[Any, dict[str, Any]]:
+) -> tuple[Optional[object], _UserExtraInfo]:
     if kwargs is None:
         kwargs = {}
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     user_id_found, user_extra = info_retriever.get_user_info(
         login=True,
@@ -153,7 +152,7 @@ def get_user_info(
         name=django_config.include_user_realname,
     )
     if user_extra.get("login") is None and user_id:
-        user_extra["login"] = user_id
+        user_extra["login"] = str(user_id)
     return user_id_found or user_id, user_extra
 
 
@@ -248,8 +247,7 @@ def _on_django_signup_user(
         _asm_manual_keep(span)
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT, "true")
-        if "login" in user_extra:
-            login = user_extra["login"]
+        if (login := user_extra.get("login")) is not None:
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
                 login = _hash_user_id(login)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)
