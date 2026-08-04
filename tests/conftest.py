@@ -224,6 +224,9 @@ def clear_test_optimization_subprocess_env():
     except Exception:
         pass
     yield
+    # Clear again after the test: some tests intentionally set these vars while
+    # building subprocess environments.  We do not want pytest's next test to
+    # inherit either the original outer-run values or values created by this test.
     for name in (
         "DD_TEST_OPTIMIZATION_ENV_DATA_FILE",
         "DD_TEST_OPTIMIZATION_MANIFEST_FILE",
