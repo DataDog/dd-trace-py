@@ -1,7 +1,5 @@
 ---
 fixes:
   - |
-    code origin: fixed unbounded memory growth when instrumenting functions that
-    are created at run time, such as when applying ``@tracer.wrap`` to a function
-    defined inside another function. Memory usage is now bounded by the peak
-    number of such functions instrumented at the same time.
+    internal: A memory leak triggered when using ``@tracer.wrap`` on
+    functions created at run time has been fixed.
