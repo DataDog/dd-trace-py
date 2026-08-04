@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: ``LLMObs.submit_evaluation()`` accepts ``status`` ("OK"/"WARN"/"ERROR") and a
+    structured ``error``, recording a failed or skipped evaluation as a first-class error state (the
+    typed ``value`` is now optional). ``LLMObs.evaluation()`` emits this automatically when its block
+    raises an unhandled exception; opt out with ``emit_error_metric=False``.
