@@ -6,7 +6,6 @@ from functools import lru_cache
 import inspect
 from io import StringIO
 import logging
-import os
 from pathlib import Path
 import random
 import traceback
@@ -27,7 +26,6 @@ from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_metho
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
@@ -43,13 +41,12 @@ from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
-from ddtrace.testing.internal.pytest.xdist import cleanup_exported_git_metadata
-from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest_artifacts
-from ddtrace.testing.internal.pytest.xdist import export_git_metadata_for_workers
+from ddtrace.testing.internal.pytest.xdist import XdistManifest
+from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import discard_foreign_generated_manifest_env
+from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import is_xdist_enabled_from_args
-from ddtrace.testing.internal.pytest.xdist import wait_for_xdist_worker_manifest
-from ddtrace.testing.internal.pytest.xdist import write_xdist_manifest_cache
-from ddtrace.testing.internal.pytest.xdist import xdist_manifest_path
+from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -108,7 +105,7 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
-    XDIST_MANIFEST_STASH_KEY = pytest.StashKey[tuple[Path, bool]]()
+    XDIST_MANIFEST_STASH_KEY = pytest.StashKey[XdistManifest]()
     _HAS_STASH = True
 except AttributeError:
     # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
@@ -354,8 +351,7 @@ class TestOptPlugin:
 
         self.manager = session_manager
         self.session = self.manager.session
-        self.xdist_manifest_path: t.Optional[Path] = None
-        self.xdist_git_metadata_exported = False
+        self.xdist_manifest: t.Optional[XdistManifest] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -478,11 +474,9 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
-            # All workers have finished by this point, so xdist coordination
-            # files are no longer needed. Clean them up to keep .git/ tidy.
+            # All workers have finished by this point, so the upload sentinel and lock
+            # file are no longer needed. Clean them up to keep .git/ tidy.
             self.manager.cleanup_upload_artifacts()
-            if self.xdist_manifest_path is not None:
-                cleanup_xdist_manifest_artifacts(Path(self.manager.workspace_path))
 
         if self.manager.settings.coverage_enabled:
             uninstall_coverage()
@@ -498,11 +492,10 @@ class TestOptPlugin:
 
         self.manager.finish()
 
-        if not self.is_xdist_worker and self.xdist_manifest_path is not None:
-            if os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE) == str(self.xdist_manifest_path):
-                os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
-            if self.xdist_git_metadata_exported:
-                cleanup_exported_git_metadata(self.manager.env_tags)
+        if self.xdist_manifest is not None:
+            # All workers have finished, so the generated manifest cache is no longer needed.
+            cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
+            self.xdist_manifest = None
 
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
@@ -1562,28 +1555,8 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
-    using_xdist = is_xdist_enabled_from_args(args)
-    controller_generated_manifest_path = None
-    controller_set_manifest_env = False
-    if (
-        using_xdist
-        and not os.environ.get("PYTEST_XDIST_WORKER")
-        and not os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
-    ):
-        workspace_path = get_workspace_path()
-        cleanup_xdist_manifest_artifacts(workspace_path)
-        controller_generated_manifest_path = xdist_manifest_path(workspace_path)
-        if controller_generated_manifest_path:
-            os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(controller_generated_manifest_path)
-            controller_set_manifest_env = True
-            log.debug(
-                "Test Optimization xdist controller reserved generated manifest env: path=%s cwd=%s args=%s",
-                controller_generated_manifest_path,
-                Path.cwd(),
-                args,
-            )
-    wait_for_xdist_worker_manifest(Path.cwd(), require_worker_env=controller_set_manifest_env)
-    user_manifest_enabled = bool(os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)) and not controller_set_manifest_env
+    # A manifest env var inherited from an unrelated pytest session must not put this process in manifest mode.
+    discard_foreign_generated_manifest_env()
 
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
@@ -1592,59 +1565,17 @@ def pytest_load_initial_conftests(
         test_framework_version=pytest.__version__,
     )
 
-    controller_manifest_env = None
-    if controller_set_manifest_env:
-        controller_manifest_env = os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
-        log.debug(
-            "Test Optimization xdist controller temporarily removed generated manifest env before "
-            "SessionManager: path=%s",
-            controller_manifest_env,
-        )
     try:
         session_manager = SessionManager(session=session)
     except SetupError as e:
-        if controller_set_manifest_env:
-            os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
         log.error("%s", e)
         yield
         return
-    if controller_manifest_env:
-        os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = controller_manifest_env
-        log.debug(
-            "Test Optimization xdist controller restored generated manifest env after SessionManager: path=%s",
-            controller_manifest_env,
-        )
 
-    if using_xdist and not user_manifest_enabled and not os.environ.get("PYTEST_XDIST_WORKER"):
-        manifest_path = controller_generated_manifest_path or xdist_manifest_path(Path(session_manager.workspace_path))
-        git_metadata_exported = False
-        if manifest_path:
-            os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
-            git_metadata_exported = export_git_metadata_for_workers(session_manager.env_tags)
-            log.debug(
-                "Test Optimization xdist controller writing generated manifest cache: path=%s workspace=%s",
-                manifest_path,
-                session_manager.workspace_path,
-            )
-            manifest_path = write_xdist_manifest_cache(
-                Path(session_manager.workspace_path),
-                session_manager.settings,
-                session_manager.known_tests,
-                session_manager.test_properties,
-                session_manager.skippable_items,
-                session_manager.itr_correlation_id,
-            )
-        if manifest_path:
-            log.debug(
-                "Test Optimization xdist controller wrote generated manifest cache: path=%s git_metadata_exported=%s",
-                manifest_path,
-                git_metadata_exported,
-            )
-            _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, (manifest_path, git_metadata_exported))
-        else:
-            os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
-            if git_metadata_exported:
-                cleanup_exported_git_metadata(session_manager.env_tags)
+    if is_xdist_enabled_from_args(args) and not is_xdist_worker_process():
+        xdist_manifest = generate_xdist_manifest(session_manager)
+        if xdist_manifest is not None:
+            _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, xdist_manifest)
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
@@ -1726,9 +1657,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     try:
         plugin = plugin_class(session_manager=session_manager)
-        xdist_manifest_data = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
-        if xdist_manifest_data is not None:
-            plugin.xdist_manifest_path, plugin.xdist_git_metadata_exported = xdist_manifest_data
+        plugin.xdist_manifest = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return

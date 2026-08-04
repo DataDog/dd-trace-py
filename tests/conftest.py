@@ -201,47 +201,6 @@ def remove_git_repo_url_from_test_env():
     yield
 
 
-@pytest.fixture(autouse=True, scope="function")
-def clear_test_optimization_subprocess_env():
-    """Prevent outer Test Optimization mode from leaking into subprocess-based tests.
-
-    Many tests run nested pytest subprocesses from an outer xdist worker.  The outer
-    process can have Test Optimization manifest/payload-file env vars that are only
-    valid for the outer run; if copied into a nested subprocess, its controller can
-    be misclassified as manifest/offline mode for the wrong workspace.
-    """
-    for name in (
-        "DD_TEST_OPTIMIZATION_ENV_DATA_FILE",
-        "DD_TEST_OPTIMIZATION_MANIFEST_FILE",
-        "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES",
-        "TEST_UNDECLARED_OUTPUTS_DIR",
-    ):
-        os.environ.pop(name, None)
-    try:
-        import ddtrace.testing.internal.offline_mode as offline_mode
-
-        offline_mode._offline_mode = None
-    except Exception:
-        pass
-    yield
-    # Clear again after the test: some tests intentionally set these vars while
-    # building subprocess environments.  We do not want pytest's next test to
-    # inherit either the original outer-run values or values created by this test.
-    for name in (
-        "DD_TEST_OPTIMIZATION_ENV_DATA_FILE",
-        "DD_TEST_OPTIMIZATION_MANIFEST_FILE",
-        "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES",
-        "TEST_UNDECLARED_OUTPUTS_DIR",
-    ):
-        os.environ.pop(name, None)
-    try:
-        import ddtrace.testing.internal.offline_mode as offline_mode
-
-        offline_mode._offline_mode = None
-    except Exception:
-        pass
-
-
 @pytest.fixture
 def use_dummy_writer():
     yield True

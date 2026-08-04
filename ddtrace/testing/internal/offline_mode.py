@@ -149,16 +149,7 @@ class OfflineMode:
         manifest_env = env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
         if manifest_env:
             resolved = resolve_rlocation(manifest_env)
-            manifest_valid = _validate_manifest(resolved)
-            worker = os.environ.get("PYTEST_XDIST_WORKER")
-            if worker:
-                log.info(
-                    "Test Optimization xdist worker manifest mode %s: worker=%s manifest=%s",
-                    "enabled" if manifest_valid else "disabled",
-                    worker,
-                    resolved,
-                )
-            if manifest_valid:
+            if _validate_manifest(resolved):
                 self.manifest_enabled = True
                 self.test_optimization_dir = os.path.dirname(resolved)
                 log.debug("Manifest mode enabled: .testoptimization dir = %s", self.test_optimization_dir)

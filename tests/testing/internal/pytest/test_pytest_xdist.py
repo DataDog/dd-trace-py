@@ -34,7 +34,8 @@ from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FIL
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
-from ddtrace.testing.internal.pytest.xdist import xdist_manifest_dir
+from ddtrace.testing.internal.pytest.xdist import XDIST_MANIFEST_DIR_PREFIX
+from ddtrace.testing.internal.pytest.xdist import discard_foreign_generated_manifest_env
 
 
 # ---------------------------------------------------------------------------
@@ -417,21 +418,66 @@ class TestXdistManifestMode:
         result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
 
         assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        manifest_dir = xdist_manifest_dir(test_project)
-        assert manifest_dir is not None
+
+        # Every worker inherited the controller-generated manifest ...
         worker_manifests = [path.read_text() for path in marker_dir.glob("gw[0-9]")]
         assert len(worker_manifests) == 2
-        assert all(worker_manifests)
-        assert all(".xdist_testoptimization" in manifest for manifest in worker_manifests)
+        assert all(XDIST_MANIFEST_DIR_PREFIX in manifest for manifest in worker_manifests), worker_manifests
+        # ... and actually ran in manifest mode instead of querying the backend.
         worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
         assert len(worker_manifest_modes) == 2
         assert all("enabled=True" in mode for mode in worker_manifest_modes), worker_manifest_modes
-        assert all(".xdist_testoptimization" in mode for mode in worker_manifest_modes), worker_manifest_modes
+        assert all(XDIST_MANIFEST_DIR_PREFIX in mode for mode in worker_manifest_modes), worker_manifest_modes
+
+        # Only the controller talked to the backend.
+        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
+        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
+
         worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
         assert len(worker_test_counts) == 2
         assert sum(worker_test_counts) == 4
         assert all(1 <= count <= 3 for count in worker_test_counts)
-        assert not manifest_dir.exists()
+
+        # The generated manifest cache is a private temp directory, removed when the session ends.
+        manifest_dir = Path(worker_manifests[0]).parent
+        assert not manifest_dir.exists(), manifest_dir
+
+
+class TestDiscardForeignGeneratedManifestEnv:
+    """A generated manifest is only honored by the controller that wrote it and by its direct children (the workers)."""
+
+    def test_keeps_manifest_generated_by_this_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{os.getpid()}_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        discard_foreign_generated_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
+
+    def test_keeps_manifest_generated_by_parent_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{os.getppid()}_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        discard_foreign_generated_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
+
+    def test_discards_manifest_generated_by_unrelated_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}1_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        discard_foreign_generated_manifest_env()
+
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+
+    def test_keeps_user_provided_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bazel-style manifests are not ours to second-guess, whatever process exported them."""
+        manifest = "/some/workspace/.testoptimization/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        discard_foreign_generated_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
 
 
 class TestXdistEventDelivery:
@@ -717,10 +763,7 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-        )
+        env = _make_env(mock_server.url)
         # Use --dist=loadscope to guarantee file-level isolation between workers.
         result = _run_pytest_subprocess(
             test_project, "-n", "2", "--max-worker-restart", "4", "--dist=loadscope", env=env
@@ -777,10 +820,7 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-        )
+        env = _make_env(mock_server.url)
         _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
         test_events = mock_server.get_test_events()
@@ -828,10 +868,7 @@ class TestXdistWorkerCrashRestart:
             )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-        )
+        env = _make_env(mock_server.url)
         _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()
@@ -872,10 +909,7 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-        )
+        env = _make_env(mock_server.url)
         _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "0", env=env)
 
         test_events = mock_server.get_test_events()
@@ -918,10 +952,7 @@ class TestXdistWorkerCrashRestart:
             )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-        )
+        env = _make_env(mock_server.url)
         _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "2", env=env)
 
         all_events = mock_server.get_all_events()
@@ -968,10 +999,7 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project)
 
-            env = _make_env(
-                server_without.url,
-                extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
-            )
+            env = _make_env(server_without.url)
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_without = [e["content"]["meta"]["test.name"] for e in server_without.get_test_events()]
@@ -982,13 +1010,7 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project, message="re-commit for second run")
 
-            env = _make_env(
-                server_with.url,
-                extra={
-                    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1",
-                    DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt"),
-                },
-            )
+            env = _make_env(server_with.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
@@ -1026,13 +1048,7 @@ class TestXdistPartialFlush:
             )
         _git_commit(test_project)
 
-        env = _make_env(
-            mock_server.url,
-            extra={
-                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1",
-                DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt"),
-            },
-        )
+        env = _make_env(mock_server.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
         result = _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()

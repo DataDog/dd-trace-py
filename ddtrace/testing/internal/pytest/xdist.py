@@ -5,19 +5,20 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
-import time
+import tempfile
 import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.testing.internal.constants import DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.manifest import manifest_file_path
 from ddtrace.testing.internal.manifest import write_manifest_cache
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.offline_mode import reset_offline_mode
+
+
+if t.TYPE_CHECKING:
+    from ddtrace.testing.internal.session_manager import SessionManager
 
 
 log = get_logger(__name__)
@@ -25,108 +26,110 @@ log = get_logger(__name__)
 XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
-XDIST_MANIFEST_DIRNAME = ".xdist_testoptimization"
-XDIST_WORKER_MANIFEST_WAIT_SECONDS = 60.0
-XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS = 0.05
 
-_xdist_worker_manifest_wait_done = False
-_xdist_worker_manifest_wait_result: t.Optional[Path] = None
-
-
-def xdist_manifest_dir(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
-    if workspace_path is None:
-        return None
-    return workspace_path / XDIST_MANIFEST_DIRNAME
+# AIDEV-NOTE: The controller-generated manifest cache lives in a private temp directory instead of the workspace: the
+# workspace path is derived differently by different components (git root vs. CI provider env vars), and two concurrent
+# pytest runs of the same repo would otherwise clobber each other's cache.  The controller pid is embedded in the
+# directory name so descendant processes can tell whether an inherited manifest env var was meant for them.
+XDIST_MANIFEST_DIR_PREFIX = "dd_xdist_manifest_"
 
 
-def xdist_manifest_path(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
-    manifest_dir = xdist_manifest_dir(workspace_path)
-    if manifest_dir is None:
-        return None
-    return manifest_file_path(manifest_dir)
+def is_xdist_worker_process() -> bool:
+    """Return whether this process is a pytest-xdist worker (the env var is set before plugins load)."""
+    return bool(os.environ.get("PYTEST_XDIST_WORKER"))
 
 
-def wait_for_xdist_worker_manifest(
-    workspace_path: t.Optional[Path], require_worker_env: bool = True
-) -> t.Optional[Path]:
-    """Ensure an xdist worker waits until the controller-generated manifest is ready.
+class XdistManifest(t.NamedTuple):
+    """Bookkeeping for the manifest cache an xdist controller generated for its workers."""
 
-    The controller exports DD_TEST_OPTIMIZATION_MANIFEST_FILE before writing the manifest so workers spawned early
-    inherit manifest mode. Since manifest.txt is written last, its existence is the cache-readiness signal.
+    directory: Path
+    path: Path
+    git_metadata_exported: bool
+
+
+def generate_xdist_manifest(session_manager: SessionManager) -> t.Optional[XdistManifest]:
+    """Publish the controller's backend data as a manifest cache for the xdist workers it is about to spawn.
+
+    Without this, every worker would query settings, known tests, test management and skippable tests again.  Workers
+    are spawned after the plugin's early hooks run, so exporting the manifest env var once the cache is fully written
+    is all they need to inherit manifest mode -- no waiting or retrying on the worker side.
+
+    Returns the bookkeeping needed by ``cleanup_xdist_manifest``, or None when no manifest was generated.
     """
-    global _xdist_worker_manifest_wait_done
-    global _xdist_worker_manifest_wait_result
+    if get_offline_mode().manifest_enabled:
+        # A user-provided manifest (Bazel) is already in effect: workers inherit it as-is.
+        return None
 
-    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    manifest_dir = Path(tempfile.mkdtemp(prefix=f"{XDIST_MANIFEST_DIR_PREFIX}{os.getpid()}_"))
+    try:
+        manifest_path = write_manifest_cache(
+            manifest_dir,
+            session_manager.settings,
+            session_manager.known_tests,
+            session_manager.test_properties,
+            session_manager.skippable_items,
+            session_manager.itr_correlation_id,
+        )
+    except (OSError, TypeError) as e:
+        log.debug("Could not write xdist manifest cache %s: %s", manifest_dir, e)
+        shutil.rmtree(manifest_dir, ignore_errors=True)
+        return None
+
+    os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
+    git_metadata_exported = _export_git_metadata_for_workers(session_manager.env_tags)
+    log.debug(
+        "Test Optimization xdist controller generated manifest cache for workers: path=%s git_metadata_exported=%s",
+        manifest_path,
+        git_metadata_exported,
+    )
+    return XdistManifest(directory=manifest_dir, path=manifest_path, git_metadata_exported=git_metadata_exported)
+
+
+def cleanup_xdist_manifest(manifest: XdistManifest, env_tags: t.Mapping[str, t.Optional[str]]) -> None:
+    """Remove the generated manifest cache and the env vars exported for the workers."""
+    if os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE) == str(manifest.path):
+        os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    shutil.rmtree(manifest.directory, ignore_errors=True)
+    if manifest.git_metadata_exported:
+        _cleanup_exported_git_metadata(env_tags)
+
+
+def discard_foreign_generated_manifest_env() -> None:
+    """Drop an inherited generated-manifest env var that belongs to another pytest session.
+
+    Workers are direct children of the controller that generated the manifest, so they keep it.  Any other descendant
+    (typically a nested pytest run started from inside a worker) must not read the outer session's cached backend data,
+    so the env var is removed before the plugin resolves offline mode.  User-provided manifests (Bazel) are untouched.
+    """
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
-    if not worker and require_worker_env:
-        return None
-    if not worker and not manifest_env:
-        return None
-    if _xdist_worker_manifest_wait_done:
-        if manifest_env and _xdist_worker_manifest_wait_result is not None:
-            return _xdist_worker_manifest_wait_result
-        return None
     if not manifest_env:
-        log.debug(
-            "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s",
-            worker,
-            manifest_env,
-            Path.cwd(),
-        )
-        _xdist_worker_manifest_wait_done = True
-        return None
-
-    manifest_path = Path(manifest_env)
-    if XDIST_MANIFEST_DIRNAME not in manifest_path.parts:
-        log.debug(
-            "Test Optimization xdist worker has no generated manifest to wait for: worker=%s env=%r cwd=%s path=%s",
-            worker,
-            manifest_env,
-            Path.cwd(),
-            manifest_path,
-        )
-        _xdist_worker_manifest_wait_done = True
-        return None
-
+        return
+    owner_pid = _generated_manifest_owner_pid(manifest_env)
+    if owner_pid is None or owner_pid in (os.getpid(), os.getppid()):
+        return
     log.debug(
-        "Test Optimization xdist worker waiting for generated manifest: worker=%s env=%r path=%s cwd=%s",
-        worker,
+        "Ignoring Test Optimization manifest generated by an unrelated session: path=%s owner_pid=%s ppid=%s",
         manifest_env,
-        manifest_path,
-        Path.cwd(),
+        owner_pid,
+        os.getppid(),
     )
-    deadline = time.time() + XDIST_WORKER_MANIFEST_WAIT_SECONDS
-    while time.time() < deadline:
-        if manifest_path.exists():
-            os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] = str(manifest_path)
-            # OfflineMode can be initialized by startup hooks before this wait runs. Reset the singleton after the
-            # generated manifest becomes ready so SessionManager re-validates manifest mode from the completed file.
-            from ddtrace.testing.internal.offline_mode import get_offline_mode
-            from ddtrace.testing.internal.offline_mode import reset_offline_mode
-
-            offline = get_offline_mode()
-            if not offline.manifest_enabled:
-                reset_offline_mode()
-            _xdist_worker_manifest_wait_done = True
-            _xdist_worker_manifest_wait_result = manifest_path
-            log.debug(
-                "Test Optimization xdist worker using generated manifest: worker=%s path=%s",
-                worker,
-                manifest_path,
-            )
-            return manifest_path
-        time.sleep(XDIST_WORKER_MANIFEST_WAIT_INTERVAL_SECONDS)
-    log.debug(
-        "Test Optimization xdist worker timed out waiting for generated manifest: worker=%s path=%s",
-        worker,
-        manifest_path,
-    )
-    _xdist_worker_manifest_wait_done = True
-    return None
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
 
 
-def export_git_metadata_for_workers(env_tags: t.Mapping[str, t.Optional[str]]) -> bool:
+def _generated_manifest_owner_pid(manifest_path: str) -> t.Optional[int]:
+    """Return the pid of the controller that generated ``manifest_path``, or None if we did not generate it."""
+    dir_name = Path(manifest_path).parent.name
+    if not dir_name.startswith(XDIST_MANIFEST_DIR_PREFIX):
+        return None
+    pid_part = dir_name[len(XDIST_MANIFEST_DIR_PREFIX) :].split("_", 1)[0]
+    try:
+        return int(pid_part)
+    except ValueError:
+        return None
+
+
+def _export_git_metadata_for_workers(env_tags: t.Mapping[str, t.Optional[str]]) -> bool:
     """Export controller-only git metadata through env so xdist workers can read it at startup."""
     merge_base = env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA)
     if merge_base and DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA not in os.environ:
@@ -135,46 +138,10 @@ def export_git_metadata_for_workers(env_tags: t.Mapping[str, t.Optional[str]]) -
     return False
 
 
-def cleanup_exported_git_metadata(env_tags: t.Mapping[str, t.Optional[str]]) -> None:
+def _cleanup_exported_git_metadata(env_tags: t.Mapping[str, t.Optional[str]]) -> None:
     merge_base = env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA)
     if merge_base and os.environ.get(DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA) == merge_base:
         os.environ.pop(DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA, None)
-
-
-def cleanup_xdist_manifest_artifacts(workspace_path: t.Optional[Path]) -> None:
-    manifest_dir = xdist_manifest_dir(workspace_path)
-    if manifest_dir is None:
-        return
-    try:
-        shutil.rmtree(manifest_dir, ignore_errors=True)
-    except OSError as e:
-        log.debug("Could not remove xdist manifest dir %s: %s", manifest_dir, e)
-
-
-def write_xdist_manifest_cache(
-    workspace_path: t.Optional[Path],
-    settings: Settings,
-    known_tests: set[TestRef],
-    test_properties: dict[TestRef, TestProperties],
-    skippable_items: set[t.Union[SuiteRef, TestRef]],
-    itr_correlation_id: t.Optional[str],
-) -> t.Optional[Path]:
-    """Write a manifest-mode cache for pytest-xdist workers and return its manifest path."""
-    manifest_dir = xdist_manifest_dir(workspace_path)
-    if manifest_dir is None:
-        return None
-    try:
-        return write_manifest_cache(
-            manifest_dir,
-            settings,
-            known_tests,
-            test_properties,
-            skippable_items,
-            itr_correlation_id,
-        )
-    except (OSError, TypeError) as e:
-        log.debug("Could not write xdist manifest cache %s: %s", manifest_dir, e)
-        return None
 
 
 def parse_worker_value(val: str) -> t.Union[int, str]:
