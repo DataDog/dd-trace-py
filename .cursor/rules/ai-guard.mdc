@@ -199,7 +199,7 @@ except AIGuardAbortError as e:
 
 Framework plugins (`AIGuardStrandsPlugin`, `AIGuardStrandsHookProvider`) are
 re-exported lazily from `ai_guard/__init__.py` via a module-level
-`__getattr__`; see the `AIDEV-NOTE` there before changing import timing.
+`__getattr__`; read the inline comment there before changing import timing.
 
 ## Development guidelines
 
@@ -218,7 +218,8 @@ re-exported lazily from `ai_guard/__init__.py` via a module-level
 - **Respect the context counter.** When adding a framework integration that
   may nest over a provider integration, wrap with `aiguard_context()` and have
   the provider listener honor `is_aiguard_context_active()`.
-- **Preserve `AIDEV-NOTE` anchors** (lazy import timing, stream counter
-  lifecycle, legacy message translation) — they encode non-obvious invariants.
+- **Preserve inline invariant comments** (lazy import timing, stream counter
+  lifecycle, legacy message translation) when editing nearby code; do not add
+  new `AIDEV-*` anchor labels (deprecated — see AGENTS.md).
 - **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;
   never run `pytest` directly.
