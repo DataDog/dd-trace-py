@@ -8,6 +8,7 @@ from typing import NoReturn
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -17,6 +18,7 @@ from ddtrace.trace import tracer
 
 
 _CONTEXT_SWITCH_EVENT = "python.context.switch"
+_context_switch_instrumentation_patched = False
 
 
 def get_version() -> str:
@@ -36,11 +38,13 @@ def patch():
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
-    # CPython 3.14+ publishes context switches through the native watcher, so
-    # wrapping event-loop scheduling APIs there would only add overhead.
-    if sys.implementation.name != "cpython" or sys.version_info < (3, 14):
+    global _context_switch_instrumentation_patched
+    # The native watcher is preferred on CPython 3.14, but compatibility
+    # instrumentation remains the fallback when it is unavailable or disabled.
+    if not is_context_watcher_registered():
         wrap(asyncio.Handle._run, _wrapped_run_handle)
         ModuleWatchdog.register_module_hook("uvloop", _patch_uvloop)
+        _context_switch_instrumentation_patched = True
 
 
 def unpatch():
@@ -50,7 +54,8 @@ def unpatch():
         return
     asyncio._datadog_patch = False
     unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
-    if sys.implementation.name != "cpython" or sys.version_info < (3, 14):
+    global _context_switch_instrumentation_patched
+    if _context_switch_instrumentation_patched:
         unwrap(asyncio.Handle._run, _wrapped_run_handle)
         ModuleWatchdog.unregister_module_hook("uvloop", _patch_uvloop)
         module = sys.modules.get("uvloop")
@@ -58,6 +63,7 @@ def unpatch():
             from ddtrace.contrib.internal.asyncio import _uvloop
 
             _uvloop.unpatch(module)
+        _context_switch_instrumentation_patched = False
 
 
 def _patch_uvloop(module: ModuleType) -> None:

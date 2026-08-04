@@ -1,5 +1,4 @@
 import asyncio
-import sys
 import time
 
 import pytest
@@ -8,13 +7,14 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.trace import Context
 
 
 _orig_create_task = asyncio.BaseEventLoop.create_task
 _orig_handle_run = asyncio.Handle._run
-_CONTEXT_WATCHER_AVAILABLE = sys.implementation.name == "cpython" and sys.version_info >= (3, 14)
+_CONTEXT_WATCHER_AVAILABLE = is_context_watcher_registered()
 
 
 @pytest.fixture
@@ -141,7 +141,7 @@ async def test_propagation_with_new_context(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="CPython 3.14+ uses the native context watcher")
+@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="the native context watcher is active")
 async def test_context_switch_events_track_task_switches(tracer, patched_asyncio):
     first_started = asyncio.Event()
     resume_first = asyncio.Event()
@@ -181,7 +181,7 @@ async def test_context_switch_events_track_task_switches(tracer, patched_asyncio
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="CPython 3.14+ uses the native context watcher")
+@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="the native context watcher is active")
 async def test_context_switch_event_skips_finished_span(tracer, patched_asyncio):
     loop = asyncio.get_running_loop()
     callback_finished = loop.create_future()

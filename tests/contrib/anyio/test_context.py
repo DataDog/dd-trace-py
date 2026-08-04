@@ -1,4 +1,3 @@
-import sys
 import threading
 
 import anyio
@@ -8,11 +7,12 @@ import ddtrace
 from ddtrace.contrib.internal.anyio.patch import patch
 from ddtrace.contrib.internal.anyio.patch import unpatch
 from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.trace import tracer
 
 
-_CONTEXT_WATCHER_AVAILABLE = sys.implementation.name == "cpython" and sys.version_info >= (3, 14)
+_CONTEXT_WATCHER_AVAILABLE = is_context_watcher_registered()
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_patch_and_unpatch():
 
 
 @pytest.mark.parametrize("raises", [False, True])
-@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="CPython 3.14+ uses the native context watcher")
+@pytest.mark.skipif(_CONTEXT_WATCHER_AVAILABLE, reason="the native context watcher is active")
 def test_context_switch_events_follow_worker_execution(patched_anyio, raises):
     switches = []
     worker_id = None

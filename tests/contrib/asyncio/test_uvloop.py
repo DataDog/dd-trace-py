@@ -9,6 +9,7 @@ import pytest
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.trace import Span
 
 
@@ -23,9 +24,9 @@ _PATCHED_METHODS = {
     "add_signal_handler",
     "run_forever",
 }
-_CONTEXT_WATCHER_AVAILABLE = sys.implementation.name == "cpython" and sys.version_info >= (3, 14)
+_CONTEXT_WATCHER_AVAILABLE = is_context_watcher_registered()
 _requires_context_switch_instrumentation = pytest.mark.skipif(
-    _CONTEXT_WATCHER_AVAILABLE, reason="CPython 3.14+ uses the native context watcher"
+    _CONTEXT_WATCHER_AVAILABLE, reason="the native context watcher is active"
 )
 
 
@@ -54,12 +55,11 @@ def _captured_context(tracer, active):
 @pytest.mark.skipif(find_spec("uvloop") is None, reason="uvloop is not installed")
 @pytest.mark.subprocess()
 def test_uvloop_patched_on_import():
-    import sys
-
     from ddtrace.contrib.internal.asyncio.patch import patch
     from ddtrace.contrib.internal.asyncio.patch import unpatch
+    from ddtrace.internal.context_watcher import is_context_watcher_registered
 
-    context_watcher_available = sys.implementation.name == "cpython" and sys.version_info >= (3, 14)
+    context_watcher_available = is_context_watcher_registered()
     patch()
 
     import uvloop
