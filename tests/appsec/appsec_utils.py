@@ -256,6 +256,84 @@ def uvicorn_server(
     )
 
 
+def _describe_server_output(server_process) -> str:
+    stdout = getattr(server_process, "stdout", None)
+    stderr = getattr(server_process, "stderr", None)
+    if stdout is None and stderr is None:
+        return "The server inherited the test runner's stdout/stderr; its output is in the surrounding log."
+    return (
+        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (stdout, stderr)
+    )
+
+
+def _dump_hung_server(server_process, known_worker_pids=()) -> None:
+    """Dump every stack of a server that would not shut down, so the hang can be diagnosed.
+
+    Opt-in through _DD_TEST_ABORT_HUNG_SERVER because it is expensive. SIGABRT is the whole
+    mechanism: the server runs with PYTHONFAULTHANDLER=1, so it prints every thread's Python stack
+    to stderr, and it then leaves a core file behind for the native backtrace — the only way to see
+    the Rust/Tokio threads. Attaching gdb to the live process is not an option: kernel.yama
+    .ptrace_scope is 1 on the runners and gdb would be a sibling of the target, not an ancestor.
+
+    Only the workers are aborted; killing the arbiter would reap them mid-dump.
+    """
+    if os.environ.get("_DD_TEST_ABORT_HUNG_SERVER", "") != "1":
+        return
+    try:
+        parent = psutil.Process(server_process.pid)
+        workers = [proc for proc in parent.children(recursive=True) if proc.is_running()]
+    except Exception:
+        workers = []
+    if not workers:
+        # The arbiter may already have reaped and replaced them; fall back to the pids seen at startup.
+        for pid in known_worker_pids:
+            try:
+                workers.append(psutil.Process(pid))
+            except Exception:
+                pass
+
+    aborted = []
+    for proc in workers:
+        print("=== SIGABRT on hung worker %s (faulthandler python stacks follow) ===" % proc.pid, flush=True)
+        try:
+            cwd = proc.cwd()
+        except Exception:
+            cwd = os.getcwd()
+        try:
+            proc.send_signal(signal.SIGABRT)
+        except Exception:
+            continue
+        aborted.append((proc.pid, cwd))
+    # Let the faulthandler output reach stderr and the kernel finish writing the cores.
+    time.sleep(10)
+    _collect_cores(aborted)
+
+
+def _collect_cores(aborted) -> None:
+    """Move the cores the aborted workers left behind where .gitlab/scripts/generate-core-backtraces.sh looks.
+
+    That script globs core.* in CI_PROJECT_DIR, which assumes kernel.core_pattern = core.%p. Some
+    hosts use a bare "core" instead, and the worker's cwd is not necessarily the project directory.
+    """
+    target_dir = os.environ.get("CI_PROJECT_DIR") or os.getcwd()
+    for pid, cwd in aborted:
+        for name in ("core.%d" % pid, "core"):
+            source = os.path.join(cwd, name)
+            if not os.path.isfile(source):
+                continue
+            destination = os.path.join(target_dir, "core.%d" % pid)
+            try:
+                if source != destination:
+                    os.replace(source, destination)
+                print("Core dump of worker %s available at %s" % (pid, destination), flush=True)
+            except Exception as exc:
+                print("Could not move core dump %s: %r" % (source, exc), flush=True)
+            break
+        else:
+            print("No core dump found for worker %s in %s" % (pid, cwd), flush=True)
+
+
 def appsec_application_server(
     cmd: _t.Sequence[str],
     appsec_enabled: str = "true",
@@ -372,37 +450,29 @@ def appsec_application_server(
             else:
                 client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
                 print("Server started")
-        except RetryError:
-            raise AssertionError(
-                "Server failed to start, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
-            )
-        except Exception:
-            raise AssertionError(
-                "Server FAILED, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
-            )
+        except RetryError as exc:
+            raise AssertionError("Server failed to start. %s" % _describe_server_output(server_process)) from exc
+        except Exception as exc:
+            raise AssertionError("Server FAILED: %r\n%s" % (exc, _describe_server_output(server_process))) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         # Obtain child PID tree for gunicorn when possible
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
 
+        worker_pids = [child.pid for child in children]
+
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
         try:
             client.get_ignored("/shutdown", timeout=10)
         except ConnectionError:
             pass
-        except Exception:
+        except Exception as exc:
+            _dump_hung_server(server_process, worker_pids)
             raise AssertionError(
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
-            )
+                "The application server did not answer /shutdown: %r\n%s"
+                % (exc, _describe_server_output(server_process))
+            ) from exc
     finally:
         try:
             if use_multiprocess:

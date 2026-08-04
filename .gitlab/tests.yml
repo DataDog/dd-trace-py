@@ -86,4 +86,76 @@ include:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
+# AIDEV-NOTE: TEMPORARY investigation job — delete together with this branch. It hunts the
+# ~0.1%-per-run hang in test_iast_vulnerable_request_downstream_django (config3/4/5, the
+# `-w 1 -k gevent` cells), where tracer.shutdown() in the /shutdown view never returns.
+# It reuses the base venvs built once by build_base_venvs; nothing here rebuilds the project.
+core/repro_iast_django_shutdown:
+  extends: .test_base_riot_snapshot
+  stage: core
+  timeout: 75m
+  parallel: 21
+  allow_failure: true
+  needs:
+    - job: build_base_venvs
+      artifacts: true
+  variables:
+    # Preference order: py3.13 and py3.11 carry the most observed failures in CI Visibility.
+    # Whichever base venv build_base_venvs actually produced wins.
+    REPRO_PYTHONS: "3.13 3.11 3.12 3.10"
+    REPRO_ITERATIONS: "120"
+    # Every third node runs under CPU contention: the failing CI runs were on a machine roughly
+    # 2x slower than normal (~11.6s before gunicorn even started, against 5-6s when healthy).
+    REPRO_STRESS: "4"
+    _DD_TEST_ABORT_HUNG_SERVER: "1"
+  script:
+    - |
+      set -u -o pipefail
+      python_version=""
+      for candidate in ${REPRO_PYTHONS}; do
+        if compgen -G ".riot/venv_py${candidate//./}*" > /dev/null; then
+          python_version="${candidate}"
+          break
+        fi
+      done
+      if [[ -z "${python_version}" ]]; then
+        echo "None of '${REPRO_PYTHONS}' has a base venv; build_base_venvs produced:"
+        ls -d .riot/venv_py3* || true
+        exit 1
+      fi
+      echo "Using Python ${python_version}"
+      hashes=( $(riot list --hash-only --python="${python_version}" appsec_integrations_django | sort) )
+      if [[ ${#hashes[@]} -eq 0 ]]; then
+        echo "No riot hashes found"
+        exit 1
+      fi
+      # One django version per node, so the whole matrix gets covered without re-running riot's
+      # resolution for each of them.
+      node="${CI_NODE_INDEX:-1}"
+      hash="${hashes[$(( (node - 1) % ${#hashes[@]} ))]}"
+      riot list "${hash}"
+
+      stress_pids=()
+      if (( node % 3 == 0 )); then
+        for _ in $(seq 1 "${REPRO_STRESS}"); do
+          ( while :; do :; done ) &
+          stress_pids+=( $! )
+        done
+        echo "Running under CPU contention (${REPRO_STRESS} busy loops)"
+      fi
+      trap '[[ ${#stress_pids[@]} -gt 0 ]] && kill "${stress_pids[@]}" 2>/dev/null' EXIT
+
+      for i in $(seq 1 "${REPRO_ITERATIONS}"); do
+        echo "=== node ${node} hash ${hash} iteration ${i}/${REPRO_ITERATIONS} ==="
+        if ! riot -P -v run --pass-env -s "${hash}" -- \
+            -k "test_iast_vulnerable_request_downstream_django and (config3 or config4 or config5)" \
+            -p no:randomly -x -q; then
+          echo "=== REPRODUCED on node ${node}, hash ${hash}, iteration ${i} ==="
+          echo "=== after_script turns these cores into backtraces; both are kept as artifacts ==="
+          ls -la core core.* 2>/dev/null || echo "no core file"
+          exit 1
+        fi
+      done
+      echo "=== No reproduction in ${REPRO_ITERATIONS} iterations on node ${node} (hash ${hash}) ==="
+
 # Required jobs will appear here
