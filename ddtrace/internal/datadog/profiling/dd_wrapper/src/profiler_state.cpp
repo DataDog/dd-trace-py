@@ -140,11 +140,13 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
-    // Clear the profile, decreasing the refcount on the Profiles Dictionary
+    // Clear the profile, decreasing its reference count on the Profiles Dictionary.
     profile_state.cleanup();
 
-    // Decrease the refcount on the Profiles Dictionary
-    release_profiles_dictionary();
+    // Keep the owner handle alive until the OS reclaims process-global state. A
+    // producer may have loaded this raw handle immediately before native cleanup,
+    // and the C API cannot transfer ownership of that load retroactively. Fork
+    // handling still releases and rebuilds the dictionary in postfork_child().
 }
 
 void

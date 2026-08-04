@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash during process shutdown when profile collection overlaps native profiler cleanup.
