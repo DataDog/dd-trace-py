@@ -61,7 +61,6 @@ components:
     - ddtrace/internal/compat.py
     - ddtrace/internal/core/*
     - ddtrace/internal/datadog/__init__.py
-    - ddtrace/internal/debug.py
     - ddtrace/internal/dogstatsd.py
     - ddtrace/internal/forksafe.py
     - ddtrace/internal/gitmetadata.py

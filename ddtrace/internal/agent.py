@@ -27,7 +27,7 @@ def process_info_headers(resp):
         log.debug("Could not compute base hash: %s", e)
 
 
-def info(url=None):
+def info(url: t.Optional[str] = None) -> t.Optional[dict]:
     agent_url = config.trace_agent_url if url is None else url
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
@@ -47,7 +47,7 @@ def info(url=None):
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(data)
+    return t.cast(dict, json.loads(data))
 
 
 class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.ABCMeta):

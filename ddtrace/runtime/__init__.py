@@ -42,7 +42,9 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         :param tracer: The tracer instance to correlate with.
         """
         telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(tracer=tracer, dogstatsd_url=dogstatsd_url)
+        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(
+            tracer=tracer or ddtrace.trace.tracer, dogstatsd_url=dogstatsd_url
+        )
 
     @staticmethod
     def disable() -> None:

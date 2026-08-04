@@ -62,7 +62,7 @@ if profiling_config.enabled:
         log.error("failed to enable profiling", exc_info=True)
 
 if config._runtime_metrics_enabled:
-    RuntimeWorker.enable()
+    RuntimeWorker.enable(tracer=tracer)
 
 
 @ModuleWatchdog.after_module_imported("opentelemetry")
