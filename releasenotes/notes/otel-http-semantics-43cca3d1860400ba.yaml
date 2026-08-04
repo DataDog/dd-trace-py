@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    tracing: Adds support for OpenTelemetry HTTP semantic conventions on HTTP client and
+    server spans, enabled with ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. When enabled,
+    spans carry attributes such as ``http.request.method``, ``url.path``, ``url.full``,
+    ``server.address``, ``http.response.status_code`` and ``http.route`` instead of the
+    Datadog names, HTTP client spans are marked as errors for 4xx as well as 5xx responses,
+    and the new ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` setting overrides which client
+    response statuses are treated as errors. The default remains the existing Datadog
+    behavior.
