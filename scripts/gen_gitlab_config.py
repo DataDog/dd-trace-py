@@ -139,7 +139,7 @@ class JobSpec:
         )
         if not self.skip_pip_cache:
             lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{_get_testrunner_image_hash()}-cache")
+            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -727,7 +727,7 @@ def gen_cached_testrunner() -> None:
             template(
                 "cached-testrunner",
                 current_week=datetime.datetime.now().isocalendar().week,
-                testrunner_image_hash=_get_testrunner_image_hash(),
+                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )
 
@@ -796,7 +796,6 @@ argp.add_argument(
     help="Treat this file as changed for suite/precheck detection (can be repeated). Bypasses PR detection.",
 )
 args: t.Any = None
-_testrunner_image_hash: t.Optional[str] = None
 
 ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
@@ -806,23 +805,17 @@ MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
 
+# Compute a short hash of the testrunner image so cache keys are automatically
+# invalidated whenever the image changes (e.g. Python patch version bumps).
+import ruamel.yaml as _ruamel_yaml  # noqa: E402
+
+
+_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the project root, scripts, and tests folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
-
-
-def _get_testrunner_image_hash() -> str:
-    global _testrunner_image_hash
-
-    if _testrunner_image_hash is not None:
-        return _testrunner_image_hash
-
-    import ruamel.yaml as _ruamel_yaml
-
-    testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
-    _testrunner_image_hash = hashlib.sha256(testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-    return _testrunner_image_hash
 
 
 def template(name: str, **params):

