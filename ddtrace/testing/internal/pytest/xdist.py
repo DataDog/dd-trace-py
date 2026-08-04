@@ -46,7 +46,9 @@ def xdist_manifest_path(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
     return manifest_file_path(manifest_dir)
 
 
-def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Optional[Path]:
+def wait_for_xdist_worker_manifest(
+    workspace_path: t.Optional[Path], require_worker_env: bool = True
+) -> t.Optional[Path]:
     """Ensure an xdist worker waits until the controller-generated manifest is ready.
 
     The controller exports DD_TEST_OPTIMIZATION_MANIFEST_FILE before writing the manifest so workers spawned early
@@ -56,10 +58,11 @@ def wait_for_xdist_worker_manifest(workspace_path: t.Optional[Path]) -> t.Option
     global _xdist_worker_manifest_wait_result
 
     worker = os.environ.get("PYTEST_XDIST_WORKER")
-    if not worker:
-        return None
-
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
+    if not worker and require_worker_env:
+        return None
+    if not worker and not manifest_env:
+        return None
     if _xdist_worker_manifest_wait_done:
         if manifest_env and _xdist_worker_manifest_wait_result is not None:
             return _xdist_worker_manifest_wait_result

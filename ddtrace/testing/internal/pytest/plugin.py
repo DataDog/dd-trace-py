@@ -1582,7 +1582,7 @@ def pytest_load_initial_conftests(
                 Path.cwd(),
                 args,
             )
-    wait_for_xdist_worker_manifest(Path.cwd())
+    wait_for_xdist_worker_manifest(Path.cwd(), require_worker_env=controller_set_manifest_env)
     user_manifest_enabled = bool(os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)) and not controller_set_manifest_env
 
     session = TestSession(name=TEST_FRAMEWORK)
