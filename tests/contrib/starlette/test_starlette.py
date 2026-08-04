@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import threading
 
 import anyio
@@ -21,6 +20,7 @@ from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
 from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -140,8 +140,8 @@ def test_200(client, tracer, test_spans):
     starlette_version < (0, 15, 0), reason="Starlette < 0.15 uses asyncio.run_in_executor instead of AnyIO"
 )
 @pytest.mark.skipif(
-    sys.implementation.name == "cpython" and sys.version_info >= (3, 14),
-    reason="CPython 3.14+ uses the native context watcher",
+    is_context_watcher_registered(),
+    reason="the native context watcher is active",
 )
 def test_sync_endpoint_context_switch_events(tracer, test_spans):
     switches = []

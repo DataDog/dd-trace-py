@@ -1,7 +1,8 @@
 """
-This integration republishes the active trace context when AnyIO runs
-synchronous callables in worker threads, so operations executed off the event
-loop are attributed to the trace that scheduled them.
+This integration republishes the active span to the OpenTelemetry thread
+context when AnyIO runs synchronous callables in worker threads, preserving
+trace and span correlation for host-profiler samples collected off the event
+loop.
 
 
 Enabling

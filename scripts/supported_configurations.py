@@ -403,6 +403,7 @@ def check_registry(data: dict) -> int:
                 _scan_envier_module(module, envier_vars, private_registry_mismatches)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
+    patch_modules_without_service = {"anyio"}
     assigns = {
         node.targets[0].id: node.value
         for node in ast.walk(ast.parse((REPO_ROOT / "ddtrace" / "_monkey.py").read_text()))
@@ -423,9 +424,10 @@ def check_registry(data: dict) -> int:
         n = name.upper()
         if name not in not_patchable and f"DD_TRACE_{n}_ENABLED" not in all_known:
             missing.add(f"DD_TRACE_{n}_ENABLED")
-        for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
-            if var not in all_known:
-                missing.add(var)
+        if name not in patch_modules_without_service:
+            for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
+                if var not in all_known:
+                    missing.add(var)
 
     for var in envier_vars:
         if var not in all_known:
