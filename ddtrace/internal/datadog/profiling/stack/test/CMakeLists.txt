@@ -80,6 +80,11 @@ endfunction()
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
+dd_wrapper_add_test(test_native_shutdown test_native_shutdown.cpp)
+target_include_directories(test_native_shutdown PRIVATE ../.. ../echion ../include/util ../../dd_wrapper/include)
+target_include_directories(test_native_shutdown SYSTEM PRIVATE ${Python3_INCLUDE_DIRS})
+target_link_libraries(test_native_shutdown PRIVATE dd_wrapper)
+
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
