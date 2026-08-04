@@ -6,9 +6,6 @@ import requests
 from ddtrace import config
 from ddtrace import tracer
 
-# AIDEV-NOTE: _http_propagation_suppressed tells the urllib3-layer subscriber to
-# skip its own injection. _wrap_adapter_send is one of its permitted setters —
-# see ownership contract in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
