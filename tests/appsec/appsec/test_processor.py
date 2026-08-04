@@ -1,8 +1,8 @@
 import json
 import logging
 import os.path
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -463,8 +463,7 @@ def test_appsec_abort_on_waf_failure():
     completely if an error is found in the bindings layer.
     """
     import ctypes
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config

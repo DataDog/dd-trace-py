@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import ast
 import base64
 import contextlib
@@ -29,12 +30,37 @@ import warnings
 
 import pytest
 
+
+_CI_ITR_ROLLOUT_ENV_VARS = (
+    "DD_CIVISIBILITY_ITR_ENABLED",
+    "_DD_COVERAGE_FILE_LEVEL",
+    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
+)
+_CI_ITR_ROLLOUT_ENV_SUITES = ("coverage", "dd_coverage", "pytest", "testing", "ci_visibility")
+
+
+def _should_clear_ci_itr_rollout_env() -> bool:
+    suite_name = os.environ.get("SUITE_NAME", "")
+    return any(suite in suite_name for suite in _CI_ITR_ROLLOUT_ENV_SUITES)
+
+
+def _clear_ci_itr_rollout_env() -> None:
+    if not _should_clear_ci_itr_rollout_env():
+        return
+    for name in _CI_ITR_ROLLOUT_ENV_VARS:
+        os.environ.pop(name, None)
+
+
+_clear_ci_itr_rollout_env()
+
 import ddtrace
 
 
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
 os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
@@ -62,7 +88,14 @@ except ImportError:
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
+@pytest.fixture(autouse=True)
+def clear_ci_itr_rollout_env() -> None:
+    _clear_ci_itr_rollout_env()
+
+
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
+ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
 
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
@@ -499,19 +532,16 @@ def run_function_from_file(item, params=None):
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(session, config, items):
     """
-    Don't let ITR skip tests that use the subprocess marker
-    because coverage collection in subprocesses is broken.
+    Don't let ITR skip tests that use markers that require execution in dd-trace-py's CI.
+
+    Subprocess coverage collection is broken, and snapshot tests must run to validate test-agent output.
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
-        if item.get_closest_marker("subprocess"):
-            if item.get_closest_marker("skipif"):
-                # Respect any existing skipif marker because they preempt ITR's decision-making
-                continue
-            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
-            item.add_marker(unskippable)
+        if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
+            item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
         # Store original name and nodeid before modification
         if StashKey:

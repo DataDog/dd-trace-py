@@ -40,8 +40,36 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
-        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+        riot_python_versions=( $(riot -P list --interpreters "^${hash}$" | sort -u) )
+
+        for riot_python_version in "${riot_python_versions[@]}"
+        do
+          unset DD_CIVISIBILITY_ITR_ENABLED
+          unset _DD_COVERAGE_FILE_LEVEL
+          unset _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
+          unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
+
+          if [[ "${riot_python_version:-}" =~ ^3\.(12|13|14|15)$ ]]; then
+            export DD_CIVISIBILITY_ITR_ENABLED=true
+
+            if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
+              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
+              export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
+            fi
+          fi
+
+          echo "ITR gate debug:"
+          echo "  SUITE_NAME=${SUITE_NAME:-}"
+          echo "  hash=${hash}"
+          echo "  riot_python_version=${riot_python_version:-unknown}"
+          echo "  CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH:-}"
+          echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
+          echo "  _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-}"
+          echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
+
+          export _CI_DD_TAGS="test.configuration.riot_hash:${hash},test.configuration.python:${riot_python_version}"
+          ${RIOT_RUN_CMD} --python "${riot_python_version}" "${hash}" -- --ddtrace
+        done
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
