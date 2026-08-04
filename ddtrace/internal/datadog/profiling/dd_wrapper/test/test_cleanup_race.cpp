@@ -1,4 +1,5 @@
 #include "ddup_interface.hpp"
+#include "profiler_state.hpp"
 #include "test_utils.hpp"
 #include <gtest/gtest.h>
 
@@ -175,6 +176,31 @@ TEST(CleanupRaceDeathTest, ProperShutdown4Threads)
 TEST(CleanupRaceDeathTest, ProperShutdown16Threads)
 {
     EXPECT_EXIT(proper_shutdown(16, 50, 1000), ::testing::ExitedWithCode(0), ".*");
+}
+
+[[noreturn]] void
+use_dictionary_loaded_before_cleanup()
+{
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    // Model an intern operation that loaded the shared handle just before the
+    // native exit callback releases the dictionary.
+    auto dictionary = Datadog::ProfilerState::get().get_profiles_dictionary().value();
+    ddup_cleanup();
+
+    for (size_t i = 0; i < 10000; i++) {
+        ddog_prof_StringId2 string_id;
+        ddog_CharSlice value{ .ptr = "stale-dictionary", .len = 16 };
+        ddog_prof_ProfilesDictionary_insert_str(
+          &string_id, dictionary, value, ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
+    }
+
+    std::exit(0);
+}
+
+TEST(CleanupRaceDeathTest, DictionaryOperationOverlappingCleanup)
+{
+    EXPECT_EXIT(use_dictionary_loaded_before_cleanup(), ::testing::ExitedWithCode(0), ".*");
 }
 
 // // Race condition tests - may crash if race manifests
