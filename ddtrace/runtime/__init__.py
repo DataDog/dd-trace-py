@@ -35,7 +35,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
 
     @staticmethod
     def enable(
-        tracer: Optional[Tracer] = None,
+        tracer: Optional["Tracer"] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         """
