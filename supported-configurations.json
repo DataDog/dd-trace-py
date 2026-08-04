@@ -4783,13 +4783,6 @@
         "default": null
       }
     ],
-    "DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_TRACE_RATE_LIMIT": [
       {
         "implementation": "A",
@@ -5998,6 +5991,14 @@
         "implementation": "A",
         "type": "string",
         "default": "warning",
+        "internal": true
+      }
+    ],
+    "_DD_OTEL_THREAD_CONTEXT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": true,
         "internal": true
       }
     ],
