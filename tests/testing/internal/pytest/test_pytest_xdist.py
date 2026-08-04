@@ -372,14 +372,6 @@ class TestXdistManifestMode:
                     manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
                     MARKER_DIR.mkdir(exist_ok=True)
                     (MARKER_DIR / (worker or "controller")).write_text(manifest)
-                    if worker:
-                        from ddtrace.testing.internal.offline_mode import get_offline_mode
-
-                        offline_mode = get_offline_mode()
-                        (MARKER_DIR / (worker + "-manifest-mode")).write_text(
-                            f"enabled={{offline_mode.manifest_enabled}}\\n"
-                            f"dir={{offline_mode.test_optimization_dir}}\\n"
-                        )
             """)
         )
         (test_project / "test_a.py").write_text(
@@ -393,6 +385,14 @@ class TestXdistManifestMode:
                     worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
                     with (MARKER_DIR / (worker + "-tests")).open("a") as f:
                         f.write(name + "\\n")
+                    if worker != "controller":
+                        from ddtrace.testing.internal.offline_mode import get_offline_mode
+
+                        offline_mode = get_offline_mode()
+                        (MARKER_DIR / (worker + "-manifest-mode")).write_text(
+                            f"enabled={{offline_mode.manifest_enabled}}\\n"
+                            f"dir={{offline_mode.test_optimization_dir}}\\n"
+                        )
 
                 def test_one():
                     _record_test("test_one")
@@ -425,8 +425,8 @@ class TestXdistManifestMode:
         assert all(".xdist_testoptimization" in manifest for manifest in worker_manifests)
         worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
         assert len(worker_manifest_modes) == 2
-        assert all("enabled=True" in mode for mode in worker_manifest_modes)
-        assert all(".xdist_testoptimization" in mode for mode in worker_manifest_modes)
+        assert all("enabled=True" in mode for mode in worker_manifest_modes), worker_manifest_modes
+        assert all(".xdist_testoptimization" in mode for mode in worker_manifest_modes), worker_manifest_modes
         worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
         assert len(worker_test_counts) == 2
         assert sum(worker_test_counts) == 4
@@ -717,7 +717,10 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url)
+        env = _make_env(
+            mock_server.url,
+            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+        )
         # Use --dist=loadscope to guarantee file-level isolation between workers.
         result = _run_pytest_subprocess(
             test_project, "-n", "2", "--max-worker-restart", "4", "--dist=loadscope", env=env
@@ -774,7 +777,10 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url)
+        env = _make_env(
+            mock_server.url,
+            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+        )
         _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
         test_events = mock_server.get_test_events()
@@ -822,7 +828,10 @@ class TestXdistWorkerCrashRestart:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url)
+        env = _make_env(
+            mock_server.url,
+            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+        )
         _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()
@@ -863,7 +872,10 @@ class TestXdistWorkerCrashRestart:
         )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url)
+        env = _make_env(
+            mock_server.url,
+            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+        )
         _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "0", env=env)
 
         test_events = mock_server.get_test_events()
@@ -906,7 +918,10 @@ class TestXdistWorkerCrashRestart:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url)
+        env = _make_env(
+            mock_server.url,
+            extra={DD_TEST_OPTIMIZATION_MANIFEST_FILE: str(test_project / ".no-xdist-manifest.txt")},
+        )
         _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "2", env=env)
 
         all_events = mock_server.get_all_events()
