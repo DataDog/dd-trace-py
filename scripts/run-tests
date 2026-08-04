@@ -572,7 +572,14 @@ class TestRunner:
             suite_env = suite_config.get("env", {})
             if suite_env:
                 for key, value in suite_env.items():
-                    env[key] = str(value)
+                    value = str(value)
+                    # Podman runs both services and the test runner with host
+                    # networking, which does not provide Compose service DNS.
+                    # Service aliases in suitespec therefore need to target the
+                    # host-network endpoint instead.
+                    if self.podman_compat and key.endswith("_HOST") and value in suite_services:
+                        value = "localhost"
+                    env[key] = value
                     print(f"🔧 Setting {key}={value}")
 
             # Override with testagent URL if needed
