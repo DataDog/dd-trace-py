@@ -144,6 +144,14 @@ dispatched by the RC subscriber, as well as periodic calls.  If this is the
 first callback being registered, the RC poller is started automatically (if
 `DD_REMOTE_CONFIGURATION_ENABLED` is set).
 
+During automatic instrumentation bootstrap, the remote-configuration product
+temporarily defers that automatic start. The product manager releases the
+barrier through the product's optional `post_start()` hook, after all enabled
+products have started. This lets dependent products register and enable their
+RC subscriptions before the poller's immediate first request, including when
+products start after a uWSGI fork. Outside product bootstrap, first-callback
+registration continues to start the poller immediately.
+
 Registering a callback **does not** enable the product: the product name will
 **not** appear in client payloads until `enable_product()` is called.
 
