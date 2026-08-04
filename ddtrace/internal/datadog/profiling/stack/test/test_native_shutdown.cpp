@@ -1,5 +1,5 @@
-#include "sampler.hpp"
 #include "../../dd_wrapper/test/test_utils.hpp"
+#include "sampler.hpp"
 #include <gtest/gtest.h>
 
 #include <Python.h>
@@ -16,7 +16,7 @@ keep_process_alive_after_profiler_teardown()
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-[[noreturn]] void
+[[noreturn]] [[noreturn]] void
 exit_without_stopping_sampler()
 {
     Py_Initialize();
@@ -47,7 +47,9 @@ exit_without_stopping_sampler()
 
 }
 
-TEST(NativeShutdownDeathTest, ExitWithoutStoppingSampler)
+TEST(NativeShutdownTest, ExitWithoutStoppingSampler)
 {
-    EXPECT_EXIT(exit_without_stopping_sampler(), ::testing::ExitedWithCode(0), "");
+    // Exiting this test process directly lets CTest validate the process status
+    // without introducing a sanitizer-sensitive death-test subprocess.
+    exit_without_stopping_sampler();
 }

@@ -35,8 +35,10 @@ class ThreadSpanLinks
   public:
     static ThreadSpanLinks& get_instance()
     {
-        static ThreadSpanLinks instance;
-        return instance;
+        // Sampler shutdown is asynchronous, so this callback-reachable state must
+        // outlive native exit handlers.
+        static ThreadSpanLinks* const instance = new ThreadSpanLinks();
+        return *instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies

@@ -38,8 +38,10 @@ class OriginTaskLinks
   public:
     static OriginTaskLinks& get_instance()
     {
-        static OriginTaskLinks instance;
-        return instance;
+        // Sampler shutdown is asynchronous, so this callback-reachable state must
+        // outlive native exit handlers.
+        static OriginTaskLinks* const instance = new OriginTaskLinks();
+        return *instance;
     }
 
     OriginTaskLinks(OriginTaskLinks const&) = delete;

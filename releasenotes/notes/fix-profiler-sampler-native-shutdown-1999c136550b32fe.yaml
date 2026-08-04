@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash during process shutdown when an embedding server skips Python shutdown handlers while stack profiling is active.
