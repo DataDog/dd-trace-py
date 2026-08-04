@@ -219,7 +219,10 @@ class CachedFileDataProvider:
         coverage_format: str,
         tags: t.Optional[dict[str, str]] = None,
     ) -> bool:
-        return False  # coverage upload is skipped in payload-files mode
+        # AIDEV-NOTE: No-op because manifest mode used to imply Bazel's payload-files mode, where there is no network.
+        # A process in manifest mode *without* payload-files mode (an xdist worker reusing its controller's cache) does
+        # have a backend, and uses SessionManager.coverage_upload_client instead. See coverage_report_upload_xdist.md.
+        return False
 
     def close(self) -> None:
         pass

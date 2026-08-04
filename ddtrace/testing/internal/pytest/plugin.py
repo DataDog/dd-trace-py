@@ -438,6 +438,9 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
+        # AIDEV-NOTE: This runs in workers too, so an xdist session uploads one report per process, each covering only
+        # what that process ran. See ../coverage_report_upload_xdist.md for why that is questionable and how to move to
+        # merging on the controller and uploading once.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:

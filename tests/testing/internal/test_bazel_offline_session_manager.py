@@ -15,6 +15,7 @@ from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestSession
+from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
@@ -68,10 +69,34 @@ class TestSessionManagerProviderSelection:
         assert not isinstance(sm.api_client, CachedFileDataProvider)
 
     def test_uses_cached_file_provider_when_manifest_set(self, monkeypatch, tmp_path):
-        """With a valid manifest, CachedFileDataProvider is used and APIClient is not."""
+        """With a valid manifest, reads come from CachedFileDataProvider."""
         opt_dir = _make_manifest_dir(tmp_path)
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient"),
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            sm = SessionManager(session=_make_session())
+
+        assert isinstance(sm.api_client, CachedFileDataProvider)
+        # Manifest mode without payload-files mode still has a network, so a real client is kept for coverage uploads
+        # (CachedFileDataProvider cannot upload). See test_coverage_report_upload_in_manifest_mode below.
+        assert sm.coverage_upload_client is not None
+
+    def test_no_coverage_upload_client_in_payload_files_mode(self, monkeypatch, tmp_path):
+        """Bazel writes payloads to files and has no network: nothing to upload coverage through."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+        monkeypatch.setenv("TEST_UNDECLARED_OUTPUTS_DIR", str(output_dir))
 
         env = MockDefaults.test_environment()
 
@@ -84,7 +109,30 @@ class TestSessionManagerProviderSelection:
             sm = SessionManager(session=_make_session())
 
         mock_api_client_cls.assert_not_called()
-        assert isinstance(sm.api_client, CachedFileDataProvider)
+        assert sm.coverage_upload_client is None
+
+    def test_coverage_report_upload_in_manifest_mode(self, monkeypatch, tmp_path):
+        """An xdist worker reusing its controller's manifest must still upload its coverage report over HTTP."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        env = MockDefaults.test_environment()
+        capture = CoverageReportUploadCapture()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            mock_api_client_cls.return_value = mock_api_client_settings(coverage_upload_capture=capture)
+            sm = SessionManager(session=_make_session())
+
+            assert sm.upload_coverage_report(b"TN:\nend_of_record\n", "lcov") is True
+
+        assert len(capture.upload_calls) == 1
+        assert capture.upload_calls[0]["endpoint"] == "/api/v2/cicovreprt"
 
     def test_connector_is_real_in_manifest_mode(self, monkeypatch, tmp_path):
         """In manifest mode the network is available; connector must NOT be NoOp."""
@@ -132,7 +180,7 @@ class TestSessionManagerProviderSelection:
 
 
 class TestUploadGitDataSkipping:
-    def _build_sm_with_mocked_api(self, monkeypatch, env: dict) -> SessionManager:
+    def _build_sm_with_mocked_api(self, monkeypatch, env: dict[str, str]) -> SessionManager:
         with (
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),

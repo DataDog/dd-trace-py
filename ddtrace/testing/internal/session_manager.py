@@ -131,6 +131,8 @@ class SessionManager:
             self.env = self.connector_setup.default_env()
 
         self.api_client: TestOptDataProvider
+        # Set only when reads come from a manifest but coverage reports must still be uploaded over HTTP.
+        self.coverage_upload_client: t.Optional[TestOptDataProvider] = None
         if offline.manifest_enabled:
             if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
                 raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
@@ -145,6 +147,12 @@ class SessionManager:
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
+            # AIDEV-NOTE: CachedFileDataProvider.upload_coverage_report() is a no-op because Bazel's manifest mode goes
+            # hand in hand with payload-files mode, where there is no network. An xdist worker reusing its controller's
+            # manifest is in manifest mode *without* payload-files mode, so it does have a backend to upload to — keep
+            # a real client for that, or its coverage report would be generated and silently dropped.
+            if not offline.payload_files_enabled:
+                self.coverage_upload_client = self._build_api_client()
         else:
             log.debug(
                 "Test Optimization SessionManager using online API data provider: pid=%s worker=%s manifest_env=%r",
@@ -152,15 +160,7 @@ class SessionManager:
                 env.get("PYTEST_XDIST_WORKER"),
                 env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE),
             )
-            self.api_client = APIClient(
-                service=self.service,
-                env=self.env,
-                env_tags=self.env_tags,
-                itr_skipping_level=self.itr_skipping_level,
-                configurations=self.platform_tags,
-                connector_setup=self.connector_setup,
-                telemetry_api=self.telemetry_api,
-            )
+            self.api_client = self._build_api_client()
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
 
@@ -221,6 +221,9 @@ class SessionManager:
         self.configuration_errors = dict(self.api_client.configuration_errors)
 
         self.api_client.close()
+        if self.coverage_upload_client is not None:
+            # Reconnects on demand, like api_client does for coverage uploads at session end.
+            self.coverage_upload_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
@@ -315,6 +318,17 @@ class SessionManager:
         self.coverage_writer.start()
         atexit.register(self.finish)
 
+    def _build_api_client(self) -> APIClient:
+        return APIClient(
+            service=self.service,
+            env=self.env,
+            env_tags=self.env_tags,
+            itr_skipping_level=self.itr_skipping_level,
+            configurations=self.platform_tags,
+            connector_setup=self.connector_setup,
+            telemetry_api=self.telemetry_api,
+        )
+
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
     ) -> bool:
@@ -331,8 +345,9 @@ class SessionManager:
         Returns:
             True if upload succeeded, False otherwise
         """
+        client = self.coverage_upload_client or self.api_client
         try:
-            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            result = client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
             return result
 
         except Exception as e:
