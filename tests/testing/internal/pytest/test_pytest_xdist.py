@@ -488,6 +488,25 @@ class TestResolveInheritedManifestEnv:
 
         assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
 
+    def test_logs_when_worker_reads_the_controller_manifest(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The INFO line is how you tell at a glance that workers are not querying the backend."""
+        manifest_dir = tmp_path / f"{XDIST_MANIFEST_DIR_PREFIX}{os.getppid()}_abc"
+        manifest_dir.mkdir()
+        manifest = manifest_dir / "manifest.txt"
+        manifest.write_text("version = 1\n")
+        monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, str(manifest))
+        info = mock.Mock()
+        monkeypatch.setattr(xdist_module.log, "info", info)
+
+        resolve_inherited_manifest_env()
+
+        assert info.call_count == 1
+        assert "is reading backend data cached by its controller" in info.call_args.args[0]
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == str(manifest)
+
     def test_warns_when_worker_cannot_read_generated_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
         monkeypatch.setenv(
