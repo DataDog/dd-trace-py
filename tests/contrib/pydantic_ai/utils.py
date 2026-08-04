@@ -4,6 +4,19 @@ PYDANTIC_AI_TAGS = {
     "integration": "pydantic_ai",
 }
 
+MANIFEST_VERSION = 1
+
+# pydantic-ai's own defaults for an agent that configures none of these, at the versions riotfile.py
+# pins. They are framework defaults rather than caller choices, which is why they are asserted here
+# once instead of being repeated per test. They are NOT a framework invariant: end_strategy defaults
+# to "graceful" at 2.x, so adding a 2.x pin will fail here on purpose.
+#
+# MANIFEST_VERSION is restated rather than imported from the integration on purpose: an independent
+# copy is what makes an unannounced bump fail a test instead of silently agreeing with itself.
+# pydantic-ai's own defaults, which every agent reports whether or not the caller set them.
+DEFAULT_DATA_CONTRACTS = {"output": {"name": "str"}}
+DEFAULT_AGENT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
+
 
 def expected_calculate_square_tool():
     return [
@@ -16,29 +29,67 @@ def expected_calculate_square_tool():
 
 
 def expected_foo_tool():
+    # No parameters key: a tool that takes no arguments has nothing to say, and an empty dict is
+    # exactly what the manifest must not emit.
     return [
         {
             "name": "foo_tool",
             "description": "Return foo string",
-            "parameters": {},
         }
     ]
 
 
-def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> dict:
-    return {
-        "_dd": {
-            "agent_manifest": {
-                "framework": "PydanticAI",
-                "name": "test_agent",
-                "model": "gpt-4o",
-                "model_settings": model_settings,
-                "instructions": instructions,
-                "system_prompts": (system_prompt,) if system_prompt else (),
-                "tools": tools if tools is not None else [],
-            }
-        }
-    }
+def expected_agent_manifest(
+    name="test_agent",
+    model="gpt-4o",
+    model_provider=None,
+    instructions=None,
+    system_prompt=None,
+    model_params=None,
+    tools=None,
+    **extra_fields,
+) -> dict:
+    """Build the agent manifest a test expects.
+
+    One flat document. A field with no value does not appear at all, which is what omit-when-absent
+    means on the wire, so a test that omits an argument is asserting the key is absent.
+
+    model_provider is accepted and ignored: pydantic-ai has never emitted it, and the shared schema
+    has no field for it. Kept as a parameter so existing call sites do not all have to change.
+    """
+    manifest = {"manifest_version": MANIFEST_VERSION, "framework": "PydanticAI"}
+    if name:
+        manifest["name"] = name
+    if instructions:
+        manifest["instructions"] = instructions
+    if system_prompt:
+        manifest["system_prompts"] = [system_prompt]
+    if model:
+        manifest["model"] = model
+    if model_params:
+        manifest["model_settings"] = dict(model_params)
+    if tools:
+        manifest["tools"] = tools
+        manifest["capabilities"] = [_as_expected_capability(tool) for tool in tools]
+    manifest["data_contracts"] = {"output": dict(DEFAULT_DATA_CONTRACTS["output"])}
+    manifest["agent_settings"] = dict(DEFAULT_AGENT_SETTINGS)
+    manifest.update(extra_fields)
+    return manifest
+
+
+def _as_expected_capability(tool: dict) -> dict:
+    """The capabilities entry a function tool produces: name and type up top, the rest under content."""
+    capability = {"name": tool["name"], "type": "tool"}
+    if tool.get("description"):
+        capability["description"] = tool["description"]
+    content = {k: v for k, v in tool.items() if k not in ("name", "description")}
+    if content:
+        capability["content"] = content
+    return capability
+
+
+def expected_agent_metadata(**kwargs) -> dict:
+    return {"_dd": {"agent_manifest": expected_agent_manifest(**kwargs)}}
 
 
 def calculate_square_tool(x: int) -> int:

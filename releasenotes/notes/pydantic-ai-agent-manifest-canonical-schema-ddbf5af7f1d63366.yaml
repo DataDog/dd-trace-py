@@ -1,0 +1,24 @@
+---
+security:
+  - |
+    LLM Observability: The ``pydantic_ai`` integration no longer captures provider passthrough
+    parameters from an agent's ``model_settings``, which may contain an API key, an authorization
+    token, or an end-user identifier. Only known inference parameters are captured.
+fixes:
+  - |
+    LLM Observability: The ``pydantic_ai`` integration no longer reports agents created without a
+    ``name`` under the placeholder name ``PydanticAI Agent``.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration no longer reports empty or null values for agent
+    configuration that was not set.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now reports the model for agents created with
+    ``defer_model_check=True``, which previously omitted it.
+upgrade:
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now reports agent configuration using the shared
+    agent manifest schema. ``framework``, ``name``, ``model``, ``model_settings``, ``instructions``,
+    ``system_prompts`` and ``tools`` are unchanged, except that ``model_settings`` reports
+    ``max_output_tokens`` in place of ``max_tokens``. New keys are ``manifest_version``,
+    ``description``, ``metadata``, ``extra_instructions``, ``capabilities``, ``data_contracts``,
+    ``memory_policies``, ``guardrails`` and ``agent_settings``.
