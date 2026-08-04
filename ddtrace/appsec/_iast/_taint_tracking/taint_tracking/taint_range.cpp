@@ -161,7 +161,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
 
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
-    PyObject* pyobject_n = nullptr;
+    py::object pyobject_n;
 
     if (nargs == 6) {
         PyObject* tainted_object = args[0];
@@ -172,7 +172,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
             return new_reference(tainted_object);
         }
 
-        pyobject_n = new_pyobject_id(tainted_object);
+        pyobject_n = py::reinterpret_steal<py::object>(new_pyobject_id(tainted_object));
         PyObject* len_pyobject_py = args[1];
 
         const long len_pyobject = PyLong_AsLong(len_pyobject_py);
@@ -182,7 +182,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
                 const auto source = Source(source_name, source_value, source_origin);
                 const auto range = safe_allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
-                result = set_ranges(pyobject_n, ranges, tx_map);
+                result = set_ranges(pyobject_n.ptr(), ranges, tx_map);
                 if (not result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
@@ -198,7 +198,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         return nullptr;
     }
 
-    return pyobject_n;
+    return pyobject_n.release().ptr();
 }
 
 std::pair<TaintRangeRefs, bool>

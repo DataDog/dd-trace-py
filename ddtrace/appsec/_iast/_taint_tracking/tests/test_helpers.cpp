@@ -755,10 +755,10 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return args as no slicing is required
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is None
@@ -769,10 +769,10 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return the full argument list since no slicing is needed
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is custom
@@ -786,8 +786,8 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::tuple>(result)).c_str(), "arg2");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg2");
 }
 
 // Test with no added args, original function is custom
@@ -800,6 +800,6 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::str>(result)).c_str(), "arg1");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg1");
 }

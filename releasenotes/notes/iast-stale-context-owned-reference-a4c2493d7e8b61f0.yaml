@@ -1,4 +1,4 @@
 fixes:
   - |
-    IAST: Fixes an issue where applications can crash when asynchronous tasks access request data
-    after the originating request has completed.
+    Code Security: Fixes an issue where applications could crash when asynchronous tasks accessed request data
+    after the originating request completed.
