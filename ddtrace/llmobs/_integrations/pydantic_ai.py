@@ -493,7 +493,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             self._manifest_model,
             self._manifest_capabilities,
             self._manifest_data_contracts,
-            self._manifest_behaviors,
+            self._manifest_memory_policies,
+            self._manifest_guardrails,
             self._manifest_agent_settings,
         ):
             try:
@@ -598,16 +599,21 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _put_field(contract, "schema", _wire_value(output.get("schema")))
         return {"data_contracts": {"output": contract}} if contract else {}
 
-    def _manifest_behaviors(self, agent: Any) -> dict[str, Any]:
-        """Message-history policy and output validators, both ordered pipelines.
+    def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
+        """The message-history pipeline, order preserved.
 
-        Order is preserved because [trim, summarize] is not the same policy as [summarize, trim].
-        history_processors is gone from 2.x, so memory_policies drops out on its own.
+        [trim, summarize] is not the same policy as [summarize, trim]. history_processors is gone
+        from 2.x, so the key drops out on its own.
         """
         fields: dict[str, Any] = {}
         processors = getattr(agent, "history_processors", None) or []
         history = _dedupe_by_id([fn for fn in processors if callable(fn)])
         _put_field(fields, "memory_policies", [self._as_named_content(d) for d in self._describe_functions(history)])
+        return fields
+
+    def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
+        """Output validators, order preserved for the same reason as the history pipeline."""
+        fields: dict[str, Any] = {}
         validators = getattr(agent, "_output_validators", None) or []
         fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
         checks = self._describe_functions([fn for fn in fns if callable(fn)])
