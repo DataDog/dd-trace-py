@@ -61,7 +61,8 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False
-    itr_enabled: bool = True  # NOTE: Does not mean it will skip tests
+    itr_enabled: bool = True
+    itr_test_skipping_enabled: bool = False
 
     python_versions: t.Optional[set[str]] = None
 
@@ -128,6 +129,7 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["DD_TRACE_PY_ENABLE_ITR_FOR_JOB"] = "true" if self.itr_enabled else "false"
+        env["DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB"] = "true" if self.itr_test_skipping_enabled else "false"
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()

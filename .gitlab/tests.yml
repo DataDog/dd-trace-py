@@ -57,8 +57,13 @@ include:
             export DD_CIVISIBILITY_ITR_ENABLED=true
 
             if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
-              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=true
+              # Protected branches run ITR in coverage-only mode: collect/upload coverage but do not skip tests.
+              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
               export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
+            elif [[ "${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-false}" == "true" ]]; then
+              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0
+            else
+              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
             fi
           fi
 
@@ -68,6 +73,7 @@ include:
           echo "  riot_python_version=${riot_python_version:-unknown}"
           echo "  CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH:-}"
           echo "  DD_TRACE_PY_ENABLE_ITR_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-}"
+          echo "  DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-}"
           echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
           echo "  _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-}"
           echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"

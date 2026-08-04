@@ -280,6 +280,7 @@ suites:
       - mysql
     snapshot: true
   aiokafka:
+    itr_test_skipping_enabled: true
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -384,6 +385,7 @@ suites:
       - tests/contrib/avro/*
     snapshot: true
   aws_lambda:
+    itr_test_skipping_enabled: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -395,6 +397,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
   aws_durable_execution_sdk_python:
+    itr_test_skipping_enabled: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -406,6 +409,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
   azure_cosmos:
+    itr_test_skipping_enabled: true
     venvs_per_job: 4
     paths:
       - '@bootstrap'
@@ -420,6 +424,7 @@ suites:
       - azurite
       - azurecosmosemulator
   azure_eventhubs:
+    itr_test_skipping_enabled: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -446,6 +451,7 @@ suites:
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
   azure_durable_functions:
+    itr_test_skipping_enabled: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -462,6 +468,7 @@ suites:
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
+    itr_test_skipping_enabled: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -476,6 +483,7 @@ suites:
     services:
       - azurite
   azure_functions:cosmos:
+    itr_test_skipping_enabled: true
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -492,6 +500,7 @@ suites:
       - azurite
       - azurecosmosemulator
   azure_functions:eventhubs:
+    itr_test_skipping_enabled: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -508,6 +517,7 @@ suites:
       - azurite
       - azureeventhubsemulator
   azure_functions:servicebus:
+    itr_test_skipping_enabled: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -525,6 +535,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   azure_servicebus:
+    itr_test_skipping_enabled: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -810,6 +821,7 @@ suites:
     snapshot: false
     venvs_per_job: 2
   google_cloud_pubsub:
+    itr_test_skipping_enabled: true
     env:
       TEST_PUBSUB_HOST: pubsub
       TEST_PUBSUB_PORT: '8085'
@@ -861,6 +873,7 @@ suites:
     snapshot: true
     venvs_per_job: 3
   gunicorn:
+    itr_test_skipping_enabled: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -917,6 +930,7 @@ suites:
       - tests/contrib/jinja2/*
     snapshot: true
   kafka:
+    itr_test_skipping_enabled: true
     retry: 2
     env:
       TEST_KAFKA_HOST: kafka
@@ -948,6 +962,7 @@ suites:
       - rabbitmq
     snapshot: true
   logbook:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@core'
@@ -957,6 +972,7 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
   loguru:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@core'
@@ -1001,6 +1017,7 @@ suites:
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
   molten:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1263,6 +1280,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   sourcecode:
+    itr_test_skipping_enabled: true
     retry: 2
     parallelism: 1
     paths:
@@ -1414,6 +1432,7 @@ suites:
       - redis
     snapshot: true
   valkey:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@bootstrap'
