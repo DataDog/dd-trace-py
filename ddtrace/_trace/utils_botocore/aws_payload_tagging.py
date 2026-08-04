@@ -139,7 +139,9 @@ class AWSPayloadTagging:
         """
         for expression in expressions:
             for match in expression.find(data):
-                match.context.value[match.path.fields[0]] = "redacted"
+                # a match on a list element has an index rather than a field name
+                key = match.path.fields[0] if hasattr(match.path, "fields") else match.path.index
+                match.context.value[key] = "redacted"
 
     def _get_redaction_paths_response(self, parser: JsonPathParser) -> list:
         """

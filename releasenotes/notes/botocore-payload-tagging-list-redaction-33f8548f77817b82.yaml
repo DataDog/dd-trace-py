@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: Fixes an issue where payload tagging raised an ``AttributeError`` when a redaction path matched a list element, such as the default path ``$..phoneNumbers[*]``. These values are now redacted correctly.
