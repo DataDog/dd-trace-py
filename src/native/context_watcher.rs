@@ -2,6 +2,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use std::ffi::{c_int, c_uint};
+use std::matches;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::OnceLock;
 
