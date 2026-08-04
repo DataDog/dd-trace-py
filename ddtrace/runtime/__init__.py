@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
 from typing import Optional  # noqa:F401
 
 from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.trace import Tracer
+
+
+if TYPE_CHECKING:
+    from ddtrace.trace import Tracer
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
