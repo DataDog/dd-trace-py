@@ -204,13 +204,13 @@ import os
 import sys
 
 assert "ddtrace" not in sys.modules
-os.environ["DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED"] = "false"
+os.environ["_DD_OTEL_THREAD_CONTEXT_ENABLED"] = "false"
 
 from ddtrace.internal import core
-from ddtrace.internal.context_watcher import register_context_watcher
-from ddtrace.internal.context_watcher import is_context_watcher_registered
+from ddtrace.internal.native._native import is_context_watcher_registered
+from ddtrace.internal.settings._config import config
 
-assert register_context_watcher() is False
+assert config._otel_thread_context_enabled is False
 assert is_context_watcher_registered() is False
 observed = []
 core.on("python.context.switch", lambda: observed.append(None))
