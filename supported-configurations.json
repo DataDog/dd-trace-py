@@ -4331,10 +4331,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": "500-599",
-        "aliases": [
-          "DD_HTTP_SERVER_ERROR_STATUSES"
-        ]
+        "default": "500-599"
       }
     ],
     "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED": [

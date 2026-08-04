@@ -54,10 +54,12 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
     metadata: dict[str, Any] = {}
     query: str = ""
     try:
+        # The dispatch below applies these to the request span as-is, so they are already
+        # spelled and shaped for whichever semantics mode is active. Built from the method and
+        # status alone first, so a failure in the calls below still leaves those on the span.
+        metadata = _http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        # The dispatch below applies these to the request span as-is, so they are already
-        # spelled and shaped for whichever semantics mode is active.
         metadata = _http_block_metadata(
             request.method,
             403,

@@ -5,7 +5,10 @@ features:
     server spans, enabled with ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. When enabled,
     spans carry attributes such as ``http.request.method``, ``url.path``, ``url.full``,
     ``server.address``, ``http.response.status_code`` and ``http.route`` instead of the
-    Datadog names, HTTP client spans are marked as errors for 4xx as well as 5xx responses,
-    and the new ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` setting overrides which client
-    response statuses are treated as errors. The default remains the existing Datadog
-    behavior.
+    Datadog names, and HTTP client spans are marked as errors for 4xx as well as 5xx
+    responses. The new ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` setting overrides which client
+    response statuses are treated as errors; it applies only when OTel semantics are enabled,
+    since the default path continues to use ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` for both
+    span kinds. The rename covers the HTTP attributes written through ``set_http_meta``;
+    integrations that write HTTP tags directly, such as botocore and elasticsearch, keep the
+    Datadog names. The default remains the existing Datadog behavior.

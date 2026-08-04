@@ -9,8 +9,8 @@ from typing import Optional
 from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
-from ddtrace._trace.processor.resource_renaming import _PATH_SOURCE_TAG
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+from ddtrace._trace.processor.resource_renaming import path_source_tag_value
 import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
@@ -125,7 +125,7 @@ class APIManager(Service):
             # URL fallback moves, to url.path.
             endpoint = env.entry_span.get_tag(http.ENDPOINT)
             if endpoint is None:
-                url = env.entry_span.get_tag(_PATH_SOURCE_TAG)
+                url = path_source_tag_value(env.entry_span)
                 endpoint = self.simplified_endpoint_computer.from_url(url)
             route = endpoint
 

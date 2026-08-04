@@ -15,13 +15,25 @@ log = get_logger(__name__)
 
 # Which attributes hold the status code and the request path depends on the semantics mode,
 # and the mode cannot change after startup, so resolve the names once. url.path is already
-# just the path, which is all from_url ever looks at.
+# just the path, which is all from_url ever looks at. Client spans carry url.full instead of
+# url.path, so both are read under the flag; from_url parses either shape.
+_STATUS_CODE_TAG: str
+_PATH_SOURCE_TAGS: tuple[str, ...]
 if config._otel_trace_semantics_enabled:
     _STATUS_CODE_TAG = http.OTEL_RESPONSE_STATUS_CODE
-    _PATH_SOURCE_TAG = http.OTEL_URL_PATH
+    _PATH_SOURCE_TAGS = (http.OTEL_URL_PATH, http.OTEL_URL_FULL)
 else:
     _STATUS_CODE_TAG = http.STATUS_CODE
-    _PATH_SOURCE_TAG = http.URL
+    _PATH_SOURCE_TAGS = (http.URL,)
+
+
+def path_source_tag_value(span: Span) -> Optional[str]:
+    """The URL-ish tag an endpoint is computed from, in the active semantics mode.
+
+    Server spans carry url.path and client spans carry url.full under the flag, and
+    SimplifiedEndpointComputer.from_url parses either shape.
+    """
+    return next((value for value in map(span.get_tag, _PATH_SOURCE_TAGS) if value), None)
 
 
 class SimplifiedEndpointComputer:
@@ -94,6 +106,6 @@ class ResourceRenamingProcessor(SpanProcessor):
         route = span.get_tag(http.ROUTE)
 
         if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
-            url = span.get_tag(_PATH_SOURCE_TAG)
+            url = path_source_tag_value(span)
             endpoint = self.simplified_endpoint_computer.from_url(url)
             span._set_attribute(http.ENDPOINT, endpoint)

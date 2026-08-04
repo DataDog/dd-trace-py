@@ -1882,6 +1882,12 @@ def _on_proxy_request_end(
             span._set_attribute("ray.serve.request.type", request_type)
 
         if request_type == "http":
+            if config._otel_trace_semantics_enabled:
+                # This is an inbound request, but the span carries the http span type and no
+                # kind, which the OTel path would otherwise read as a client span and give
+                # client error semantics to. Only set under the flag so the default output
+                # stays unchanged.
+                span._set_attribute(SPAN_KIND, SpanKind.SERVER)
             trace_utils.set_http_meta(
                 span,
                 config.ray,

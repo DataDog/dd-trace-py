@@ -478,10 +478,14 @@ def _is_http_client_span(span: Span) -> bool:
     """Whether set_http_meta was called for an outbound request.
 
     Client integrations tag span.kind=client, use the http span type, or both. Server
-    integrations use the web (or websocket) span type and span.kind=server, so a false
-    positive is not reachable through the shared subscribers.
+    integrations use the web (or websocket) span type and span.kind=server. The http span
+    type alone is not conclusive: ray_serve gives its inbound proxy and replica spans the
+    http span type, so an explicit server kind wins over it.
     """
-    return span.get_tag(SPAN_KIND) == SpanKind.CLIENT or span.span_type == SpanTypes.HTTP
+    kind = span.get_tag(SPAN_KIND)
+    if kind is not None:
+        return kind == SpanKind.CLIENT
+    return span.span_type == SpanTypes.HTTP
 
 
 def _is_otel_error_status(int_status_code: int, is_client: bool) -> bool:

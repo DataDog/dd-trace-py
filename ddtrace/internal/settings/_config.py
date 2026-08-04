@@ -426,9 +426,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses: str = _get_config(
-            ["DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "DD_HTTP_SERVER_ERROR_STATUSES"], "500-599"
-        )
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
