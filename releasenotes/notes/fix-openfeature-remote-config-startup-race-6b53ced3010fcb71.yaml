@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openfeature: Fixes an issue where flag evaluations return local defaults and the provider
+    remains not ready when Remote Configuration completes its first poll during application startup.

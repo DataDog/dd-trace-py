@@ -39,6 +39,12 @@ def post_preload():
     pass
 
 
+def post_start():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    remoteconfig_poller.start_deferred()
+
+
 def enabled():
     return config._remote_config_enabled
 
@@ -46,7 +52,10 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.enable()
+    # AIDEV-NOTE: Keep the poller behind this barrier until post_start. Product
+    # dependencies start after remote-configuration and must advertise their RC
+    # products before the no-wait polling thread sends its first request.
+    remoteconfig_poller.defer_start()
     _register_rc_products()
 
 

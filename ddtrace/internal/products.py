@@ -157,6 +157,7 @@ class ProductManager:
 
     def start_products(self) -> None:
         failed: set[str] = set()
+        started: list[tuple[str, Product]] = []
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -175,9 +176,22 @@ class ProductManager:
                 product.start()
                 log.debug("Started product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), True)
+                started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
+
+        # AIDEV-NOTE: Keep post_start hooks after the full start loop. RC uses
+        # this barrier to collect dependent products before its first poll, and
+        # start_products() may run only after a uWSGI fork.
+        for name, product in started:
+            try:
+                if (hook := getattr(product, "post_start", None)) is None:
+                    continue
+                hook()
+                log.debug("Post-start product '%s' done", name)
+            except Exception:
+                log.exception("Failed to post-start product '%s'", name)
 
     def before_fork(self) -> None:
         for name, product in self.products:
