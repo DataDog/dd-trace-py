@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    profiling: Fixes an issue where process memory can grow when stack profiling cannot read a sampled thread's CPU time.
+    profiling: Fixes potential process memory growth when a stack profiling sampling cycle exits before completing a
+    sample.
