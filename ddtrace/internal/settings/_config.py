@@ -461,7 +461,7 @@ class Config(object):
         has not configured anything, and any user-provided value wins in either mode.
         """
 
-        _error_statuses: str = _get_config(["DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "DD_HTTP_CLIENT_ERROR_STATUSES"], "")
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses) if _error_statuses else []
 
         @property

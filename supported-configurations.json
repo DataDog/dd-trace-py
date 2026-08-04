@@ -4314,10 +4314,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
-        "aliases": [
-          "DD_HTTP_CLIENT_ERROR_STATUSES"
-        ]
+        "default": null
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [

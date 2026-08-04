@@ -17,6 +17,11 @@ class PeerServiceConfig(object):
     # takes effect only when out.host is absent, which is the case for HTTP client spans under
     # the flag. Adding it unconditionally would change peer.service on any span that already
     # carries server.address, such as one created through the OTel API shim, with no opt-in.
+    #
+    # AIDEV-QUESTION: this is provisional. Whether server.address should feed peer.service at
+    # all, and where it belongs in the precedence order, is still pending sign-off from the
+    # peer.service owners. Revisit once we have confirmation; the ordering below is the
+    # conservative choice in the meantime, not a decision.
     prioritized_data_sources = (
         [*_base_data_sources, "server.address"] if config._otel_trace_semantics_enabled else _base_data_sources
     )
