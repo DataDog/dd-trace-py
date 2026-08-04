@@ -5,6 +5,11 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
+
+# AIDEV-NOTE: _http_propagation_suppressed tells the urllib3-layer subscriber to
+# skip its own injection. _wrap_adapter_send is one of its permitted setters —
+# see ownership contract in ddtrace/_trace/subscribers/http_client.py.
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -152,3 +157,18 @@ def _wrap_send(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _wrap_adapter_send(func, instance, args, kwargs):
+    """Trace the `HTTPAdapter.send` instance method.
+
+    Unlike `Session.send` (which recurses into itself for each redirect hop),
+    this is the direct per-hop dispatch into urllib3, so scoping suppression
+    here (rather than around all of `Session.send`) keeps redirected
+    `requests.request` spans from having their own injection suppressed too.
+    """
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)
