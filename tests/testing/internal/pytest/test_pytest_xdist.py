@@ -422,10 +422,11 @@ class TestXdistManifestMode:
         worker_manifests = [path.read_text() for path in marker_dir.glob("gw[0-9]")]
         assert len(worker_manifests) == 2
         assert all(worker_manifests)
+        assert all(".xdist_testoptimization" in manifest for manifest in worker_manifests)
         worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
         assert len(worker_manifest_modes) == 2
         assert all("enabled=True" in mode for mode in worker_manifest_modes)
-        assert all(str(manifest_dir) in mode for mode in worker_manifest_modes)
+        assert all(".xdist_testoptimization" in mode for mode in worker_manifest_modes)
         worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
         assert len(worker_test_counts) == 2
         assert sum(worker_test_counts) == 4
