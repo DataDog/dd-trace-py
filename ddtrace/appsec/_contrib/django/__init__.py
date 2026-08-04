@@ -283,3 +283,19 @@ def listen() -> None:
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
+
+
+def unlisten() -> None:
+    core.reset_listeners("django.login", _on_django_login)
+    core.reset_listeners("django.auth", _on_django_auth)
+    core.reset_listeners("django.process_request", _on_django_process)
+    core.reset_listeners("django.create_user", _on_django_signup_user)
+
+    core.reset_listeners("django.start_response.post", _call_waf_first)
+    core.reset_listeners("django.finalize_response", _call_waf)
+    core.reset_listeners("django.after_request_headers", _get_headers_if_appsec)
+    core.reset_listeners("django.extract_body", _get_headers_if_appsec)
+    core.reset_listeners("django.after_request_headers.finalize", _set_headers_and_response)
+
+    core.reset_listeners("context.ended.django.traced_get_response", _on_context_ended)
+    core.reset_listeners("django.traced_get_response.pre", _on_traced_get_response_pre)

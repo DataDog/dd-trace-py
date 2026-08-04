@@ -249,7 +249,6 @@ def override_global_config(values: dict[str, Any]):
         AppSecIastSpanProcessor.disable()
     try:
         core.dispatch("test.config.override")
-        core.dispatch("asm.switch_state")
         yield
     finally:
         # Reset all to their original values

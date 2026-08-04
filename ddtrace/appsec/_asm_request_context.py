@@ -786,6 +786,11 @@ def asm_listen() -> None:
     core.on("asm.get_blocked", get_blocked, "block_config")
 
 
+def asm_unlisten() -> None:
+    core.reset_listeners("asm.set_blocked", set_blocked_dict)
+    core.reset_listeners("asm.get_blocked", get_blocked)
+
+
 def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
