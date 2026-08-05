@@ -12,7 +12,7 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args: Union[tuple[Any], list[Any]],
+    args: Union[tuple[Any, ...], list[Any]],
     kwargs: dict[str, Any],
     pos: int,
     kw: str,

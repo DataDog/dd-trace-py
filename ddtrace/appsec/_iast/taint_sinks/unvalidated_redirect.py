@@ -1,4 +1,5 @@
-from typing import Text
+from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -19,8 +20,9 @@ from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
-UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS = {
+UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS: set[OriginType] = {
     OriginType.HEADER,
     OriginType.HEADER_NAME,
     OriginType.COOKIE,
@@ -29,14 +31,14 @@ UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS = {
 }
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -57,27 +59,33 @@ def patch():
     iast_funcs.patch()
 
 
-def _unvalidated_redirect_for_django(wrapped, instance, args, kwargs):
+def _unvalidated_redirect_for_django(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "to", optional=True))
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        return wrapped.__func__(instance, *args, **kwargs)  # type: ignore[no-any-return]
     return wrapped(*args, **kwargs)
 
 
-def _unvalidated_redirect_for_flask(wrapped, instance, args, kwargs):
+def _unvalidated_redirect_for_flask(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "location", optional=True))
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        return wrapped.__func__(instance, *args, **kwargs)  # type: ignore[no-any-return]
     return wrapped(*args, **kwargs)
 
 
-def _unvalidated_redirect_forfastapi(wrapped, instance, args, kwargs):
+def _unvalidated_redirect_forfastapi(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "url", optional=True))
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        return wrapped.__func__(instance, *args, **kwargs)  # type: ignore[no-any-return]
     return wrapped(*args, **kwargs)
 
 
@@ -86,7 +94,7 @@ class UnvalidatedRedirect(VulnerabilityBase):
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
 
 
-def _iast_report_unvalidated_redirect(headers):
+def _iast_report_unvalidated_redirect(headers: object) -> None:
     if headers and isinstance(headers, IAST.TEXT_TYPES):
         try:
             is_tainted = UnvalidatedRedirect.is_tainted_pyobject(
