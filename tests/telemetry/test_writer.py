@@ -87,16 +87,7 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert len(deps) == 1, deps
 
 
-def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
-    # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
-    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
-    # Imports httpretty twice and ensures only one dependency entry is sent
-
-    mini_django_app = """
+_MINI_DJANGO_APP = """
 from os import path as osp
 def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
 rel_path.path = osp.abspath(osp.dirname(__file__))
@@ -119,8 +110,7 @@ if __name__=='__main__':
     settings.configure(**SETTINGS)
 
 if __name__ == '__main__':
-    from django.core import management
-    management.execute_from_command_line()
+    %(bootstrap)s
 
 from django.urls import path
 from django.http import HttpResponse
@@ -132,6 +122,26 @@ def mini_app(request):
     return HttpResponse('response text')
 urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 """
+
+# What gunicorn/uwsgi do: build the WSGI application, which constructs a BaseHandler.
+_SERVING_BOOTSTRAP = """from django.core.wsgi import get_wsgi_application
+    get_wsgi_application()"""
+
+# What a Celery or dramatiq worker does: django.setup() and nothing else. Not a management
+# command -- Django's own check_url_config imports the URLconf whenever system checks run, so
+# most manage.py invocations import it with or without ddtrace.
+_WORKER_BOOTSTRAP = """import django
+    django.setup()
+    assert this not in __import__('sys').modules, 'django.setup() imported the URLconf'"""
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _SERVING_BOOTSTRAP}
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
     assert status == 0, stderr
@@ -154,6 +164,26 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
         and e["operation_name"] == "django.request"
         for e in endpoints
     ), endpoints
+
+
+def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """A process that never builds a request handler must not import the URLconf.
+
+    Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. A Celery
+    or dramatiq worker would otherwise load that whole import closure for nothing, which cost one reporter 154MB of
+    RSS per worker.
+    """
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _WORKER_BOOTSTRAP}
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    assert test_agent_session.get_events("app-endpoints") == []
 
 
 def test_instrumentation_source_config(
