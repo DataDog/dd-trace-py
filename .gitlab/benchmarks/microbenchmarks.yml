@@ -93,7 +93,7 @@ variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
 
 baseline:detect:
-  image: {CI_UTILS_IMAGE}
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: build
   id_tokens:

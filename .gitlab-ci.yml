@@ -379,7 +379,7 @@ codeowners:
     - |
       if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
+        xargs codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
