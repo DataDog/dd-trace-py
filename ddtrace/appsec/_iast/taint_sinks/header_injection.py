@@ -55,8 +55,9 @@ This module implements taint sink detection to track and block cases where taint
 is passed to header-setting APIs without proper sanitization.
 """  # noqa: D301
 
-import typing
-from typing import Text
+from typing import Callable
+from typing import Protocol
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -76,8 +77,27 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
+R_co = TypeVar("R_co", covariant=True)
 
-HEADER_INJECTION_EXCLUSIONS = {
+
+class _BoundWrapped(Protocol[R_co]):
+    @property
+    def __func__(self) -> Callable[..., R_co]: ...
+
+
+_HeaderEntry = tuple[object, ...]
+
+
+class _HeadersOwner(Protocol):
+    _headers: dict[str, _HeaderEntry]
+
+
+class _StoreOwner(Protocol):
+    _store: dict[str, _HeaderEntry]
+
+
+HEADER_INJECTION_EXCLUSIONS: set[str] = {
     "pragma",
     "content-type",
     "content-length",
@@ -92,14 +112,14 @@ HEADER_INJECTION_EXCLUSIONS = {
 }
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     """
     Patch header injection detection for supported web frameworks.
 
@@ -185,25 +205,32 @@ class HeaderInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.HEADER_INJECTION
 
 
-def _iast_django_response(wrapped, instance, args, kwargs):
+def _iast_django_response(
+    wrapped: _BoundWrapped[R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
+    result = wrapped.__func__(instance, *args, **kwargs)
     try:
-        wrapped.__func__(instance, *args, **kwargs)
         if hasattr(instance, "_headers"):
-            instance._headers = HeaderInjectionDict(instance._headers)
+            headers_owner: _HeadersOwner = instance
+            headers_owner._headers = HeaderInjectionDict(headers_owner._headers)
         elif hasattr(instance, "_store"):
-            instance._store = HeaderInjectionDict(instance._store)
+            store_owner: _StoreOwner = instance
+            store_owner._store = HeaderInjectionDict(store_owner._store)
     except Exception as e:
         iast_error("propagation::sink_point::Error in _iast_django_response", exc=e)
+    return result
 
 
-class HeaderInjectionDict(dict):
-    def __setitem__(self, key, value):
+class HeaderInjectionDict(dict[str, _HeaderEntry]):
+    def __setitem__(self, key: str, value: _HeaderEntry) -> None:
         if is_iast_request_enabled():
-            _check_type_headers_and_report_header_injection(value)
+            _iast_report_header_injection(value)
         dict.__setitem__(self, key, value)
 
 
-def _iast_set_headers(wrapped, instance, args, kwargs):
+def _iast_set_headers(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     """
     Wrapper for header setting functions to detect header injection vulnerabilities.
 
@@ -214,14 +241,19 @@ def _iast_set_headers(wrapped, instance, args, kwargs):
     if hasattr(wrapped, "__func__"):
         # We call `_check_type_headers_and_report_header_injection` after the wrapped function because it may
         # contain validators and serializers that modify the `args` ranges.
-        result = wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        result = wrapped_function(instance, *args, **kwargs)
         if is_iast_request_enabled():
-            _check_type_headers_and_report_header_injection(args, check_header_injection=False)
+            _iast_report_header_injection(args, check_header_injection=False)
         return result
     return wrapped(*args, **kwargs)
 
 
-def _iast_report_header_injection(headers_args, check_header_injection=True, check_unvalidated_redirect=True):
+def _iast_report_header_injection(
+    headers_args: tuple[object, ...],
+    check_header_injection: bool = True,
+    check_unvalidated_redirect: bool = True,
+) -> None:
     """
     Process a header tuple to check for potential header injection vulnerabilities.
 
@@ -236,7 +268,7 @@ def _iast_report_header_injection(headers_args, check_header_injection=True, che
         return
 
     header_name, header_value = headers_args
-    if header_name is None:
+    if not isinstance(header_name, str) or not isinstance(header_value, IAST.TEXT_TYPES):
         return
     try:
         header_name_lower = header_name.lower()
@@ -248,14 +280,8 @@ def _iast_report_header_injection(headers_args, check_header_injection=True, che
                 if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
                     return
 
-            if (
-                isinstance(header_name, IAST.TEXT_TYPES)
-                and isinstance(header_value, IAST.TEXT_TYPES)
-                and HeaderInjection.has_quota()
-                and (
-                    HeaderInjection.is_tainted_pyobject(header_name)
-                    or HeaderInjection.is_tainted_pyobject(header_value)
-                )
+            if HeaderInjection.has_quota() and (
+                HeaderInjection.is_tainted_pyobject(header_name) or HeaderInjection.is_tainted_pyobject(header_value)
             ):
                 header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
                 HeaderInjection.report(evidence_value=header_evidence)
@@ -266,32 +292,3 @@ def _iast_report_header_injection(headers_args, check_header_injection=True, che
             _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
     except Exception as e:
         iast_error("propagation::sink_point::Error in _iast_report_header_injection", exc=e)
-
-
-def _check_type_headers_and_report_header_injection(
-    headers_or_args, check_header_injection=True, check_unvalidated_redirect=True
-) -> None:
-    """
-    Report potential header injection vulnerabilities found in headers.
-
-    This function handles two types of header inputs:
-    1. Dictionary of headers (used by FastAPI Response constructor)
-    2. Tuple of (header_name, header_value)
-    """
-    if headers_or_args and isinstance(headers_or_args[0], typing.Mapping):
-        # ({header_name: header_value}, {header_name: header_value}, ...), used by FastAPI Response constructor
-        # when used with Response(..., headers={...})
-        for headers_dict in headers_or_args:
-            for header_name, header_value in headers_dict.items():
-                _iast_report_header_injection(
-                    (header_name, header_value),
-                    check_header_injection=check_header_injection,
-                    check_unvalidated_redirect=check_unvalidated_redirect,
-                )
-    else:
-        # (header_name, header_value), used in other cases
-        _iast_report_header_injection(
-            headers_or_args,
-            check_header_injection=check_header_injection,
-            check_unvalidated_redirect=check_unvalidated_redirect,
-        )
