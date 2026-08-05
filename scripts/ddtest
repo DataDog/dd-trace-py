@@ -65,7 +65,8 @@ if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
 fi
 
 if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
-    COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.podman.yml")
+    COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.base.yml")
+    COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.podman.yml")
 else
     COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
 fi
