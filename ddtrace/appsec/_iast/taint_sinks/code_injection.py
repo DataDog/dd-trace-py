@@ -1,4 +1,6 @@
-from typing import Text
+from typing import Callable
+from typing import Optional
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -17,16 +19,17 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -53,7 +56,7 @@ class CodeInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.CODE_INJECTION
 
 
-def _iast_coi(wrapped, instance, args, kwargs):
+def _iast_coi(wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]) -> R:
     if len(args) >= 1:
         _iast_report_code_injection(args[0])
     try:
@@ -63,31 +66,32 @@ def _iast_coi(wrapped, instance, args, kwargs):
         # See ddtrace/internal/iast/product.py for detailed explanation.
         import inspect
 
-        func_globals = None
-        func_locals = None
-        func_locals_copy_to_check = None
+        func_globals: Optional[dict[str, object]] = None
+        func_locals: Optional[dict[str, object]] = None
+        func_locals_copy_to_check: Optional[dict[str, object]] = None
 
         # Check if inspect.currentframe is available (not available in some Python implementations)
         if not hasattr(inspect, "currentframe"):
             # Use provided globals/locals or None defaults
-            func_globals = args[1] if len(args) > 1 else kwargs.get("globals")
-            func_locals = args[2] if len(args) > 2 else kwargs.get("locals")
+            func_globals = args[1] if len(args) > 1 else kwargs.get("globals")  # type: ignore[assignment]
+            func_locals = args[2] if len(args) > 2 else kwargs.get("locals")  # type: ignore[assignment]
         else:
             caller_frame = None
             if len(args) > 1:
-                func_globals = args[1]
+                func_globals = args[1]  # type: ignore[assignment]
             elif kwargs.get("globals"):
-                func_globals = kwargs.get("globals")
+                func_globals = kwargs.get("globals")  # type: ignore[assignment]
             else:
                 frames = inspect.currentframe()
                 if frames is not None:
                     caller_frame = frames.f_back
-                    func_globals = caller_frame.f_globals
+                    if caller_frame is not None:
+                        func_globals = caller_frame.f_globals
 
             if len(args) > 2:
-                func_locals = args[2]
+                func_locals = args[2]  # type: ignore[assignment]
             elif kwargs.get("locals"):
-                func_locals = kwargs.get("locals")
+                func_locals = kwargs.get("locals")  # type: ignore[assignment]
             else:
                 if caller_frame is None:
                     frames = inspect.currentframe()
@@ -110,17 +114,16 @@ def _iast_coi(wrapped, instance, args, kwargs):
     # context to the global one.
     try:
         if func_locals_copy_to_check is not None:
-            diff_keys = set(func_locals) - set(func_locals_copy_to_check)
+            diff_keys = set(func_locals) - set(func_locals_copy_to_check)  # type: ignore[arg-type]
             for key in diff_keys:
-                func_globals[key] = func_locals[key]
+                func_globals[key] = func_locals[key]  # type: ignore[index]
     except Exception as e:
         iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
 
     return res
 
 
-def _iast_report_code_injection(code_string: Text):
-    reported = False
+def _iast_report_code_injection(code_string: object) -> None:
     try:
         if is_iast_request_enabled():
             if code_string and isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
@@ -133,4 +136,3 @@ def _iast_report_code_injection(code_string: Text):
             _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
         iast_error("propagation::sink_point::Error in _iast_report_code_injection", exc=e)
-    return reported
