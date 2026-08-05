@@ -1,4 +1,3 @@
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use std::ffi::{c_int, c_uint};
@@ -54,28 +53,34 @@ unsafe extern "C" fn context_watcher(event: PyContextEvent, object: *mut ffi::Py
     // it temporarily so listeners can use regular Python APIs, then restore it;
     // losing it makes Context.run raise SystemError instead of the original error.
     let pending_exception = unsafe { ffi::PyErr_GetRaisedException() };
-    // SAFETY: CPython invokes context watchers on the attached thread performing
-    // the context switch.
-    let py = unsafe { Python::assume_attached() };
+    let callback_result = match catch_unwind(AssertUnwindSafe(|| {
+        // CPython invokes context watchers on an attached thread, but entering
+        // through the C API bypasses PyO3's attachment bookkeeping.
+        Python::attach(|py| {
+            if event == PY_CONTEXT_SWITCHED {
+                // Listeners must not enter another Context: CPython context watchers
+                // are reentrant. The OTel listener does not enter a Context.
+                if let Err(error) =
+                    crate::event_hub::dispatch(py, CONTEXT_SWITCH_EVENT, None, false)
+                {
+                    error.restore(py);
+                    return -1;
+                }
+            }
 
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        if event == PY_CONTEXT_SWITCHED {
-            // Listeners must not enter another Context: CPython context watchers
-            // are reentrant. The OTel listener does not enter a Context.
-            crate::event_hub::dispatch(py, CONTEXT_SWITCH_EVENT, None, false)
-        } else {
-            Ok(())
-        }
-    }));
-
-    let callback_result = match result {
-        Ok(Ok(())) => 0,
-        Ok(Err(error)) => {
-            error.restore(py);
-            -1
-        }
+            0
+        })
+    })) {
+        Ok(result) => result,
         Err(_) => {
-            PyRuntimeError::new_err("panic in Python context watcher").restore(py);
+            // Keep panics from crossing the C boundary even if attaching itself
+            // fails before a Python token is available.
+            unsafe {
+                ffi::PyErr_SetString(
+                    ffi::PyExc_RuntimeError,
+                    c"panic in Python context watcher".as_ptr(),
+                )
+            };
             -1
         }
     };
