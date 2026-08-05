@@ -672,7 +672,8 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                         self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
                         // Map the PeriodicThread object to its thread ID
-                        PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self);
+                        if (PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self) < 0)
+                            PyErr_Print();
                     }
 
                     // Set the native thread name for better debugging and profiling
@@ -744,7 +745,8 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                             PeriodicThread__on_shutdown(self);
 
                         // Remove the thread from the mapping of active threads.
-                        PyDict_DelItem(state->periodic_threads, self->ident);
+                        if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
+                            PyErr_Print();
                     }
 
                     // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
