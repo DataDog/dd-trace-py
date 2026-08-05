@@ -766,7 +766,10 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     // This exit reset complements unwind's entry reset. It covers returns before unwind and exceptions after partial
     // task or greenlet state has been populated, so no logical snapshot survives the cycle that created it.
-    auto state_cleanup = make_defer([&]() noexcept { reset_cycle_state(); });
+    defer
+    {
+        reset_cycle_state();
+    };
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
