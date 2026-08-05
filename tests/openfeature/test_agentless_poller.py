@@ -190,14 +190,37 @@ def test_if_none_match_sent_when_etag_held(harness):
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
+@pytest.mark.parametrize(
+    ("api_key", "expected"),
+    [
+        ("", "rijn_RZwTDmWjELXeEmMEb0eIIegKayGGUPNsuJweEPhlXi5"),
+        (
+            "7b58e278012eec8316224b052d87e6e8b2ba9e49",
+            "rijn_SddeOoHbx2gFQTblESRn88xKs2B9zEA9ii1CclRfD6s",
+        ),
+        ("!@#$%^𐍈한€हИ£", "rijn_eFLHeyLxwaiNs2hY16pjkjNjVSHWRgf2rlveKc8YA1K"),
+        ("padding-171", "rijn_053ybBRXypQt9AC6UIlqH1YCFYSV1rQl8HCDIcBZs3D"),
+    ],
+)
+def test_api_key_fingerprint_matches_clifford_v1(api_key, expected):
+    fingerprint = source_mod._api_key_fingerprint(api_key)
+
+    assert fingerprint == expected
+    assert len(fingerprint) == 48
+
+
 def test_api_key_header_present_and_absent(harness):
     with_key = harness([_FakeResponse(304)], api_key="secret")
     with_key.periodic()
     assert with_key._requests[0]["headers"]["DD-API-KEY"] == "secret"
+    assert (
+        with_key._requests[0]["headers"]["DD-API-KEY-FINGERPRINT"] == "rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj"
+    )
 
     without_key = harness([_FakeResponse(304)], api_key=None)
     without_key.periodic()
     assert "DD-API-KEY" not in without_key._requests[0]["headers"]
+    assert "DD-API-KEY-FINGERPRINT" not in without_key._requests[0]["headers"]
 
 
 def test_client_library_headers_and_gzip_accept(harness):
