@@ -14,7 +14,7 @@ from ddtrace.internal import agent
 from ddtrace.internal import logger
 from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import DebuggerType
+from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
@@ -37,7 +37,7 @@ class UploaderProduct(str, Enum):
 @dataclass
 class UploaderTrack:
     track: SignalTrack
-    debugger_type: DebuggerType
+    debugger_type: DebuggerTrackType
     queue: SignalQueue
     enabled: bool = True
 
@@ -72,14 +72,14 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
                 track=SignalTrack.LOGS,
-                debugger_type=DebuggerType.Logs,
+                debugger_type=DebuggerTrackType.Logs,
                 queue=self.__queue__(
                     encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
                 ),
             ),
             SignalTrack.SNAPSHOT: UploaderTrack(
                 track=SignalTrack.SNAPSHOT,
-                debugger_type=DebuggerType.Snapshots,
+                debugger_type=DebuggerTrackType.Snapshots,
                 queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
             ),
         }
@@ -149,7 +149,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         return True
 
-    def _write(self, payload: bytes, debugger_type: DebuggerType) -> None:
+    def _write(self, payload: bytes, debugger_type: DebuggerTrackType) -> None:
         try:
             rejected = self._sender.send(payload, debugger_type)
         except Exception:

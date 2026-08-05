@@ -12,7 +12,7 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import SignalUploaderError
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.native import DebuggerSenderError
-from ddtrace.internal.native import DebuggerType
+from ddtrace.internal.native import DebuggerTrackType
 
 
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError
@@ -86,7 +86,7 @@ def test_uploader_502_error():
 
     # Assert that 502 errors raise SignalUploaderError
     with pytest.raises(SignalUploaderError):
-        uploader._write(b'{"test": "data"}', DebuggerType.Logs)
+        uploader._write(b'{"test": "data"}', DebuggerTrackType.Logs)
 
 
 def test_info_check_endpoint_selection():
@@ -165,7 +165,7 @@ def test_write_success_meters():
     uploader._sender = _make_sender()
 
     with patch("ddtrace.debugging._uploader.meter") as mock_meter:
-        uploader._write(b"payload", DebuggerType.Logs)
+        uploader._write(b"payload", DebuggerTrackType.Logs)
 
     mock_meter.increment.assert_called_with("upload.success")
     mock_meter.distribution.assert_called_with("upload.size", len(b"payload"))
@@ -176,7 +176,7 @@ def test_write_rejection_meters_status():
     uploader._sender = _make_sender(rejected=(404, "Not Found"))
 
     with patch("ddtrace.debugging._uploader.meter") as mock_meter, pytest.raises(SignalUploaderError):
-        uploader._write(b"payload", DebuggerType.Snapshots)
+        uploader._write(b"payload", DebuggerTrackType.Snapshots)
 
     mock_meter.increment.assert_called_with("upload.error", tags={"status": "404"})
 
@@ -188,7 +188,7 @@ def test_write_connection_exception_is_caught():
     uploader._sender = _make_sender(error=DebuggerSenderError("connection refused"))
 
     with patch("ddtrace.debugging._uploader.meter") as mock_meter, patch("ddtrace.debugging._uploader.log") as mock_log:
-        uploader._write(b"payload", DebuggerType.Logs)
+        uploader._write(b"payload", DebuggerTrackType.Logs)
 
     mock_meter.increment.assert_called_with("error")
     mock_log.error.assert_called_once()
@@ -244,7 +244,7 @@ def test_flush_track_downgrades_and_retries_on_signal_uploader_error():
     assert len(calls) == 2
     # The retry goes to the same track; it is the sender that now resolves it to
     # the diagnostics endpoint.
-    assert calls == [DebuggerType.Logs, DebuggerType.Logs]
+    assert calls == [DebuggerTrackType.Logs, DebuggerTrackType.Logs]
     assert uploader._sender.downgraded is True
 
 

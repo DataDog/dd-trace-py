@@ -405,12 +405,12 @@ class TelemetryWorker:
         """
         ...
 
-class DebuggerType:
+class DebuggerTrackType:
     """Which debugger track a payload belongs to. (decides the endpoint)"""
 
-    Diagnostics: "DebuggerType"
-    Snapshots: "DebuggerType"
-    Logs: "DebuggerType"
+    Diagnostics: "DebuggerTrackType"
+    Snapshots: "DebuggerTrackType"
+    Logs: "DebuggerTrackType"
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -475,7 +475,7 @@ class DebuggerSender:
     def reset_endpoints(self) -> None:
         """Undo a downgrade, restoring the endpoints derived at construction."""
         ...
-    def send(self, payload: bytes, debugger_type: DebuggerType) -> Optional[tuple[int, str]]:
+    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> Optional[tuple[int, str]]:
         """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
 
         :return: ``None`` when the payload was accepted, or ``(status, body)``
