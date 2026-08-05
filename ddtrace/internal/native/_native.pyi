@@ -1,3 +1,4 @@
+import abc
 import contextvars
 from enum import Enum
 import sys
@@ -10,7 +11,12 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
+
+# Mirror of ddtrace._trace.provider.ActiveTrace (a Span or a Context).
+ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
@@ -403,11 +409,18 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP/JSON endpoint for trace export.
+        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
+        """
+        Select the OTLP export protocol: "http/json" or "http/protobuf".
+        Any other value raises ValueError.
+        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
@@ -670,6 +683,8 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    _parent: Optional[Any]  # parent Span, or None for a root span
+    _parent_context: Optional[Any]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
@@ -817,6 +832,188 @@ class config:
     @staticmethod
     def set_raise(val: bool) -> None:
         """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+
+# -----------------------------------------------------------------------------
+# Remote configuration
+# -----------------------------------------------------------------------------
+
+class RemoteConfigProduct:
+    """A remote-config product. One class attribute per libdatadog product.
+
+    Constructed natively; compare/hash by variant. ``str()`` yields the wire
+    name (e.g. ``"ASM_FEATURES"``); ``int()`` yields the discriminant.
+    """
+
+    AgentConfig: "RemoteConfigProduct"
+    AgentTask: "RemoteConfigProduct"
+    ApmTracing: "RemoteConfigProduct"
+    Asm: "RemoteConfigProduct"
+    AsmData: "RemoteConfigProduct"
+    AsmDD: "RemoteConfigProduct"
+    AsmFeatures: "RemoteConfigProduct"
+    FfeFlags: "RemoteConfigProduct"
+    LiveDebugger: "RemoteConfigProduct"
+    LiveDebuggerSymbolDb: "RemoteConfigProduct"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigCapabilities:
+    """A remote-config capability bit. One class attribute per libdatadog
+    capability; ``int()`` yields the bit position the client encodes.
+    """
+
+    AsmActivation: "RemoteConfigCapabilities"
+    AsmIpBlocking: "RemoteConfigCapabilities"
+    AsmDdRules: "RemoteConfigCapabilities"
+    AsmExclusions: "RemoteConfigCapabilities"
+    AsmRequestBlocking: "RemoteConfigCapabilities"
+    AsmResponseBlocking: "RemoteConfigCapabilities"
+    AsmUserBlocking: "RemoteConfigCapabilities"
+    AsmCustomRules: "RemoteConfigCapabilities"
+    AsmCustomBlockingResponse: "RemoteConfigCapabilities"
+    AsmTrustedIps: "RemoteConfigCapabilities"
+    AsmApiSecuritySampleRate: "RemoteConfigCapabilities"
+    ApmTracingSampleRate: "RemoteConfigCapabilities"
+    ApmTracingLogsInjection: "RemoteConfigCapabilities"
+    ApmTracingHttpHeaderTags: "RemoteConfigCapabilities"
+    ApmTracingCustomTags: "RemoteConfigCapabilities"
+    AsmProcessorOverrides: "RemoteConfigCapabilities"
+    AsmCustomDataScanners: "RemoteConfigCapabilities"
+    AsmExclusionData: "RemoteConfigCapabilities"
+    ApmTracingEnabled: "RemoteConfigCapabilities"
+    ApmTracingDataStreamsEnabled: "RemoteConfigCapabilities"
+    AsmRaspSqli: "RemoteConfigCapabilities"
+    AsmRaspLfi: "RemoteConfigCapabilities"
+    AsmRaspSsrf: "RemoteConfigCapabilities"
+    AsmRaspShi: "RemoteConfigCapabilities"
+    AsmRaspXxe: "RemoteConfigCapabilities"
+    AsmRaspRce: "RemoteConfigCapabilities"
+    AsmRaspNosqli: "RemoteConfigCapabilities"
+    AsmRaspXss: "RemoteConfigCapabilities"
+    ApmTracingSampleRules: "RemoteConfigCapabilities"
+    CsmActivation: "RemoteConfigCapabilities"
+    AsmAutoUserInstrumMode: "RemoteConfigCapabilities"
+    AsmEndpointFingerprint: "RemoteConfigCapabilities"
+    AsmSessionFingerprint: "RemoteConfigCapabilities"
+    AsmNetworkFingerprint: "RemoteConfigCapabilities"
+    AsmHeaderFingerprint: "RemoteConfigCapabilities"
+    AsmTruncationRules: "RemoteConfigCapabilities"
+    AsmRaspCmdi: "RemoteConfigCapabilities"
+    ApmTracingEnableDynamicInstrumentation: "RemoteConfigCapabilities"
+    ApmTracingEnableExceptionReplay: "RemoteConfigCapabilities"
+    ApmTracingEnableCodeOrigin: "RemoteConfigCapabilities"
+    ApmTracingEnableLiveDebugging: "RemoteConfigCapabilities"
+    AsmDdMulticonfig: "RemoteConfigCapabilities"
+    AsmTraceTaggingRules: "RemoteConfigCapabilities"
+    AsmExtendedDataCollection: "RemoteConfigCapabilities"
+    ApmTracingMulticonfig: "RemoteConfigCapabilities"
+    FfeFlagConfigurationRules: "RemoteConfigCapabilities"
+    DdDataStreamsTransactionExtractors: "RemoteConfigCapabilities"
+    LlmObsActivation: "RemoteConfigCapabilities"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigChange:
+    """A single remote-config change handed to Python.
+
+    ``content`` is the raw unparsed config bytes for an add/update, or ``None``
+    to signal a removal.
+    """
+
+    @property
+    def path(self) -> str: ...
+    @property
+    def product(self) -> RemoteConfigProduct: ...
+    @property
+    def config_id(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def version(self) -> int: ...
+    @property
+    def content(self) -> Optional[bytes]: ...
+
+class RemoteConfigReader:
+    """Consumer side of the cross-process broadcast (forked children).
+
+    Reads the manifest + contents the origin publishes to shared memory and
+    diffs successive snapshots into changes.
+    """
+
+    def wait_for_change(self, timeout_ms: int) -> bool:
+        """Block until the origin notifies or ``timeout_ms`` elapses.
+
+        Returns ``True`` if woken by a notification, ``False`` on timeout. On
+        Linux this is a futex wait on the manifest generation word; elsewhere it
+        polls.
+        """
+        ...
+    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+        """Return the changes since the last read (removals first).
+
+        ``enabled_products`` are the wire names the caller currently subscribes
+        to; configs for other products are withheld so they are re-emitted once
+        their product is enabled.
+        """
+        ...
+    def reset(self) -> None:
+        """Forget delivered state so the next ``read()`` returns the full snapshot."""
+        ...
+
+class RemoteConfigClient:
+    """Native single-target remote config client (origin process).
+
+    Children consume published configs via :class:`RemoteConfigReader` instead.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        agent_url: str,
+        tracer_version: str,
+        client_id: str,
+        runtime_id: str,
+        service: str,
+        env: str,
+        app_version: str,
+        language: Optional[str] = None,
+        tags: Optional[list[tuple[str, str]]] = None,
+        process_tags: Optional[list[tuple[str, str]]] = None,
+        timeout_ms: int = 5000,
+        test_session_token: Optional[str] = None,
+    ) -> "RemoteConfigClient": ...
+    def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
+        """Add capabilities the client advertises to the agent."""
+        ...
+    def update_capabilities(
+        self,
+        mask: list[RemoteConfigCapabilities],
+        capabilities: list[RemoteConfigCapabilities],
+    ) -> None:
+        """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        ...
+    def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
+        """Perform a single fetch against the agent and return the per-poll changes."""
+        ...
+    def set_config_state(self, path: str, error: Optional[str] = None) -> None:
+        """Acknowledge (``error=None``) or report an error for an applied config."""
+        ...
+    def get_client_id(self) -> str:
+        """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def enable_shared_memory(self) -> None:
+        """Enable cross-process broadcast. Call on the origin before forking."""
+        ...
+    def make_reader(self) -> RemoteConfigReader:
+        """Create a reader over the inherited broadcast segments (forked child)."""
         ...
 
 # -----------------------------------------------------------------------------
@@ -1004,3 +1201,40 @@ class HttpIoError(HttpClientError):
     """
 
 def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
+
+DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
+
+class BaseContextProvider(abc.ABC):
+    """A ``ContextProvider`` is an interface that provides the blueprint
+    for a callable class, capable to retrieve the current active
+    ``Context`` instance. Context providers must inherit this class
+    and implement:
+    * the ``active`` method, that returns the current active ``Context``
+    * the ``activate`` method, that sets the current active ``Context``
+
+    NOTE: at runtime this is a plain pyclass, not an ``abc.ABCMeta`` type --
+    direct instantiation still raises (via a ``__new__`` that always errors),
+    but incomplete subclasses aren't rejected at class-definition time, only
+    when the unimplemented ``_has_active_context``/``active`` are called.
+    Declared as ``abc.ABC`` here so type checkers keep flagging both cases the
+    same as they did before this class moved to Rust.
+    """
+
+    @abc.abstractmethod
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    @abc.abstractmethod
+    def active(self) -> Optional[ActiveTrace]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]: ...
+
+class DefaultContextProvider(BaseContextProvider):
+    """Context provider that retrieves contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
+    """
+
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    def active(self) -> Optional[ActiveTrace]: ...
+    def _update_active(self, span: Span) -> Optional[ActiveTrace]: ...
