@@ -42,7 +42,7 @@ def _allocate_1k() -> list[object]:
 _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
-def _setup_profiling_prelude(tmp_path: Path, test_name: str, timeline_enabled: bool = False) -> str:
+def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
     """Setup ddup configuration and return the output filename for pprof parsing.
 
     Args:
@@ -60,7 +60,6 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str, timeline_enabled: b
         version="test",
         env="test",
         output_filename=pprof_prefix,
-        timeline_enabled=timeline_enabled,
     )
     ddup.start()
 
@@ -1563,20 +1562,30 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
 
-def test_heap_samples_have_birth_timestamp(tmp_path: Path) -> None:
-    """Every heap live sample must carry a per-sample birth timestamp (end_timestamp_ns label).
+# Subprocess: timeline_enabled is global state that cannot be reset, so this must
+# run in its own process to avoid poisoning other tests.
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_HEAP_SAMPLE_SIZE="256",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_birth_timestamp",
+    )
+)
+def test_heap_samples_have_birth_timestamp() -> None:
+    """Every heap live sample must carry a per-sample birth timestamp (end_timestamp_ns label)."""
+    import os
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import _allocate_1k
 
-    push_monotonic_ns is called once at allocation time, setting endtime_ns which
-    libdatadog serializes as an end_timestamp_ns label on each sample.
-    """
-    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_birth_timestamp", timeline_enabled=True)
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    mc = memalloc.MemoryCollector(heap_sample_size=256)
-    with mc:
-        live_objects = _allocate_1k()
-        profile = mc.snapshot_and_parse_pprof(output_filename)
-        del live_objects
+    p = Profiler()
+    p.start()
+    live_objects = _allocate_1k()
+    p.stop()
 
+    profile = pprof_utils.parse_newest_profile(output_filename)
     heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(heap_samples) > 0, "Expected heap-space samples in profile"
 
@@ -1584,7 +1593,7 @@ def test_heap_samples_have_birth_timestamp(tmp_path: Path) -> None:
         ts_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
         assert ts_label is not None, "Heap sample missing 'end_timestamp_ns' label (birth timestamp)"
         assert ts_label.num > 0, f"Birth timestamp should be positive, got {ts_label.num}"
-
+    del live_objects
 
 # ---------------------------------------------------------------------------
 # "allocator domain" label tests
