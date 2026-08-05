@@ -56,9 +56,7 @@ include:
             && dd_trace_py_itr_supports_python_version "${riot_python_version:-}"; then
             export DD_CIVISIBILITY_ITR_ENABLED=true
 
-            if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] \
-              || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]] \
-              || [[ "${CI_COMMIT_BRANCH:-}" == "gnufede/enable-itr" ]]; then
+            if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
               # Protected branches run ITR in coverage-only mode: collect/upload coverage but do not skip tests.
               export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
               export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
