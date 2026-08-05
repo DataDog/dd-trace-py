@@ -1450,3 +1450,8 @@ def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
+
+
+def test_native_writer_reports_otlp_intake_endpoint():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    assert writer._intake_endpoint() == "http://localhost:4318/v1/traces"
