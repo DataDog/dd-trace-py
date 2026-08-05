@@ -547,7 +547,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return fields
 
     def _manifest_model(self, agent: Any) -> dict[str, Any]:
-        """The engine and the inference params the user set.
+        """The model and the inference params the user set.
 
         model_settings is filtered through an allowlist rather than copied. agent.model_settings is the
         caller's own dict and routinely carries provider passthroughs that hold credentials.
