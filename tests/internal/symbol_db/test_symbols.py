@@ -299,7 +299,7 @@ def test_scope_context_upload_skips_empty_batch():
     """Empty scope batches must not produce a SymDB upload request."""
     context = ScopeContext()
 
-    with mock.patch("ddtrace.internal.symbol_db.symbols.build_debugger_sender") as mock_sender:
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as mock_sender:
         with context._scopes_lock:
             context._upload_locked()
 
@@ -348,12 +348,12 @@ def test_scope_context_upload_metadata():
         return real_compress(data, *args, **kwargs)
 
     with (
-        mock.patch("ddtrace.internal.symbol_db.symbols.build_debugger_sender") as sender_mock,
+        mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock,
         mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
     ):
         # The native sender reports a rejection as a return value; None is an
         # accepted payload.
-        sender_mock.return_value.send_symdb.return_value = None
+        sender_mock.return_value.send.return_value = None
 
         # First upload: batchNum starts at 1 and the attachment carries the
         # same upload metadata as the event envelope.

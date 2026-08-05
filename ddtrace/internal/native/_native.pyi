@@ -418,7 +418,7 @@ class DebuggerTrackType:
     def __repr__(self) -> str: ...
 
 class DebuggerSenderError(Exception):
-    """A debugger payload could not be delivered (transport failure or timeout)."""
+    """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
 
 class DebuggerSender:
     """Sender for Dynamic Instrumentation / Exception Replay / Code Origin payloads.
@@ -449,9 +449,8 @@ class DebuggerSender:
             the endpoint becomes ``https://debugger-intake.{site}``.
         :param api_key: when not ``None`` selects agentless/direct submission
             (sets ``dd-api-key`` and the direct path).
-        :param tags: unencoded ``"key:value,key:value"``; percent-encoded here
-            for the ``ddtags`` query string, and sent verbatim in the SymDB
-            ``X-Datadog-Additional-Tags`` header.
+        :param tags: unencoded ``"key:value,key:value"``, percent-encoded here
+            for the ``ddtags`` query string.
         :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
             given, or the resulting endpoint is invalid.
         """
@@ -484,10 +483,51 @@ class DebuggerSender:
             failure or timeout).
         """
         ...
-    def send_symdb(self, payload: bytes, content_type: str) -> Optional[tuple[int, str]]:
-        """POST a SymDB payload verbatim to the symbol database endpoint.
 
-        Return value and errors match :meth:`send`.
+class SymDbSender:
+    """Sender for symbol database (SymDB) uploads.
+
+    Reaches Datadog through the same intake host as :class:`DebuggerSender`, but
+    shares nothing else: the body is forwarded verbatim, the tags travel in
+    ``X-Datadog-Additional-Tags`` rather than a ``ddtags`` query string, and there
+    is no track negotiation or downgrade.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "SymDbSender":
+        """Build a sender on ``runtime``.
+
+        ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
+        for :class:`DebuggerSender`. ``tags`` is sent verbatim in the
+        ``X-Datadog-Additional-Tags`` header.
+
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def send(self, payload: bytes, content_type: str) -> Optional[tuple[int, str]]:
+        """POST a SymDB payload verbatim, blocking on the response.
+
+        :param content_type: the caller's multipart content type.
+        :return: ``None`` when the payload was accepted, or ``(status, body)``
+            when the server rejected it with a >= 400 status.
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
         """
         ...
 

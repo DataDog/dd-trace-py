@@ -118,7 +118,6 @@ components:
     - ddtrace/sourcecode/*
   symbol_db:
     - ddtrace/internal/symbol_db/*
-    - ddtrace/internal/debugger_sender.py
     - ddtrace/internal/settings/symbol_db.py
   telemetry:
     - ddtrace/internal/telemetry/*

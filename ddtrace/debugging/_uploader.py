@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any
 from typing import Optional
 
+from ddtrace import config as ddconfig
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
@@ -12,9 +13,11 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal import logger
-from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import DebuggerSender
 from ddtrace.internal.native import DebuggerTrackType
+from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
@@ -24,6 +27,29 @@ logger.set_tag_rate_limit(UNSUPPORTED_AGENT, logger.HOUR)
 
 
 meter = metrics.get_meter("uploader")
+
+
+def build_debugger_sender() -> DebuggerSender:
+    """Build a sender for the logs, snapshots and diagnostics tracks."""
+    timeout_ms = int(di_config.upload_timeout * 1000)
+
+    if di_config._agentless:
+        return DebuggerSender(
+            get_native_runtime(),
+            site=ddconfig._dd_site,
+            api_key=ddconfig._dd_api_key,
+            tags=di_config.tags,
+            timeout_ms=timeout_ms,
+            test_session_token=get_test_session_token(),
+        )
+
+    return DebuggerSender(
+        get_native_runtime(),
+        url=di_config._intake_url,
+        tags=di_config.tags,
+        timeout_ms=timeout_ms,
+        test_session_token=get_test_session_token(),
+    )
 
 
 class UploaderProduct(str, Enum):
