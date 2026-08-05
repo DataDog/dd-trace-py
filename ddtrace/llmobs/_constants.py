@@ -50,10 +50,9 @@ PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # rather than overflow the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
-# Agent version: the version of the agent whose execution a span is part of. A scope label like
-# _dd.p.llmobs_sid, NOT part of the agent attribution above since an agent span carries its
-# own version.
-PROPAGATED_AGENT_VERSION_KEY = "_dd.p.llmobs_agent_version"
+# Version of the agent identified by the two keys above. Named from the receiver's point of view:
+# the version of the nearest agent above the span it creates next. Lands on the `agent_version` tag.
+PROPAGATED_PARENT_AGENT_VERSION_KEY = "_dd.p.llmobs_pagent_version"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"

@@ -79,11 +79,11 @@ from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
-from ddtrace.llmobs._constants import PROPAGATED_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
@@ -3580,7 +3580,7 @@ class LLMObs(Service):
             # (mirrors trace_id).
             propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
             propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
-            propagated_agent_version = context._meta.get(PROPAGATED_AGENT_VERSION_KEY)
+            propagated_agent_version = context._meta.get(PROPAGATED_PARENT_AGENT_VERSION_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3603,7 +3603,7 @@ class LLMObs(Service):
                 if propagated_agent_name is not None:
                     llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
                 if propagated_agent_version is not None:
-                    llmobs_context._meta[PROPAGATED_AGENT_VERSION_KEY] = propagated_agent_version
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_VERSION_KEY] = propagated_agent_version
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3620,7 +3620,7 @@ class LLMObs(Service):
             if propagated_agent_name is not None:
                 llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
             if propagated_agent_version is not None:
-                llmobs_context._meta[PROPAGATED_AGENT_VERSION_KEY] = propagated_agent_version
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_VERSION_KEY] = propagated_agent_version
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

@@ -30,9 +30,9 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
-from ddtrace.llmobs._constants import PROPAGATED_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_VERSION_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -472,7 +472,7 @@ def _resolve_inherited_agent_version(active) -> Optional[str]:
     if isinstance(active, Span):
         return _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.TAGS, {}).get(AGENT_VERSION_TAG_KEY)
     ctx = active
-    return ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY)
+    return ctx._meta.get(PROPAGATED_PARENT_AGENT_VERSION_KEY)
 
 
 # Budget for the entire _dd.p.* tagset when stamping agent attribution.
@@ -540,7 +540,9 @@ def _stamp_agent_propagation_tags(
             agent_span_id,
         )
 
-    if agent_version is not None and not _try_add_propagation_tag(meta, PROPAGATED_AGENT_VERSION_KEY, agent_version):
+    if agent_version is not None and not _try_add_propagation_tag(
+        meta, PROPAGATED_PARENT_AGENT_VERSION_KEY, agent_version
+    ):
         log.debug(
             "LLMObs: agent version not propagated — x-datadog-tags budget exhausted or value unsafe. agent_version=%r",
             agent_version,
