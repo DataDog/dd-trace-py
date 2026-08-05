@@ -5,11 +5,12 @@ This product receives feature flag configuration rules from Remote Configuration
 and processes them through the native FFE processor.
 """
 
-import enum
 import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
@@ -19,13 +20,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
 log = get_logger(__name__)
 
-FFE_FLAGS_PRODUCT = "FFE_FLAGS"
-
-
-class FFECapabilities(enum.IntFlag):
-    """FFE Remote Configuration capabilities."""
-
-    FFE_FLAG_CONFIGURATION_RULES = 1 << 46
+FFE_FLAGS_PRODUCT = RemoteConfigProduct.FfeFlags
 
 
 class FeatureFlagCallback(RCCallback):
@@ -71,7 +66,7 @@ def enable_featureflags_rc() -> None:
     remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,
-        capabilities=[FFECapabilities.FFE_FLAG_CONFIGURATION_RULES],
+        capabilities=[RemoteConfigCapabilities.FfeFlagConfigurationRules],
     )
     remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT)
 

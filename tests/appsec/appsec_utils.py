@@ -284,7 +284,6 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
         env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
@@ -423,17 +422,16 @@ def appsec_application_server(
                 os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
                 server_process.terminate()
                 try:
-                    server_process.wait(timeout=10)
+                    _, stderr_output = server_process.communicate(timeout=10)
                 except subprocess.TimeoutExpired:
                     server_process.kill()
-                    server_process.wait()
+                    _, stderr_output = server_process.communicate()
                 if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (
                     iast_enabled is not None and iast_enabled != "false"
                 ):
-                    process_output = server_process.stderr.read()
-                    assert "Return from " in process_output
-                    assert "Return value is tainted" in process_output
-                    assert "Tainted arguments:" in process_output
+                    assert "Return from " in stderr_output
+                    assert "Return value is tainted" in stderr_output
+                    assert "Tainted arguments:" in stderr_output
         finally:
             pass
 
