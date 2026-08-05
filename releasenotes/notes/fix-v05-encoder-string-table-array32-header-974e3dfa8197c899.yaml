@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where traces were silently dropped when the ``v0.5``
+    msgpack encoder's string table held between 65,536 and 131,071 entries,
+    producing a corrupted payload that the trace agent rejected.

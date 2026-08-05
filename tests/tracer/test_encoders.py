@@ -39,7 +39,6 @@ _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
 def span_to_tuple(span):
-    # type: (Span) -> tuple
     return (
         span.service,
         span.name,
@@ -982,6 +981,28 @@ def test_msgpack_string_table():
 
     assert len(t) == 2
     assert "foobar" not in t
+
+
+@pytest.mark.parametrize("num_entries", [1 << 16, (1 << 16) + 100])
+def test_msgpack_string_table_array32_boundary(num_entries):
+    """Regression test for GH-19515.
+
+    array_prefix_size() must switch from a 3-byte (array16) to a 5-byte (array32) length prefix
+    at exactly 1<<16 entries, matching the array16 format's maximum of 0xffff entries. A table
+    with >= 1<<16 entries encoded with an under-sized prefix corrupts the payload: get_bytes()
+    writes the array32 header two bytes too late, clobbering the start of the table data.
+    """
+    t = MsgpackStringTable(1 << 28)
+
+    # The table already contains "" and the origin key.
+    for i in range(num_entries - len(t)):
+        t.index("s%d" % i)
+
+    encoded = t.flush()
+    table, _ = decode(encoded + b"\xc0", reconstruct=False)
+    assert len(table) == num_entries
+    assert table[0] == b""
+    assert table[1] == _ORIGIN_KEY
 
 
 def test_list_string_table():
