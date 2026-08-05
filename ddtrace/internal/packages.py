@@ -21,7 +21,7 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
-# AIDEV-NOTE: dist.metadata access is per-dist defensive — malformed METADATA
+# dist.metadata access is per-dist defensive — malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
 
@@ -359,7 +359,7 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
-    # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
+    # per-dist try/except — one bad dist used to collapse the whole
     # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
     for dist in dists:

@@ -12,7 +12,7 @@ class TestLlamaIndexPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    # AIDEV-NOTE: llama_index uses wrapt FunctionWrappers for its own instrumentation
+    # llama_index uses wrapt FunctionWrappers for its own instrumentation
     # (@dispatcher.span on query, retrieve, etc.). The default is_wrapped() checks
     # is_wrapted() which returns True for these pre-existing wrapt wrappers even after
     # dd-trace unpatch. Override to only check for our __dd_wrapped__ marker.
@@ -24,7 +24,7 @@ class TestLlamaIndexPatch(PatchTestCase.Base):
         inner = getattr(obj, _DD_WRAPPED)
         self.assert_not_wrapped(inner)
 
-    # AIDEV-NOTE: BaseWorkflowAgent only exists in newer llama-index-core versions.
+    # BaseWorkflowAgent only exists in newer llama-index-core versions.
     # Import it optionally so tests pass on both ~=0.11.0 and latest.
     @staticmethod
     def _try_import_agent():

@@ -25,7 +25,7 @@ from ddtrace.aiguard._api_client import AIGuardAbortError
 class OpenAIAIGuardAbortError(openai.UnprocessableEntityError, AIGuardAbortError):  # type: ignore[misc]
     """AI Guard block error that also satisfies the OpenAI SDK hierarchy.
 
-    AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
+    catchability asymmetry vs plain ``AIGuardAbortError``.
     ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)`` so a
     generic ``except Exception:`` does NOT catch it. This subclass also inherits
     from OpenAI's ``UnprocessableEntityError``, which is ``Exception``-derived,
@@ -50,7 +50,7 @@ class OpenAIAIGuardAbortError(openai.UnprocessableEntityError, AIGuardAbortError
         self.tag_probs = tag_probs
 
         message = f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')"
-        # AIDEV-NOTE: We can't call the SDK ``UnprocessableEntityError.__init__``
+        # We can't call the SDK ``UnprocessableEntityError.__init__``
         # here. Its MRO super() chain ends up at ``AIGuardAbortError.__init__``
         # (which requires ``(action, reason)``), not ``Exception.__init__``, so
         # the SDK's ``APIError`` initializer raises ``TypeError: missing

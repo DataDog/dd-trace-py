@@ -28,7 +28,7 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     """
     exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
-        # AIDEV-NOTE: import lazily -- ``_openai_errors`` pulls in the optional
+        # import lazily -- ``_openai_errors`` pulls in the optional
         # OpenAI SDK at import time. Python's import lock guarantees all
         # concurrent cold imports observe the same class object.
         from ddtrace.aiguard.integrations._openai_errors import OpenAIAIGuardAbortError

@@ -462,7 +462,7 @@ typedef struct periodic_thread
     std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
     std::unique_ptr<Event> _started;
-    // AIDEV-NOTE: _stopped uses shared_ptr so the lambda can capture a copy.
+    // _stopped uses shared_ptr so the lambda can capture a copy.
     // When PyRef's Py_DECREF drops the Python refcount to zero during thread
     // teardown, dealloc resets self->_stopped (decrementing the shared_ptr
     // refcount), but the lambda's captured copy keeps the Event alive until
@@ -662,7 +662,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool wait_until_started = true)
 {
-    // AIDEV-NOTE: PyRef is constructed before the lock — it only requires the
+    // PyRef is constructed before the lock — it only requires the
     // GIL (held here), not _thread_mutex. This keeps self alive across the
     // entire window between std::thread creation and the moment the lambda
     // acquires the GIL, during which the OS thread holds only a raw C pointer.
@@ -1086,12 +1086,12 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // No restart: the common cleanup above is sufficient for fork-specific
         // state. Two additional invariants are preserved intentionally:
         //
-        // AIDEV-NOTE: We do NOT null _thread. Threads are always detached at
+        // We do NOT null _thread. Threads are always detached at
         // creation so the handle is non-joinable. Keeping it non-null allows
         // stop() — which guards on _thread == nullptr — to be called without
         // raising "Thread not started".
         //
-        // AIDEV-NOTE: We do NOT clear _stopped. It was set when the thread
+        // We do NOT clear _stopped. It was set when the thread
         // exited in the parent; leaving it set means join() returns immediately
         // rather than blocking indefinitely.
 

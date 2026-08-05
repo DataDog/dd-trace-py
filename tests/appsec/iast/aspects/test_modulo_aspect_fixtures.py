@@ -191,7 +191,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
         from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
         from tests.utils import override_global_config
 
-        # AIDEV-NOTE: literal ":+-" inside tainted content used to be parsed as
+        # literal ":+-" inside tainted content used to be parsed as
         # an evidence marker by the native modulo aspect, aborting the process.
         with override_global_config(
             dict(
