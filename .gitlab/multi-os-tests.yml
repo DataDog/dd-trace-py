@@ -1,5 +1,6 @@
 # Multi-OS Test Suite
-# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+# Tests the application across Ubuntu and Windows with multiple Python versions.
+# macOS coverage runs inline in package.yml "build macos arm64" (see Tart note there).
 
 .multi_os_test_base:
   stage: tests
@@ -33,24 +34,6 @@ os tests ubuntu:
   script:
     - apt-get update && apt-get install -y curl
     - bash .gitlab/scripts/multi-os-tests.sh
-
-os tests macos:
-  extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
-  tags: ["macos:tart"]
-  needs: [ "build macos arm64" ]
-  allow_failure: true
-  variables:
-    WHEEL_PATTERN: "macosx*arm64.whl"
-    PLATFORM: "macOS"
-    # Use bash instead of the Tart VM's default zsh
-    TART_EXECUTOR_SHELL: "/bin/bash -l"
-  script:
-    - |
-      for PYTHON_VERSION in 3.10 3.12 3.14; do
-        export PYTHON_VERSION
-        bash .gitlab/scripts/multi-os-tests.sh
-      done
 
 os tests windows:
   extends: .multi_os_test_base
