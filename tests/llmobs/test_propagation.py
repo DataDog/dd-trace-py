@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
+from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
@@ -1029,3 +1030,65 @@ def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events,
         "pagent_name": "my_agent",
         "pagent_span_id": holder["span_id"],
     }
+
+
+def test_inject_no_stale_agent_attribution_after_agent_finishes(llmobs):
+    """A sibling with no agent ancestor must not inherit the agent that injected before it.
+
+    ``Context._meta`` is trace-scoped and shared, so attribution written while inside the agent
+    outlives the agent span unless it is cleared.
+    """
+    with llmobs.workflow(name="handle_request"):
+        with llmobs.agent(name="triage"):
+            llmobs.inject_distributed_headers({})
+        with llmobs.tool(name="write_audit_log"):
+            headers = llmobs.inject_distributed_headers({})
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_pagent_span_id" not in tags_header
+    assert "_dd.p.llmobs_pagent_name" not in tags_header
+
+
+def test_inject_no_stale_agent_attribution_across_asyncio_task(llmobs, patched_asyncio):
+    """Same guard for the in-process task path, which stamps via _current_trace_context()."""
+    import asyncio
+
+    holder = {}
+
+    async def main():
+        with llmobs.workflow(name="root"):
+            with llmobs.agent(name="triage"):
+
+                async def under_agent():
+                    with llmobs.tool(name="agent_tool"):
+                        pass
+
+                await asyncio.create_task(under_agent())
+            with llmobs.tool(name="sibling"):
+                holder["ctx"] = llmobs._instance._current_trace_context()
+
+    asyncio.run(main())
+    assert holder["ctx"]._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+    assert holder["ctx"]._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_stale_agent_name_not_paired_with_new_id(llmobs):
+    """An id-only upstream must not pick up a name left behind by an earlier agent."""
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="first_agent"):
+            llmobs.inject_distributed_headers({})
+        ctx = Context(trace_id=1, span_id=2)
+        ctx._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = "first_agent"
+        _stamp_agent_attribution(ctx._meta, None, "987654321")
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == "987654321"
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
+    """No over-clearing: a child inside the agent still propagates the agent."""
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="triage") as agent_span:
+            with llmobs.tool(name="agent_tool"):
+                headers = llmobs.inject_distributed_headers({})
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_pagent_span_id={}".format(agent_span.span_id) in tags_header
+    assert "_dd.p.llmobs_pagent_name=triage" in tags_header
