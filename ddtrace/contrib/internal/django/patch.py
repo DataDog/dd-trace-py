@@ -170,18 +170,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         except Exception:
             log.debug("Error patching rest_framework", exc_info=True)
 
-    # Eager endpoint discovery: walk the ROOT_URLCONF resolver now that apps
-    # are ready, so the telemetry "app-endpoints" payload is populated at
-    # startup (not only when a request arrives). Dynamic per-tenant urlconfs
-    # set by middleware are still picked up by the per-request walk in
-    # traced_get_response / traced_get_response_async.
-    try:
-        from django.urls import get_resolver
-
-        _collect_routes_once(get_resolver(None))
-    except Exception:
-        log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
-
+    # Endpoint discovery must not run here: walking the root resolver imports ROOT_URLCONF and every view behind it,
+    # which a worker must not pay for. See traced_load_middleware.
     return ret
 
 
@@ -237,24 +227,36 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
-    middlewares.
+    middlewares and to trigger endpoint discovery.
     """
-    from ddtrace.contrib.internal.django.middleware import wrap_middleware
+    if config_django.instrument_middleware:
+        from ddtrace.contrib.internal.django.middleware import wrap_middleware
 
-    settings_middleware = []
-    # Gather all the middleware
-    if getattr(django.conf.settings, "MIDDLEWARE", None):
-        settings_middleware += django.conf.settings.MIDDLEWARE
-    if getattr(django.conf.settings, "MIDDLEWARE_CLASSES", None):
-        settings_middleware += django.conf.settings.MIDDLEWARE_CLASSES
+        settings_middleware = []
+        # Gather all the middleware
+        if getattr(django.conf.settings, "MIDDLEWARE", None):
+            settings_middleware += django.conf.settings.MIDDLEWARE
+        if getattr(django.conf.settings, "MIDDLEWARE_CLASSES", None):
+            settings_middleware += django.conf.settings.MIDDLEWARE_CLASSES
 
-    # Iterate over each middleware provided in settings.py
-    # Each middleware can either be a function or a class
-    for mw_path in settings_middleware:
-        mw = django.utils.module_loading.import_string(mw_path)
-        wrap_middleware(mw, mw_path)
+        # Iterate over each middleware provided in settings.py
+        # Each middleware can either be a function or a class
+        for mw_path in settings_middleware:
+            mw = django.utils.module_loading.import_string(mw_path)
+            wrap_middleware(mw, mw_path)
 
-    return func(*args, **kwargs)
+    ret = func(*args, **kwargs)
+
+    # Building a BaseHandler is the earliest reliable signal that this process serves HTTP, so the URLconf import
+    # forced here is one the first request would pay anyway. Dynamic per-tenant urlconfs still come from response.py.
+    try:
+        from django.urls import get_resolver
+
+        _collect_routes_once(get_resolver(None))
+    except Exception:
+        log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
+
+    return ret
 
 
 def instrument_view(django, view):
@@ -393,13 +395,13 @@ def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]",
 def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
     """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
 
-    Called from traced_get_response / traced_get_response_async on every
-    request. The WeakSet gate makes repeated calls O(1), and naturally handles
-    per-request request.urlconf swaps (each distinct urlconf gets its own
-    resolver from django.urls.get_resolver, walked on first use). When the
-    endpoint-collection flag is off, the walk is skipped entirely — telemetry
-    would discard the collected entries anyway, and if the flag is later
-    flipped on the WeakSet stays empty so the next request will walk.
+    Called from traced_load_middleware when a request handler is built, and from traced_get_response /
+    traced_get_response_async on every request; the walk itself happens once per distinct resolver rather than once
+    per call site. The WeakSet gate makes repeated calls O(1), and naturally handles
+    per-request request.urlconf swaps (each distinct urlconf gets its own resolver from django.urls.get_resolver,
+    walked on first use). When the endpoint-collection flag is off, the walk is skipped entirely — telemetry would
+    discard the collected entries anyway, and if the flag is later flipped on the WeakSet stays empty so the next
+    request will walk.
     """
     if resolver is None or not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
         return
@@ -560,10 +562,11 @@ def _patch(django):
 
     when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
 
-    if config_django.instrument_middleware:
-        when_imported("django.core.handlers.base")(
-            lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
-        )
+    # Always wrapped: endpoint discovery also hangs off load_middleware. traced_load_middleware checks
+    # instrument_middleware itself.
+    when_imported("django.core.handlers.base")(
+        lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
+    )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
     core.dispatch("django.patch", ())
