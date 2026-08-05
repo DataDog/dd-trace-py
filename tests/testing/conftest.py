@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.offline_mode import reset_offline_mode
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
@@ -86,7 +88,23 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> Mock:
+def clear_outer_manifest_env() -> t.Iterator[None]:
+    """Do not let the manifest of an outer xdist session leak into these tests.
+
+    These tests run inside an xdist worker, which shares its process environment with the controller that generated
+    the manifest -- so unlike a subprocess, they cannot rely on the plugin's ownership check to ignore it.  Reset the
+    cached OfflineMode too, since it is resolved from the environment on first use.
+    """
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
+    yield
+    # Again after the test: some tests set the var themselves while building subprocess environments.
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
+
+
+@pytest.fixture(autouse=True)
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Iterator[Mock]:
     """
     Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """
