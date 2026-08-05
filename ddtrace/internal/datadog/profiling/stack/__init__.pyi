@@ -1,5 +1,9 @@
 import asyncio
+import contextvars
+from enum import IntEnum
 from types import FrameType
+from typing import Callable
+from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Union
@@ -79,7 +83,27 @@ def pause_sampling() -> bool | None:
 def resume_sampling() -> None: ...
 
 # span <-> profile association
+class SpanLinkDomain(IntEnum):
+    THREAD = 0
+    ASYNCIO_TASK = 1
+    GEVENT_GREENLET = 2
+
+class LogicalSpanTarget(NamedTuple):
+    domain: SpanLinkDomain
+    identifier: int
+
+def enable_span_linking() -> None: ...
+def disable_span_linking() -> None: ...
+def register_logical_span_provider(provider: Callable[[], Optional[LogicalSpanTarget]], priority: int = 0) -> None: ...
+def unregister_logical_span_provider(provider: Callable[[], Optional[LogicalSpanTarget]]) -> None: ...
 def link_span(span: Optional[Union[context.Context, ddspan.Span]]) -> None: ...
+def link_logical_span(
+    domain: SpanLinkDomain, logical_id: int, span: Optional[Union[context.Context, ddspan.Span]]
+) -> None: ...
+def link_logical_span_context(
+    domain: SpanLinkDomain, logical_id: int, task_context: Optional[contextvars.Context] = None
+) -> bool: ...
+def clear_logical_span(domain: SpanLinkDomain, logical_id: int) -> None: ...
 def unlink_finished_span(span: ddspan.Span) -> None: ...
 
 # Thread management
