@@ -857,14 +857,24 @@ Sampler::set_max_tasks_per_sample(unsigned int value)
     echion->set_max_tasks_per_sample(value);
 }
 
-void
+bool
 Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+        return true;
     }
+    return false;
+}
+
+bool
+Sampler::is_asyncio_loop_registered(uintptr_t thread_id)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    return it != echion->thread_info_map().end() && it->second->asyncio_loop != 0;
 }
 
 void

@@ -382,18 +382,32 @@ static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
 {
     (void)self;
-    uintptr_t thread_id; // map key
+    uint64_t thread_id;
     PyObject* loop;
 
-    if (!PyArg_ParseTuple(args, "lO", &thread_id, &loop)) {
+    if (!PyArg_ParseTuple(args, "KO", &thread_id, &loop)) {
         return nullptr;
     }
 
+    bool tracked = false;
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_asyncio_loop(thread_id, loop);
+    tracked = Sampler::get().track_asyncio_loop(static_cast<uintptr_t>(thread_id), loop);
     Py_END_ALLOW_THREADS;
 
-    Py_RETURN_NONE;
+    return PyBool_FromLong(tracked);
+}
+
+static PyObject*
+stack_is_asyncio_loop_registered(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t thread_id;
+
+    if (!PyArg_ParseTuple(args, "K", &thread_id)) {
+        return nullptr;
+    }
+
+    return PyBool_FromLong(Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id)));
 }
 
 static PyObject*
@@ -1164,6 +1178,10 @@ static PyMethodDef stack_methods[] = {
       "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "is_asyncio_loop_registered",
+      stack_is_asyncio_loop_registered,
+      METH_VARARGS,
+      "Return whether a thread has a tracked running asyncio loop" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },

@@ -291,6 +291,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
+        // Snapshot attribution with the task stack so deferred rendering cannot observe a newer span activation.
+        stack_info->logical_span_context.emplace(
+          Datadog::ThreadSpanLinks::get_instance().get_active_span_from_logical_id(Datadog::SpanLinkDomain::AsyncioTask,
+                                                                                   task_id));
         auto& stack = stack_info->stack;
         if (leaf_task_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns;
@@ -828,8 +832,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           task_stack_info->on_cpu,
+                                           task_stack_info->task_id,
+                                           task_stack_info->walltime_ns,
+                                           task_stack_info->logical_span_context);
             });
 
             task_stack_info->stack.render(echion);
