@@ -24,6 +24,7 @@ mod rc_shm;
 mod remote_config;
 mod shared_runtime;
 mod span;
+mod symdb;
 mod telemetry;
 mod tracer_flare;
 
@@ -77,6 +78,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     data_pipeline::register_data_pipeline(m)?;
     telemetry::register_telemetry(m)?;
     debugger::register_debugger(m)?;
+    symdb::register_symdb(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;

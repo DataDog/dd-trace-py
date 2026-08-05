@@ -1,4 +1,4 @@
-//! Native Dynamic Instrumentation / Live Debugger payload sender.
+//! Sender for Dynamic Instrumentation logs, snapshots and probe diagnostics.
 //!
 //! A thin PyO3 wrapper around `datadog_live_debugger::sender`.
 //!
@@ -28,8 +28,79 @@ create_exception!(
     debugger,
     DebuggerSenderError,
     PyException,
-    "A debugger payload could not be delivered (transport failure or timeout)."
+    "A payload could not be delivered to the debugger intake (transport failure or timeout)."
 );
+
+pub(crate) fn build_endpoint(
+    what: &'static str,
+    url: Option<String>,
+    site: Option<String>,
+    api_key: Option<String>,
+    timeout_ms: u64,
+    test_session_token: Option<String>,
+) -> PyResult<Endpoint> {
+    let mut endpoint = match (url, site, api_key) {
+        (Some(url), _, api_key) => {
+            let mut endpoint = Endpoint::from_url(parse_uri(&url).map_err(|e| {
+                PyValueError::new_err(format!("invalid {what} endpoint url '{url}': {e}"))
+            })?);
+            endpoint.api_key = api_key.map(Cow::Owned);
+            endpoint
+        }
+        (None, Some(site), Some(api_key)) => debugger_intake_endpoint(&site, api_key)
+            .map_err(|e| PyValueError::new_err(format!("invalid {what} intake site: {e}")))?,
+        (None, _, _) => {
+            return Err(PyValueError::new_err(format!(
+                "{what} sender requires either `url` or both `site` and `api_key`"
+            )))
+        }
+    };
+    endpoint.timeout_ms = timeout_ms;
+    endpoint.test_token = test_session_token.map(Cow::Owned);
+
+    Ok(endpoint)
+}
+
+/// Run `future` on the shared runtime with the GIL released, bounded by `timeout`,
+/// and map the outcome onto `Ok(None)` (accepted) / `Ok(Some((status, body)))`
+/// (rejected) / `Err`.
+///
+/// Rejections are returned rather than raised because they are the caller's
+/// decision to make: the signal uploader downgrades and retries on some statuses,
+/// where a transport failure has no endpoint to fall back to.
+pub(crate) fn do_send<F>(
+    py: Python<'_>,
+    runtime: &Arc<ForkSafeRuntime>,
+    timeout: Duration,
+    future: F,
+) -> PyResult<Option<(u16, String)>>
+where
+    F: std::future::Future<Output = anyhow::Result<()>> + Send,
+{
+    let runtime = runtime.clone();
+    let result = py.detach(move || {
+        runtime.block_on(async move {
+            match tokio::time::timeout(timeout, future).await {
+                Ok(result) => result,
+                Err(_) => Err(anyhow::anyhow!("timed out after {}ms", timeout.as_millis())),
+            }
+        })
+    });
+
+    match result {
+        Ok(Ok(())) => Ok(None),
+        Ok(Err(e)) => match e.downcast_ref::<PayloadRejected>() {
+            Some(rejected) => Ok(Some((rejected.status, rejected.body.clone()))),
+            None => Err(DebuggerSenderError::new_err(format!("{e:#}"))),
+        },
+        // The io::Error only shows up if the shared runtime failed to rebuild a
+        // fallback (fork chaos); surface it as a send failure rather than letting a
+        // raw error type leak into Python.
+        Err(io_err) => Err(DebuggerSenderError::new_err(format!(
+            "shared runtime block_on failed: {io_err}"
+        ))),
+    }
+}
 
 /// The characters to escape in the `ddtags` query string: everything bar the
 /// unreserved set and `/`, matching Python's `urllib.parse.quote` defaults.
@@ -64,10 +135,7 @@ pub struct DebuggerSenderPy {
     /// The endpoint the tracks were originally derived from, kept so
     /// `reset_endpoints` can undo a downgrade.
     base_endpoint: Endpoint,
-    /// Tags as `key:value,key:value`, sent verbatim in the SymDB
-    /// `X-Datadog-Additional-Tags` header.
-    tags: String,
-    /// `tags`, percent-encoded for the `ddtags` query string.
+    /// Tags percent-encoded for the `ddtags` query string.
     encoded_tags: String,
     timeout: Duration,
     agentless: bool,
@@ -81,58 +149,14 @@ impl DebuggerSenderPy {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut guard)
     }
-
-    /// Snapshot the endpoint config so the send does not hold the lock across I/O.
-    fn config(&self) -> SenderConfig {
-        self.with_state(|state| state.config.clone())
-    }
-
-    /// Run `future` on the shared runtime with the GIL released, bounded by the
-    /// configured timeout, and map the outcome onto
-    /// `Ok(None)` (accepted) / `Ok(Some((status, body)))` (rejected) / `Err`.
-    fn run_send<F>(&self, py: Python<'_>, future: F) -> PyResult<Option<(u16, String)>>
-    where
-        F: std::future::Future<Output = anyhow::Result<()>> + Send,
-    {
-        let runtime = self.runtime.clone();
-        let timeout = self.timeout;
-        let result = py.detach(move || {
-            runtime.block_on(async move {
-                match tokio::time::timeout(timeout, future).await {
-                    Ok(result) => result,
-                    Err(_) => Err(anyhow::anyhow!("timed out after {}ms", timeout.as_millis())),
-                }
-            })
-        });
-
-        match result {
-            Ok(Ok(())) => Ok(None),
-            Ok(Err(e)) => match e.downcast_ref::<PayloadRejected>() {
-                Some(rejected) => Ok(Some((rejected.status, rejected.body.clone()))),
-                None => Err(DebuggerSenderError::new_err(format!("{e:#}"))),
-            },
-            // The io::Error only shows up if the shared runtime failed to rebuild
-            // a fallback (fork chaos); surface it as a send failure rather than
-            // letting a raw error type leak into Python.
-            Err(io_err) => Err(DebuggerSenderError::new_err(format!(
-                "shared runtime block_on failed: {io_err}"
-            ))),
-        }
-    }
 }
 
 #[pymethods]
 impl DebuggerSenderPy {
     /// Build a sender bound to `runtime` (a `SharedRuntime`).
     ///
-    /// Either pass `url` (the trace agent URL — `http`, `https` or
-    /// `unix:///path.sock`) for agent-proxied uploads, or `site` + `api_key` to
-    /// submit directly to `debugger-intake.{site}`. Passing `url` *and*
-    /// `api_key` submits directly to `url`, which is how tests point agentless
-    /// mode at a local intake.
-    ///
-    /// `tags` is the unencoded `key:value,key:value` string; it is
-    /// percent-encoded here for the `ddtags` query string.
+    /// `tags` is the unencoded `key:value,key:value` string; it is percent-encoded
+    /// here for the `ddtags` query string.
     #[new]
     #[pyo3(signature = (
         runtime,
@@ -154,35 +178,19 @@ impl DebuggerSenderPy {
         test_session_token: Option<String>,
     ) -> PyResult<Self> {
         let agentless = api_key.is_some();
-
-        let mut endpoint = match (url, site, api_key) {
-            (Some(url), _, api_key) => {
-                let mut endpoint = Endpoint::from_url(parse_uri(&url).map_err(|e| {
-                    PyValueError::new_err(format!("invalid debugger endpoint url '{url}': {e}"))
-                })?);
-                endpoint.api_key = api_key.map(Cow::Owned);
-                endpoint
-            }
-            (None, Some(site), Some(api_key)) => debugger_intake_endpoint(&site, api_key)
-                .map_err(|e| PyValueError::new_err(format!("invalid debugger intake site: {e}")))?,
-            (None, _, _) => {
-                return Err(PyValueError::new_err(
-                    "DebuggerSender requires either `url` or both `site` and `api_key`",
-                ))
-            }
-        };
-        endpoint.timeout_ms = timeout_ms;
-        endpoint.test_token = test_session_token.map(Cow::Owned);
+        let endpoint = build_endpoint(
+            "debugger",
+            url,
+            site,
+            api_key,
+            timeout_ms,
+            test_session_token,
+        )?;
 
         let mut config = SenderConfig::default();
         config
             .set_endpoint(endpoint.clone())
             .map_err(|e| PyValueError::new_err(format!("invalid debugger endpoint: {e}")))?;
-        config
-            .set_symdb_endpoint(endpoint.clone())
-            .map_err(|e| PyValueError::new_err(format!("invalid symdb endpoint: {e}")))?;
-
-        let encoded_tags = percent_encode(tags.as_bytes(), DDTAGS_PERCENT_ENCODED_SET).to_string();
 
         Ok(Self {
             runtime: runtime.as_arc().clone(),
@@ -191,8 +199,7 @@ impl DebuggerSenderPy {
                 downgraded: false,
             }),
             base_endpoint: endpoint,
-            tags,
-            encoded_tags,
+            encoded_tags: percent_encode(tags.as_bytes(), DDTAGS_PERCENT_ENCODED_SET).to_string(),
             timeout: Duration::from_millis(timeout_ms),
             agentless,
         })
@@ -258,36 +265,19 @@ impl DebuggerSenderPy {
         payload: PyBackedBytes,
         debugger_type: DebuggerTrackType,
     ) -> PyResult<Option<(u16, String)>> {
-        let config = self.config();
-        self.run_send(py, async move {
+        // Snapshot the config so the send does not hold the lock across I/O.
+        let config = self.with_state(|state| state.config.clone());
+        do_send(py, &self.runtime, self.timeout, async move {
             sender::send(&payload, &config, debugger_type.0, &self.encoded_tags).await
         })
     }
 
-    /// POST a SymDB payload verbatim to the symbol database endpoint, blocking
-    /// until the response arrives. `content_type` is the caller's multipart
-    /// content type; the tags ride in `X-Datadog-Additional-Tags`.
-    ///
-    /// Return value and errors match [`send`].
-    fn send_symdb(
-        &self,
-        py: Python<'_>,
-        payload: PyBackedBytes,
-        content_type: &str,
-    ) -> PyResult<Option<(u16, String)>> {
-        let config = self.config();
-        self.run_send(py, async move {
-            sender::send_symdb(&payload, content_type, &config, &self.tags).await
-        })
-    }
-
     fn __repr__(&self) -> String {
-        let downgraded = self.downgraded();
         format!(
             "DebuggerSender(url={:?}, agentless={}, downgraded={})",
             self.base_endpoint.url.to_string(),
             self.agentless,
-            downgraded,
+            self.downgraded(),
         )
     }
 }

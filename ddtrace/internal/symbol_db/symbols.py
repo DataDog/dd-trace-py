@@ -29,17 +29,21 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import SymDbSender
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
@@ -53,6 +57,30 @@ log = get_logger(__name__)
 SOF = 0
 EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
+UPLOAD_TIMEOUT = 5.0  # seconds
+
+
+def build_symdb_sender() -> SymDbSender:
+    """Build a sender for symbol uploads."""
+    timeout_ms = int(UPLOAD_TIMEOUT * 1000)
+
+    if di_config._agentless:
+        return SymDbSender(
+            get_native_runtime(),
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            tags=di_config.tags,
+            timeout_ms=timeout_ms,
+            test_session_token=get_test_session_token(),
+        )
+
+    return SymDbSender(
+        get_native_runtime(),
+        url=agent_config.trace_agent_url,
+        tags=di_config.tags,
+        timeout_ms=timeout_ms,
+        test_session_token=get_test_session_token(),
+    )
 
 
 def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
@@ -510,6 +538,9 @@ class ScopeContext:
         self._timer: t.Optional[Timer] = None
         self._timer_lock = RLock()
 
+        # Built on the first upload to reduce startup cost.
+        self._sender: t.Optional[SymDbSender] = None
+
         # upload_id is stable for the lifetime of this process; all batches
         # uploaded by the process share it. A forked child gets a fresh
         # upload_id and batch counter via _reset_on_fork below.
@@ -637,7 +668,9 @@ class ScopeContext:
 
         log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
         try:
-            rejected = build_debugger_sender().send_symdb(body, headers["Content-Type"])
+            if self._sender is None:
+                self._sender = build_symdb_sender()
+            rejected = self._sender.send(body, headers["Content-Type"])
         except Exception:
             log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
         else:
