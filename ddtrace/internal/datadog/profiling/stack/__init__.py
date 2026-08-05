@@ -9,6 +9,7 @@ try:
     import enum
     import sys
     import typing
+    import weakref
 
     from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
@@ -35,6 +36,7 @@ try:
     class _SpanLinkContext(typing.NamedTuple):
         generation: int
         span_info: _SpanInfo
+        span_ref: typing.Optional[typing.Callable[[], typing.Optional[ddspan.Span]]]
 
     _LogicalSpanProvider = typing.Callable[[], typing.Optional[LogicalSpanTarget]]
 
@@ -145,7 +147,8 @@ try:
             _set_active_span_link(None)
             _clear_span(target)
         else:
-            _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info))
+            span_ref = weakref.ref(span) if isinstance(span, ddspan.Span) else None
+            _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info, span_ref))
             _publish_span(target, span_info)
 
     def link_logical_span(
@@ -173,7 +176,17 @@ try:
             return False
         linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
         target = LogicalSpanTarget(domain, logical_id)
-        if linked_span is None or linked_span.generation != _span_link_generation:
+        if linked_span is None:
+            _clear_span(target)
+            return False
+        if linked_span.generation != _span_link_generation:
+            _clear_span(target)
+            return False
+        source_span = linked_span.span_ref() if linked_span.span_ref is not None else None
+        if linked_span.span_ref is not None and source_span is None:
+            _clear_span(target)
+            return False
+        if source_span is not None and source_span.finished:
             _clear_span(target)
             return False
         _publish_span(target, linked_span.span_info)
