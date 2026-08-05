@@ -487,20 +487,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
         pydantic-ai does not expose is omitted rather than invented.
         """
         manifest: dict[str, Any] = {"manifest_version": MANIFEST_VERSION}
-        for section in (
-            self._manifest_identity,
-            self._manifest_instructions,
-            self._manifest_model,
-            self._manifest_capabilities,
-            self._manifest_data_contracts,
-            self._manifest_memory_policies,
-            self._manifest_guardrails,
-            self._manifest_agent_settings,
+        # The name is a literal, not section.__name__: reading an attribute off the section inside the
+        # handler can itself raise, and a second exception there escapes and costs the whole manifest.
+        for name, section in (
+            ("identity", self._manifest_identity),
+            ("instructions", self._manifest_instructions),
+            ("model", self._manifest_model),
+            ("capabilities", self._manifest_capabilities),
+            ("data_contracts", self._manifest_data_contracts),
+            ("memory_policies", self._manifest_memory_policies),
+            ("guardrails", self._manifest_guardrails),
+            ("agent_settings", self._manifest_agent_settings),
         ):
             try:
                 manifest.update(section(agent))
             except Exception:
-                log.debug("failed to build pydantic_ai agent manifest section %s", section.__name__, exc_info=True)
+                log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
         return manifest
 
     def _manifest_identity(self, agent: Any) -> dict[str, Any]:

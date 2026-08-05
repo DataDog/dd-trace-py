@@ -1170,11 +1170,13 @@ class TestPydanticAIAgentManifest:
         A repr leaks a memory address and whatever the object's __repr__ chooses to include.
         """
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent", system_prompt="real prompt")
-        # Installed after construction: pydantic-ai does not validate system_prompt, but run() itself
-        # raises on a non-string, so the agent has to be built clean and then corrupted.
         agent._system_prompts = ("real prompt", _UnserializableSentinel())
-        await agent.run("Hello, world!")
-        manifest = _manifest_of(test_spans.pop_traces()[0][0])
+        # Built directly rather than through agent.run(). pydantic-ai itself cannot run an agent whose
+        # system prompts are not all strings, so the span path can never reach the builder with one.
+        # The guard is defense in depth: the attribute is public and unvalidated, so a framework change
+        # or a caller reaching in gets filtered rather than shipping a repr with a memory address.
+        # The integration instance is the one the patch installed, so no config has to be synthesized.
+        manifest = pydantic_ai._datadog_integration._build_agent_manifest(agent)
 
         assert manifest["system_prompts"] == ["real prompt"]
         assert "object at 0x" not in safe_json(manifest)
