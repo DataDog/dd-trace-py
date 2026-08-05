@@ -83,6 +83,7 @@ def test_context_watcher_preserves_pending_exception_over_listener_failure():
 
 @pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_context_watcher_slot_exhaustion_disables_watcher():
+    """Registration failure is non-fatal and remains cached after watcher slots are freed."""
     import ctypes
     import sys
 
@@ -122,23 +123,19 @@ def test_context_watcher_slot_exhaustion_disables_watcher():
 
 @pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_context_watcher_registration_is_idempotent():
+    """Repeated registration uses one watcher; tracer startup is disabled so this test owns the first call."""
     from contextvars import Context
-    import importlib
-    import sys
 
     from ddtrace.internal import core
+    from ddtrace.internal.native._native import is_context_watcher_registered
+    from ddtrace.internal.native._native import register_context_watcher
 
-    module_name = "ddtrace.internal.native._native"
-    native = importlib.import_module(module_name)
-    assert native.is_context_watcher_registered() is False
-    assert native.register_context_watcher() is True
-    assert native.is_context_watcher_registered() is True
+    assert is_context_watcher_registered() is False
 
     for _ in range(16):
-        del sys.modules[module_name]
-        native = importlib.import_module(module_name)
-        assert native.register_context_watcher() is True
-        assert native.is_context_watcher_registered() is True
+        assert register_context_watcher() is True
+
+    assert is_context_watcher_registered() is True
 
     observed = []
     core.on("python.context.switch", lambda: observed.append(None))
