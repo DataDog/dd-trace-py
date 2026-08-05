@@ -4,13 +4,25 @@
 
 #include <echion/echion_sampler.h>
 
+#include "dd_wrapper/include/defer.hpp"
+
 #include <algorithm>
 #include <optional>
 #include <string_view>
 
 void
+ThreadInfo::reset_cycle_state() noexcept
+{
+    current_tasks.clear();
+    current_greenlets.clear();
+}
+
+void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
+    // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
+    reset_cycle_state();
+
     unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
@@ -712,6 +724,14 @@ Result<void>
 ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
     auto& renderer = echion.renderer();
+
+    // This exit reset complements unwind's entry reset. It covers returns before unwind and exceptions after partial
+    // task or greenlet state has been populated, so no logical snapshot survives the cycle that created it.
+    defer
+    {
+        reset_cycle_state();
+    };
+
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
@@ -737,8 +757,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             renderer.render_stack_end();
         }
-
-        current_tasks.clear();
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string(
@@ -749,8 +767,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             renderer.render_stack_end();
         }
-
-        current_greenlets.clear();
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
