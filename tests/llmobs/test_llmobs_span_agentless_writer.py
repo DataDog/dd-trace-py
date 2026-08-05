@@ -37,6 +37,38 @@ def test_additional_headers(mock_writer_logs):
     assert llmobs_span_writer._headers["Authorization"] == "Bearer-custom-token"
 
 
+@pytest.mark.parametrize(
+    "additional_headers,expected_headers",
+    [
+        # No comma: would wrongly fall back to a whitespace split.
+        (
+            "Authorization:Bearer custom-token",
+            {"Authorization": "Bearer custom-token"},
+        ),
+        # Trailing comma.
+        (
+            "Authorization:Bearer custom-token,",
+            {"Authorization": "Bearer custom-token"},
+        ),
+        # Multiple real-world headers, two with spaces in their value.
+        (
+            'Authorization:Bearer abc123xyz,User-Agent:"Datadog Tracer",X-Request-Id:req-12345',
+            {
+                "Authorization": "Bearer abc123xyz",
+                "User-Agent": '"Datadog Tracer"',
+                "X-Request-Id": "req-12345",
+            },
+        ),
+    ],
+)
+def test_additional_headers_with_spaces(mock_writer_logs, additional_headers, expected_headers):
+    assert expected_headers
+    with mock.patch.dict(os.environ, {"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": additional_headers}):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    for key, value in expected_headers.items():
+        assert llmobs_span_writer._headers[key] == value
+
+
 def test_no_additional_headers_by_default(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     assert "Authorization" not in llmobs_span_writer._headers
