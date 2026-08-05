@@ -1,5 +1,3 @@
-from typing import Any
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -24,7 +22,7 @@ class PathTraversal(VulnerabilityBase):
 IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
 
-def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
+def check_and_report_path_traversal(*args: object, **kwargs: object) -> None:
     global IS_REPORTED_INTRUMENTED_SINK_METRIC
     if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
