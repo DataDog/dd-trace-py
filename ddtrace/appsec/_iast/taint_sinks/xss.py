@@ -1,4 +1,6 @@
-from typing import Text
+from types import ModuleType
+from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -17,6 +19,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
 
 class XSS(VulnerabilityBase):
@@ -24,14 +27,14 @@ class XSS(VulnerabilityBase):
     secure_mark = VulnerabilityType.XSS
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -73,7 +76,7 @@ def patch():
     # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch
     # function executes. Therefore, we update the in-memory object with the newly patched version.
     @ModuleWatchdog.after_module_imported("jinja2.filters")
-    def _(module):
+    def _(module: ModuleType) -> None:
         try:
             from jinja2.filters import FILTERS
             from jinja2.filters import do_mark_safe
@@ -83,19 +86,23 @@ def patch():
             pass
 
 
-def _iast_django_xss(wrapped, instance, args, kwargs):
-    if args and len(args) >= 1:
+def _iast_django_xss(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
+    if args:
         _iast_report_xss(args[0])
     return wrapped(*args, **kwargs)
 
 
-def _iast_jinja2_xss(wrapped, instance, args, kwargs):
-    if args and len(args) >= 1:
+def _iast_jinja2_xss(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
+    if args:
         _iast_report_xss(args[0])
     return wrapped(*args, **kwargs)
 
 
-def _iast_report_xss(code_string: Text):
+def _iast_report_xss(code_string: object) -> None:
     try:
         if is_iast_request_enabled():
             if isinstance(code_string, IAST.TEXT_TYPES) and XSS.has_quota() and XSS.is_tainted_pyobject(code_string):
