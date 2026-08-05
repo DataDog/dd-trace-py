@@ -312,8 +312,8 @@ _custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defin
 
 # Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
 # of the original __getattribute__ method
-def _patch_protobuf_class(cls):
-    getattr_method = getattr(cls, "__getattribute__")
+def _patch_protobuf_class(cls: type[object]) -> None:
+    getattr_method: object = getattr(cls, "__getattribute__")
     if not getattr_method:
         return
 
@@ -321,14 +321,14 @@ def _patch_protobuf_class(cls):
         try:
             # Replace the class __getattribute__ method with our custom one
             # (replacement is done at the class level because it would incur on a recursive loop with the instance)
-            cls.__saved_getattr = getattr_method
-            cls.__getattribute__ = _custom_protobuf_getattribute
+            setattr(cls, "__saved_getattr", getattr_method)
+            setattr(cls, "__getattribute__", _custom_protobuf_getattribute)
         except TypeError:
             # Avoid failing on Python 3.12 while patching immutable types
             pass
 
 
-def _on_grpc_response(message):
+def _on_grpc_response(message: object) -> None:
     if asm_config._iast_enabled:
         msg_cls = type(message)
         _patch_protobuf_class(msg_cls)

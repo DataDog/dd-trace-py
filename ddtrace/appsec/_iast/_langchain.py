@@ -1,3 +1,6 @@
+from typing import Callable
+from typing import Protocol
+
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -8,7 +11,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 
 
-def langchain_listen(core):
+class _EventCore(Protocol):
+    def on(self, event_id: str, callback: Callable[..., object], name: object = None) -> None: ...
+
+
+def langchain_listen(core: _EventCore) -> None:
     if not asm_config._iast_enabled:
         return
     core.on("langchain.patch", _langchain_patch)
