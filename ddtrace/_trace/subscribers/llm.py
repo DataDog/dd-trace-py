@@ -51,6 +51,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
         event.llmobs_integration._annotate_integration_tag(span)
+        # Event-based spans are created here, not via trace(); stamp the kind at start too. The
+        # integration owns the annotation, so no ddtrace.llmobs import is pulled into this module.
+        event.llmobs_integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
 
     @classmethod
     def on_ended(

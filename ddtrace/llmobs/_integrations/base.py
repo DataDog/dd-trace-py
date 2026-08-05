@@ -94,7 +94,25 @@ class BaseLLMIntegration:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         self._annotate_integration_tag(span)
+        if span_type == SpanTypes.LLM:
+            self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
+
+    def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
+        """Stamp the span kind at start so a parent agent's kind is visible before its children
+        activate. Agent attribution reads it at child activation; under LIFO nesting a finish-time
+        write lands too late. Called from trace() and from LlmTracingSubscriber.on_started.
+        """
+        span_kind = self._llmobs_span_kind(operation_id, span, **kwargs)
+        if span_kind is not None:
+            _annotate_llmobs_span_data(span, kind=span_kind)
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        """Return the kind to stamp at start, or None to leave it to _llmobs_set_tags at finish.
+
+        Overridden by integrations that create agent spans; the finish-time write still runs.
+        """
+        return None
 
     def llmobs_set_tags(
         self,
