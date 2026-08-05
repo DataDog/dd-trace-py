@@ -13,6 +13,8 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.telemetry import get_config as _get_config
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import EVALUATED_EXPERIMENT_ID_TAG
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
@@ -545,7 +547,7 @@ class LLMJudge(BaseEvaluator):
         client: Optional[LLMClient] = None,
         name: Optional[str] = None,
         client_options: Optional[dict[str, Any]] = None,
-        emit_judge_trace: bool = False,
+        emit_judge_trace: Optional[bool] = None,
     ):
         """Initialize an LLMJudge evaluator.
 
@@ -586,8 +588,11 @@ class LLMJudge(BaseEvaluator):
                 ``datadog-evaluations`` service. The returned ``EvaluatorResult`` carries a
                 ``judge_span`` reference, which the experiments SDK folds into the emitted
                 metric's metadata so the score can deep-link back to the judge trace.
-                Defaults to False, so judge traces are strictly opt-in and existing evaluators
-                are unaffected. Requires LLMObs to be enabled; a no-op otherwise.
+                When left unset (``None``), the default is read from the
+                ``DD_LLMOBS_EMIT_JUDGE_TRACE`` environment variable (falsy if unset), so judge
+                tracing can be enabled process-wide without editing each evaluator; an explicit
+                ``True``/``False`` here always wins over the env var. Judge traces are opt-in and
+                existing evaluators are unaffected. Requires LLMObs to be enabled; a no-op otherwise.
             client_options: Provider-specific configuration options. Common keys are
                 listed below; any additional keys are forwarded directly to the
                 underlying client constructor (e.g., ``OpenAI()``, ``anthropic.Anthropic()``,
@@ -692,7 +697,11 @@ class LLMJudge(BaseEvaluator):
         self._model_params = model_params
         self._provider = provider
         self._model = model
-        self._emit_judge_trace = emit_judge_trace
+        self._emit_judge_trace = (
+            emit_judge_trace
+            if emit_judge_trace is not None
+            else _get_config("DD_LLMOBS_EMIT_JUDGE_TRACE", False, asbool)
+        )
 
         if client:
             self._client = client
