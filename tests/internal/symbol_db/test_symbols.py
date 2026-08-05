@@ -2,6 +2,7 @@ import atexit
 from importlib.machinery import ModuleSpec
 import os
 from pathlib import Path
+import sys
 import tempfile
 from types import ModuleType
 import typing as t
@@ -41,6 +42,38 @@ def test_symbol_from_code():
     symbols = Symbol.from_code(foo.__code__)
     assert {s.name for s in symbols if s.symbol_type == SymbolType.ARG} == {"a", "b", "c"}
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 12), reason="CPython 3.12 monitoring layout regression")
+@pytest.mark.subprocess
+def test_symbols_class_with_inconsistent_monitoring_state():
+    """Symbol extraction must not materialize bytecode with invalid monitoring state."""
+
+    import ctypes
+    import dis
+    import faulthandler
+
+    from ddtrace.internal.symbol_db.symbols import get_fields
+
+    class Sym:
+        def __init__(self):
+            self.field = 1
+
+    code = Sym.__init__.__code__
+    adaptive = code._co_code_adaptive
+    memory = ctypes.string_at(id(code), 1024)
+    offset = memory.find(adaptive)
+    assert offset >= 0
+    assert memory.find(adaptive, offset + 1) == -1
+
+    # Model the production state: an instrumented opcode remains in the adaptive
+    # bytecode after its monitoring metadata has become unavailable. Accessing
+    # co_code then crashes in CPython's deopt_code().
+    opcode = ctypes.c_ubyte.from_address(id(code) + offset)
+    opcode.value = dis._all_opmap["INSTRUMENTED_LINE"]
+    faulthandler.enable()
+
+    assert get_fields(Sym) == set()
 
 
 def test_symbols_class():
