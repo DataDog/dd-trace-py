@@ -209,9 +209,9 @@ variables:
     done
     sccache --show-stats
 
-    # Tart VMs link gitlab-runner after the artifact-download phase, so a
-    # separate os tests macos job cannot fetch pywheels/ from this job.
-    # Run the multi-os suite inline on the matrix Python versions we cover.
+    # No separate os tests macos job: Tart VMs link gitlab-runner after the
+    # artifact-download phase, so downstream jobs cannot fetch pywheels/ here.
+    # Run the multi-os suite inline for 3.10, 3.12, and 3.14 (matrix versions).
     for python_version in ${PYTHON_VERSIONS}; do
       case "${python_version}" in
         3.10|3.12|3.14)
