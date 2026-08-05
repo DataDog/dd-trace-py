@@ -20,13 +20,14 @@ from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._langchain import langchain_listen
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 from ddtrace.internal import core
+from ddtrace.internal.core.events import Event
 
 
-def iast_listen():
+def iast_listen() -> None:
     def _iast_context_end(
-        ctx: core.ExecutionContext,
-        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ):
+        ctx: core.ExecutionContext[Event],
+        _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
         _iast_end_request(ctx)
 
     core.on("grpc.client.response.message", _on_grpc_response)
@@ -66,5 +67,5 @@ def iast_listen():
     langchain_listen(core)
 
 
-def _on_grpc_server_response(message):
+def _on_grpc_server_response(message: object) -> None:
     _on_grpc_response(message)

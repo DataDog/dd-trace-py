@@ -1,5 +1,8 @@
+from types import ModuleType
+
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import _ImportHookChainedLoader
 from ddtrace.internal.settings.asm import config as asm_config
 
 from ._ast.ast_patching import astpatch_module
@@ -10,7 +13,7 @@ log = get_logger(__name__)
 IS_IAST_ENABLED = asm_config._iast_enabled
 
 
-def _exec_iast_patched_module(module_watchdog, module):
+def _exec_iast_patched_module(module_watchdog: _ImportHookChainedLoader, module: ModuleType) -> None:
     """Execute a Python module with IAST (Interactive Application Security Testing) instrumentation.
 
     This function performs dynamic code transformation using AST (Abstract Syntax Tree) patching
@@ -60,7 +63,8 @@ def _exec_iast_patched_module(module_watchdog, module):
             exec(compiled_code, module.__dict__)  # nosec B102
         except TypeError:
             iast_compiling_debug_log("INSTRUMENTED CODE. Unexpected exception", exc_info=True)
-            module_watchdog.loader.exec_module(module)
+            if module_watchdog.loader is not None:
+                module_watchdog.loader.exec_module(module)
     elif module_watchdog.loader is not None:
         try:
             iast_compiling_debug_log(f"DEFAULT CODE. executing {module}")
