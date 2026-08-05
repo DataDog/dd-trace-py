@@ -36,7 +36,7 @@ jobs:
             echo "new_sha=${NEW_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: ./.github/actions/dd-octo-sts-token
         if: steps.changes.outputs.changed == 'true'
         id: octo-sts
         with:

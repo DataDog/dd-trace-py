@@ -1,0 +1,24 @@
+name: 'dd-sts credentials'
+description: >
+  Wrapper for DataDog/dd-sts-action. Centralizes the upstream SHA so
+  that GitHub-org-split mitigations (APMLP-1185) can update one file when
+  the upstream action moves between Datadog organizations. See
+  docs/github-org-migration-audit.md.
+
+inputs:
+  policy:
+    description: 'STS policy name.'
+    required: true
+
+outputs:
+  api_key:
+    description: 'Datadog API key minted by dd-sts.'
+    value: ${{ steps.upstream.outputs.api_key }}
+
+runs:
+  using: composite
+  steps:
+    - id: upstream
+      uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+      with:
+        policy: ${{ inputs.policy }}
