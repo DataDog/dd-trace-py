@@ -264,7 +264,7 @@ __all__ = [
 ]
 
 
-def load_iast():
+def load_iast() -> None:
     """Lazily load the iast module listeners."""
     global _IAST_TO_BE_LOADED
     if _IAST_TO_BE_LOADED:

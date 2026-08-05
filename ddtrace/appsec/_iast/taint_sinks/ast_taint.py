@@ -1,5 +1,5 @@
-from typing import Any
 from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -16,13 +16,16 @@ from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 from ddtrace.appsec._iast.taint_sinks.weak_randomness import WeakRandomness
 
 
+T = TypeVar("T")
+
+
 # TODO: we also need a native version of this function!
 def ast_function(
-    func: Callable,
-    flag_added_args: Any,
-    *args: Any,
-    **kwargs: Any,
-) -> Any:
+    func: Callable[..., T],
+    flag_added_args: int,
+    *args: object,
+    **kwargs: object,
+) -> T:
     try:
         instance = getattr(func, "__self__", None)
         func_name = getattr(func, "__name__", None)

@@ -37,13 +37,13 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         load_iast()
 
-    def on_span_start(self, span: Span):
+    def on_span_start(self, span: Span) -> None:
         if span.span_type != SpanTypes.WEB:
             return
 
         _iast_start_request(span)
 
-    def on_span_finish(self, span: Span):
+    def on_span_finish(self, span: Span) -> None:
         """Report reported vulnerabilities.
 
         Span Tags:

@@ -65,7 +65,7 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
 )
 def test_metric_verbosity(lvl, env_lvl, expected_result):
     with override_global_config(dict(_iast_telemetry_report_lvl=env_lvl)):
-        assert metric_verbosity(lvl)(lambda: 1)() == expected_result
+        assert metric_verbosity(lvl)(lambda value: value)(1) == expected_result
 
 
 @pytest.mark.parametrize(
