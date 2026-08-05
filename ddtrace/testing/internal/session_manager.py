@@ -147,7 +147,7 @@ class SessionManager:
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
-            # AIDEV-NOTE: Reads come from the manifest, but coverage reports still go over HTTP. This is the intended
+            # Reads come from the manifest, but coverage reports still go over HTTP. This is the intended
             # design, not a workaround: the intake merges the coverage reports of a session, so every process that ran
             # tests is expected to upload its own (see TestOptPlugin.pytest_sessionfinish).
             # CachedFileDataProvider cannot upload — manifest mode used to imply Bazel's payload-files mode, where

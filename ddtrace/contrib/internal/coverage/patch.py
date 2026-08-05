@@ -25,7 +25,7 @@ _coverage_instance: Optional[Any] = None
 _owns_coverage_instance = False
 _cached_coverage_percentage: Optional[float] = None
 
-# AIDEV-NOTE: External tools such as pytest-cov can own Coverage.current(). We may cache
+# External tools such as pytest-cov can own Coverage.current(). We may cache
 # their instance to generate reports, but must never stop, save, or erase it.
 
 

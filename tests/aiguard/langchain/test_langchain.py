@@ -856,7 +856,7 @@ def test_streamed_llm_resets_context_after_success(mock_execute_request, langcha
     assert is_aiguard_context_active() is False
 
 
-# AIDEV-NOTE: ``filterwarnings`` suppresses an orthogonal pre-existing
+# ``filterwarnings`` suppresses an orthogonal pre-existing
 # span-lifecycle warning: when a langchain stream is created but never
 # iterated, ``shared_stream`` has already started the LLMObs span via
 # ``integration.trace(...)`` but ``TracedStream.__iter__``'s ``finally``

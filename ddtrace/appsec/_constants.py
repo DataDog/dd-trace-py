@@ -416,7 +416,7 @@ class STACK_TRACE(metaclass=Constant_Class):
     TAG: Literal["_dd.stack"] = "_dd.stack"
 
 
-# AIDEV-NOTE: AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
+# AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
 # top-level aiguard package. Import from there: `from ddtrace.aiguard._constants import AI_GUARD`.
 
 

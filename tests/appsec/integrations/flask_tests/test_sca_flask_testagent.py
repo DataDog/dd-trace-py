@@ -219,11 +219,11 @@ class TestSCAFlaskTelemetry:
         )
         assert dep["name"] == "requests"
         assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
-        # AIDEV-NOTE: RFC v3 — reached is now an array of {path, method, line} objects.
+        # RFC v3 — reached is now an array of {path, method, line} objects.
         assert isinstance(cve_value["reached"], list)
         assert len(cve_value["reached"]) >= 1
         hit = cve_value["reached"][0]
-        # AIDEV-NOTE: path/method/line report the *caller* (user code that
+        # path/method/line report the *caller* (user code that
         # invoked the vulnerable function), not the target function itself.
         assert "app.py" in hit["path"], f"Expected caller path containing 'app.py', got: {hit['path']}"
         assert "sca_test_requests" in hit.get("symbol", ""), (

@@ -48,7 +48,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: _get_iast_context_id is imported lazily — a top-level import here
+# _get_iast_context_id is imported lazily — a top-level import here
 # circularly bootstraps via _iast_request_context_base -> _taint_tracking._context
 # -> _taint_tracking/__init__.py. The cached module-global avoids the per-call
 # import dance on this hot path.
@@ -78,7 +78,7 @@ def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
 
 
 def copy_ranges_from_strings(str_1: Any, str_2: Any, context_id: Optional[int] = None) -> None:
-    # AIDEV-NOTE: scope the copy to the active request slot to match the scoped
+    # scope the copy to the active request slot to match the scoped
     # get_ranges() read path; otherwise the native multi-slot resolver may write
     # the derived taint into a concurrent request's map and the scoped read misses it.
     if context_id is None:

@@ -80,7 +80,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
-        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
+        # When callers like VercelAIAdapter pass all messages via message_history
         # without setting user_prompt, we fall back to extracting the last user message from
         # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
         if user_prompt is None:

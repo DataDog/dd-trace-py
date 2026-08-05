@@ -152,13 +152,13 @@ def test_ci_visibility_service_enable_without_service(tracer):
         mock.patch(
             "ddtrace.internal.ci_visibility.recorder._extract_repository_name_from_url", return_value="test-repo"
         ),
-        # AIDEV-NOTE: Patch detect_service to None to prevent xdist worker env leakage.
+        # Patch detect_service to None to prevent xdist worker env leakage.
         # When running under pytest-xdist, the outer worker sets _DD_PYTEST_XDIST_INFERRED_SERVICE,
         # which detect_service() picks up and Config() uses as the default span service name,
         # causing Config().service to be non-None and override the expected service value
         # derived from the repository URL.
         mock.patch("ddtrace.internal.settings._config.detect_service", return_value=None),
-        # AIDEV-NOTE: Patch ci.tags to ensure REPOSITORY_URL is present regardless of the git
+        # Patch ci.tags to ensure REPOSITORY_URL is present regardless of the git
         # environment.  In Docker containers started from a git worktree, `git rev-parse` fails
         # with "fatal: not a git repository", so ci.tags() returns no REPOSITORY_URL and the
         # service falls back to the integration default instead of the repo-derived name.
@@ -946,7 +946,7 @@ class TestUploadGitMetadata:
         with (
             mock.patch.multiple(
                 CIVisibilityGitClient,
-                # AIDEV-NOTE: _get_git_dir is mocked here so that upload_git_metadata() does not try to
+                # _get_git_dir is mocked here so that upload_git_metadata() does not try to
                 # call extract_workspace_path() (which runs git commands) before spawning the worker.
                 # Without this, running in Docker from a git worktree causes "fatal: not a git repository"
                 # and the method immediately sets METADATA_UPLOAD_STATUS.FAILED.

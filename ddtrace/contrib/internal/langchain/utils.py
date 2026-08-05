@@ -16,7 +16,7 @@ class BaseLangchainStreamHandler:
             chunk_callback(chunk)
 
     def start_stream(self):
-        # AIDEV-NOTE: dispatched lazily from ``TracedStream.__iter__`` /
+        # dispatched lazily from ``TracedStream.__iter__`` /
         # ``TracedAsyncStream.__aiter__`` (via ``BaseStreamHandler.start_stream``),
         # so it only runs when the caller actually starts iterating. Bumping
         # the AI Guard depth counter here — instead of in the ``.before``
@@ -31,7 +31,7 @@ class BaseLangchainStreamHandler:
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
-        # AIDEV-NOTE: dispatch the AI Guard ``.finally`` event before finishing
+        # dispatch the AI Guard ``.finally`` event before finishing
         # the span so the active-context counter set by ``start_stream`` is
         # released on every iteration-exit path — success, exception, early
         # ``break``, or ``aclose()`` — since ``finalize_stream`` is called
@@ -103,7 +103,7 @@ def shared_stream(
             LangchainStreamHandler(integration, span, args, kwargs, **handler_kwargs),
         )
     except (DDBlockException, Exception):
-        # AIDEV-NOTE: catch ``DDBlockException`` explicitly (parent of
+        # catch ``DDBlockException`` explicitly (parent of
         # ``AIGuardAbortError``) since it inherits from ``BaseException`` —
         # otherwise the AI Guard abort would slip past ``except Exception:``
         # and the LLM span would never get ``set_exc_info`` / ``finish``,

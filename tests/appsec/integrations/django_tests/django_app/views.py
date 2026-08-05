@@ -587,7 +587,7 @@ def xss_secure_mark(request):
 @csrf_exempt
 def header_injection(request):
     value = request.body.decode()
-    # AIDEV-NOTE: The injected `value` deliberately contains CR/LF to exercise IAST header-injection
+    # The injected `value` deliberately contains CR/LF to exercise IAST header-injection
     # detection. Detection happens here when assigning to `_store` (wrapped by IAST's
     # HeaderInjectionDict). Note that the WSGI server may later refuse to serialize a header value
     # containing control characters: CPython's wsgiref.headers.Headers (security backport gh-144370)

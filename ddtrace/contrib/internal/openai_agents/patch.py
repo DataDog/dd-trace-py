@@ -36,7 +36,7 @@ async def _patched_run_single_turn(func, instance, args, kwargs):
         log.debug("No current span available, skipping tag_agent_manifest")
         return result
 
-    # AIDEV-NOTE: MLOB-7584 — the SDK doesn't guard this wrap site, so an unguarded raise here
+    # MLOB-7584 — the SDK doesn't guard this wrap site, so an unguarded raise here
     # would surface in the user's Runner.run.
     try:
         integration = agents._datadog_integration
@@ -56,7 +56,7 @@ def _has_module_level_run_loop() -> bool:
         return False
 
 
-# AIDEV-NOTE: MLOB-7584 — agents >= 0.8.0 moved the per-turn fn to agents.run_internal.run_loop. Wrap the
+# MLOB-7584 — agents >= 0.8.0 moved the per-turn fn to agents.run_internal.run_loop. Wrap the
 # agents.run re-export (run.py binds the name at import, so the definition is too late); streamed lives in run_loop.
 # Both variants share one wrapper — the unified scanner resolves the agent for every shape.
 _MODULE_RUN_LOOP_WRAP_TARGETS = [
