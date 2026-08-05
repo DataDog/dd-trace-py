@@ -1,5 +1,7 @@
-from typing import Any
 from typing import Callable
+from typing import Optional
+from typing import Protocol
+from typing import TypeVar
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -23,10 +25,16 @@ from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
 
-def get_weak_hash_algorithms() -> set:
-    CONFIGURED_WEAK_HASH_ALGORITHMS = None
+class _HashObject(Protocol):
+    @property
+    def name(self) -> str: ...
+
+
+def get_weak_hash_algorithms() -> set[str]:
+    CONFIGURED_WEAK_HASH_ALGORITHMS: Optional[set[str]] = None
     DD_IAST_WEAK_HASH_ALGORITHMS = env.get("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
         CONFIGURED_WEAK_HASH_ALGORITHMS = set(algo.strip() for algo in DD_IAST_WEAK_HASH_ALGORITHMS.lower().split(","))
@@ -51,7 +59,7 @@ def get_version() -> str:
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -100,7 +108,7 @@ def patch():
         _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
 
 
-def unpatch_iast():
+def unpatch_iast() -> None:
     try_unwrap("_hashlib", "HASH.digest")
     try_unwrap("_hashlib", "HASH.hexdigest")
     try_unwrap(("_%s" % MD5_DEF), "MD5Type.digest")
@@ -115,9 +123,12 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
-def wrapped_init_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_init_function(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     if hasattr(wrapped, "__func__"):
-        res = wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        res = wrapped_function(instance, *args, **kwargs)
     else:
         res = wrapped(*args, **kwargs)
     try:
@@ -128,7 +139,9 @@ def wrapped_init_function(wrapped: Callable, instance: Any, args: Any, kwargs: A
     return res
 
 
-def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_digest_function(
+    wrapped: Callable[..., R], instance: _HashObject, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     try:
         if is_iast_request_enabled():
             if (
@@ -148,38 +161,30 @@ def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs:
         iast_error("propagation::sink_point::Error in weak_hash.wrapped_digest_function", exc=e)
 
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        return wrapped_function(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
-def wrapped_md5_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_md5_function(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     return wrapped_function(wrapped, MD5_DEF, instance, args, kwargs)
 
 
-def wrapped_sha1_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_sha1_function(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     return wrapped_function(wrapped, SHA1_DEF, instance, args, kwargs)
 
 
-def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    try:
-        if is_iast_request_enabled():
-            if WeakHash.has_quota() and args[0].lower() in get_weak_hash_algorithms():
-                WeakHash.report(
-                    evidence_value=args[0].lower(),
-                )
-            # Reports Span Metrics
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
-            # Report Telemetry Metrics
-            _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
-    except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_hash.wrapped_new_function", exc=e)
-
-    if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
-    return wrapped(*args, **kwargs)
-
-
-def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_function(
+    wrapped: Callable[..., R],
+    evidence: str,
+    instance: object,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> R:
     try:
         if is_iast_request_enabled():
             if WeakHash.has_quota():
@@ -194,5 +199,6 @@ def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any,
         iast_error("propagation::sink_point::Error in weak_hash.wrapped_function", exc=e)
 
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        return wrapped_function(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
