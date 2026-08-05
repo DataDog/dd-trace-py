@@ -19,7 +19,7 @@ class SSRF(VulnerabilityBase):
     secure_mark = VulnerabilityType.SSRF
 
 
-_FUNC_TO_URL_ARGUMENT = {
+_FUNC_TO_URL_ARGUMENT: dict[str, tuple[int, str]] = {
     "requests.api": (0, "url"),
     "urllib.request": (0, "url"),
     "urllib3": (0, "url"),
@@ -32,7 +32,7 @@ _FUNC_TO_URL_ARGUMENT = {
 IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
 
-def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
+def _iast_report_ssrf(func_name: str, module_name: str, *args: object, **kwargs: object) -> None:
     """
     Check and report potential SSRF (Server-Side Request Forgery) vulnerabilities in function calls.
 
@@ -46,12 +46,13 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
         _set_metric_iast_instrumented_sink(VULN_SSRF)
         IS_REPORTED_INTRUMENTED_SINK_METRIC = True
 
-    arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(module_name, (None, None))
-    if arg_pos is None:
+    url_argument = _FUNC_TO_URL_ARGUMENT.get(module_name)
+    if url_argument is None:
         iast_propagation_sink_point_debug_log(
             f"{module_name}.{func_name} not found in list of functions supported for SSRF"
         )
         return
+    arg_pos, kwarg_name = url_argument
 
     try:
         kw = kwarg_name if kwarg_name else ""

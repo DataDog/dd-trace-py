@@ -322,7 +322,7 @@ class IastSpanReporter(NotNoneDictable):
             )
         return sources, tainted_ranges_to_dict
 
-    def add_ranges_to_evidence_and_extract_sources(self, vuln):
+    def add_ranges_to_evidence_and_extract_sources(self, vuln: Vulnerability) -> None:
         if not is_iast_request_enabled():
             log.debug(
                 "iast::propagation::context::add_ranges_to_evidence_and_extract_sources. "

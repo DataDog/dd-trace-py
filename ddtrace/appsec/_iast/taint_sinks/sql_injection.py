@@ -1,3 +1,5 @@
+from typing import Callable
+
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -17,7 +19,9 @@ class SqlInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.SQL_INJECTION
 
 
-def _on_report_sqli(*args, **kwargs) -> bool:
+def _on_report_sqli(
+    query_args: tuple[object, ...], kwargs: object, integration_name: str, method: Callable[..., object]
+) -> bool:
     """Check for SQL injection vulnerabilities in database operations and report them.
 
     This function analyzes database operation arguments for potential SQL injection
@@ -33,8 +37,6 @@ def _on_report_sqli(*args, **kwargs) -> bool:
     reported = False
     try:
         if asm_config._iast_enabled:
-            query_args, kwargs, integration_name, method = args
-
             if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
                 if (
                     len(query_args)
@@ -55,5 +57,5 @@ def _on_report_sqli(*args, **kwargs) -> bool:
     return reported
 
 
-def supported_dbapi_integration(integration_name):
+def supported_dbapi_integration(integration_name: str) -> bool:
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)

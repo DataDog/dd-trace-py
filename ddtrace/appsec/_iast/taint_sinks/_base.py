@@ -56,9 +56,11 @@ class VulnerabilityBase:
     secure_mark: Union[int, VulnerabilityType] = 0
 
     @staticmethod
-    def has_quota():
+    def has_quota() -> bool:
         if context := _get_iast_env():
-            return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+            return (  # type: ignore[no-any-return]
+                context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+            )
         return False
 
     @classmethod

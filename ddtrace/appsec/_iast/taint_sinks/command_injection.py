@@ -1,3 +1,5 @@
+from typing import Union
+
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -19,13 +21,13 @@ class CommandInjection(VulnerabilityBase):
 IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
 
-def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
+def _iast_report_cmdi(func_name: str, *args: object, **kwargs: object) -> None:
     global IS_REPORTED_INTRUMENTED_SINK_METRIC
     if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
         _set_metric_iast_instrumented_sink(VULN_CMDI)
         IS_REPORTED_INTRUMENTED_SINK_METRIC = True
 
-    report_cmdi = ""
+    report_cmdi: Union[str, bytes, bytearray] = ""
     if len(args) == 0:
         shell_args = kwargs.get("args", [])
     elif isinstance(args[0], (list, tuple)):
@@ -39,7 +41,7 @@ def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
                 from .._taint_tracking.aspects import str_aspect
 
                 if "spawn" in func_name:
-                    shell_args = list(shell_args[1:])
+                    shell_args = list(args[1:])
                     if isinstance(shell_args[1], (list, tuple)):
                         shell_args[1] = join_aspect(
                             " ".join, 1, " ", [str_aspect(str, 1, arg) for arg in shell_args[1]]
@@ -50,10 +52,10 @@ def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
                             str_shell_args = [str_aspect(str, 1, arg) for arg in shell_args]
                             report_cmdi = join_aspect(" ".join, 1, " ", str_shell_args)
                             break
-                elif CommandInjection.is_tainted_pyobject(shell_args):
+                elif isinstance(shell_args, IAST.TEXT_TYPES) and CommandInjection.is_tainted_pyobject(shell_args):
                     report_cmdi = shell_args
 
-                if report_cmdi and isinstance(report_cmdi, IAST.TEXT_TYPES):
+                if report_cmdi:
                     CommandInjection.report(evidence_value=report_cmdi)
 
             # Reports Span Metrics
