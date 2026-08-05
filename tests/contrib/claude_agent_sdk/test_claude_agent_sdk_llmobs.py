@@ -974,6 +974,58 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
+    async def test_llmobs_partial_messages_synthesize_usage_without_assistant_usage(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_partial_messages_no_assistant_usage,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """On SDK versions predating AssistantMessage.usage (< 0.1.49), the llm/step spans
+        should still carry token counts, synthesized entirely from the partial-message
+        stream: input/cache from message_start and the true output from message_delta.
+        """
+        prompt = "What is 2+2?"
+        caller_msgs = []
+        async for msg in claude_agent_sdk.query(prompt=prompt):
+            caller_msgs.append(msg)
+
+        # The forced-on partial events must still be filtered back out of the caller stream.
+        caller_type_names = [type(m).__name__ for m in caller_msgs]
+        assert "StreamEvent" not in caller_type_names
+        system_subtypes = [getattr(m, "subtype", None) for m in caller_msgs if type(m).__name__ == "SystemMessage"]
+        assert system_subtypes == ["init"]
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+
+        # AssistantMessage had no usage; input (10) comes from message_start, output (120)
+        # from the message_delta, and total is their sum.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [{"content": "The answer is 4.", "role": "assistant"}]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(output_msgs),
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+
     async def test_llmobs_tool_error_marks_tool_span_as_error(
         self, claude_agent_sdk, mock_internal_client_tool_error, claude_agent_sdk_llmobs, test_spans
     ):

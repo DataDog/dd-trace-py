@@ -312,6 +312,34 @@ MOCK_PARTIAL_MESSAGES_SEQUENCE = [
 ]
 
 
+# Simulates a pre-0.1.49 SDK where AssistantMessage carries no usage at all (the field was
+# added in 0.1.49). The only token source is the partial-message stream: message_start
+# carries the input/cache tokens and message_delta the true cumulative output. The
+# integration must synthesize the whole usage block from these events.
+MOCK_PARTIAL_NO_USAGE_MESSAGE_ID = "msg_01PartialNoUsageAaaaaaaaaa"
+MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_NO_USAGE_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    create_mock_assistant_message("The answer is 4.", usage=None, message_id=MOCK_PARTIAL_NO_USAGE_MESSAGE_ID),
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
 MOCK_READ_TOOL_ID = "toolu_01C4Thx957VoSn21zERxbeQX"
 MOCK_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_tool_use(
     [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],

@@ -66,23 +66,33 @@ def force_include_partial_messages(options: Any, in_place: bool = False) -> tupl
         return options, False
 
 
-def extract_partial_message_output(event: Any) -> Optional[tuple[Optional[str], Optional[int]]]:
-    """Pull (message_id, output_tokens) signal out of a raw Anthropic stream event.
+_PARTIAL_INPUT_USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 
-    ``message_start`` carries the turn's ``message.id`` (output not yet generated);
-    ``message_delta`` carries the running cumulative ``usage.output_tokens`` for the
-    current turn (the last one seen is the true per-turn output). Returns None for
-    any other event so callers can ignore it.
+
+def extract_partial_message_usage(event: Any) -> Optional[tuple[Optional[str], dict]]:
+    """Pull a (message_id, usage) signal out of a raw Anthropic stream event.
+
+    ``message_start`` carries the turn's ``message.id`` and the input-side usage
+    (``input_tokens`` plus the cache counts); its ``output_tokens`` is only a
+    pre-generation snapshot, so we drop it. ``message_delta`` carries the running
+    cumulative ``output_tokens`` for the current turn (the last one seen is the true
+    per-turn output). Returns None for any other event so callers can ignore it.
+
+    Mining both sides lets the handler report token counts even on SDK versions predating
+    ``AssistantMessage.usage`` (< 0.1.49), where these stream events are the only source.
     """
     if not isinstance(event, dict):
         return None
     etype = event.get("type")
     if etype == "message_start":
         message = event.get("message") or {}
-        return (message.get("id"), None)
+        usage = message.get("usage") or {}
+        input_usage = {k: usage[k] for k in _PARTIAL_INPUT_USAGE_KEYS if usage.get(k) is not None}
+        return (message.get("id"), input_usage)
     if etype == "message_delta":
         usage = event.get("usage") or {}
-        return (None, usage.get("output_tokens"))
+        output_tokens = usage.get("output_tokens")
+        return (None, {} if output_tokens is None else {"output_tokens": output_tokens})
     return None
 
 

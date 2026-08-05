@@ -9,7 +9,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
-from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_output
+from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_usage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -107,8 +107,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.instance = instance
         # Indicates whether we enabled include_partial_messages ourselves
         self._filter_partial = filter_partial
-        # True per-turn output tokens read from message_delta events, keyed by message_id.
-        self._partial_output_by_id: dict[str, int] = {}
+        # Per-turn usage mined from the partial-message stream, keyed by message_id:
+        # message_start seeds the input/cache tokens, each message_delta updates the true
+        # output tokens. On SDK versions without AssistantMessage.usage (< 0.1.49) this is
+        # the only token source; on newer versions it corrects the output snapshot.
+        self._partial_usage_by_id: dict[str, dict] = {}
         self._partial_current_id: Optional[str] = None
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
@@ -143,17 +146,21 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             or (chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status")
         )
 
-    def _capture_partial_output(self, chunk) -> None:
-        """Record true per-turn output tokens from a StreamEvent's raw Anthropic event."""
-        signal = extract_partial_message_output(getattr(chunk, "event", None))
+    def _capture_partial_usage(self, chunk) -> None:
+        """Record per-turn token usage from a StreamEvent's raw Anthropic event.
+
+        ``message_start`` seeds the turn's input/cache tokens; each ``message_delta``
+        updates the running true output tokens (the last one seen wins).
+        """
+        signal = extract_partial_message_usage(getattr(chunk, "event", None))
         if signal is None:
             return
-        message_id, output_tokens = signal
+        message_id, usage = signal
         if message_id is not None:
             self._partial_current_id = message_id
-        elif output_tokens is not None and self._partial_current_id is not None:
-            # last message_delta seen for this turn is the true cumulative output
-            self._partial_output_by_id[self._partial_current_id] = output_tokens
+            self._partial_usage_by_id[message_id] = dict(usage)
+        elif usage and self._partial_current_id is not None:
+            self._partial_usage_by_id.setdefault(self._partial_current_id, {}).update(usage)
 
     def should_yield_chunk(self, chunk) -> bool:
         return not self._is_forced_partial_noise(chunk, type(chunk).__name__)
@@ -162,7 +169,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         chunk_type = type(chunk).__name__
 
         if chunk_type == "StreamEvent":
-            self._capture_partial_output(chunk)
+            self._capture_partial_usage(chunk)
 
         # Keep the events we injected out of chunk storage so span extraction is unaffected.
         if self._is_forced_partial_noise(chunk, chunk_type):
@@ -430,7 +437,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
         response = self._merge_assistant_chunks(chunks)
-        response = self._apply_partial_output(response, getattr(chunks[0], "message_id", None))
+        response = self._apply_partial_usage(response, getattr(chunks[0], "message_id", None))
 
         self._finalize_llm_span(response)
 
@@ -440,29 +447,37 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         else:
             self._finalize_step_span(response)
 
-    def _apply_partial_output(self, response: Any, message_id: Optional[str]) -> Any:
-        """Replace the turn's snapshot output_tokens with the true value from the deltas.
+    def _apply_partial_usage(self, response: Any, message_id: Optional[str]) -> Any:
+        """Reconcile the turn's usage with the true counts mined from the stream events.
 
         ``response`` is always a fresh ``_MergedAssistantMessage`` with its own usage dict
         (see ``_merge_assistant_chunks``), so we mutate it in place without touching the
         message object the caller received from the stream.
+
+        When the SDK reported its own usage (``AssistantMessage.usage``, >= 0.1.49) we trust
+        its input/cache counts and only correct ``output_tokens`` from the deltas (the SDK's
+        value is a pre-generation snapshot). When it did not (< 0.1.49), the stream events
+        are the only source, so we synthesize the whole usage block from them.
         """
-        if message_id is None or not self._partial_output_by_id:
+        if message_id is None:
             return response
-        true_output = self._partial_output_by_id.get(message_id)
-        if true_output is None:
+        partial = self._partial_usage_by_id.get(message_id)
+        if not partial:
             return response
         usage = getattr(response, "usage", None)
-        if not isinstance(usage, dict) or not usage:
-            return response
-        usage["output_tokens"] = true_output
+        if isinstance(usage, dict) and usage:
+            true_output = partial.get("output_tokens")
+            if true_output is not None:
+                usage["output_tokens"] = true_output
+        else:
+            response.usage = dict(partial)
         return response
 
     def _merge_assistant_chunks(self, chunks: list) -> Any:
         """Combine AssistantMessage chunks sharing a message_id into one response object.
 
         Always returns a fresh ``_MergedAssistantMessage`` (never an SDK chunk), so later
-        corrections like ``_apply_partial_output`` can mutate it safely without affecting the
+        corrections like ``_apply_partial_usage`` can mutate it safely without affecting the
         message object the caller received from the stream.
         """
         merged_content: list = []
