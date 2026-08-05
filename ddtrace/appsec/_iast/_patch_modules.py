@@ -14,7 +14,6 @@ functions and enable taint tracking and vulnerability detection.
 import functools
 from typing import Callable
 from typing import Optional
-from typing import Text
 
 from wrapt import FunctionWrapper
 
@@ -50,12 +49,7 @@ class IASTFunction:
         force (bool): Whether to force immediate patching or wait for module import
     """
 
-    name = ""
-    function = ""
-    hook = ""
-    force = False
-
-    def __init__(self, name, function, hook, force=False):
+    def __init__(self, name: str, function: str, hook: Callable[..., object], force: bool = False) -> None:
         """Initialize an IASTFunction instance.
 
         Args:
@@ -70,7 +64,7 @@ class IASTFunction:
         self.force = force
 
     @staticmethod
-    def force_wrapper(module: Text, name: Text, wrapper: Callable):
+    def force_wrapper(module: str, name: str, wrapper: Callable[..., object]) -> None:
         """Force immediate wrapping of a module's function.
 
         This method attempts to immediately wrap a function in a module, regardless of
@@ -86,7 +80,7 @@ class IASTFunction:
         except (ImportError, AttributeError):
             iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
-    def patch(self):
+    def patch(self) -> bool:
         """Apply the patch to the target module and function.
 
         This method handles both forced and lazy patching scenarios. If force is True,
@@ -101,14 +95,14 @@ class IASTFunction:
             try_wrap_function_wrapper(self.name, self.function, self.hook)
         return True
 
-    def unpatch(self):
+    def unpatch(self) -> None:
         """Remove the patch from the target module and function.
 
         This method attempts to remove any existing wrapper from the target function.
         """
         try_unwrap(self.name, self.function)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a string representation of the IASTFunction instance."""
         return f"IASTFunction(name={self.name}, function={self.function}, hook={self.hook}, force={self.force})"
 
@@ -129,7 +123,7 @@ class WrapFunctonsForIAST:
         self.functions: set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
-    def wrap_function(self, name, function, hook):
+    def wrap_function(self, name: str, function: str, hook: Callable[..., object]) -> None:
         """Add a function for lazy patching.
 
         Args:
@@ -139,7 +133,7 @@ class WrapFunctonsForIAST:
         """
         self.functions.add(IASTFunction(name, function, hook))
 
-    def add_module_forced(self, name, function, hook):
+    def add_module_forced(self, name: str, function: str, hook: Callable[..., object]) -> None:
         """Add a module for forced immediate patching.
 
         Args:
@@ -149,7 +143,7 @@ class WrapFunctonsForIAST:
         """
         self.functions.add(IASTFunction(name, function, hook, True))
 
-    def patch(self):
+    def patch(self) -> None:
         """Apply patches to all registered functions.
 
         This method attempts to patch all functions in the functions set. If in testing
@@ -160,7 +154,7 @@ class WrapFunctonsForIAST:
                 if self.testing:
                     MODULES_TO_UNPATCH.add(module)
 
-    def testing_unpatch(self):
+    def testing_unpatch(self) -> None:
         """Remove patches from all functions in testing mode.
 
         This method is used in testing scenarios to clean up all applied patches.

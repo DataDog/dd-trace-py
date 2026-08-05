@@ -1,4 +1,5 @@
-from typing import Text
+from typing import Callable
+from typing import Sequence
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -9,14 +10,14 @@ from .._patch_modules import WrapFunctonsForIAST
 log = get_logger(__name__)
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     """Patch JSON encoder for lazy taint support.
 
     Note: json.loads taint propagation is now handled via AST rewriting in visitor.py
@@ -39,11 +40,17 @@ def patch():
     _IS_PATCHED = True
 
 
-def patched_json_encoder_default(original_func, instance, args, kwargs):
+def patched_json_encoder_default(
+    original_func: Callable[..., object],
+    instance: object,
+    args: Sequence[object],
+    kwargs: dict[str, object],
+) -> object:
     from .._taint_utils import LazyTaintDict
     from .._taint_utils import LazyTaintList
 
     if isinstance(args[0], (LazyTaintList, LazyTaintDict)):
-        return args[0]._obj
+        result: object = args[0]._obj
+        return result
 
     return original_func(*args, **kwargs)
