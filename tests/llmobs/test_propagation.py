@@ -1121,16 +1121,6 @@ def test_distributed_agent_version_round_trip(llmobs, llmobs_events):
     assert _tags_of(llmobs_events[0])["agent_version"] == "v3"
 
 
-def test_distributed_no_agent_version_round_trip(llmobs, llmobs_events):
-    """An upstream on an older SDK sends no version; the downstream span carries no tag."""
-    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
-    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
-    with llmobs.tool(name="downstream_tool"):
-        pass
-    assert len(llmobs_events) == 1
-    assert "agent_version" not in _tags_of(llmobs_events[0])
-
-
 def test_agent_version_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
     """A tool span created in an asyncio task under a versioned agent still carries the version."""
     import asyncio

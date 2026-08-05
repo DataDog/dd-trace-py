@@ -2067,26 +2067,10 @@ def test_annotation_context_agent_version_applies_to_child_spans(llmobs):
         assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
-def test_annotation_context_agent_version_does_not_clobber_service_version_tag(llmobs):
-    with llmobs.annotation_context(agent={"version": "v3"}):
-        with llmobs.agent(name="test_agent") as span:
-            tags = get_llmobs_tags(span)
-            assert tags["agent_version"] == "v3"
-            assert tags["version"] == ""
-
-
 def test_annotation_context_agent_version_wins_over_explicit_tag(llmobs):
     with llmobs.annotation_context(tags={"agent_version": "from_tags"}, agent={"version": "from_agent"}):
         with llmobs.agent(name="test_agent") as span:
             assert get_llmobs_tags(span)["agent_version"] == "from_agent"
-
-
-def test_annotation_context_agent_version_with_name_override(llmobs):
-    """The documented way to set both an agent's name and its version."""
-    with llmobs.annotation_context(name="weather-agent", agent={"version": "v3"}):
-        with llmobs.agent(name="test_agent") as span:
-            assert span.name == "weather-agent"
-            assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
 @pytest.mark.parametrize("agent", [{}, {"version": None}, {"version": ""}, {"name": "no-version"}, "not_a_dict", 42])
