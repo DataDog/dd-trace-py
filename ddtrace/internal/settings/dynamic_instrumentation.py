@@ -2,6 +2,8 @@ from pathlib import Path
 import re
 import typing as t
 
+from envier.env import EnvVariable
+
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -28,6 +30,13 @@ def _derive_tags(c: DDConfig) -> str:
     gitmetadata.add_tags(_tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
+
+
+def _derive_redacted_types_re(c: "DynamicInstrumentationConfig") -> t.Optional[re.Pattern[str]]:
+    if not c.redacted_types:
+        return None
+    patterns = (_.replace(".", "[.]").replace("*", ".*") for _ in c.redacted_types)
+    return re.compile(f"^(?:{'|'.join(patterns)})$")
 
 
 def normalize_ident(ident: str) -> str:
@@ -105,7 +114,7 @@ class DynamicInstrumentationConfig(DDConfig):
         help="Interval in seconds for periodically emitting probe diagnostic messages",
     )
 
-    redacted_identifiers = DDConfig.v(
+    redacted_identifiers: EnvVariable[set[str]] = DDConfig.v(
         set,
         "redacted_identifiers",
         map=normalize_ident,
@@ -114,7 +123,7 @@ class DynamicInstrumentationConfig(DDConfig):
         help="List of identifiers/object attributes/dict keys to redact from dynamic logs and snapshots",
     )
 
-    redacted_types = DDConfig.v(
+    redacted_types: EnvVariable[set[str]] = DDConfig.v(
         set,
         "redacted_types",
         map=str.strip,
@@ -126,14 +135,10 @@ class DynamicInstrumentationConfig(DDConfig):
 
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
-        lambda c: (
-            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
-            if c.redacted_types
-            else None
-        ),
+        _derive_redacted_types_re,
     )
 
-    redaction_excluded_identifiers = DDConfig.v(
+    redaction_excluded_identifiers: EnvVariable[set[str]] = DDConfig.v(
         set,
         "redaction_excluded_identifiers",
         map=normalize_ident,
@@ -158,7 +163,7 @@ class DynamicInstrumentationConfig(DDConfig):
         help="Maximum wall-time in milliseconds for condition and template expression evaluation per probe invocation",
     )
 
-    probe_file = DDConfig.v(
+    probe_file: EnvVariable[t.Optional[Path]] = DDConfig.v(
         t.Optional[Path],
         "probe_file",
         default=None,

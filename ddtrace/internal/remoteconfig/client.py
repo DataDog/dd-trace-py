@@ -6,6 +6,8 @@ from typing import Optional
 from typing import Sequence
 import uuid
 
+from envier.env import EnvVariable
+
 import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -53,7 +55,7 @@ class RemoteConfigClientConfig(DDConfig):
 
     log_payloads = DDConfig.v(bool, "log_payloads", default=False)
 
-    _skip_shutdown = DDConfig.v(Optional[bool], "skip_shutdown", default=None)
+    _skip_shutdown: EnvVariable[Optional[bool]] = DDConfig.v(Optional[bool], "skip_shutdown", default=None)
     skip_shutdown = DDConfig.d(bool, derive_skip_shutdown)
 
 

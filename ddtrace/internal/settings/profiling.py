@@ -8,6 +8,7 @@ import typing as t
 
 from envier import Env
 from envier import validators
+from envier.env import EnvVariable
 
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -135,6 +136,14 @@ def _clamp_max_frames(value: str) -> int:
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
+    if t.TYPE_CHECKING:
+        stack: ProfilingConfigStack
+        lock: ProfilingConfigLock
+        memory: ProfilingConfigMemory
+        heap: ProfilingConfigHeap
+        pytorch: ProfilingConfigPytorch
+        exception: ProfilingConfigException
+
     # Note that the parser here has a side-effect, since SSI has changed the once-truthy value of the envvar to
     # truthy + "auto", which has a special meaning.
     enabled = DDConfig.v(
@@ -180,7 +189,7 @@ class ProfilingConfig(DDConfig):
         help="Whether to enable the endpoint data collection in profiles",
     )
 
-    output_pprof = DDConfig.v(
+    output_pprof: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "output_pprof",
         default=None,
@@ -260,7 +269,7 @@ class ProfilingConfig(DDConfig):
         ),
     )
 
-    tags = DDConfig.v(
+    tags: EnvVariable[dict[str, str]] = DDConfig.v(
         dict,
         "tags",
         parser=parse_tags_str,
@@ -517,7 +526,7 @@ class ProfilingConfigHeap(DDConfig):
         help="Whether to enable the heap memory profiler",
     )
 
-    _sample_size = DDConfig.v(
+    _sample_size: EnvVariable[t.Optional[int]] = DDConfig.v(
         t.Optional[int],
         "sample_size",
         default=None,

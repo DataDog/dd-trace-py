@@ -1,6 +1,8 @@
 import sys
 import typing as t
 
+from envier.env import EnvVariable
+
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -61,7 +63,7 @@ class CrashtrackingConfig(DDConfig):
         help="Whether to send crash reports to the errors intake.",
     )
 
-    debug_url = DDConfig.v(
+    debug_url: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "debug_url",
         default=None,
@@ -70,7 +72,7 @@ class CrashtrackingConfig(DDConfig):
         "This is generally useful only for dd-trace-py development.",
     )
 
-    _test_token = DDConfig.v(
+    _test_token: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "test_token",
         default=None,
@@ -80,7 +82,7 @@ class CrashtrackingConfig(DDConfig):
         "This is generally useful only for dd-trace-py development.",
     )
 
-    stdout_filename = DDConfig.v(
+    stdout_filename: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "stdout_filename",
         default=None,
@@ -88,7 +90,7 @@ class CrashtrackingConfig(DDConfig):
         help="The destination filename for crashtracking stdout",
     )
 
-    stderr_filename = DDConfig.v(
+    stderr_filename: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "stderr_filename",
         default=None,
@@ -114,7 +116,7 @@ class CrashtrackingConfig(DDConfig):
         "use_alt_stack to ensure that the altstack is large enough.",
     )
 
-    _stacktrace_resolver = DDConfig.v(
+    _stacktrace_resolver: EnvVariable[t.Optional[str]] = DDConfig.v(
         t.Optional[str],
         "stacktrace_resolver",
         default=resolver_default,
@@ -124,7 +126,7 @@ class CrashtrackingConfig(DDConfig):
     )
     stacktrace_resolver = DDConfig.d(t.Optional[str], _derive_stacktrace_resolver)
 
-    tags = DDConfig.v(
+    tags: EnvVariable[dict[str, str]] = DDConfig.v(
         dict,
         "tags",
         parser=parse_tags_str,
