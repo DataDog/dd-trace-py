@@ -17,6 +17,8 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
 
@@ -34,11 +36,11 @@ def _finish_span(
     Once every integration adopts the events API, trace_handlers._finish_span
     should be completely removed.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service"), ctx.event.integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -97,8 +99,8 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
-    ctx.span = span
+    set_service_and_source(span, event.service or ctx.get_item("service") or "", integration_config or dict())
+    store_span_on_context(ctx, span)
 
     if config._inferred_proxy_services_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
@@ -120,12 +122,12 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
             @classmethod
             def on_started(cls, ctx):
-                ctx.span.set_tag("custom.tag", "value")
+                span_from_context(ctx).set_tag("custom.tag", "value")
 
             @classmethod
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
-                    ctx.span.set_tag("error", True)
+                    span_from_context(ctx).set_tag("error", True)
     """
 
     # Register here events that just create / finish spans

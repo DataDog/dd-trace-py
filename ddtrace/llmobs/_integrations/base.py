@@ -29,7 +29,8 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._integration_api import annotate
+from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_tracked_prompt
@@ -49,7 +50,7 @@ class BaseLLMIntegration:
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
-        return LLMObs.enabled
+        return is_enabled()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -118,7 +119,7 @@ class BaseLLMIntegration:
             try:
                 prompt = get_tracked_prompt(args, kwargs)
                 if prompt is not None:
-                    LLMObs.annotate(
+                    annotate(
                         span,
                         prompt=prompt,
                         tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_AUTO},

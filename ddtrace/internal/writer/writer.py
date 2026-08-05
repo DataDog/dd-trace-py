@@ -22,7 +22,6 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -643,6 +642,10 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
     does not support native span events.
     """
+    # Import lazily: ai_guard settings pull in the aiguard package, so a top-level import
+    # would give the writer an import-time dependency on it.
+    from ddtrace.internal.settings.aiguard import aiguard_config
+
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
     if (
@@ -651,7 +654,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or in_azure_function()
         or asm_config._asm_enabled
         or asm_config._iast_enabled
-        or ai_guard_config._ai_guard_enabled
+        or aiguard_config._ai_guard_enabled
         or config._llmobs_enabled
     ):
         default = "v0.4"
@@ -830,6 +833,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
+            # Only http/json and http/protobuf are supported; fall back to http/protobuf
+            # for anything else (e.g. grpc).
+            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
+            if otlp_protocol not in ("http/json", "http/protobuf"):
+                log.debug(
+                    "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
+                    otlp_protocol,
+                )
+                otlp_protocol = "http/protobuf"
+            builder.set_otlp_protocol(otlp_protocol)
             otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
@@ -868,7 +881,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        old_exporter = self._exporter
         self._exporter = self._create_exporter()
+        try:
+            old_exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def recreate(
         self,
@@ -881,9 +899,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
-            pass
+            try:
+                # Writers like AgentWriter may not start until the first trace is encoded.
+                # Stopping them before that will raise a ServiceStatusError.
+                # Shut down the exporter as it's started on init.
+                self._exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
@@ -908,7 +930,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
+            old_exporter = self._exporter
             self._exporter = self._create_exporter()
+            try:
+                old_exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
@@ -932,6 +959,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             )
 
     def _intake_endpoint(self, client=None):
+        if self._otlp_endpoint is not None:
+            return self._otlp_endpoint
         return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
 
     @property

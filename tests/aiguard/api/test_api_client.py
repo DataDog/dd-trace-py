@@ -13,8 +13,8 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
-from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call
 from tests.aiguard.utils import find_ai_guard_span
@@ -132,7 +132,7 @@ def test_evaluate_method(
             assert result["tags"] == tags
         assert result["sds"] == []
 
-    expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
+    expected_tags = {"ai_guard.target": target, "ai_guard.action": action, "ai_guard.redacted": "false"}
     if target == "tool":
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
@@ -152,6 +152,7 @@ def test_evaluate_method(
             ("action", action),
             ("block", "true" if should_block else "false"),
             ("error", "false"),
+            ("redacted", "false"),
         ),
     )
     assert_mock_execute_request_call(
@@ -271,13 +272,13 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
-    for i in range(ai_guard_config._ai_guard_max_messages_length + 1):
+    for i in range(aiguard_config._ai_guard_max_messages_length + 1):
         messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
     ai_guard_client.evaluate(messages)
 
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
-    assert len(meta["messages"]) == ai_guard_config._ai_guard_max_messages_length
+    assert len(meta["messages"]) == aiguard_config._ai_guard_max_messages_length
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
 
 
@@ -287,7 +288,7 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
 def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, content_part):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
+    random_output = random_string(aiguard_config._ai_guard_max_content_size + 1)
     if content_part:
         messages = [Message(role="user", content=[ContentPart(type="text", text=random_output)])]
     else:
@@ -300,7 +301,7 @@ def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_g
     content = prompt["content"]
     if content_part:
         content = content[0]["text"]
-    assert len(content) == ai_guard_config._ai_guard_max_content_size
+    assert len(content) == aiguard_config._ai_guard_max_content_size
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
 
 
