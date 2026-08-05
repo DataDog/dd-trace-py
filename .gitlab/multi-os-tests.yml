@@ -47,6 +47,7 @@ os tests macos:
     TART_EXECUTOR_SHELL: "/bin/bash -l"
   script:
     - |
+      sleep 600
       for PYTHON_VERSION in 3.10 3.12 3.14; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
