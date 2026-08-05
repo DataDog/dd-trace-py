@@ -138,7 +138,7 @@ def test_postfork_reset_invalidates_all_inherited_span_link_state(monkeypatch: p
 def test_active_span_link_uses_safe_contextvar_set(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr(stack_module, "safe_contextvar_set", lambda variable, value: calls.append((variable, value)))
-    value = stack_module._SpanLinkContext(1, stack_module._SpanInfo(2, 3, "web"))
+    value = stack_module._SpanLinkContext(1, stack_module._SpanInfo(2, 3, "web"), None)
 
     stack_module._set_active_span_link(value)
 
