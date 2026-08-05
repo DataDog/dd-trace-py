@@ -68,6 +68,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
 
+            # Stamp the agent kind at start (child spans resolve agent attribution against it).
+            if oai_span.llmobs_span_kind == "agent":
+                _annotate_llmobs_span_data(llmobs_span, kind="agent")
+
             if oai_span.span_type == "guardrail":
                 core.dispatch(DISPATCH_ON_GUARDRAIL_SPAN_START, (llmobs_span,))
 
