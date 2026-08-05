@@ -36,7 +36,7 @@ os tests ubuntu:
 
 os tests macos:
   extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-54faba43-128712010"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-9d7fbbe1-124416964"
   tags: ["macos:tart"]
   needs: [ "build macos arm64" ]
   allow_failure: true
