@@ -507,6 +507,7 @@ TEST_F(NewPyObjectIdCheck, NonTextObjectReturnsSameObject)
     PyObject* non_text_obj = PyLong_FromLong(42);
     PyObject* new_id_obj = new_pyobject_id(non_text_obj);
     EXPECT_EQ(new_id_obj, non_text_obj);
+    Py_DECREF(new_id_obj);
     Py_DECREF(non_text_obj);
 }
 
