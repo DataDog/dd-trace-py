@@ -35,6 +35,10 @@ def segv_handler_installed() -> bool:
     ...
 
 # span <-> profile association
+SPAN_LINK_DOMAIN_THREAD: int
+SPAN_LINK_DOMAIN_ASYNCIO_TASK: int
+SPAN_LINK_DOMAIN_GEVENT_GREENLET: int
+
 def link_span(
     span_id: int,
     local_root_span_id: int,
@@ -42,7 +46,16 @@ def link_span(
 ) -> None: ...
 def unlink_span(expected_span_id: int) -> None: ...
 def clear_span() -> None: ...
+def link_logical_span(
+    domain: int,
+    logical_id: int,
+    span_id: int,
+    local_root_span_id: int,
+    span_type: Optional[str],
+) -> None: ...
+def clear_logical_span(domain: int, logical_id: int) -> None: ...
 def unlink_finished_span(span_id: int) -> None: ...
+def reset_span_links() -> None: ...
 
 # executor worker thread <-> originating asyncio task association
 def link_origin_task(
