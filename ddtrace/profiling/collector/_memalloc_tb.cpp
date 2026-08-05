@@ -109,11 +109,6 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 }
 
-/* Map a CPython allocator domain to the domain sample label string.
- *
- * This helper never allocates: string views point at string literals, so they stay valid for the
- * lifetime of the process and.
- */
 static inline std::string_view
 allocator_domain_to_sv(PyMemAllocatorDomain domain)
 {
