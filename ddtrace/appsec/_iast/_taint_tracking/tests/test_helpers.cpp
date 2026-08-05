@@ -51,6 +51,38 @@ TEST_F(PythonErrorGuardCheck, Error)
     PyErr_Clear();
 }
 
+TEST_F(PythonErrorGuardCheck, ErrorStringResultDoesNotLeakAReference)
+{
+    py::dict scope;
+    py::exec(R"(
+class ErrorWithStableString(Exception):
+    def __init__(self, rendered):
+        self.rendered = rendered
+
+    def __str__(self):
+        return self.rendered
+
+rendered = "Test error"
+error = ErrorWithStableString(rendered)
+)",
+             scope);
+
+    py::object rendered = scope["rendered"];
+    py::object error = scope["error"];
+    const auto refcount_before = Py_REFCNT(rendered.ptr());
+    PyErr_SetObject(reinterpret_cast<PyObject*>(Py_TYPE(error.ptr())), error.ptr());
+
+    {
+        PythonErrorGuard guard;
+        {
+            py::str error_string = guard.error_as_pystr();
+            EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before + 1);
+        }
+        EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before);
+    }
+    PyErr_Clear();
+}
+
 TEST_F(PythonErrorGuardCheck, ErrorIsClearedThenNoErrorInGuard)
 {
     PyErr_SetString(PyExc_RuntimeError, "Test error");

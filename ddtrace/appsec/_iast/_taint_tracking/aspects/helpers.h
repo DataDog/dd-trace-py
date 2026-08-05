@@ -292,12 +292,12 @@ parse_param(size_t position,
 
 // Convert the kwnames of a function with METH_FASTCALL | METH_KEYWORDS to a classic kwargs dictionary
 // so it can be used for other normal functions
-inline PyObject*
+inline py::object
 kwnames_to_kwargs(PyObject* const* args, int nargs, PyObject* kwnames)
 {
-    PyObject* kwargs = PyDict_New();
-    if (kwargs == nullptr) {
-        return nullptr; // Memory allocation failed
+    py::object kwargs = py::reinterpret_steal<py::object>(PyDict_New());
+    if (!kwargs) {
+        return {}; // Memory allocation failed
     }
 
     if (kwnames == nullptr || nargs == 0 || args == nullptr) {
@@ -311,13 +311,11 @@ kwnames_to_kwargs(PyObject* const* args, int nargs, PyObject* kwnames)
         PyObject* key = PyTuple_GetItem(kwnames, i);
         PyObject* value = args[nargs + i];
 
-        if (PyDict_SetItem(kwargs, key, value) < 0) {
-            Py_DECREF(kwargs);
-            return nullptr;
+        if (PyDict_SetItem(kwargs.ptr(), key, value) < 0) {
+            return {};
         }
     }
 
-    // Return the kwargs dictionary (new reference, must be decref by the caller)
     return kwargs;
 }
 
