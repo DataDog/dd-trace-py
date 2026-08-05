@@ -177,6 +177,10 @@ variables:
   tags: [ "macos:tart" ]
   variables:
     ARCH_TAG: "arm64"
+    DD_IAST_ENABLED: "false"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+    WHEEL_PATTERN: "macosx*arm64.whl"
+    PLATFORM: "macOS"
     # Use bash instead of the Tart VM's default zsh
     TART_EXECUTOR_SHELL: "/bin/bash -l"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
@@ -190,6 +194,34 @@ variables:
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
+  script: |
+    set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+    sccache --show-stats
+
+    # Tart VMs link gitlab-runner after the artifact-download phase, so a
+    # separate os tests macos job cannot fetch pywheels/ from this job.
+    # Run the multi-os suite inline on the matrix Python versions we cover.
+    for python_version in ${PYTHON_VERSIONS}; do
+      case "${python_version}" in
+        3.10|3.12|3.14)
+          echo -e "\e[0Ksection_start:`date +%s`:multi_os_tests_${python_version}\r\e[0KRunning multi-os tests for Python ${python_version}"
+          export PYTHON_VERSION="${python_version}"
+          bash .gitlab/scripts/multi-os-tests.sh
+          echo -e "\e[0Ksection_end:`date +%s`:multi_os_tests_${python_version}\r\e[0K"
+          ;;
+      esac
+    done
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
