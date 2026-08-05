@@ -135,7 +135,7 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_rc4_function", e)
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_rc4_function", exc=e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
@@ -154,7 +154,7 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
                 # Report Telemetry Metrics
                 _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_function", e)
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_function", exc=e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
@@ -175,7 +175,7 @@ def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, k
                 # Report Telemetry Metrics
                 _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_cryptography_function", e)
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_cryptography_function", exc=e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)

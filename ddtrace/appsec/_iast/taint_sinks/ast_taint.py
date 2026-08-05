@@ -69,5 +69,5 @@ def ast_function(
         ):
             _iast_report_ssrf(func_name, func.__module__, *args, **kwargs)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in ast_function", e)
+        iast_error("propagation::sink_point::Error in ast_function", exc=e)
     return func(*args, **kwargs)

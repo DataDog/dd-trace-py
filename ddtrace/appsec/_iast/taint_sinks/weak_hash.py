@@ -124,7 +124,7 @@ def wrapped_init_function(wrapped: Callable, instance: Any, args: Any, kwargs: A
         if is_iast_request_enabled():
             set_hash_object_tracking(res, kwargs.get("usedforsecurity", None) is False)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_hash.wrapped_init_function", e)
+        iast_error("propagation::sink_point::Error in weak_hash.wrapped_init_function", exc=e)
     return res
 
 
@@ -145,7 +145,7 @@ def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs:
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_hash.wrapped_digest_function", e)
+        iast_error("propagation::sink_point::Error in weak_hash.wrapped_digest_function", exc=e)
 
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
@@ -172,7 +172,7 @@ def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_hash.wrapped_new_function", e)
+        iast_error("propagation::sink_point::Error in weak_hash.wrapped_new_function", exc=e)
 
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
@@ -191,7 +191,7 @@ def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any,
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in weak_hash.wrapped_function", e)
+        iast_error("propagation::sink_point::Error in weak_hash.wrapped_function", exc=e)
 
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
