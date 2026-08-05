@@ -110,7 +110,7 @@ StackRenderer::render_task_begin(std::string_view task_name,
                                  bool on_cpu,
                                  uint64_t task_id,
                                  std::optional<int64_t> walltime_ns_override,
-                                 LogicalSpanContext logical_span_context)
+                                 const LogicalSpanContext& logical_span_context)
 {
     static bool failed = false;
     if (failed) {

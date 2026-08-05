@@ -60,6 +60,8 @@ struct Span
     }
 };
 
+using LogicalSpanContext = std::optional<std::optional<Span>>;
+
 class ThreadSpanLinks
 {
   public:
