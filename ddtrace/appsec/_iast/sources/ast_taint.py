@@ -11,7 +11,7 @@ from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 
 
 def ast_function(
-    func: Callable,
+    func: Callable[..., Any],
     flag_added_args: Any,
     *args: Any,
     **kwargs: Any,

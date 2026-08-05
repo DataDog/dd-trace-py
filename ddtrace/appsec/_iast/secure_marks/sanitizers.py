@@ -4,17 +4,24 @@ Sanitizers are functions that clean/escape their inputs to prevent security issu
 If a sanitizer returns a value, we mark that value as secure for specific vulnerability types.
 """
 
-from typing import Any
 from typing import Callable
 from typing import Sequence
+from typing import TypeVar
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
+_ReturnType = TypeVar("_ReturnType")
+
+
 def create_sanitizer(
-    vulnerability_types: list[VulnerabilityType], wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
-) -> Callable:
+    vulnerability_types: list[VulnerabilityType],
+    wrapped: Callable[..., _ReturnType],
+    instance: object,
+    args: Sequence[object],
+    kwargs: dict[str, object],
+) -> _ReturnType:
     """Create a sanitizer function wrapper that marks return values as secure for a specific vulnerability type."""
     # Apply the sanitizer function
     result = wrapped(*args, **kwargs)
@@ -24,7 +31,9 @@ def create_sanitizer(
     return result
 
 
-def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def path_traversal_sanitizer(
+    wrapped: Callable[..., _ReturnType], instance: object, args: Sequence[object], kwargs: dict[str, object]
+) -> _ReturnType:
     """Sanitizer for werkzeug.utils.secure_filename that marks filenames as safe from path traversal.
 
     Args:
@@ -39,7 +48,9 @@ def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, k
     return create_sanitizer([VulnerabilityType.PATH_TRAVERSAL], wrapped, instance, args, kwargs)
 
 
-def xss_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def xss_sanitizer(
+    wrapped: Callable[..., _ReturnType], instance: object, args: Sequence[object], kwargs: dict[str, object]
+) -> _ReturnType:
     """Sanitizer for HTML escaping functions that mark output as safe from XSS.
 
     Args:
@@ -54,7 +65,9 @@ def xss_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
     return create_sanitizer([VulnerabilityType.XSS], wrapped, instance, args, kwargs)
 
 
-def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def sqli_sanitizer(
+    wrapped: Callable[..., _ReturnType], instance: object, args: Sequence[object], kwargs: dict[str, object]
+) -> _ReturnType:
     """Sanitizer for SQL quoting functions that mark output as safe from SQL injection.
 
     Args:
@@ -69,7 +82,9 @@ def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
     return create_sanitizer([VulnerabilityType.SQL_INJECTION], wrapped, instance, args, kwargs)
 
 
-def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def cmdi_sanitizer(
+    wrapped: Callable[..., _ReturnType], instance: object, args: Sequence[object], kwargs: dict[str, object]
+) -> _ReturnType:
     """Sanitizer for shell command quoting functions that mark output as safe from command injection.
 
     Args:
@@ -84,5 +99,7 @@ def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
     return create_sanitizer([VulnerabilityType.COMMAND_INJECTION], wrapped, instance, args, kwargs)
 
 
-def header_injection_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def header_injection_sanitizer(
+    wrapped: Callable[..., _ReturnType], instance: object, args: Sequence[object], kwargs: dict[str, object]
+) -> _ReturnType:
     return create_sanitizer([VulnerabilityType.HEADER_INJECTION], wrapped, instance, args, kwargs)
