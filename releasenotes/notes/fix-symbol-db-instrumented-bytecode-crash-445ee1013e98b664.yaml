@@ -1,0 +1,3 @@
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where Symbol Database can crash Python 3.12 processes when inspecting instrumented bytecode.
