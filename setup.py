@@ -114,12 +114,9 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 NATIVE_CRATE = HERE / "src" / "native"
-# libdatadog `libdd-profiling-heap-gotter-ffi` cdylib (git dep 56dab857b; re-pin
-# when libdatadog tags a release containing heap-gotter-ffi). Built out-of-band
-# (opt-in) from the tagged `src/native` build.
+# Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
+# crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
 NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
-NATIVE_HEAP_GOTTER_CRATE_NAME: str = "libdd_profiling_heap_gotter_ffi"
-NATIVE_HEAP_GOTTER_LIBRARY_BASENAME: str = "liblibdd_profiling_heap_gotter_ffi"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
@@ -1037,13 +1034,14 @@ class CustomBuildExt(build_ext):
     def build_heap_gotter(self) -> None:
         """Build the native heap-gotter cdylib via cargo and stage it for packaging.
 
-        Produces ``liblibdd_profiling_heap_gotter_ffi<EXT_SUFFIX>.so`` under
-        ``ddtrace/internal/datadog/profiling/`` (upstream libdatadog artifact
-        name + Python EXT_SUFFIX). The FFI crate has no Python linkage, so a
+        Produces ``libdd_heap_gotter<EXT_SUFFIX>.so`` under
+        ``ddtrace/internal/datadog/profiling/`` (mirroring the ``_native`` /
+        ``libdd_wrapper`` naming so the ctypes activator can resolve it with the
+        same EXT_SUFFIX logic). The wrapper crate has no Python linkage, so a
         single ``target/`` dir is shared across interpreter versions.
         """
         suffix: str = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
-        gotter_name: str = f"{NATIVE_HEAP_GOTTER_LIBRARY_BASENAME}{suffix}"
+        gotter_name: str = f"libdd_heap_gotter{suffix}"
 
         output_dir: Path
         if IS_EDITABLE or getattr(self, "inplace", False):
@@ -1090,7 +1088,7 @@ class CustomBuildExt(build_ext):
                 continue
             if msg.get("reason") != "compiler-artifact":
                 continue
-            if (msg.get("target") or {}).get("name") != NATIVE_HEAP_GOTTER_CRATE_NAME:
+            if (msg.get("target") or {}).get("name") != "dd_heap_gotter":
                 continue
             for filename in msg.get("filenames") or []:
                 if filename.endswith((".so", ".dylib")):
@@ -1137,9 +1135,6 @@ class CustomBuildExt(build_ext):
         for base in candidates:
             if not base.is_dir():
                 continue
-            for stale in base.glob(f"{NATIVE_HEAP_GOTTER_LIBRARY_BASENAME}*"):
-                stale.unlink()
-                print(f"Removed stale heap-gotter artifact: {stale}")
             for stale in base.glob("libdd_heap_gotter*"):
                 stale.unlink()
                 print(f"Removed stale heap-gotter artifact: {stale}")
@@ -1923,11 +1918,7 @@ setup(
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
-            + (
-                [f"{NATIVE_HEAP_GOTTER_LIBRARY_BASENAME}*.so", f"{NATIVE_HEAP_GOTTER_LIBRARY_BASENAME}*.dylib"]
-                if BUILD_NATIVE_HEAP_GOTTER
-                else []
-            )
+            + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
             + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
