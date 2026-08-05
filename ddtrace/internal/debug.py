@@ -7,6 +7,7 @@ from typing import Any  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -56,13 +57,8 @@ def collect() -> dict[str, Any]:
     elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
         writer = tracer._span_aggregator.writer
         agent_url = writer.intake_url
-        try:
-            writer.write([])
-            writer.flush_queue(raise_exc=True)
-        except Exception as e:
-            agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
-        else:
-            agent_error = None
+        reachable = agent.is_reachable(agent_url)  # type: ignore[no-untyped-call]
+        agent_error = None if reachable else "Agent not reachable at %s" % agent_url
     else:
         agent_url = "CUSTOM"
         agent_error = None
