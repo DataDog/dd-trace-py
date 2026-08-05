@@ -1,7 +1,6 @@
 from types import ModuleType
-from typing import Any
-from typing import Optional
-from typing import Text
+from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -20,6 +19,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
 
 class UntrustedSerialization(VulnerabilityBase):
@@ -27,7 +27,7 @@ class UntrustedSerialization(VulnerabilityBase):
     secure_mark = VulnerabilityType.UNTRUSTED_SERIALIZATION
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -38,7 +38,7 @@ _IS_PATCHED = False
 # bootstrap. Using a sentinel instead of None means a loader can never accidentally match
 # before the hook fires, without an extra None check in `_is_yaml_safe_load`.
 _UNSET = object()
-_yaml_safe_loader: Any = _UNSET
+_yaml_safe_loader: object = _UNSET
 
 _MODULES: set[tuple[str, str]] = {
     ("pickle", "load"),  # maps to pickle._load/_pickle.load
@@ -90,15 +90,17 @@ def patch() -> None:
         _yaml_safe_loader = getattr(module, "SafeLoader", _UNSET)
 
 
-def _wrap_serializers(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def _wrap_serializers(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     # YAML safe loader handling. If caller uses yaml.load with SafeLoader
     # (either as second positional arg or via Loader kwarg), do not report.
     if not _is_yaml_safe_load(args, kwargs):
-        _iast_report_untrusted_serializastion(kwargs.get("data", args[0] if len(args) > 0 else None))
+        _iast_report_untrusted_serializastion(kwargs.get("data", args[0] if args else None))
     return wrapped(*args, **kwargs)
 
 
-def _is_yaml_safe_load(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
+def _is_yaml_safe_load(args: tuple[object, ...], kwargs: dict[str, object]) -> bool:
     """Return True when a yaml "safe" loader is explicitly provided.
 
     Detects yaml.load(..., SafeLoader) or yaml.load(..., Loader=SafeLoader) patterns.
@@ -112,7 +114,7 @@ def _is_yaml_safe_load(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
     return loader is not None and loader is _yaml_safe_loader
 
 
-def _iast_report_untrusted_serializastion(code_string: Optional[Text]) -> None:
+def _iast_report_untrusted_serializastion(code_string: object) -> None:
     try:
         if is_iast_request_enabled():
             if (
