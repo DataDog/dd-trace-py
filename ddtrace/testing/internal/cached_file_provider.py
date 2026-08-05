@@ -17,6 +17,11 @@ import typing as t
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_HTTP_CACHE_DIR
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_KNOWN_TESTS_FILE
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_SETTINGS_FILE
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
@@ -64,6 +69,10 @@ class TestOptDataProvider(t.Protocol):
     def close(self) -> None: ...
 
 
+def _http_cache_file(filename: str) -> str:
+    return f"{TEST_OPTIMIZATION_HTTP_CACHE_DIR}/{filename}"
+
+
 def _read_cache_json(cache_path: str) -> t.Optional[t.Any]:
     """
     Read and parse a JSON file from the .testoptimization cache directory.
@@ -109,7 +118,7 @@ class CachedFileDataProvider:
         return os.path.join(self._dir, *relative.split("/"))
 
     def get_settings(self) -> Settings:
-        cached = _read_cache_json(self._cache_path("cache/http/settings.json"))
+        cached = _read_cache_json(self._cache_path(_http_cache_file(TEST_OPTIMIZATION_SETTINGS_FILE)))
         if cached is None:
             log.debug("No cached settings file — all features disabled in manifest mode")
             return Settings()
@@ -122,7 +131,7 @@ class CachedFileDataProvider:
         return settings
 
     def get_known_tests(self) -> set[TestRef]:
-        cached = _read_cache_json(self._cache_path("cache/http/known_tests.json"))
+        cached = _read_cache_json(self._cache_path(_http_cache_file(TEST_OPTIMIZATION_KNOWN_TESTS_FILE)))
         if cached is None:
             return set()
         try:
@@ -142,7 +151,7 @@ class CachedFileDataProvider:
     def get_test_management_properties(
         self, statuses: t.Optional[tuple[str, ...]] = None
     ) -> dict[TestRef, TestProperties]:
-        cached = _read_cache_json(self._cache_path("cache/http/test_management.json"))
+        cached = _read_cache_json(self._cache_path(_http_cache_file(TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE)))
         if cached is None:
             return {}
         try:
@@ -176,7 +185,7 @@ class CachedFileDataProvider:
         # applying cached skippable decisions here would skip tests Bazel expects to run.
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
             return set(), None
-        cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
+        cached = _read_cache_json(self._cache_path(_http_cache_file(TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE)))
         if cached is None:
             return set(), None
         try:
@@ -210,7 +219,12 @@ class CachedFileDataProvider:
         coverage_format: str,
         tags: t.Optional[dict[str, str]] = None,
     ) -> bool:
-        return False  # coverage upload is skipped in payload-files mode
+        # AIDEV-NOTE: No-op because manifest mode used to imply Bazel's payload-files mode, where there is no network.
+        # That assumption no longer holds: a process in manifest mode *without* payload-files mode (an xdist worker
+        # reusing its controller's cache) does have a backend and is expected to upload its own report, because the
+        # intake merges the reports of a session. Such processes go through SessionManager.coverage_upload_client
+        # instead. Do not add an upload here — this provider is the offline path and holds no connection.
+        return False
 
     def close(self) -> None:
         pass
