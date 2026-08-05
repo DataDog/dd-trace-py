@@ -35,6 +35,12 @@ try:
         elif isinstance(span, context.Context) and span.span_id is not None:
             local_root_span_id, span_type = context_meta.read_profiler_link(span)
             _stack.link_span(span.span_id, local_root_span_id, span_type)
+        else:
+            _stack.clear_span()
+
+    def unlink_finished_span(span: ddspan.Span) -> None:
+        """Remove physical-thread attribution derived from a finished span."""
+        _stack.unlink_finished_span(span.span_id)
 
     def link_origin_task(task_id: int, task_name: str) -> None:
         """

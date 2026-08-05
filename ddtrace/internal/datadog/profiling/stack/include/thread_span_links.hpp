@@ -1,11 +1,13 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Datadog {
 
@@ -47,13 +49,20 @@ class ThreadSpanLinks
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
     void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
+    std::size_t unlink_finished_span(uint64_t span_id);
     void reset();
 
     static void postfork_child();
 
   private:
+    using ThreadIdSet = std::unordered_set<uint64_t>;
+    using SpanToThreads = std::unordered_map<uint64_t, ThreadIdSet>;
+
+    void remove_thread_locked(uint64_t thread_id);
+
     std::mutex mtx;
     std::unordered_map<uint64_t, std::unique_ptr<Span>> thread_id_to_span;
+    SpanToThreads span_to_threads;
 
     // Private Constructor/Destructor
     ThreadSpanLinks() = default;

@@ -331,6 +331,29 @@ def get_location_from_id(profile: pprof_pb2.Profile, location_id: int) -> StackL
     return StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
 
+def get_samples_with_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
+) -> list[pprof_pb2.Sample]:
+    return [
+        sample
+        for sample in samples
+        if any(
+            get_location_from_id(profile, location_id).function_name == function_name
+            for location_id in sample.location_id
+        )
+    ]
+
+
+def get_str_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[str]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else profile.string_table[label.str]
+
+
+def get_num_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[int]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else label.num
+
+
 def assert_lock_events_of_type(
     profile: pprof_pb2.Profile,
     expected_events: Sequence[LockEvent],
