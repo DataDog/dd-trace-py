@@ -3030,6 +3030,10 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
+            if agent is not None:
+                agent_version = agent.get("version") if isinstance(agent, dict) else None
+                if agent_version:
+                    _annotate_llmobs_span_data(span, tags={AGENT_VERSION_TAG_KEY: agent_version})
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
@@ -3037,10 +3041,6 @@ class LLMObs(Service):
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
                     _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
-            if agent is not None:
-                agent_version = agent.get("version") if isinstance(agent, dict) else None
-                if agent_version:
-                    _annotate_llmobs_span_data(span, tags={AGENT_VERSION_TAG_KEY: agent_version})
             span_kind = get_llmobs_span_kind(span)
             if _name is not None:
                 span.name = _name
