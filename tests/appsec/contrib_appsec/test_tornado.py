@@ -63,18 +63,21 @@ class _Test_Tornado_Base:
     @pytest.fixture
     def interface(self, printer):
         ttc = TornadoTestClient()
-        interface = utils.Interface("tornado", None, ttc.get_http_client())
-        interface.version = TORNADO_VERSION
-
-        interface.client.get = wrap_fetch(interface.client.fetch, ttc, interface)
-        interface.client.post = wrap_fetch(interface.client.fetch, ttc, interface, method="POST")
-        interface.client.options = wrap_fetch(interface.client.fetch, ttc, interface, method="OPTIONS")
-
         with scoped_tracer() as tracer:
             ttc.setUp()
-            interface.tracer = tracer
-            interface.printer = printer
-            yield interface
+            try:
+                interface = utils.Interface("tornado", None, ttc.http_client)
+                interface.version = TORNADO_VERSION
+
+                interface.client.get = wrap_fetch(interface.client.fetch, ttc, interface)
+                interface.client.post = wrap_fetch(interface.client.fetch, ttc, interface, method="POST")
+                interface.client.options = wrap_fetch(interface.client.fetch, ttc, interface, method="OPTIONS")
+
+                interface.tracer = tracer
+                interface.printer = printer
+                yield interface
+            finally:
+                ttc.tearDown()
 
     def status(self, response):
         return response.code
