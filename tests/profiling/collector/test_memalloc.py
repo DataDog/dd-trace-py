@@ -1562,6 +1562,7 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
 
+
 # Subprocess: timeline_enabled is global state that cannot be reset, so this must
 # run in its own process to avoid poisoning other tests.
 @pytest.mark.subprocess(
@@ -1573,6 +1574,7 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
 def test_heap_samples_have_birth_timestamp() -> None:
     """Every heap live sample must carry a per-sample birth timestamp (end_timestamp_ns label)."""
     import os
+
     from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
@@ -1594,6 +1596,7 @@ def test_heap_samples_have_birth_timestamp() -> None:
         assert ts_label is not None, "Heap sample missing 'end_timestamp_ns' label (birth timestamp)"
         assert ts_label.num > 0, f"Birth timestamp should be positive, got {ts_label.num}"
     del live_objects
+
 
 # ---------------------------------------------------------------------------
 # "allocator domain" label tests
