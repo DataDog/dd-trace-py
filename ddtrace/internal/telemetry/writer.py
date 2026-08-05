@@ -226,6 +226,7 @@ class TelemetryWriter:
         # symbol has not been built yet.
         from ddtrace.internal.native import TelemetryWorker
         from ddtrace.internal.native_runtime import get_native_runtime
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
         application = get_application(config.SERVICE, config.VERSION, config.ENV)
         host = get_host_info()
@@ -275,6 +276,7 @@ class TelemetryWriter:
             # Only the root process emits app-started/app-closing; forked children
             # heartbeat with their own session id but must not re-emit them.
             emit_app_lifecycle=get_parent_runtime_id() is None,
+            endpoints_message_limit=appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT,
             test_session_token=self._test_session_token,
             # Single-step-instrumentation install metadata
             install_id=config.INSTALL_ID,

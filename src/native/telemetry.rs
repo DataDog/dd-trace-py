@@ -121,6 +121,7 @@ impl TelemetryWorkerPy {
         extended_heartbeat_interval_secs,
         debug_enabled,
         emit_app_lifecycle = true,
+        endpoints_message_limit = 300,
         test_session_token = None,
         install_id = None,
         install_type = None,
@@ -155,6 +156,7 @@ impl TelemetryWorkerPy {
         extended_heartbeat_interval_secs: f64,
         debug_enabled: bool,
         emit_app_lifecycle: bool,
+        endpoints_message_limit: u32,
         test_session_token: Option<String>,
         install_id: Option<String>,
         install_type: Option<String>,
@@ -201,6 +203,7 @@ impl TelemetryWorkerPy {
         config.root_session_id = root_session_id;
         // Forked children pass false so they heartbeat without re-emitting app-started/closing
         config.emit_app_lifecycle = emit_app_lifecycle;
+        config.endpoints_message_limit = endpoints_message_limit;
 
         config.direct_submission_enabled = api_key.is_some();
         config

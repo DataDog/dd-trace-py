@@ -266,6 +266,7 @@ class TelemetryWorker:
         extended_heartbeat_interval_secs: float,
         debug_enabled: bool,
         emit_app_lifecycle: bool = ...,
+        endpoints_message_limit: int = ...,
         test_session_token: Optional[str] = ...,
         install_id: Optional[str] = ...,
         install_type: Optional[str] = ...,
@@ -282,6 +283,9 @@ class TelemetryWorker:
         :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
             schedules heartbeats/flushes but emits neither ``app-started`` nor
             ``app-closing`` — only the root process emits them. Defaults to ``True``.
+        :param endpoints_message_limit: most endpoints serialized into one
+            ``app-endpoints`` payload; the rest stay queued for the following payloads,
+            which are flagged ``is_first: false``. Defaults to unlimited.
         :raises ValueError: on an invalid endpoint or if the worker cannot be spawned.
         """
         ...
