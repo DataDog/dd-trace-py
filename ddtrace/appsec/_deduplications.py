@@ -1,23 +1,27 @@
 from collections import OrderedDict
 from time import monotonic
-from typing import Any
 from typing import Callable
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
 
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 M_INF = float("-inf")
+F = TypeVar("F", bound=Callable[..., None])
+R = TypeVar("R")
 
 
-class deduplication:
-    _time_lapse = 3600  # 1 hour
-    _max_cache_size = 256
+class deduplication(Generic[R]):
+    _time_lapse: float = 3600  # 1 hour
+    _max_cache_size: int = 256
 
-    def __init__(self, func: Callable[..., Any]) -> None:
+    def __init__(self, func: Callable[..., R]) -> None:
         self.func = func
         self.reported_logs: OrderedDict[int, float] = OrderedDict()
 
-    def _extract(self, args: tuple[Any, ...]) -> tuple[Any, ...]:
+    def _extract(self, args: tuple[object, ...]) -> tuple[object, ...]:
         return args
 
     def get_last_time_reported(self, raw_log_hash: int) -> float:
@@ -33,8 +37,7 @@ class deduplication:
     def _check_deduplication(self) -> bool:
         return asm_config._asm_deduplication_enabled
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        result = False
+    def __call__(self, *args: object, **kwargs: object) -> Optional[R]:
         if self._check_deduplication():
             raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))
             last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF) + self._time_lapse
@@ -44,7 +47,10 @@ class deduplication:
                 self.reported_logs.move_to_end(raw_log_hash)
                 if len(self.reported_logs) >= self._max_cache_size:
                     self.reported_logs.popitem(last=False)
-                result = self.func(*args, **kwargs)
-        else:
-            result = self.func(*args, **kwargs)
-        return result
+                return self.func(*args, **kwargs)
+            return None
+        return self.func(*args, **kwargs)
+
+
+def deduplicate(func: F) -> F:
+    return deduplication(func)  # type: ignore[return-value]

@@ -1,4 +1,6 @@
+from typing import Callable
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
@@ -28,18 +30,24 @@ from ..reporter import Vulnerability
 log = get_logger(__name__)
 
 TEXT_TYPES = Union[str, bytes, bytearray]
+F = TypeVar("F", bound=Callable[..., Optional[bool]])
+R = TypeVar("R")
 
 
-class taint_sink_deduplication(deduplication):
-    def _check_deduplication(self):
-        return asm_config._iast_deduplication_enabled
+class _TaintSinkDeduplication(deduplication[R]):
+    def _check_deduplication(self) -> bool:
+        return asm_config._iast_deduplication_enabled  # type: ignore[no-any-return]
 
-    def _extract(self, args):
+    def _extract(self, args: tuple[object, ...]) -> tuple[object, ...]:
         # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
         return args[2:]
 
 
-def _check_positions_contained(needle, container):
+def taint_sink_deduplication(func: F) -> F:
+    return _TaintSinkDeduplication(func)  # type: ignore[return-value]
+
+
+def _check_positions_contained(needle: tuple[int, int], container: tuple[int, int]) -> bool:
     needle_start, needle_end = needle
     container_start, container_end = container
 
@@ -70,12 +78,12 @@ class VulnerabilityBase:
         vulnerability_type: str,
         evidence: Evidence,
         file_name: Optional[str],
-        line_number: int,
+        line_number: Optional[int],
         function_name: Optional[str] = None,
         class_name: Optional[str] = None,
-        *args,
-        **kwargs,
-    ) -> bool:
+        *args: object,
+        **kwargs: object,
+    ) -> Optional[bool]:
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 
@@ -117,9 +125,9 @@ class VulnerabilityBase:
         line_number: Optional[int] = None,
         function_name: Optional[str] = None,
         class_name: Optional[str] = None,
-        *args,
-        **kwargs,
-    ):
+        *args: object,
+        **kwargs: object,
+    ) -> Optional[bool]:
         if isinstance(evidence_value, IAST.TEXT_TYPES):
             if isinstance(evidence_value, (bytes, bytearray)):
                 evidence_value = evidence_value.decode("utf-8", "ignore")
@@ -144,13 +152,13 @@ class VulnerabilityBase:
                     rollback_quota(cls.vulnerability_type)
                     return result
             # Evidence is a string in weak cipher, weak hash and weak randomness
-            result = cls._create_evidence_and_report(
+            report_created = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
             )
-            # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
-            # we need to restore the quota
-            if not result:
+            # Deduplication returns None when it suppresses a duplicate, so restore the unused quota.
+            if not report_created:
                 rollback_quota(cls.vulnerability_type)
+            result = bool(report_created)
         return result
 
     @classmethod

@@ -6,7 +6,7 @@ from typing import Union
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._deduplications import deduplicate
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -46,7 +46,7 @@ def metric_verbosity(lvl: int) -> Callable[[Callable[..., R]], Callable[..., Opt
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
-@deduplication
+@deduplicate
 def _set_iast_error_metric(msg: str, exc: Union[BaseException, tuple[object, ...], None] = None) -> None:
     """This was originally implemented to analyze which services were triggering this issue, and we used that insight
     to refactor how IAST creates and destroys context. However, after that refactor, this information no longer
