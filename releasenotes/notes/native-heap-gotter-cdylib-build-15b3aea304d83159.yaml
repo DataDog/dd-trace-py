@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: Adds an opt-in build of the native heap-gotter shared library when
+    ``DD_PROFILING_NATIVE_HEAP_BUILD`` is set to ``true``. Default wheels are unchanged.
