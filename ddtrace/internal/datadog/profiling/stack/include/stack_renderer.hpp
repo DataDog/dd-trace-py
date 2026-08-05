@@ -63,8 +63,6 @@ struct ThreadState
     int64_t now_time_ns = 0;
 };
 
-using LogicalSpanContext = std::optional<std::optional<Span>>;
-
 class StackRenderer
 {
     struct SampleDropper
@@ -104,7 +102,7 @@ class StackRenderer
                            bool on_cpu,
                            uint64_t task_id,
                            std::optional<int64_t> walltime_ns_override = std::nullopt,
-                           LogicalSpanContext logical_span_context = std::nullopt);
+                           const LogicalSpanContext& logical_span_context = {});
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
