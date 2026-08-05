@@ -6,5 +6,4 @@ features:
     ``@agent(version="v3")`` decorator, and the version is set as an ``agent_version`` tag on the agent
     span and inherited by every span created under it, including spans created in a downstream service.
     Alternatively, use ``LLMObs.annotation_context(agent={"version": "v3"})`` to version spans created
-    by an auto-instrumented agent framework. A nested agent span with its own version overrides the
-    inherited one for its own subtree.
+    by an auto-instrumented agent framework.
