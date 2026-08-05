@@ -223,6 +223,75 @@ stack_clear_span(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static bool
+parse_logical_span_domain(unsigned int value, SpanLinkDomain& domain)
+{
+    switch (value) {
+        case static_cast<unsigned int>(SpanLinkDomain::AsyncioTask):
+            domain = SpanLinkDomain::AsyncioTask;
+            return true;
+        case static_cast<unsigned int>(SpanLinkDomain::GeventGreenlet):
+            domain = SpanLinkDomain::GeventGreenlet;
+            return true;
+        default:
+            PyErr_SetString(PyExc_ValueError, "invalid logical span domain");
+            return false;
+    }
+}
+
+static PyObject*
+stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    unsigned int domain_value;
+    uint64_t logical_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    static const char* const_kwlist[] = {
+        "domain", "logical_id", "span_id", "local_root_span_id", "span_type", nullptr
+    };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "IKKKz", kwlist, &domain_value, &logical_id, &span_id, &local_root_span_id, &span_type)) {
+        return nullptr;
+    }
+
+    SpanLinkDomain domain = SpanLinkDomain::AsyncioTask;
+    if (!parse_logical_span_domain(domain_value, domain)) {
+        return nullptr;
+    }
+
+    ThreadSpanLinks::get_instance().link_logical_span(
+      domain, logical_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_logical_span = cast_to_pycfunction(stack_link_logical_span_impl);
+
+static PyObject*
+stack_clear_logical_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    unsigned int domain_value;
+    uint64_t logical_id;
+
+    if (!PyArg_ParseTuple(args, "IK", &domain_value, &logical_id)) {
+        return nullptr;
+    }
+
+    SpanLinkDomain domain = SpanLinkDomain::AsyncioTask;
+    if (!parse_logical_span_domain(domain_value, domain)) {
+        return nullptr;
+    }
+    ThreadSpanLinks::get_instance().unlink_logical_span(domain, logical_id);
+
+    Py_RETURN_NONE;
+}
+
 static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
@@ -240,6 +309,15 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         Py_END_ALLOW_THREADS;
     }
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reset_span_links(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+    ThreadSpanLinks::get_instance().reset();
     Py_RETURN_NONE;
 }
 
@@ -1053,10 +1131,16 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "link_logical_span",
+      reinterpret_cast<PyCFunction>(stack_link_logical_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to an asyncio task or greenlet" },
+    { "clear_logical_span", stack_clear_logical_span, METH_VARARGS, "Clear a logical span" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,
-      "Clear every physical-thread link derived from a finished span" },
+      "Clear every current target derived from a finished span" },
+    { "reset_span_links", stack_reset_span_links, METH_NOARGS, "Clear all span links" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -1159,6 +1243,15 @@ PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
     m = PyModule_Create(&moduledef);
     if (!m)
         return nullptr;
+
+    if (PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_THREAD", static_cast<int>(SpanLinkDomain::Thread)) < 0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_ASYNCIO_TASK", static_cast<int>(SpanLinkDomain::AsyncioTask)) <
+          0 ||
+        PyModule_AddIntConstant(
+          m, "SPAN_LINK_DOMAIN_GEVENT_GREENLET", static_cast<int>(SpanLinkDomain::GeventGreenlet)) < 0) {
+        Py_DECREF(m);
+        return nullptr;
+    }
 
     return m;
 }

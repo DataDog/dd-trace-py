@@ -9,6 +9,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
@@ -95,10 +96,13 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", stack._unlink_finished_span)
+                stack.enable_span_linking()
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
                 raise
+            # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
+            forksafe.register(self._child_after_fork)
 
     def _link_span(
         self,
@@ -107,6 +111,13 @@ class StackCollector(collector.Collector):
     ) -> None:
         if self.tracer is not None and provider is self.tracer.context_provider:
             stack.link_span(span)
+
+    def _child_after_fork(self) -> None:
+        stack._reset_span_link_state()
+        if self.tracer is not None:
+            active = self.tracer.context_provider.active()
+            if active is not None:
+                stack.link_span(active)
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -123,8 +134,10 @@ class StackCollector(collector.Collector):
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
+            forksafe.unregister(self._child_after_fork)
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
+        stack.disable_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

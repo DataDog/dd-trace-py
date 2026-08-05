@@ -7,6 +7,7 @@
 #include <string_view>
 
 #include "python_headers.hpp"
+#include "thread_span_links.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
 
@@ -62,6 +63,8 @@ struct ThreadState
     int64_t now_time_ns = 0;
 };
 
+using LogicalSpanContext = std::optional<std::optional<Span>>;
+
 class StackRenderer
 {
     struct SampleDropper
@@ -73,6 +76,13 @@ class StackRenderer
 
     SampleHandle sample;
     ThreadState thread_state = {};
+    std::optional<Span> thread_span_context;
+    bool span_context_rendered = false;
+
+    // Render attribution captured for the physical thread being sampled.
+    void render_thread_span_context();
+    // Render attribution captured for a logical stack. An empty span suppresses physical-thread fallback.
+    void render_logical_span_context(const std::optional<Span>& active_span);
 
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
@@ -88,10 +98,13 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
+    // An empty outer optional preserves physical-thread attribution. An engaged outer optional identifies a logical
+    // stack, while its inner optional contains that stack's span attribution when available.
     void render_task_begin(std::string_view task_name,
                            bool on_cpu,
                            uint64_t task_id,
-                           std::optional<int64_t> walltime_ns_override = std::nullopt);
+                           std::optional<int64_t> walltime_ns_override = std::nullopt,
+                           LogicalSpanContext logical_span_context = std::nullopt);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
