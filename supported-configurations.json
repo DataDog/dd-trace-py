@@ -201,6 +201,13 @@
         "default": "true"
       }
     ],
+    "DD_AI_GUARD_REDACTION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_TIMEOUT": [
       {
         "implementation": "A",
@@ -5764,6 +5771,14 @@
         "implementation": "A",
         "type": "int",
         "default": "2",
+        "internal": true
+      }
+    ],
+    "_DD_COVERAGE_ACCURATE_IMPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

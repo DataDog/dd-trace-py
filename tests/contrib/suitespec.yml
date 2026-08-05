@@ -347,6 +347,7 @@ suites:
       - '@appsec'
       - '@asgi'
       - tests/contrib/asgi/*
+      - tests/snapshots/tests.{suite}.*
     pattern: asgi$
     snapshot: true
   asyncpg:

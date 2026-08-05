@@ -24,6 +24,60 @@ import sys
 import pytest
 
 
+@pytest.mark.subprocess(
+    parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"], "PACKAGES_DIRNAME": ["site-packages", "dist-packages"]}
+)
+def test_site_or_dist_packages_paths_are_not_instrumented():
+    import importlib
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+    import uuid
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    module_suffix = uuid.uuid4().hex
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace_path = Path(tmpdir)
+        packages_dirname = os.environ["PACKAGES_DIRNAME"]
+        app_module_name = f"app_module_{module_suffix}"
+        vendor_module_name = f"vendor_module_{module_suffix}"
+        app_module_path = workspace_path / f"{app_module_name}.py"
+        packages_path = workspace_path / "nested" / packages_dirname
+        vendor_module_path = packages_path / f"{vendor_module_name}.py"
+
+        app_module_path.write_text("value = 1\n")
+        packages_path.mkdir(parents=True)
+        vendor_module_path.write_text("value = 1\n")
+
+        sys.path.insert(0, str(packages_path))
+        sys.path.insert(0, str(workspace_path))
+        try:
+            install(include_paths=[workspace_path], collect_import_time_coverage=True)
+
+            ModuleCodeCollector.start_coverage()
+            importlib.import_module(app_module_name)
+            importlib.import_module(vendor_module_name)
+            ModuleCodeCollector.stop_coverage()
+        finally:
+            sys.path.remove(str(workspace_path))
+            sys.path.remove(str(packages_path))
+
+        app_module_path_str = os.fspath(app_module_path)
+        vendor_module_path_str = os.fspath(vendor_module_path)
+        collector = ModuleCodeCollector._instance
+        assert collector is not None
+
+        assert app_module_path_str in collector.lines
+        assert app_module_path_str in collector._get_covered_lines(include_imported=True)
+        assert vendor_module_path_str not in collector.lines
+        assert vendor_module_path_str not in collector._get_covered_lines(include_imported=True)
+        assert vendor_module_path_str not in collector._import_time_name_to_path.values()
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_direct_import_dependency():
@@ -302,6 +356,68 @@ def test_no_false_dependencies():
     )
     assert "tests/coverage/included_path/nested_import_time_lib.py" in covered_with_imports, (
         "Should track transitive import dependency"
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"], "_DD_COVERAGE_ACCURATE_IMPORTS": ["1"]})
+def test_file_level_false_guarded_import_not_tracked():
+    """Runtime-false import statements should not create file-level dependency edges."""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Pre-import the false-guarded target after installing coverage so static import tracking could resolve it
+    # if the guarded import were recorded at PY_START.
+    from tests.coverage.included_path import imported_in_function_lib  # noqa:F401
+    from tests.coverage.included_path.false_guarded_import import called_after_import
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        called_after_import()
+        covered_with_imports = _get_relpath_dict(cwd_path, context.get_covered_lines())
+
+    assert "tests/coverage/included_path/import_time_lib.py" in covered_with_imports, (
+        "Should track actual import dependency"
+    )
+    assert "tests/coverage/included_path/imported_in_function_lib.py" not in covered_with_imports, (
+        "Should not track dependency from a runtime-false guarded import"
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"], "_DD_COVERAGE_ACCURATE_IMPORTS": [None]})
+def test_file_level_accurate_imports_disabled_by_default():
+    """The accurate import hook is disabled by default to keep conservative static import dependencies."""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Pre-import the false-guarded target after installing coverage so static import tracking can resolve it.
+    from tests.coverage.included_path import imported_in_function_lib  # noqa:F401
+    from tests.coverage.included_path.false_guarded_import import called_after_import
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        called_after_import()
+        covered_with_imports = _get_relpath_dict(cwd_path, context.get_covered_lines())
+
+    assert "tests/coverage/included_path/imported_in_function_lib.py" in covered_with_imports, (
+        "Disabled accurate import tracking should keep conservative static import dependencies"
     )
 
 

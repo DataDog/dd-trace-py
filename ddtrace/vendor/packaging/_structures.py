@@ -1,11 +1,12 @@
 # This file is dual licensed under the terms of the Apache License, Version
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 
-class Infinity(object):
-
+class InfinityClass(object):
     def __repr__(self):
         return "Infinity"
 
@@ -34,11 +35,10 @@ class Infinity(object):
         return NegativeInfinity
 
 
-Infinity = Infinity()
+Infinity = InfinityClass()
 
 
-class NegativeInfinity(object):
-
+class NegativeInfinityClass(object):
     def __repr__(self):
         return "-Infinity"
 
@@ -67,4 +67,4 @@ class NegativeInfinity(object):
         return Infinity
 
 
-NegativeInfinity = NegativeInfinity()
+NegativeInfinity = NegativeInfinityClass()
