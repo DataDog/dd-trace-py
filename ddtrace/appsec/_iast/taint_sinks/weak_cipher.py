@@ -1,6 +1,7 @@
-from typing import Any
 from typing import Callable
-from typing import Text
+from typing import Optional
+from typing import Protocol
+from typing import TypeVar
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -23,10 +24,28 @@ from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
+R = TypeVar("R")
 
 
-def get_weak_cipher_algorithms() -> set:
-    CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
+class _WeakCipherInstance(Protocol):
+    _dd_weakcipher_algorithm: str
+
+
+CipherR = TypeVar("CipherR", bound=_WeakCipherInstance)
+
+
+class _CryptographyAlgorithm(Protocol):
+    @property
+    def name(self) -> str: ...
+
+
+class _CryptographyCipher(Protocol):
+    @property
+    def algorithm(self) -> _CryptographyAlgorithm: ...
+
+
+def get_weak_cipher_algorithms() -> set[str]:
+    CONFIGURED_WEAK_CIPHER_ALGORITHMS: Optional[set[str]] = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = env.get("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
         CONFIGURED_WEAK_CIPHER_ALGORITHMS = set(
@@ -39,14 +58,14 @@ class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -96,34 +115,45 @@ def patch():
     _set_metric_iast_instrumented_sink(VULN_WEAK_CIPHER_TYPE, num_instrumented_sinks)
 
 
-def wrapped_aux_rc2_function(wrapped, instance, args, kwargs):
+def wrapped_aux_rc2_function(
+    wrapped: Callable[..., CipherR], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> CipherR:
     if hasattr(wrapped, "__func__"):
-        result = wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., CipherR] = wrapped.__func__
+        result = wrapped_function(instance, *args, **kwargs)
     else:
         result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "RC2"
     return result
 
 
-def wrapped_aux_des_function(wrapped, instance, args, kwargs):
+def wrapped_aux_des_function(
+    wrapped: Callable[..., CipherR], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> CipherR:
     if hasattr(wrapped, "__func__"):
-        result = wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., CipherR] = wrapped.__func__
+        result = wrapped_function(instance, *args, **kwargs)
     else:
         result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "DES"
     return result
 
 
-def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
+def wrapped_aux_blowfish_function(
+    wrapped: Callable[..., CipherR], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> CipherR:
     if hasattr(wrapped, "__func__"):
-        result = wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., CipherR] = wrapped.__func__
+        result = wrapped_function(instance, *args, **kwargs)
     else:
         result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "Blowfish"
     return result
 
 
-def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_rc4_function(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     try:
         if is_iast_request_enabled():
             if WeakCipher.has_quota():
@@ -137,16 +167,20 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
     except Exception as e:
         iast_error("propagation::sink_point::Error in weak_cipher.wrapped_rc4_function", exc=e)
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        return wrapped_function(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
-def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_function(
+    wrapped: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     try:
         if is_iast_request_enabled():
             if hasattr(instance, "_dd_weakcipher_algorithm"):
+                weak_cipher: _WeakCipherInstance = instance
                 if WeakCipher.has_quota():
-                    evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
+                    evidence = weak_cipher._dd_weakcipher_algorithm + "_" + instance.__class__.__name__
                     WeakCipher.report(evidence_value=evidence)
 
                 # Reports Span Metrics
@@ -156,11 +190,17 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
     except Exception as e:
         iast_error("propagation::sink_point::Error in weak_cipher.wrapped_function", exc=e)
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        return wrapped_function(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
-def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_cryptography_function(
+    wrapped: Callable[..., R],
+    instance: _CryptographyCipher,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> R:
     try:
         if is_iast_request_enabled():
             algorithm_name = instance.algorithm.name.lower()
@@ -177,5 +217,6 @@ def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, k
     except Exception as e:
         iast_error("propagation::sink_point::Error in weak_cipher.wrapped_cryptography_function", exc=e)
     if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+        wrapped_function: Callable[..., R] = wrapped.__func__
+        return wrapped_function(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
