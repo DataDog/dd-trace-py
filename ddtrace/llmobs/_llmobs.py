@@ -2518,9 +2518,6 @@ class LLMObs(Service):
             initial_tags[git.COMMIT_SHA] = self._git_commit_sha
         if session_id:
             initial_tags["session_id"] = session_id
-        # Inherit the nearest agent ancestor's version so every span under a versioned agent span
-        # carries it. An explicit version on this span (LLMObs.agent(version=...)) or an
-        # annotation_context both run after activation, so they override this.
         inherited_agent_version = _resolve_inherited_agent_version(llmobs_parent)
         if inherited_agent_version:
             initial_tags[AGENT_VERSION_TAG_KEY] = inherited_agent_version
@@ -2591,8 +2588,6 @@ class LLMObs(Service):
             model_provider=model_provider,
             session_id=session_id,
             ml_app=agent_service,
-            # Written after activation, so it overrides any version inherited from the parent.
-            # Child spans read it off this span's tags when they activate.
             tags={AGENT_VERSION_TAG_KEY: agent_version} if agent_version else None,
         )
         if _decorator:
@@ -3043,8 +3038,6 @@ class LLMObs(Service):
                 if validated_tool_definitions:
                     _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
             if agent is not None:
-                # Deliberately unvalidated: a malformed agent degrades to a missing tag rather than
-                # failing the annotation. Written after `tags` so an explicit agent wins a conflict.
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
                     _annotate_llmobs_span_data(span, tags={AGENT_VERSION_TAG_KEY: agent_version})

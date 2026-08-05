@@ -459,10 +459,9 @@ def _resolve_inherited_agent_version(active) -> Optional[str]:
     """Resolve the agent version a newly activated span inherits from its LLMObs parent.
 
     Unlike _resolve_parent_agent, which resolves a pointer to another span and so never points at
-    self, the version is a scope label: an agent span carries its own version and every descendant
+    self, an agent span carries its own version and every descendant
     carries a copy. So both Span branches read the same `agent_version` tag off the parent, whether
-    the parent set the version itself or inherited it. That makes one level of lookup enough to
-    walk the whole chain.
+    the parent set the version itself or inherited it.
 
       - a Span: its `agent_version` tag, if any.
       - a Context (distributed or cross-task parent): the propagated _dd.p.* key.
@@ -528,19 +527,13 @@ def _stamp_agent_propagation_tags(
 
     Two asymmetries between the version and the name are deliberate:
 
-      - The version is never truncated. A partial name is still useful for display, but a
-        truncated version string names a DIFFERENT agent revision, so it is dropped instead.
-      - The version is written even when there is no agent_span_id. annotation_context can set a
-        version on spans that have no agent ancestor, and integration-created agent spans do not
-        resolve attribution at all today, so anchoring the version to the id would silently
-        suppress it in exactly the cases it is needed.
+      - The version is never truncated
+      - The version is written even when there is no agent_span_id since annotation_context can set a
+        version on spans that have no agent ancestor.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
     """
-    id_written = agent_span_id is not None and _try_add_propagation_tag(
-        meta, PROPAGATED_PARENT_AGENT_ID_KEY, agent_span_id
-    )
-    if agent_span_id is not None and not id_written:
+    if agent_span_id is not None and not _try_add_propagation_tag(meta, PROPAGATED_PARENT_AGENT_ID_KEY, agent_span_id):
         log.debug(
             "LLMObs: agent attribution dropped — x-datadog-tags budget exhausted. agent_span_id=%r",
             agent_span_id,
@@ -552,8 +545,7 @@ def _stamp_agent_propagation_tags(
             agent_version,
         )
 
-    # The name only means anything alongside the id it names, so skip it if the id was dropped.
-    if agent_name is None or not id_written:
+    if agent_name is None:
         return
     if _try_add_propagation_tag(meta, PROPAGATED_PARENT_AGENT_NAME_KEY, agent_name):
         return
@@ -567,7 +559,7 @@ def _stamp_agent_propagation_tags(
     name_entry_overhead = 1 + len(PROPAGATED_PARENT_AGENT_NAME_KEY) + 1
     available_for_value = _AGENT_ATTRIBUTION_TAGSET_BUDGET - len(encoded) - name_entry_overhead
     if available_for_value > 0:
-        # A truncated name that is still unsafe (e.g. contains a comma) is rolled back by _try_add.
+        # A truncated name that is still unsafe (e.g. contains a comma) is rolled back by _try_add_propagation_tag.
         _try_add_propagation_tag(meta, PROPAGATED_PARENT_AGENT_NAME_KEY, agent_name[:available_for_value])
 
 

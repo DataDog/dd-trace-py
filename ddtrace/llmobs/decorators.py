@@ -207,8 +207,6 @@ def _llmobs_decorator(operation_kind):
         version: Optional[str] = None,
         _automatic_io_annotation: bool = True,
     ):
-        # Only agent spans carry a version; the other operation kinds inherit one from their
-        # nearest agent ancestor rather than declaring their own.
         if version is not None and operation_kind != "agent":
             log.warning(
                 "The `version` argument is only supported on @agent, ignoring it for @%s. "
