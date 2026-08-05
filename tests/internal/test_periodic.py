@@ -51,6 +51,48 @@ def test_periodic_double_start():
     t.join()
 
 
+@pytest.mark.subprocess(timeout=10)
+def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
+    """Thread and context-local destructors may re-enter PyGILState during worker teardown."""
+    import contextvars
+    import ctypes
+    import threading
+
+    from ddtrace.internal._threads import PERIODIC_STOP
+    from ddtrace.internal._threads import PeriodicThread
+
+    ensure = ctypes.pythonapi.PyGILState_Ensure
+    ensure.argtypes = []
+    ensure.restype = ctypes.c_int
+    release = ctypes.pythonapi.PyGILState_Release
+    release.argtypes = [ctypes.c_int]
+    release.restype = None
+
+    local = threading.local()
+    context_value = contextvars.ContextVar("context_value")
+    finalized = []
+
+    class ReenterPyGILState:
+        def __init__(self, kind):
+            self.kind = kind
+
+        def __del__(self):
+            finalized.append(self.kind)
+            state = ensure()
+            release(state)
+
+    def target():
+        local.value = ReenterPyGILState("thread-local")
+        context_value.set(ReenterPyGILState("context-local"))
+        return PERIODIC_STOP
+
+    thread = PeriodicThread(0.001, target, name="SignalUploader", no_wait_at_start=True)
+    thread.start()
+    thread.join()
+
+    assert sorted(finalized) == ["context-local", "thread-local"]
+
+
 def test_periodic_join_positional_timeout_is_honored():
     """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
 
