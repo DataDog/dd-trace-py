@@ -7,9 +7,12 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "thread_span_links.hpp"
 
 #include <echion/config.h>
 #include <echion/frame.h>
@@ -68,6 +71,7 @@ class StackInfo
     // correlate stack and lock samples on the timeline.
     uint64_t task_id;
     bool on_cpu;
+    std::optional<Datadog::Span> span_context;
     FrameStack stack;
 
     StackInfo(TaskName task_name, bool on_cpu, uint64_t task_id)
