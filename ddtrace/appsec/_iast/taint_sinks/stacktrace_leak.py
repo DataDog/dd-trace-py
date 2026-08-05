@@ -1,5 +1,6 @@
 import os
 import re
+from typing import Optional
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -19,7 +20,7 @@ class StacktraceLeak(VulnerabilityBase):
     skip_location = True
 
 
-def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
+def asm_report_stacktrace_leak_from_django_debug_page(exc_name: str, module: str) -> None:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
     _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
     evidence = "Module: %s\nException: %s" % (module, exc_name)
@@ -30,22 +31,22 @@ def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
 # `werkzeug.DebugTraceback.render_debugger_html` runs outside of `iast_request_context`. Because of this, when
 # this function is called, we store the result to report it in the next request when there's context and the
 # span hasn't been sent yet.
-REPORT_STACKTRACE_LATER = None
+REPORT_STACKTRACE_LATER: Optional[str] = None
 
 
-def check_and_report_stacktrace_leak():
+def check_and_report_stacktrace_leak() -> None:
     report = get_report_stacktrace_later()
     if report:
         StacktraceLeak.report(evidence_value=report)
         set_report_stacktrace_later(None)
 
 
-def set_report_stacktrace_later(evidence):
+def set_report_stacktrace_later(evidence: Optional[str]) -> None:
     global REPORT_STACKTRACE_LATER
     REPORT_STACKTRACE_LATER = evidence
 
 
-def get_report_stacktrace_later():
+def get_report_stacktrace_later() -> Optional[str]:
     return REPORT_STACKTRACE_LATER
 
 
