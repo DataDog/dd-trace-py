@@ -125,6 +125,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         # message_id arrives, or a UserMessage/ResultMessage ends the turn.
         self._pending_chunks: list[Any] = []
         self._pending_message_id: Optional[str] = None
+        # The streaming turn id captured when the pending turn started buffering. Used to join
+        # partial usage back to the turn on SDKs where AssistantMessage has no message_id.
+        self._pending_partial_id: Optional[str] = None
         self._is_finalized = False
         # Refs are (span_id, trace_id) snapshots and are used to chain together
         # step spans as well as llm → tool → llm spans.
@@ -389,7 +392,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         chunks that share a message_id and each repeat the same usage. Buffering and
         merging same-id chunks (flushed on message_id change / UserMessage /
         ResultMessage) keeps token counts from being double-counted. When message_id
-        is absent (older SDKs) every chunk is its own turn.
+        is absent (older SDKs) each chunk is still buffered and flushed on the next
+        turn boundary so a message_delta that trails the AssistantMessage is captured
+        before the span is finalized.
         """
         incoming_id = getattr(chunk, "message_id", None)
 
@@ -405,11 +410,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._create_step_span()
         self._pending_chunks = [chunk]
         self._pending_message_id = incoming_id
+        # Stamp the turn currently streaming so the usage can be joined back to it even when
+        # the SDK gives the AssistantMessage no message_id.
+        self._pending_partial_id = self._partial_current_id
         self._open_tool_spans(content)
-
-        # Without a message_id, there is no need to buffer the turn.
-        if incoming_id is None:
-            self._flush_pending_turn()
 
     def _open_tool_spans(self, content: Any) -> None:
         """Open a tool span for each ToolUseBlock in a chunk's content."""
@@ -424,8 +428,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if not self._pending_chunks:
             return
         chunks = self._pending_chunks
+        pending_partial_id = self._pending_partial_id
         self._pending_chunks = []
         self._pending_message_id = None
+        self._pending_partial_id = None
 
         if self.current_step_span is None:
             self._create_step_span()
@@ -437,7 +443,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
         response = self._merge_assistant_chunks(chunks)
-        response = self._apply_partial_usage(response, getattr(chunks[0], "message_id", None))
+        # Older SDKs (< 0.1.49) don't put a message_id on AssistantMessage, so fall back to the
+        # streaming turn id stamped when buffering began, which is how the usage was keyed.
+        turn_id = getattr(chunks[0], "message_id", None) or pending_partial_id
+        response = self._apply_partial_usage(response, turn_id)
 
         self._finalize_llm_span(response)
 

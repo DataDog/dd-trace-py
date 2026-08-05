@@ -334,8 +334,11 @@ MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE = [
             },
         }
     ),
-    create_mock_assistant_message("The answer is 4.", usage=None, message_id=MOCK_PARTIAL_NO_USAGE_MESSAGE_ID),
+    # message_delta (true output) streams before the SDK emits the assembled AssistantMessage.
     create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    # Old SDKs (< 0.1.49) omit message_id on AssistantMessage entirely, so the usage can only
+    # be joined back to the turn via the streaming message_start id.
+    create_mock_assistant_message("The answer is 4.", usage=None, message_id=None),
     create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
 ]
 
