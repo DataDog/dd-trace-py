@@ -304,6 +304,34 @@ def get_label_with_key(string_table: Sequence[str], sample: pprof_pb2.Sample, ke
     return next((label for label in sample.label if string_table[label.key] == key), None)
 
 
+def get_label_str_values(profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str) -> list[str]:
+    """Return the string value for each sample's label with the given key, or "" when absent."""
+    values: list[str] = []
+    for sample in samples:
+        label = get_label_with_key(profile.string_table, sample, key)
+        values.append(profile.string_table[label.str] if label is not None else "")
+    return values
+
+
+def _sample_has_function_name(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_name: str) -> bool:
+    for location_id in sample.location_id:
+        location = get_location_with_id(profile, location_id)
+        if not location.line:
+            continue
+        fn = get_function_with_id(profile, location.line[0].function_id)
+        if profile.string_table[fn.name] == function_name:
+            return True
+    return False
+
+
+def get_label_str_values_for_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str, function_name: str
+) -> list[str]:
+    """Like get_label_str_values, restricted to samples whose stack contains function_name."""
+    matching = [sample for sample in samples if _sample_has_function_name(profile, sample, function_name)]
+    return get_label_str_values(profile, matching, key)
+
+
 def get_location_with_id(profile: pprof_pb2.Profile, location_id: int) -> pprof_pb2.Location:
     return next(location for location in profile.location if location.id == location_id)
 
