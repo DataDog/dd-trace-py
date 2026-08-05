@@ -37,7 +37,7 @@ include:
         exit 1
       fi
       dd_trace_py_itr_supports_python_version() {
-        [[ "$1" =~ ^3\.([0-9]+)$ ]] && [[ "${BASH_REMATCH[1]}" -ge 12 ]]
+        [[ " ${DD_TRACE_PY_ITR_PYTHON_VERSIONS:-} " == *" $1 "* ]]
       }
       for hash in "${hashes[@]}"
       do
@@ -74,6 +74,7 @@ include:
           echo "  CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH:-}"
           echo "  DD_TRACE_PY_ENABLE_ITR_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-}"
           echo "  DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-}"
+          echo "  DD_TRACE_PY_ITR_PYTHON_VERSIONS=${DD_TRACE_PY_ITR_PYTHON_VERSIONS:-}"
           echo "  DD_CIVISIBILITY_ITR_ENABLED=${DD_CIVISIBILITY_ITR_ENABLED:-}"
           echo "  _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-}"
           echo "  _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
