@@ -216,7 +216,10 @@ class BaseLLMObsWriter(PeriodicService):
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
         additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "")
         if additional_header_str:
-            self._headers.update(parse_tags_str(additional_header_str))
+            # Explicit comma separator: header values (e.g. "Bearer <token>") may contain a space
+            # with no comma anywhere in the string, which would otherwise fall back to a whitespace
+            # split and corrupt the value.
+            self._headers.update(parse_tags_str(additional_header_str, sep=","))
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
