@@ -182,6 +182,7 @@ def is_installed() -> bool:
     except Exception:
         return False
 
+
 def live_heap_enabled() -> bool:
     """Return whether the loaded cdylib was built with live-heap tracking.
 
