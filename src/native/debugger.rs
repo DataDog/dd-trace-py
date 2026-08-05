@@ -11,8 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use datadog_live_debugger::sender::{
-    self, debugger_intake_endpoint, Config as SenderConfig, DebuggerType as DebuggerTypeNative,
-    PayloadRejected,
+    self, debugger_intake_endpoint, Config as SenderConfig, DebuggerType, PayloadRejected,
 };
 use libdd_common::{parse_uri, Endpoint};
 use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
@@ -48,7 +47,7 @@ const DDTAGS_PERCENT_ENCODED_SET: &AsciiSet = &NON_ALPHANUMERIC
 /// Which debugger track a payload belongs to.
 #[pyclass(eq, hash, frozen, from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ConvertToPyO3Enum)]
-pub struct DebuggerType(pub DebuggerTypeNative);
+pub struct DebuggerTrackType(pub DebuggerType);
 
 /// The endpoint configuration, plus whether the logs/snapshots tracks have been
 /// downgraded onto the diagnostics endpoint. Guarded by one mutex so a downgrade
@@ -257,7 +256,7 @@ impl DebuggerSenderPy {
         &self,
         py: Python<'_>,
         payload: PyBackedBytes,
-        debugger_type: DebuggerType,
+        debugger_type: DebuggerTrackType,
     ) -> PyResult<Option<(u16, String)>> {
         let config = self.config();
         self.run_send(py, async move {
@@ -295,7 +294,7 @@ impl DebuggerSenderPy {
 
 pub fn register_debugger(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DebuggerSenderPy>()?;
-    DebuggerType::register(m)?;
+    DebuggerTrackType::register(m)?;
     m.add(
         "DebuggerSenderError",
         m.py().get_type::<DebuggerSenderError>(),

@@ -6,14 +6,11 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.version import __version__
 
-
-log = get_logger(__name__)
 
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 

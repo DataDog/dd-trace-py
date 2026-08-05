@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Live debugger: adds agentless submission for Exception Replay and Code Origin for Spans.
-    When agentless mode is enabled and ``DD_API_KEY`` is set, logs, snapshots, probe diagnostics
-    and symbol database uploads are sent directly to ``debugger-intake.<DD_SITE>`` instead of
-    through the Datadog Agent.

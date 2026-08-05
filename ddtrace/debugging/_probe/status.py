@@ -9,7 +9,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.internal import runtime
 from ddtrace.internal.debugger_sender import build_debugger_sender
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import DebuggerType
+from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
@@ -68,7 +68,7 @@ class ProbeStatusLogger:
     def _write_payload(self, body: bytes) -> None:
         try:
             log.debug("Sending probe status payload: %r", body)
-            rejected = self._sender.send(body, DebuggerType.Diagnostics)
+            rejected = self._sender.send(body, DebuggerTrackType.Diagnostics)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
