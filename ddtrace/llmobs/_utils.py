@@ -471,7 +471,8 @@ def _resolve_inherited_agent_version(active) -> Optional[str]:
         return None
     if isinstance(active, Span):
         return _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.TAGS, {}).get(AGENT_VERSION_TAG_KEY)
-    return active._meta.get(PROPAGATED_AGENT_VERSION_KEY)
+    ctx = active
+    return ctx._meta.get(PROPAGATED_AGENT_VERSION_KEY)
 
 
 # Budget for the entire _dd.p.* tagset when stamping agent attribution.
