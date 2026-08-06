@@ -1,0 +1,3 @@
+fixes:
+  - |
+    ASM: Fixes several issues where Interactive Application Security Testing (IAST) could miss taint propagation, incorrectly mark rejected inputs as secure, or emit incomplete vulnerability evidence. It also improves resilience when instrumenting modules and finalizing requests with missing runtime context.
