@@ -1,5 +1,4 @@
 import itertools
-from typing import Any
 from typing import Optional
 from typing import Sequence
 from typing import TypeVar
@@ -21,11 +20,12 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 TextType = TypeVar("TextType", str, bytes, bytearray)
+PyObject = TypeVar("PyObject")
 
 
 def taint_pyobject(
-    pyobject: Any, source_name: Any, source_value: Any, source_origin: Optional[OriginType] = None
-) -> Any:
+    pyobject: PyObject, source_name: object, source_value: object, source_origin: Optional[OriginType] = None
+) -> PyObject:
     try:
         if (contextid := _get_iast_context_id()) is not None and _is_iast_taint_source_enabled():
             if source_origin is None:
@@ -89,7 +89,7 @@ def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequen
     return iterable_type(new_result)  # type: ignore[call-arg]
 
 
-def taint_pyobject_with_ranges(pyobject: Any, ranges: Sequence[TaintRange]) -> bool:
+def taint_pyobject_with_ranges(pyobject: object, ranges: Sequence[TaintRange]) -> bool:
     if (contextid := _get_iast_context_id()) is None:
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):

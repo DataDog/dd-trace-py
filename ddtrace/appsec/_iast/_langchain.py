@@ -1,8 +1,12 @@
+from typing import Awaitable
 from typing import Callable
+from typing import Optional
 from typing import Protocol
+from typing import TypeVar
 
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
+from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -13,6 +17,13 @@ from ddtrace.internal.utils import get_argument_value
 
 class _EventCore(Protocol):
     def on(self, event_id: str, callback: Callable[..., object], name: object = None) -> None: ...
+
+
+class _Generations(Protocol):
+    generations: list[list[object]]
+
+
+R = TypeVar("R")
 
 
 def langchain_listen(core: _EventCore) -> None:
@@ -27,7 +38,7 @@ def langchain_listen(core: _EventCore) -> None:
     core.on("langchain.stream.chunk.callback", _langchain_stream_chunk_callback)
 
 
-def _langchain_patch():
+def _langchain_patch() -> None:
     """
     Patch langchain for IAST. MUST NOT be called directly, only as a callback
     from ddtrace.contrib.internal.langchain.patch import wrap
@@ -87,7 +98,7 @@ def _langchain_patch():
                 continue  # Class or method doesn't exist, skip it
 
 
-def _langchain_unpatch():
+def _langchain_unpatch() -> None:
     if asm_config._iast_enabled:
         return
     try:
@@ -98,7 +109,7 @@ def _langchain_unpatch():
     unwrap(langchain_core.prompts.prompt.PromptTemplate, "aformat")
 
 
-def _langchain_llm_generate_after(prompts, completions):
+def _langchain_llm_generate_after(prompts: object, completions: _Generations) -> None:
     """
     Taints the output of an LLM call if its inputs are tainted.
 
@@ -109,12 +120,8 @@ def _langchain_llm_generate_after(prompts, completions):
         return
     if not isinstance(prompts, (tuple, list)):
         return
-    if not hasattr(completions, "generations"):
-        return
     try:
         generations = completions.generations
-        if not isinstance(generations, list):
-            return
 
         source = None
         for prompt in prompts:
@@ -142,19 +149,15 @@ def _langchain_llm_generate_after(prompts, completions):
         iast_error("propagation::source::langchain _langchain_llm_generate_after", exc=e)
 
 
-def _langchain_chatmodel_generate_after(messages, completions):
+def _langchain_chatmodel_generate_after(messages: object, completions: _Generations) -> None:
     if not asm_config._iast_enabled:
         return
     if not isinstance(messages, (tuple, list)):
         return
     if len(messages) == 0:
         return
-    if not hasattr(completions, "generations"):
-        return
     try:
         generations = completions.generations
-        if not isinstance(generations, list):
-            return
         if len(generations) == 0:
             return
 
@@ -196,7 +199,7 @@ def _langchain_chatmodel_generate_after(messages, completions):
                     elif isinstance(content, list):
                         setattr(message, "content", [_iast_taint_if_str(source, c) for c in content])
                     elif isinstance(content, dict):
-                        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in message.items()})
+                        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in content.items()})
                     if hasattr(message, "additional_kwargs"):
                         additional_kwargs = message.additional_kwargs
                         if isinstance(additional_kwargs, dict) and "function_call" in additional_kwargs:
@@ -210,7 +213,9 @@ def _langchain_chatmodel_generate_after(messages, completions):
         iast_error("propagation::source::langchain _langchain_chatmodel_generate_after", exc=e)
 
 
-def _langchain_stream_chunk_callback(interface_type, args, kwargs):
+def _langchain_stream_chunk_callback(
+    interface_type: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> Optional[Callable[[object], None]]:
     chat_messages = get_argument_value(args, kwargs, 0, "input", optional=True)
     if not chat_messages:
         return None
@@ -220,8 +225,8 @@ def _langchain_stream_chunk_callback(interface_type, args, kwargs):
     return _create_taint_chunk_callback(source)
 
 
-def _create_taint_chunk_callback(source):
-    def _iast_chunk_taint(chunk):
+def _create_taint_chunk_callback(source: Source) -> Callable[[object], None]:
+    def _iast_chunk_taint(chunk: object) -> None:
         try:
             _langchain_iast_taint_chunk(source, chunk)
         except Exception as e:
@@ -230,7 +235,7 @@ def _create_taint_chunk_callback(source):
     return _iast_chunk_taint
 
 
-def _get_tainted_source_from_chat_prompt_value(chat_prompt_value):
+def _get_tainted_source_from_chat_prompt_value(chat_prompt_value: object) -> Optional[Source]:
     if not asm_config._iast_enabled:
         return None
     if not hasattr(chat_prompt_value, "messages"):
@@ -251,7 +256,7 @@ def _get_tainted_source_from_chat_prompt_value(chat_prompt_value):
     return None
 
 
-def _get_text_attribute_for_generation(gen):
+def _get_text_attribute_for_generation(gen: object) -> tuple[Optional[str], Optional[str]]:
     text_attr = None
     if hasattr(gen, "_text"):
         # langchain-core 0.3.60+ uses _text attribute (and text is a property)
@@ -268,7 +273,7 @@ def _get_text_attribute_for_generation(gen):
     return text_attr, text
 
 
-def _langchain_iast_taint_chunk(source, chunk):
+def _langchain_iast_taint_chunk(source: Source, chunk: object) -> None:
     """
     Taints a chunk (type BaseMessageChunk, typically an AIMessageChunk) given a source.
     """
@@ -276,8 +281,6 @@ def _langchain_iast_taint_chunk(source, chunk):
     #  content: Union[str, list[Union[str, dict]]]
     #  additional_kwargs: dict
     if not asm_config._iast_enabled:
-        return
-    if not source:
         return
     message = chunk
     if not hasattr(message, "content"):
@@ -288,7 +291,7 @@ def _langchain_iast_taint_chunk(source, chunk):
     elif isinstance(content, list):
         setattr(message, "content", [_iast_taint_if_str(source, c) for c in content])
     elif isinstance(content, dict):
-        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in message.items()})
+        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in content.items()})
     if hasattr(message, "additional_kwargs"):
         additional_kwargs = message.additional_kwargs
         if isinstance(additional_kwargs, dict) and "function_call" in additional_kwargs:
@@ -300,11 +303,9 @@ def _langchain_iast_taint_chunk(source, chunk):
                     function_call["arguments"] = _iast_taint_if_str(source, arguments)
 
 
-def _iast_taint_if_str(source, obj):
+def _iast_taint_if_str(source: Source, obj: object) -> object:
     if not isinstance(obj, str):
         return obj
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
     return taint_pyobject(
         pyobject=obj,
         source_name=source.name,
@@ -313,7 +314,9 @@ def _iast_taint_if_str(source, obj):
     )
 
 
-def _wrapper_prompt_template_format(func, instance, args, kwargs):
+def _wrapper_prompt_template_format(
+    func: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     """
     Propagate taint in PromptTemplate.format, from any input, to the output.
     """
@@ -321,7 +324,9 @@ def _wrapper_prompt_template_format(func, instance, args, kwargs):
     return _propagate_prompt_template_format(kwargs, result)
 
 
-async def _wrapper_prompt_template_aformat(func, instance, args, kwargs):
+async def _wrapper_prompt_template_aformat(
+    func: Callable[..., Awaitable[R]], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     """
     Propagate taint in PromptTemplate.aformat, from any input, to the output.
     """
@@ -329,7 +334,7 @@ async def _wrapper_prompt_template_aformat(func, instance, args, kwargs):
     return _propagate_prompt_template_format(kwargs, result)
 
 
-def _propagate_prompt_template_format(kwargs, result):
+def _propagate_prompt_template_format(kwargs: dict[str, object], result: R) -> R:
     try:
         if not is_iast_request_enabled():
             return result
@@ -344,17 +349,21 @@ def _propagate_prompt_template_format(kwargs, result):
     return result
 
 
-def _wrapper_agentoutput_parse(func, instance, args, kwargs):
+def _wrapper_agentoutput_parse(
+    func: Callable[..., R], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     result = func(*args, **kwargs)
     return _propagante_agentoutput_parse(args, kwargs, result)
 
 
-async def _wrapper_agentoutput_aparse(func, instance, args, kwargs):
+async def _wrapper_agentoutput_aparse(
+    func: Callable[..., Awaitable[R]], instance: object, args: tuple[object, ...], kwargs: dict[str, object]
+) -> R:
     result = await func(*args, **kwargs)
     return _propagante_agentoutput_parse(args, kwargs, result)
 
 
-def _propagante_agentoutput_parse(args, kwargs, result):
+def _propagante_agentoutput_parse(args: tuple[object, ...], kwargs: dict[str, object], result: R) -> R:
     try:
         try:
             from langchain_core.agents import AgentAction
