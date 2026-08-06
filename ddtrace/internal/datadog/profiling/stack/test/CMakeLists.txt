@@ -47,24 +47,20 @@ function(dd_wrapper_add_test name)
 
     add_ddup_config(${name})
 
-    # Test executables need to find _stack in the parent build directory. Tests that use dd_wrapper directly also need
-    # its standalone install directory. Append both without replacing sanitizer library paths from add_ddup_config.
+    # Test executable needs to find _stack in parent directory Append to INSTALL_RPATH instead of replacing to preserve
+    # sanitizer library paths set by add_ddup_config
     if(APPLE)
         set(_rpath_prefix "@loader_path")
     else()
         set(_rpath_prefix "$ORIGIN")
     endif()
-    set(_test_rpath "${_rpath_prefix}/..")
-    if(LIB_INSTALL_DIR)
-        list(APPEND _test_rpath "${LIB_INSTALL_DIR}")
-    endif()
 
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_test_rpath}"
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
                                                  BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_test_rpath}" BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
@@ -84,10 +80,31 @@ endfunction()
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
+function(configure_stack_internal_test name)
+    target_include_directories(${name} PRIVATE ../..)
+    target_include_directories(
+        ${name} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+    target_compile_definitions(${name} PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
+    if(LIB_INSTALL_DIR)
+        set_property(
+            TARGET ${name}
+            APPEND
+            PROPERTY INSTALL_RPATH "${LIB_INSTALL_DIR}")
+    endif()
+endfunction()
+
 dd_wrapper_add_test(test_native_shutdown test_native_shutdown.cpp)
-target_include_directories(test_native_shutdown PRIVATE ../.. ../echion ../include/util ../../dd_wrapper/include)
-target_include_directories(test_native_shutdown SYSTEM PRIVATE ${Python3_INCLUDE_DIRS})
 target_link_libraries(test_native_shutdown PRIVATE dd_wrapper)
+configure_stack_internal_test(test_native_shutdown)
+
+dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
+target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
+configure_stack_internal_test(test_sample_lifecycle)
+
+dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
+configure_stack_internal_test(test_sampling_cycle_state)
 
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
