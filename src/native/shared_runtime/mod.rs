@@ -28,8 +28,11 @@ impl SharedRuntimePy {
         })
     }
 
-    fn before_fork(&self) {
-        self.inner.before_fork();
+    fn before_fork(&self, py: Python<'_>) {
+        // The call blocks until every worker has paused, and it has to: a worker that still runs
+        // when `fork()` happens leaves the child with half-sent state. Release the GIL for that
+        // wait, otherwise the pause of an in-flight agent request stalls every Python thread.
+        py.detach(|| self.inner.before_fork());
     }
 
     fn after_fork_parent(&self) -> PyResult<()> {
