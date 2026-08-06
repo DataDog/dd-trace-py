@@ -17,6 +17,7 @@ from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
 from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._provider import DataDogProvider
 
 
 # Canonical cross-SDK vector. Every SDK must reproduce this digest byte-for-byte
@@ -236,8 +237,6 @@ class TestProviderStampsConsent:
         monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
         # Killswitch on for these tests -- we only care about the metadata stamp.
         monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true")
-        from ddtrace.internal.openfeature._provider import DataDogProvider
-
         return DataDogProvider()
 
     def test_success_path_stamps_consent_true(self, monkeypatch):
