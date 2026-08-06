@@ -48,7 +48,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def patch_iast():
+def patch_iast() -> None:
     """Patch security-sensitive functions (sink points) for IAST analysis.
 
     This function implements the core IAST patching mechanism in two phases:
