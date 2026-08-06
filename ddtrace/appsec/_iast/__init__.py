@@ -49,7 +49,7 @@ _fork_handler_registered = False
 _iast_in_pytest_mode = False
 
 
-def _disable_iast_after_fork():
+def _disable_iast_after_fork() -> None:
     """
     Handle IAST state after fork to prevent segmentation faults.
 
@@ -135,7 +135,7 @@ def _disable_iast_after_fork():
         log.debug("Error in IAST fork handler: %s", e, exc_info=True)
 
 
-def _register_fork_handler():
+def _register_fork_handler() -> None:
     """
     Register the fork handler if IAST is enabled and it hasn't been registered yet.
 
@@ -150,7 +150,7 @@ def _register_fork_handler():
         log.debug("IAST fork safety handler registered")
 
 
-def ddtrace_iast_flask_patch():
+def ddtrace_iast_flask_patch() -> None:
     """
     Patch the code inside the Flask main app source code file (typically "app.py") so
     Runtime Code Analysis (IAST) works also for the functions and methods defined inside it.
@@ -169,7 +169,11 @@ def ddtrace_iast_flask_patch():
 
     from ._ast.ast_patching import astpatch_module
 
-    module_name = inspect.currentframe().f_back.f_globals["__name__"]
+    current_frame = inspect.currentframe()
+    if current_frame is None or current_frame.f_back is None:
+        log.debug("Unable to locate the caller frame for IAST Flask patching")
+        return
+    module_name = current_frame.f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
         module_path, patched_ast = astpatch_module(module)
@@ -190,7 +194,7 @@ def ddtrace_iast_flask_patch():
     exec(compiled_code, module.__dict__)  # nosec B102
 
 
-def enable_iast_propagation():
+def enable_iast_propagation() -> None:
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
@@ -212,7 +216,7 @@ def enable_iast_propagation():
         _register_fork_handler()
 
 
-def _iast_pytest_activation():
+def _iast_pytest_activation() -> None:
     """Configure IAST settings for pytest execution.
 
     This function sets up IAST configuration but does NOT create a request context.
@@ -240,7 +244,7 @@ def _iast_pytest_activation():
     oce.reconfigure()
 
 
-def disable_iast_propagation():
+def disable_iast_propagation() -> None:
     """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time

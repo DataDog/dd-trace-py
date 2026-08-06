@@ -3,6 +3,18 @@ import sys
 import pytest
 
 
+@pytest.mark.subprocess(err=None)
+def test_ddtrace_iast_flask_patch_without_frame():
+    import inspect
+    from unittest.mock import patch
+
+    from ddtrace.appsec._iast import ddtrace_iast_flask_patch
+    from tests.utils import override_global_config
+
+    with override_global_config(dict(_iast_enabled=True)), patch.object(inspect, "currentframe", return_value=None):
+        ddtrace_iast_flask_patch()
+
+
 @pytest.mark.skipif(sys.version_info >= (3, 13, 0), reason="Test not compatible with Python 3.13")
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_patch():
