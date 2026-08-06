@@ -5,7 +5,9 @@ Every SDK produces the same digest for the same subject, so hashed values join
 across languages. This file pins that contract for dd-trace-py.
 """
 
+import json
 import time
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -344,3 +346,98 @@ class TestAggregatorConsent:
             entry.observe(int(time.time() * 1000))
 
         assert entry.observe_full_evaluation_data is False
+
+
+class TestFlushSerialization:
+    """Raw-wire assertions on the flagevaluations payload bytes.
+
+    Assertions on raw JSON bytes catch raw values routed into unexpected fields,
+    which a decode-then-inspect check would miss.
+    """
+
+    @pytest.fixture
+    def writer(self):
+        return FlagEvaluationWriter(interval=10.0)
+
+    def _pii_event(self, observe_full_evaluation_data: bool):
+        # Hook is what should skip attrs on consent-off. Simulate that here:
+        attrs = (
+            {}
+            if not observe_full_evaluation_data
+            else {
+                "org_id": 1234,
+                "user_email": PII_CANONICAL_TARGETING_KEY,
+                "plan": "enterprise",
+                "region": "us-east-1",
+            }
+        )
+        return _EvalEvent(
+            flag_key="pii-flag",
+            variant="on",
+            allocation_key="default-allocation",
+            targeting_key=PII_CANONICAL_TARGETING_KEY,
+            attrs=attrs,
+            runtime_default=False,
+            error_message="",
+            eval_time_ms=int(time.time() * 1000),
+            observe_full_evaluation_data=observe_full_evaluation_data,
+        )
+
+    def _flush_capture(self, writer):
+        """Run periodic() and return the raw payload bytes _send_payload received."""
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+        assert mock_send.call_count >= 1, "expected at least one payload flush"
+        payload_bytes, _ = mock_send.call_args[0]
+        return payload_bytes
+
+    def test_consent_off_hashes_and_omits_context(self, writer):
+        writer._aggregate(self._pii_event(observe_full_evaluation_data=False))
+        payload_bytes = self._flush_capture(writer)
+
+        # Raw-wire assertions first: catches a raw value routed into an unexpected field.
+        raw = payload_bytes.decode("utf-8")
+        assert PII_CANONICAL_TARGETING_KEY not in raw
+        assert "enterprise" not in raw
+        assert "us-east-1" not in raw
+        assert "user_email" not in raw
+
+        decoded = json.loads(payload_bytes)
+        assert len(decoded["flagEvaluations"]) == 1
+        event = decoded["flagEvaluations"][0]
+        assert event["targeting_key"] == PII_CANONICAL_HASHED
+        # "Omitted" means the key is absent -- not None, not {}.
+        assert "context" not in event
+
+    def test_consent_on_emits_raw(self, writer):
+        writer._aggregate(self._pii_event(observe_full_evaluation_data=True))
+        payload_bytes = self._flush_capture(writer)
+
+        decoded = json.loads(payload_bytes)
+        event = decoded["flagEvaluations"][0]
+        assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
+        assert "context" in event
+        assert event["context"]["evaluation"]["plan"] == "enterprise"
+
+    def test_degraded_tier_never_emits_subject_or_context(self):
+        """Regardless of consent -- degraded already omits both. Proves the
+        negative-control assertion on the degraded path for consent-on too.
+        """
+        from ddtrace.internal.openfeature import _flagevaluation_writer
+
+        original_global_cap = _flagevaluation_writer.GLOBAL_CAP
+        try:
+            # globalCap 0 routes every new full key straight to the degraded tier.
+            _flagevaluation_writer.GLOBAL_CAP = 0
+            for consent in (False, True):
+                w = _flagevaluation_writer.FlagEvaluationWriter(interval=10.0)
+                w._aggregate(self._pii_event(observe_full_evaluation_data=consent))
+                payload_bytes = self._flush_capture(w)
+                raw = payload_bytes.decode("utf-8")
+                assert PII_CANONICAL_TARGETING_KEY not in raw
+                decoded = json.loads(payload_bytes)
+                event = decoded["flagEvaluations"][0]
+                assert "targeting_key" not in event
+                assert "context" not in event
+        finally:
+            _flagevaluation_writer.GLOBAL_CAP = original_global_cap
