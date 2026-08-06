@@ -11,6 +11,7 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
+from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -239,6 +240,11 @@ def _set_resolver_tags(pin, span, request):
         # by anyone during the request lifetime
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = resource
+        else:
+            # Record the ownership so later processors can honor it too. OtelSpanNamingProcessor
+            # otherwise recomputes the name from the span's attributes and would undo the
+            # user's choice under DD_TRACE_OTEL_SEMANTICS_ENABLED.
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 
 def _before_request_tags(pin, span, request):
