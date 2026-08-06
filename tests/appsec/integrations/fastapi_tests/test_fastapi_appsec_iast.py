@@ -1087,20 +1087,27 @@ def test_fastapi_unvalidated_redirect(fastapi_application, client, tracer, test_
         patch_iast()
         _aux_appsec_prepare_tracer(tracer)
         client.get(
-            "/index.html?url=http://localhost:8080/malicious",
+            "/index.html?url=http://localhost:8080/redirect%20target",
         )
 
         root_span = test_spans.pop_traces()[0][0]
         assert root_span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(root_span)
+        assert len(loaded["vulnerabilities"]) == 1
         assert loaded["sources"] == [
-            {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+            {
+                "origin": "http.request.parameter",
+                "name": "url",
+                "value": "http://localhost:8080/redirect target",
+            }
         ]
 
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
-        assert vulnerability["evidence"] == {"valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]}
+        assert vulnerability["evidence"] == {
+            "valueParts": [{"source": 0, "value": "http://localhost:8080/redirect target"}]
+        }
         assert vulnerability["location"]["method"] == "test_route"
         assert vulnerability["location"]["stackId"] == "1"
         assert "class" not in vulnerability["location"]
