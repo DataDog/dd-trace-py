@@ -1217,6 +1217,62 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest, allow_nan=False)
         assert manifest["model_settings"] == {"top_p": 0.9}
 
+    async def test_non_string_tool_description_is_dropped(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A tool description that is not a str must not be printed onto the wire.
+
+        pydantic-ai accepts Tool(fn, description=<object>) and nothing downstream coerces it, and the
+        span encoder falls back to repr for a value it cannot encode. A repr can carry credentials.
+        """
+
+        class SecretHolder:
+            def __init__(self):
+                self.api_key = "sk-not-a-real-key"
+
+            def __repr__(self):
+                return "SecretHolder(api_key={!r})".format(self.api_key)
+
+        def mytool(x: str) -> str:
+            """real docstring"""
+            return "ok"
+
+        _, manifest = await self._run(
+            pydantic_ai,
+            test_spans,
+            name="test_agent",
+            tools=[pydantic_ai.Tool(mytool, description=SecretHolder())],
+            model=_test_model(),
+        )
+
+        assert "sk-not-a-real-key" not in safe_json(manifest)
+        assert "description" not in manifest["tools"][0]
+
+    async def test_non_string_tool_parameter_key_cannot_drop_the_payload(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans
+    ):
+        """A non-str parameter key is coerced rather than left to break the encoder.
+
+        Tool.from_schema takes a caller-supplied json_schema, so a non-str key reaches the manifest.
+        The encoder sorts keys, comparing an int to a str raises, and it then returns None, which
+        drops the whole batched payload rather than this one span.
+        """
+
+        def mytool(**kwargs) -> str:
+            """Takes whatever the declared schema names, since the model does call it."""
+            return "ok"
+
+        tool = pydantic_ai.Tool.from_schema(
+            mytool,
+            name="schema_tool",
+            description="d",
+            json_schema={"type": "object", "properties": {"alpha": {"type": "string"}, 7: {"type": "string"}}},
+        )
+
+        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", tools=[tool], model=_test_model())
+
+        parameters = manifest["tools"][0]["parameters"]
+        assert set(parameters) == {"alpha", "7"}, "both parameters survive, with keys coerced to str"
+        assert safe_json(manifest) is not None, "the payload must still encode"
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no tool_timeout")
     async def test_non_finite_agent_settings_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """The same rule for agent_settings, which does not go through the value coercer.

@@ -748,8 +748,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         tools: list[dict[str, Any]] = []
         for tool_name, tool_instance, _fn in _iter_agent_tools(agent):
-            entry: dict[str, Any] = {"name": tool_name}
-            _put_field(entry, "description", getattr(tool_instance, "description", None))
+            entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
+            # AIDEV-NOTE: str-only, because Tool(fn, description=<object>) is accepted by pydantic-ai
+            # and nothing downstream coerces it. safe_json falls back to repr for a value it cannot
+            # encode, so an object here is printed onto the wire, and a repr can carry credentials.
+            description = getattr(tool_instance, "description", None)
+            _put_field(entry, "description", description if isinstance(description, str) else None)
             _put_field(entry, "parameters", self._tool_parameters(tool_instance))
             tools.append(entry)
         return tools
@@ -759,15 +763,24 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """Extract {param: {type?, required?}} from a tool's function_schema.json_schema."""
         function_schema = getattr(tool_instance, "function_schema", {})
         json_schema = getattr(function_schema, "json_schema", {})
-        required_params = {param: True for param in json_schema.get("required", [])}
+        if not isinstance(json_schema, dict):
+            return {}
+        required = json_schema.get("required")
+        required_params = {str(param) for param in required} if isinstance(required, (list, tuple, set)) else set()
+        properties = json_schema.get("properties")
+        if not isinstance(properties, dict):
+            return {}
         parameters: dict[str, dict[str, Any]] = {}
-        for param, schema in json_schema.get("properties", {}).items():
+        for param, schema in properties.items():
+            # AIDEV-NOTE: keys coerced to str. Tool.from_schema takes a caller-supplied json_schema, so
+            # a non-str key reaches here, and safe_json sorts keys: comparing an int to a str raises and
+            # the encoder returns None, dropping the whole batched payload rather than this one span.
             param_dict: dict[str, Any] = {}
-            if "type" in schema:
-                param_dict["type"] = schema["type"]
-            if param in required_params:
+            if isinstance(schema, dict):
+                _put_field(param_dict, "type", _wire_value(schema.get("type")))
+            if str(param) in required_params:
                 param_dict["required"] = True
-            parameters[param] = param_dict
+            parameters[str(param)] = param_dict
         return parameters
 
     @staticmethod
