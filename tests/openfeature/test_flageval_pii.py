@@ -16,6 +16,7 @@ from openfeature.flag_evaluation import FlagType
 from openfeature.hook import HookContext
 import pytest
 
+from ddtrace.internal.openfeature import _flagevaluation_writer as _fw_module
 from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
@@ -428,14 +429,12 @@ class TestFlushSerialization:
         """Regardless of consent -- degraded already omits both. Proves the
         negative-control assertion on the degraded path for consent-on too.
         """
-        from ddtrace.internal.openfeature import _flagevaluation_writer
-
-        original_global_cap = _flagevaluation_writer.GLOBAL_CAP
+        original_global_cap = _fw_module.GLOBAL_CAP
         try:
             # globalCap 0 routes every new full key straight to the degraded tier.
-            _flagevaluation_writer.GLOBAL_CAP = 0
+            _fw_module.GLOBAL_CAP = 0
             for consent in (False, True):
-                w = _flagevaluation_writer.FlagEvaluationWriter(interval=10.0)
+                w = _fw_module.FlagEvaluationWriter(interval=10.0)
                 w._aggregate(self._pii_event(observe_full_evaluation_data=consent))
                 payload_bytes = self._flush_capture(w)
                 raw = payload_bytes.decode("utf-8")
@@ -445,7 +444,7 @@ class TestFlushSerialization:
                 assert "targeting_key" not in event
                 assert "context" not in event
         finally:
-            _flagevaluation_writer.GLOBAL_CAP = original_global_cap
+            _fw_module.GLOBAL_CAP = original_global_cap
 
 
 def _pii_flag_config(observe: bool, do_log: bool = True) -> dict:
