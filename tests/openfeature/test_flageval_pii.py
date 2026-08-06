@@ -5,6 +5,12 @@ Every SDK produces the same digest for the same subject, so hashed values join
 across languages. This file pins that contract for dd-trace-py.
 """
 
+from unittest.mock import MagicMock
+
+from ddtrace.internal.openfeature._config import _FfeSnapshot
+from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._config import _get_ffe_snapshot
+from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
 from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 
@@ -60,3 +66,43 @@ class TestHashTargetingKey:
             got = hash_targeting_key(input_str)
             assert got not in seen, f"{name} produced the same digest as {seen[got]}"
             seen[got] = name
+
+
+class TestFfeSnapshot:
+    """Storage semantics of _FfeSnapshot in _config.py."""
+
+    def test_default_is_none(self):
+        _set_ffe_config(None)
+        assert _get_ffe_snapshot() is None
+
+    def test_set_snapshot_round_trips(self):
+        fake_config = MagicMock(name="ffe.Configuration")
+        _set_ffe_config(_FfeSnapshot(config=fake_config, observe_full_evaluation_data=True))
+        snap = _get_ffe_snapshot()
+        try:
+            assert snap is not None
+            assert snap.config is fake_config
+            assert snap.observe_full_evaluation_data is True
+        finally:
+            _set_ffe_config(None)
+
+    def test_legacy_bare_config_is_consent_off(self):
+        """A bare Configuration (existing test callers) is stored as consent-off."""
+        fake_config = MagicMock(name="ffe.Configuration")
+        _set_ffe_config(fake_config)
+        snap = _get_ffe_snapshot()
+        try:
+            assert snap is not None
+            assert snap.config is fake_config
+            assert snap.observe_full_evaluation_data is False
+        finally:
+            _set_ffe_config(None)
+
+    def test_get_ffe_config_returns_bare_config(self):
+        """The legacy accessor still returns just the config."""
+        fake_config = MagicMock(name="ffe.Configuration")
+        _set_ffe_config(_FfeSnapshot(config=fake_config, observe_full_evaluation_data=True))
+        try:
+            assert _get_ffe_config() is fake_config
+        finally:
+            _set_ffe_config(None)
