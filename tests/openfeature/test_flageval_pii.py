@@ -73,7 +73,10 @@ class TestFfeSnapshot:
 
     def test_default_is_none(self):
         _set_ffe_config(None)
-        assert _get_ffe_snapshot() is None
+        try:
+            assert _get_ffe_snapshot() is None
+        finally:
+            _set_ffe_config(None)
 
     def test_set_snapshot_round_trips(self):
         fake_config = MagicMock(name="ffe.Configuration")
