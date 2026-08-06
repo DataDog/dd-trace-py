@@ -1,15 +1,7 @@
-import concurrent.futures
-from contextvars import Context
 import ctypes
-import os
 import sys
-import threading
 
 import pytest
-
-from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.tracer import Tracer
-from ddtrace.internal import core
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -17,7 +9,6 @@ pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread con
 
 if sys.platform == "linux":
     from ddtrace.internal.native import _native
-    from ddtrace.internal.native._native import detach_otel_thread_context
 
     class _ThreadContextRecord(ctypes.Structure):
         _fields_ = [
@@ -40,14 +31,26 @@ def _published_span_id():
     return int.from_bytes(record.span_id, byteorder="big")
 
 
-def test_span_context_is_published_and_detached(tracer: Tracer):
-    with tracer.trace("test") as span:
-        assert _published_span_id() == span.span_id
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_span_context_is_published_and_detached():
+    from tests.tracer.test_otel_thread_context import _published_span_id
+    from tests.utils import scoped_tracer
 
-    assert _published_span_id() is None
+    with scoped_tracer() as tracer:
+        with tracer.trace("test") as span:
+            assert _published_span_id() == span.span_id
+
+        assert _published_span_id() is None
 
 
-def test_span_context_is_thread_local(tracer: Tracer):
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_span_context_is_thread_local():
+    import concurrent.futures
+    import threading
+
+    from tests.tracer.test_otel_thread_context import _published_span_id
+    from tests.utils import scoped_tracer
+
     barrier = threading.Barrier(2)
 
     def trace(name):
@@ -55,23 +58,30 @@ def test_span_context_is_thread_local(tracer: Tracer):
             barrier.wait()
             return span.span_id, _published_span_id()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        results = executor.map(trace, ("one", "two"))
+    with scoped_tracer() as tracer:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = executor.map(trace, ("one", "two"))
 
-    assert all(span_id == published_span_id for span_id, published_span_id in results)
+        assert all(span_id == published_span_id for span_id, published_span_id in results)
 
 
-def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_only_installed_context_provider_updates_thread_context():
+    from ddtrace._trace.provider import DefaultContextProvider
+    from tests.tracer.test_otel_thread_context import _published_span_id
+    from tests.utils import scoped_tracer
+
     uninstalled_provider = DefaultContextProvider()
 
-    with tracer.trace("test") as span:
-        uninstalled_provider.activate(None)
+    with scoped_tracer() as tracer:
+        with tracer.trace("test") as span:
+            uninstalled_provider.activate(None)
 
-        assert _published_span_id() == span.span_id
+            assert _published_span_id() == span.span_id
 
 
-@pytest.mark.subprocess(env={"_DD_OTEL_THREAD_CONTEXT_ENABLED": "false"})
-def test_thread_context_listeners_can_be_disabled():
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": None})
+def test_thread_context_listeners_are_disabled_by_default():
     import sys
 
     assert "ddtrace" not in sys.modules
@@ -89,34 +99,53 @@ def test_thread_context_listeners_can_be_disabled():
         assert is_context_watcher_registered() is False
 
 
-def test_python_context_switch_syncs_active_span(tracer: Tracer):
-    with tracer.trace("test") as span:
-        detach_otel_thread_context()
-        assert _published_span_id() is None
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_python_context_switch_syncs_active_span():
+    from contextvars import Context
+    import sys
 
-        core.dispatch("python.context.switch")
-        assert _published_span_id() == span.span_id
+    from ddtrace.internal import core
+    from ddtrace.internal.native._native import detach_otel_thread_context
+    from tests.tracer.test_otel_thread_context import _published_span_id
+    from tests.utils import scoped_tracer
 
-        Context().run(core.dispatch, "python.context.switch")
-        # CPython's context watcher restores the outer context after Context.run().
-        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
-            assert _published_span_id() == span.span_id
-        else:
+    with scoped_tracer() as tracer:
+        with tracer.trace("test") as span:
+            detach_otel_thread_context()
             assert _published_span_id() is None
 
-        core.dispatch("python.context.switch")
-        assert _published_span_id() == span.span_id
+            core.dispatch("python.context.switch")
+            assert _published_span_id() == span.span_id
+
+            Context().run(core.dispatch, "python.context.switch")
+            # CPython's context watcher restores the outer context after Context.run().
+            if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+                assert _published_span_id() == span.span_id
+            else:
+                assert _published_span_id() is None
+
+            core.dispatch("python.context.switch")
+            assert _published_span_id() == span.span_id
 
 
-def test_span_context_is_reactivated_after_fork(tracer: Tracer):
-    with tracer.trace("test") as span:
-        if sys.platform == "linux":  # to satisfy the type checker outside of linux
-            detach_otel_thread_context()
-        pid = os.fork()
-        if pid == 0:
-            os._exit(0 if _published_span_id() == span.span_id else 1)
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_span_context_is_reactivated_after_fork():
+    import os
+    import sys
 
-        tracer.context_provider.activate(span)
-        _, status = os.waitpid(pid, 0)
+    from ddtrace.internal.native._native import detach_otel_thread_context
+    from tests.tracer.test_otel_thread_context import _published_span_id
+    from tests.utils import scoped_tracer
 
-    assert os.waitstatus_to_exitcode(status) == 0
+    with scoped_tracer() as tracer:
+        with tracer.trace("test") as span:
+            if sys.platform == "linux":  # to satisfy the type checker outside of linux
+                detach_otel_thread_context()
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0 if _published_span_id() == span.span_id else 1)
+
+            tracer.context_provider.activate(span)
+            _, status = os.waitpid(pid, 0)
+
+        assert os.waitstatus_to_exitcode(status) == 0

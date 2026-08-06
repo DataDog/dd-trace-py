@@ -4572,6 +4572,14 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_OTEL_CTX_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "experimental": true
+      }
+    ],
     "DD_TRACE_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -5955,14 +5963,6 @@
         "implementation": "A",
         "type": "string",
         "default": "warning",
-        "internal": true
-      }
-    ],
-    "_DD_OTEL_THREAD_CONTEXT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": true,
         "internal": true
       }
     ],

@@ -262,6 +262,14 @@ Traces
            ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
            and will be deleted in 2.0.0
 
+   DD_TRACE_OTEL_CTX_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Enables publication of OpenTelemetry thread context records for external readers such as the OpenTelemetry eBPF Profiler.
+         These records describe the active traces running within the sampled process.
+
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
      default: False
