@@ -103,6 +103,8 @@ class BaseLLMIntegration:
         activate. Agent attribution reads it at child activation; under LIFO nesting a finish-time
         write lands too late. Called from trace() and from LlmTracingSubscriber.on_started.
         """
+        if span.span_type != SpanTypes.LLM:
+            return
         span_kind = self._llmobs_span_kind(operation_id, span, **kwargs)
         if span_kind is not None:
             _annotate_llmobs_span_data(span, kind=span_kind)
