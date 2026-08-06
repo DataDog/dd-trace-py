@@ -46,13 +46,10 @@ PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # Agent attribution: nearest-agent identity propagated across process boundaries.
 # The id is always str(span_id) (digit-safe); the name is an arbitrary user string. Both are
-# written via _stamp_agent_propagation_tags, which drops the name, the version, or all of them
-# rather than overflow the x-datadog-tags budget (see _utils.py).
+# written via _stamp_agent_attribution, which drops the name (or both) rather than overflow
+# the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
-# Version of the agent identified by the two keys above. Named from the receiver's point of view:
-# the version of the nearest agent above the span it creates next. Lands on the `agent_version` tag.
-PROPAGATED_PARENT_AGENT_VERSION_KEY = "_dd.p.llmobs_pagent_version"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -140,7 +137,8 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-# Agent tracking tags
+# Agent tracking tags. Set on agent spans only.
+AGENT_NAME_TAG_KEY = "agent_name"
 AGENT_VERSION_TAG_KEY = "agent_version"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"

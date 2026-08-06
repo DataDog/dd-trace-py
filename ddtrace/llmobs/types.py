@@ -173,18 +173,16 @@ class Prompt(TypedDict, total=False):
 
 class Agent(TypedDict, total=False):
     """
-    An Agent object that identifies the agent an LLMObs span belongs to.
+    An Agent object that identifies a versioned agent.
+        name: str - the name of the agent. Defaults to the agent span's name.
         version: str - user tag for the version of the agent.
 
-    The version is set as an `agent_version` tag on the
-    agent span itself and on every span created under it, including across process boundaries.
-
-    The agent's name is not set here. It is taken from the agent span's name, which is what agent
-    attribution propagates to child spans as `pagent_name`. Note that
-    `LLMObs.annotation_context(name=...)` renames every span in the context, not just the agent
-    span, so it is not a good way to name an agent; prefer `LLMObs.agent(name=...)`.
+    Set as `agent_name` and `agent_version` tags on the agent span only, never on its children.
+    Child spans are linked to their agent through `meta.agent_attribution`, so the version is
+    resolved by joining on the agent span rather than by copying it downward.
     """
 
+    name: str
     version: str
 
 
