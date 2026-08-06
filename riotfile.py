@@ -1,11 +1,16 @@
 # type: ignore
 import logging
 import os
-import typing
+import typing as t
+from typing import TYPE_CHECKING
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
 from riot import Venv
+
+
+if TYPE_CHECKING:
+    from riot.venv import VenvInstance
 
 
 logger = logging.getLogger(__name__)
@@ -4639,7 +4644,7 @@ def _is_true_env(name: str) -> bool:
     return os.environ.get(name, "").lower() in ("true", "1")
 
 
-def _python_hint_to_version(hint: str) -> typing.Optional[Version]:
+def _python_hint_to_version(hint: str) -> t.Optional[Version]:
     try:
         return Version(hint)
     except InvalidVersion:
@@ -4651,35 +4656,40 @@ def _is_protected_ci_branch() -> bool:
     return branch == "main" or branch.startswith("mq-")
 
 
-def _configure_ci_itr_env_for_instance(inst) -> None:
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
     python_hint = getattr(inst.py, "_hint", "")
     python_version = _python_hint_to_version(python_hint)
-    inst_env = dict(getattr(inst, "env", {}) or {})
 
-    if (ci_tags := os.environ.get("_CI_DD_TAGS")) and python_hint:
-        inst_env["_CI_DD_TAGS"] = f"{ci_tags},test.configuration.python:{python_hint}"
+    # Ensure inst.env is a mutable dict we can update in-place.
+    if not inst.env:
+        inst.env = {}
+
+    if python_hint:
+        inst.env["_CI_DD_TAGS"] = (
+            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
+        )
+    else:
+        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
 
     if (
         _is_true_env("DD_TRACE_PY_ENABLE_ITR_FOR_JOB")
-        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst_env
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
-        inst_env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
-        inst_env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            inst_env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
         elif _is_true_env("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB"):
-            inst_env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
-
-    inst.env = inst_env
+            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
 
 
 _venv_instances = venv.instances
 
 
-def _ci_itr_venv_instances(parent_inst=None):
+def _ci_itr_venv_instances(parent_inst: t.Optional["VenvInstance"] = None) -> t.Generator["VenvInstance", None, None]:
     for inst in _venv_instances(parent_inst):
         _configure_ci_itr_env_for_instance(inst)
         yield inst
