@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import dis
 from enum import Enum
+from functools import cached_property
 import gzip
 import hashlib
 from inspect import CO_VARARGS
@@ -32,7 +33,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
-from ddtrace.internal.native import SymDbSender
+from ddtrace.internal.native import SymDBSender
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
@@ -60,12 +61,12 @@ MAX_FILE_SIZE = 1 << 20  # 1MB
 UPLOAD_TIMEOUT = 5.0  # seconds
 
 
-def build_symdb_sender() -> SymDbSender:
+def build_symdb_sender() -> SymDBSender:
     """Build a sender for symbol uploads."""
     timeout_ms = int(UPLOAD_TIMEOUT * 1000)
 
     if di_config._agentless:
-        return SymDbSender(
+        return SymDBSender(
             get_native_runtime(),
             site=config._dd_site,
             api_key=config._dd_api_key,
@@ -74,7 +75,7 @@ def build_symdb_sender() -> SymDbSender:
             test_session_token=get_test_session_token(),
         )
 
-    return SymDbSender(
+    return SymDBSender(
         get_native_runtime(),
         url=agent_config.trace_agent_url,
         tags=di_config.tags,
@@ -538,9 +539,6 @@ class ScopeContext:
         self._timer: t.Optional[Timer] = None
         self._timer_lock = RLock()
 
-        # Built on the first upload to reduce startup cost.
-        self._sender: t.Optional[SymDbSender] = None
-
         # upload_id is stable for the lifetime of this process; all batches
         # uploaded by the process share it. A forked child gets a fresh
         # upload_id and batch counter via _reset_on_fork below.
@@ -563,6 +561,11 @@ class ScopeContext:
         }
 
         forksafe.register(self._reset_on_fork)
+
+    @cached_property
+    def _sender(self) -> SymDBSender:
+        # Built on the first upload to reduce startup cost.
+        return build_symdb_sender()
 
     def _reset_on_fork(self) -> None:
         # Runs after fork in the child. The runtime module's own forksafe
@@ -668,8 +671,6 @@ class ScopeContext:
 
         log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
         try:
-            if self._sender is None:
-                self._sender = build_symdb_sender()
             rejected = self._sender.send(body, headers["Content-Type"])
         except Exception:
             log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)

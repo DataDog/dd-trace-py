@@ -421,7 +421,7 @@ class DebuggerSenderError(Exception):
     """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
 
 class DebuggerSender:
-    """Sender for Dynamic Instrumentation / Exception Replay / Code Origin payloads.
+    """Sender for debugger-related payloads.
 
     Wraps the ``datadog-live-debugger`` sender.
 
@@ -484,7 +484,7 @@ class DebuggerSender:
         """
         ...
 
-class SymDbSender:
+class SymDBSender:
     """Sender for symbol database (SymDB) uploads.
 
     Reaches Datadog through the same intake host as :class:`DebuggerSender`, but
@@ -505,7 +505,7 @@ class SymDbSender:
         tags: str = ...,
         timeout_ms: int = ...,
         test_session_token: Optional[str] = ...,
-    ) -> "SymDbSender":
+    ) -> "SymDBSender":
         """Build a sender on ``runtime``.
 
         ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
