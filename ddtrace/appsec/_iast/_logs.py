@@ -41,9 +41,13 @@ def iast_instrumentation_ast_patching_errorr_log(msg):
     iast_error(msg, default_prefix="iast::instrumentation::ast_patching::")
 
 
-def iast_propagation_error_log(msg, exc: Union[BaseException, tuple, None] = None):
+def iast_propagation_error_log(msg: str, exc: Union[BaseException, tuple[object, ...], None] = None) -> None:
     iast_error(msg, default_prefix="iast::propagation::error::", exc=exc)
 
 
-def iast_error(msg, default_prefix="iast::", exc: Union[BaseException, tuple, None] = None):
+def iast_error(
+    msg: str,
+    default_prefix: str = "iast::",
+    exc: Union[BaseException, tuple[object, ...], None] = None,
+) -> None:
     _set_iast_error_metric(f"{default_prefix}{msg}", exc=exc)

@@ -61,4 +61,4 @@ def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
         # Report Telemetry Metrics
         _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in _iast_report_cmdi", e)
+        iast_error("propagation::sink_point::Error in _iast_report_cmdi", exc=e)
