@@ -12,10 +12,8 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import span_bus
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
-from ..._constants import IAST
 from ..._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
@@ -26,8 +24,6 @@ from ..reporter import IastSpanReporter
 from ..reporter import Location
 from ..reporter import Vulnerability
 
-
-log = get_logger(__name__)
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 F = TypeVar("F", bound=Callable[..., Optional[bool]])
@@ -128,13 +124,9 @@ class VulnerabilityBase:
         *args: object,
         **kwargs: object,
     ) -> Optional[bool]:
-        if isinstance(evidence_value, IAST.TEXT_TYPES):
-            if isinstance(evidence_value, (bytes, bytearray)):
-                evidence_value = evidence_value.decode("utf-8", "ignore")
-            evidence = Evidence(value=evidence_value, dialect=dialect)
-        else:
-            log.debug("Unexpected evidence_value type: %s", type(evidence_value))
-            evidence = Evidence(value="", dialect=dialect)
+        if isinstance(evidence_value, (bytes, bytearray)):
+            evidence_value = evidence_value.decode("utf-8", "ignore")
+        evidence = Evidence(value=evidence_value, dialect=dialect)
         return cls._prepare_report(
             vulnerability_type, evidence, file_name, line_number, function_name, class_name, *args, **kwargs
         )
