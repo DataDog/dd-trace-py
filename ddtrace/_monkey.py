@@ -7,6 +7,7 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
@@ -16,12 +17,15 @@ from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
+from .internal.logger import configure_gevent_logging
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 log = get_logger(__name__)
+
+ModuleWatchdog.register_module_hook("gevent.monkey", configure_gevent_logging)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {

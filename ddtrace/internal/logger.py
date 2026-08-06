@@ -30,17 +30,24 @@ Usage:
 
 """
 
+from _thread import allocate_lock as _allocate_native_lock
+from _thread import get_ident as _get_native_ident
 import collections
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import logging
 import time
 import traceback
+from typing import Callable
 from typing import DefaultDict
+from typing import Deque
 from typing import Optional
+from typing import Protocol
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal import atexit
 from ddtrace.internal.settings import env
 
 
@@ -48,6 +55,138 @@ SECOND = 1
 MINUTE = 60 * SECOND
 HOUR = 60 * MINUTE
 DAY = 24 * HOUR
+
+
+class _GeventLoop(Protocol):
+    def run_callback_threadsafe(self, callback: Callable[..., object], *args: object) -> object: ...
+
+
+class _GeventHub(Protocol):
+    loop: _GeventLoop
+
+
+_DEFERRED_LOG_RECORD_LIMIT = 1024
+_DEFERRED_LOG_RECORDS: Deque[logging.LogRecord] = collections.deque(maxlen=_DEFERRED_LOG_RECORD_LIMIT)  # noqa: UP006
+_DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
+_DEFERRED_RECORD_ATTRIBUTE = "_dd_deferred"
+_DEFERRED_RECORD_SENTINEL = object()
+_GEVENT_THREADING_PATCHED = False
+_GEVENT_FORKSAFE_REGISTERED = False
+_GEVENT_DRAIN_SCHEDULED = False
+_GEVENT_HUB: Optional[_GeventHub] = None
+_GEVENT_SPAWN_RAW: Optional[Callable[..., object]] = None
+_MAIN_THREAD_IDENT = _get_native_ident()
+
+
+def _drain_deferred_log_records() -> None:
+    """Emit one bounded batch of deferred records from a gevent-managed greenlet."""
+    global _GEVENT_DRAIN_SCHEDULED
+
+    try:
+        # Bound each drain to the records present on entry so producers cannot starve the hub thread.
+        for _ in range(len(_DEFERRED_LOG_RECORDS)):
+            try:
+                record = _DEFERRED_LOG_RECORDS.popleft()
+            except IndexError:
+                break
+            setattr(record, _DEFERRED_RECORD_ATTRIBUTE, _DEFERRED_RECORD_SENTINEL)
+            logging.getLogger(record.name).handle(record)
+    finally:
+        with _DEFERRED_LOG_STATE_LOCK:
+            _GEVENT_DRAIN_SCHEDULED = False
+            schedule_another_drain = bool(_DEFERRED_LOG_RECORDS)
+        if schedule_another_drain:
+            _schedule_deferred_log_drain()
+
+
+atexit.register(_drain_deferred_log_records)
+
+
+def _schedule_deferred_log_drain() -> None:
+    """Wake the owning gevent hub when a native thread defers a log record."""
+    global _GEVENT_DRAIN_SCHEDULED
+
+    with _DEFERRED_LOG_STATE_LOCK:
+        hub = _GEVENT_HUB
+        spawn_raw = _GEVENT_SPAWN_RAW
+        if _GEVENT_DRAIN_SCHEDULED or hub is None or spawn_raw is None:
+            return
+        _GEVENT_DRAIN_SCHEDULED = True
+
+    try:
+        # Loop callbacks cannot yield, but logging handlers can. Start a raw greenlet before invoking them.
+        hub.loop.run_callback_threadsafe(spawn_raw, _drain_deferred_log_records)
+    except Exception:
+        # The hub can already be destroyed during interpreter shutdown. The atexit drain remains as a fallback.
+        with _DEFERRED_LOG_STATE_LOCK:
+            _GEVENT_DRAIN_SCHEDULED = False
+
+
+def _after_fork() -> None:
+    global _DEFERRED_LOG_STATE_LOCK, _GEVENT_DRAIN_SCHEDULED, _GEVENT_HUB, _MAIN_THREAD_IDENT
+
+    from gevent.hub import get_hub
+
+    _DEFERRED_LOG_RECORDS.clear()
+    _DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
+    _GEVENT_DRAIN_SCHEDULED = False
+    _GEVENT_HUB = get_hub()
+    _MAIN_THREAD_IDENT = _get_native_ident()
+
+
+def _enable_gevent_thread_logging(gevent_monkey) -> None:
+    global _DEFERRED_LOG_STATE_LOCK, _GEVENT_FORKSAFE_REGISTERED, _GEVENT_HUB, _GEVENT_SPAWN_RAW
+    global _GEVENT_THREADING_PATCHED, _MAIN_THREAD_IDENT, _allocate_native_lock, _get_native_ident
+
+    if _GEVENT_THREADING_PATCHED or not gevent_monkey.is_module_patched("threading"):
+        return
+
+    # ddtrace can be imported after monkey.patch_all(), in which case the module-level alias was patched too.
+    _allocate_native_lock = gevent_monkey.get_original("_thread", "allocate_lock")
+    _get_native_ident = gevent_monkey.get_original("_thread", "get_ident")
+    from gevent.hub import get_hub
+    from gevent.hub import spawn_raw
+
+    # Capture the patching thread's hub. Calling get_hub() later from a foreign worker would create an unused hub.
+    _GEVENT_HUB = get_hub()
+    _GEVENT_SPAWN_RAW = spawn_raw
+    _MAIN_THREAD_IDENT = _get_native_ident()
+    _DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
+    _GEVENT_THREADING_PATCHED = True
+    if _GEVENT_FORKSAFE_REGISTERED:
+        return
+
+    from ddtrace.internal import forksafe
+
+    forksafe.register(_after_fork)
+    _GEVENT_FORKSAFE_REGISTERED = True
+
+
+def configure_gevent_logging(gevent_monkey) -> None:
+    """Route native-thread records through the gevent hub after threading is patched."""
+    if getattr(gevent_monkey, "_ddtrace_logging_wrapped", False):
+        _enable_gevent_thread_logging(gevent_monkey)
+        return
+
+    original_patch_all = gevent_monkey.patch_all
+    original_patch_thread = gevent_monkey.patch_thread
+
+    @functools.wraps(original_patch_all)
+    def patch_all(*args, **kwargs):
+        result = original_patch_all(*args, **kwargs)
+        _enable_gevent_thread_logging(gevent_monkey)
+        return result
+
+    @functools.wraps(original_patch_thread)
+    def patch_thread(*args, **kwargs):
+        result = original_patch_thread(*args, **kwargs)
+        _enable_gevent_thread_logging(gevent_monkey)
+        return result
+
+    gevent_monkey.patch_all = patch_all
+    gevent_monkey.patch_thread = patch_thread
+    gevent_monkey._ddtrace_logging_wrapped = True
+    _enable_gevent_thread_logging(gevent_monkey)
 
 
 @dataclass
@@ -169,6 +308,14 @@ def log_filter(record: logging.LogRecord) -> bool:
     This function will:
       - Rate limit log records based on the logger name, record level, filename, and line number
     """
+    gevent_threading_patched = _GEVENT_THREADING_PATCHED
+    is_main_thread = False
+    if gevent_threading_patched:
+        is_main_thread = _get_native_ident() == _MAIN_THREAD_IDENT
+        if is_main_thread and getattr(record, _DEFERRED_RECORD_ATTRIBUTE, None) is _DEFERRED_RECORD_SENTINEL:
+            delattr(record, _DEFERRED_RECORD_ATTRIBUTE)
+            return True
+
     logger = logging.getLogger(record.name)
     rate_limit = _RATE_LIMITS.get(record.msg, _rate_limit)
     # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
@@ -212,6 +359,12 @@ def log_filter(record: logging.LogRecord) -> bool:
             record.exc_info = None
         else:
             record.msg = f"{record.msg}{skip_str}"
+    # AIDEV-NOTE: A gevent Handler lock can permanently strand a greenlet when a hubless native thread releases it.
+    # Queue foreign-thread records before Handler.handle and wake the owning hub so it can emit them promptly.
+    if must_be_propagated and gevent_threading_patched and not is_main_thread:
+        _DEFERRED_LOG_RECORDS.append(record)
+        _schedule_deferred_log_drain()
+        return False
     return must_be_propagated
 
 
