@@ -147,6 +147,34 @@ def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typ
         _publish_span(target, span_info)
 
 
+def _inherited_span_info(task_context: typing.Optional[contextvars.Context] = None) -> typing.Optional[_SpanInfo]:
+    linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
+    if linked_span is None or linked_span.generation != _span_link_generation:
+        return None
+    source_span = linked_span.span_ref() if linked_span.span_ref is not None else None
+    if linked_span.span_ref is not None and (source_span is None or source_span.finished):
+        return None
+    return linked_span.span_info
+
+
+def link_thread_span_context() -> bool:
+    """Link the current physical thread from inherited profiler ContextVar state."""
+    if not _span_linking_enabled:
+        return False
+    span_info = _inherited_span_info()
+    if span_info is None:
+        stack.clear_span()
+        return False
+    _publish_span(None, span_info)
+    return True
+
+
+def clear_thread_span() -> None:
+    """Clear attribution for the current physical thread."""
+    if _span_linking_enabled:
+        stack.clear_span()
+
+
 def link_logical_span_context(
     domain: SpanLinkDomain,
     logical_id: int,
@@ -155,16 +183,12 @@ def link_logical_span_context(
     """Seed a logical execution context from inherited profiler ContextVar state."""
     if not _span_linking_enabled:
         return False
-    linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
     target = LogicalSpanTarget(domain, logical_id)
-    if linked_span is None or linked_span.generation != _span_link_generation:
+    span_info = _inherited_span_info(task_context)
+    if span_info is None:
         _clear_span(target)
         return False
-    source_span = linked_span.span_ref() if linked_span.span_ref is not None else None
-    if linked_span.span_ref is not None and (source_span is None or source_span.finished):
-        _clear_span(target)
-        return False
-    _publish_span(target, linked_span.span_info)
+    _publish_span(target, span_info)
     return True
 
 
