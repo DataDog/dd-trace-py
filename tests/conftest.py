@@ -30,30 +30,6 @@ import warnings
 
 import pytest
 
-
-_CI_ITR_ROLLOUT_ENV_VARS = (
-    "DD_CIVISIBILITY_ITR_ENABLED",
-    "_DD_COVERAGE_FILE_LEVEL",
-    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
-    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
-)
-_CI_ITR_ROLLOUT_ENV_SUITES = ("coverage", "dd_coverage", "pytest", "testing", "ci_visibility")
-
-
-def _should_clear_ci_itr_rollout_env() -> bool:
-    suite_name = os.environ.get("SUITE_NAME", "")
-    return any(suite in suite_name for suite in _CI_ITR_ROLLOUT_ENV_SUITES)
-
-
-def _clear_ci_itr_rollout_env() -> None:
-    if not _should_clear_ci_itr_rollout_env():
-        return
-    for name in _CI_ITR_ROLLOUT_ENV_VARS:
-        os.environ.pop(name, None)
-
-
-_clear_ci_itr_rollout_env()
-
 import ddtrace
 
 
@@ -86,11 +62,6 @@ except ImportError:
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
-
-
-@pytest.fixture(autouse=True)
-def clear_ci_itr_rollout_env() -> None:
-    _clear_ci_itr_rollout_env()
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
