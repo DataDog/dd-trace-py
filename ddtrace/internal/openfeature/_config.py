@@ -1,10 +1,26 @@
+"""
+Module-level storage for the parsed FFE configuration and its consent value.
+
+The two values are bundled in one NamedTuple with a single module-level
+reference so a reader always sees a consistent (config, consent) pair. This
+closes the consent-lifecycle race described in the Java pilot's review
+(concern:bind-consent-to-evaluated-config).
+"""
+
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
+from typing import Union
 
 from ddtrace.internal.native._native import ffe
 
 
-FFE_CONFIG: Optional[ffe.Configuration] = None
+class _FfeSnapshot(NamedTuple):
+    """Atomic bundle of native config and the consent value read off the UFC."""
+
+    config: ffe.Configuration
+    observe_full_evaluation_data: bool
+
 
 # Registry of provider instances (ddtrace.internal.openfeature._provider.DataDogProvider)
 # that need to be notified when new FFE configuration arrives. Kept here rather than in
@@ -15,16 +31,42 @@ FFE_CONFIG: Optional[ffe.Configuration] = None
 _provider_instances: list[Any] = []
 
 
-def _get_ffe_config():
-    """Retrieve the current FFE configuration."""
-    return FFE_CONFIG
+# Module-level global. Reads and writes are done through the accessors below so
+# callers only ever observe a consistent snapshot.
+_FFE_SNAPSHOT: Optional[_FfeSnapshot] = None
 
 
-def _set_ffe_config(config):
-    """Set the FFE configuration and notify registered providers."""
-    global FFE_CONFIG
-    FFE_CONFIG = config
-    if config is not None:
+# AIDEV-NOTE: Preserved for existing callers only. New evaluation paths must
+# use _get_ffe_snapshot() so consent is observed atomically with the exact
+# configuration being evaluated. Reading only the config and then consulting
+# live consent downstream reintroduces the consent-lifecycle race.
+def _get_ffe_config() -> Optional[ffe.Configuration]:
+    """Retrieve just the native FFE configuration. Preserved for compatibility."""
+    snap = _FFE_SNAPSHOT
+    return snap.config if snap is not None else None
+
+
+def _get_ffe_snapshot() -> Optional[_FfeSnapshot]:
+    """Retrieve the full snapshot (config + consent)."""
+    return _FFE_SNAPSHOT
+
+
+def _set_ffe_config(value: Union[None, ffe.Configuration, _FfeSnapshot]) -> None:
+    """Set the FFE snapshot and notify registered providers.
+
+    Accepts either a bare native Configuration (existing test callers) or a
+    _FfeSnapshot. A bare Configuration is stored as consent-off; None clears.
+    """
+    global _FFE_SNAPSHOT
+    if value is None:
+        _FFE_SNAPSHOT = None
+    elif isinstance(value, _FfeSnapshot):
+        _FFE_SNAPSHOT = value
+    else:
+        # Legacy path: a raw Configuration means consent-off (fail closed).
+        _FFE_SNAPSHOT = _FfeSnapshot(config=value, observe_full_evaluation_data=False)
+
+    if _FFE_SNAPSHOT is not None:
         _notify_providers_config_received()
 
 
