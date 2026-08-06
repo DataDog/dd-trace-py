@@ -51,7 +51,7 @@ cdef extern from "pack.h":
     int msgpack_pack_map(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
     int msgpack_pack_bin(msgpack_packer* pk, size_t l)
-    int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
+    int msgpack_pack_raw_body(msgpack_packer* pk, const char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
     int msgpack_pack_uint8(msgpack_packer* pk, stdint.uint8_t d)
     int msgpack_pack_uint32(msgpack_packer* pk, stdint.uint32_t d)
@@ -107,7 +107,7 @@ cdef inline object truncate_string(object string):
             return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
     return string
 
-cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
+cdef inline int pack_bytes(msgpack_packer *pk, const char *bs, Py_ssize_t l):
     cdef int ret
 
     ret = msgpack_pack_raw(pk, l)
