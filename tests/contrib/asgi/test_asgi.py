@@ -255,13 +255,10 @@ if __name__ == "__main__":
     "schema_version, global_service_name",
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
+@pytest.mark.snapshot()
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-    expected_service_name = {
-        None: global_service_name or inferred_base_service,
-        "v0": global_service_name or inferred_base_service,
-        "v1": global_service_name or inferred_base_service,
-    }[schema_version]
+    expected_service_name = global_service_name or inferred_base_service
     code = """
 import pytest
 from tests.conftest import *

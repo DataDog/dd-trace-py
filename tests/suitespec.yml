@@ -220,6 +220,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/gen_gitlab_config.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
@@ -268,6 +269,9 @@ suites:
       - '@settings'
       - '@profiling'
       - '@vendor'
+      # tests/telemetry runs real django and flask apps; '@contrib' is only shared infrastructure.
+      - '@django'
+      - '@flask'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     snapshot: true

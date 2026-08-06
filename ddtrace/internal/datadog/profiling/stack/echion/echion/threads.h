@@ -111,6 +111,7 @@ class ThreadInfo
     };
 
   private:
+    void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long);

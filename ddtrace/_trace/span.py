@@ -296,6 +296,10 @@ class Span(SpanData):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
+    def remove_tag(self, key: str) -> None:
+        """Remove a tag from the span. No-op if the key is not set."""
+        self._remove_attribute(key)
+
     def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
@@ -331,6 +335,10 @@ class Span(SpanData):
     def get_metrics(self) -> dict[str, NumericType]:
         """Return all metrics."""
         return dict(self._get_numeric_attributes())
+
+    def remove_metric(self, key: str) -> None:
+        """Remove a metric from the span. No-op if the key is not set."""
+        self._remove_attribute(key)
 
     def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
         """Add an errortracking related callback to the on_finish_callback array"""

@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f22b9400000000",
+      "_dd.svc_src": "trace",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpb0g2ge81,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "trace",
       "language": "python",
@@ -38,6 +39,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f22b9400000000",
+      "_dd.svc_src": "trace",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpb0g2ge81,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "trace",
       "language": "python",
@@ -62,6 +64,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "trace",
          "component": "trace"
        },
        "duration": 12375,
@@ -80,6 +83,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f22b9400000000",
+      "_dd.svc_src": "trace",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpb0g2ge81,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "trace",
       "language": "python",
@@ -107,6 +111,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f22b9400000000",
+      "_dd.svc_src": "trace",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpb0g2ge81,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "trace",
       "language": "python",
@@ -131,6 +136,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "trace",
          "component": "trace"
        },
        "duration": 7375,
@@ -149,6 +155,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f22b9400000000",
+      "_dd.svc_src": "trace",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpb0g2ge81,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "trace",
       "language": "python",
