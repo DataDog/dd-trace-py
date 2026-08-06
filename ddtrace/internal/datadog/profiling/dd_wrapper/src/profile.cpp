@@ -70,8 +70,7 @@ Datadog::Profile::reset_profile()
 void
 Datadog::Profile::cleanup()
 {
-    // Serialize cleanup with sampling and upload operations that borrow the profile.
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+    // Drop the profile and release its resources
     ddog_prof_Profile_drop(&cur_profile);
 }
 

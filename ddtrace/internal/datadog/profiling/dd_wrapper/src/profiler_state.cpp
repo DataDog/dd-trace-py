@@ -129,9 +129,6 @@ ProfilerState::start()
                        []() { ProfilerState::get().postfork_parent(); },
                        []() { ProfilerState::get().postfork_child(); });
 
-        // Register cleanup function to free resources on exit
-        std::atexit([]() { ProfilerState::get().cleanup(); });
-
         // Set the global initialization flag
         initialized_.store(true, std::memory_order_release);
     });
@@ -140,13 +137,9 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
-    // Clear the profile, decreasing its reference count on the Profiles Dictionary.
-    profile_state.cleanup();
-
-    // Keep the owner handle alive until the OS reclaims process-global state. A
-    // producer may have loaded this raw handle immediately before native cleanup,
-    // and the C API cannot transfer ownership of that load retroactively. Fork
-    // handling still releases and rebuilds the dictionary in postfork_child().
+    // Keep process-global profiler resources alive until the OS reclaims them. A
+    // producer can start before cleanup and reach the profile or dictionary after it.
+    // Fork handling still releases and rebuilds both resources in postfork_child().
 }
 
 void
