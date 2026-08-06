@@ -1,6 +1,7 @@
 # type: ignore
 import logging
 import os
+import typing
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
@@ -4638,7 +4639,7 @@ def _is_true_env(name: str) -> bool:
     return os.environ.get(name, "").lower() in ("true", "1")
 
 
-def _python_hint_to_version(hint: str) -> Version | None:
+def _python_hint_to_version(hint: str) -> typing.Optional[Version]:
     try:
         return Version(hint)
     except InvalidVersion:
