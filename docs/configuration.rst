@@ -1232,10 +1232,16 @@ Feature Flagging
      type: String
      default: (none)
      description: |
-         Overrides the agentless Universal Flag Configuration endpoint. A root or
-         origin URL receives the standard rules-based server path; a URL with a
-         non-root path is used verbatim as the exact endpoint. Only applies when
-         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+         Overrides the Datadog-managed agentless Universal Flag Configuration
+         endpoint, for local development or an operator-managed proxy. The URL must
+         use HTTP or HTTPS. An origin or root URL receives the standard rules-based
+         server path, so ``http://localhost:8080`` resolves to
+         ``http://localhost:8080/api/v2/feature-flagging/config/rules-based/server``;
+         a URL with a non-root path, such as
+         ``https://ufc-proxy.internal.example.com/ufc``, is used verbatim as the
+         exact endpoint. ``DD_API_KEY`` is never sent to a custom endpoint. Only
+         applies when ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+         See `Use a custom agentless endpoint <https://docs.datadoghq.com/feature_flags/concepts/configuration_sources/#use-a-custom-agentless-endpoint>`_.
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS:
      type: Integer

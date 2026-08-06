@@ -1,5 +1,6 @@
 import gzip
 import json
+import socket
 
 import pytest
 
@@ -42,10 +43,27 @@ class _FakeResponse:
         return self._headers.get(name.lower(), default)
 
 
+class _FakeSocket:
+    """Records the half-close a shutdown performs to cancel an in-flight poll."""
+
+    def __init__(self, error=None):
+        self.shutdowns: list = []
+        self._error = error
+
+    def shutdown(self, how):
+        if self._error is not None:
+            raise self._error
+        self.shutdowns.append(how)
+
+
 class _FakeConn:
-    def __init__(self, responses, requests):
+    def __init__(self, responses, requests, sock=None):
         self._responses = responses
         self._requests = requests
+        self.closed = False
+        # http.client connects lazily, so a connection only grows a socket once
+        # the request is on the wire. Tests that exercise cancellation set one.
+        self.sock = sock
 
     def request(self, method, target, body, headers):
         self._requests.append(
@@ -64,19 +82,22 @@ class _FakeConn:
         return item
 
     def close(self):
-        pass
+        self.closed = True
 
 
 @pytest.fixture
 def harness(monkeypatch):
     """Return a factory building a poller with a scripted fake HTTP layer."""
 
-    def build(responses, api_key=None, poll_interval=30.0):
+    def build(responses, api_key=None, poll_interval=30.0, sock=None):
         requests: list = []
         applied: list = []
+        conns: list = []
 
         def fake_get_connection(url, timeout=None):
-            return _FakeConn(responses, requests)
+            conn = _FakeConn(responses, requests, sock=sock)
+            conns.append(conn)
+            return conn
 
         monkeypatch.setattr(source_mod, "get_connection", fake_get_connection)
 
@@ -90,6 +111,7 @@ def harness(monkeypatch):
         monkeypatch.setattr(src, "_retry_delay", lambda attempt: 0.0)
         src._requests = requests
         src._applied = applied
+        src._conns = conns
         return src
 
     return build
@@ -257,8 +279,16 @@ def test_forked_child_first_poll_is_jittered_once(harness, monkeypatch):
 def test_shutdown_during_backoff_stops_retrying(harness, monkeypatch):
     """A shutdown requested while backing off must not start another attempt."""
     src = harness([_FakeResponse(500), _FakeResponse(200, _ufc_body(), {"ETag": '"late"'})])
+    # A real backoff, so the fake wait below can tell it apart from the zero-length
+    # initial_wait retry() performs before the first attempt. Nothing actually
+    # sleeps: _wait is replaced outright.
+    monkeypatch.setattr(src, "_retry_delay", lambda attempt: 30.0)
 
     def wait_then_shutdown(delay):
+        # The real _wait returns immediately for a zero delay without observing a
+        # stop, so only a genuine backoff wait may request one here.
+        if not delay:
+            return src._stopping
         src._stopping = True
         return True
 
@@ -280,6 +310,100 @@ def test_shutdown_mid_poll_does_not_apply(harness):
 
     assert src._applied == []
     assert src._etag is None
+
+
+def test_shutdown_half_closes_the_socket_of_a_poll_in_flight(harness):
+    """A stop must tear down the open request instead of waiting out its timeout."""
+    sock = _FakeSocket()
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})], sock=sock)
+    cancelled_at: list = []
+
+    # Stand in for the thread calling stop() while the worker blocks on the read.
+    original_getresponse = _FakeConn.getresponse
+
+    def getresponse_with_concurrent_stop(conn):
+        src._stopping = True
+        src._cancel_in_flight_request()
+        cancelled_at.append(list(sock.shutdowns))
+        return original_getresponse(conn)
+
+    _FakeConn.getresponse = getresponse_with_concurrent_stop
+    try:
+        src.periodic()
+    finally:
+        _FakeConn.getresponse = original_getresponse
+
+    # Half-closed while the request was still open, not after it returned.
+    assert cancelled_at == [[socket.SHUT_RDWR]]
+    assert src._applied == []  # a cancelled poll keeps last-known-good
+    assert src._etag is None
+
+
+def test_shutdown_releases_the_connection_it_cancelled(harness):
+    """The worker still owns cleanup: the cancelled connection is closed."""
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})], sock=_FakeSocket())
+
+    src.periodic()
+
+    assert src._conns[0].closed is True
+    assert src._in_flight_conn is None  # slot released for the next poll
+
+
+def test_stop_service_cancels_before_joining(harness, monkeypatch):
+    """_stop_service half-closes the live socket, then defers to PeriodicService."""
+    sock = _FakeSocket()
+    src = harness([_FakeResponse(304)], sock=sock)
+    joined: list = []
+    # PeriodicService._stop_service joins the worker; stub it out so the test needs
+    # no running thread and can assert the cancel happened before the join.
+    monkeypatch.setattr(
+        source_mod.PeriodicService,
+        "_stop_service",
+        lambda self, *a, **kw: joined.append(list(sock.shutdowns)),
+    )
+    with src._conn_lock:
+        src._in_flight_conn = _FakeConn([], [], sock=sock)
+
+    src._stop_service()
+
+    assert src._stopping is True
+    assert joined == [[socket.SHUT_RDWR]]
+
+
+def test_cancel_is_a_noop_when_no_poll_is_in_flight(harness):
+    """Stopping an idle poller must not raise."""
+    src = harness([_FakeResponse(304)])
+    src._cancel_in_flight_request()  # no connection published yet
+    assert src._in_flight_conn is None
+
+
+def test_cancel_is_a_noop_before_the_socket_exists(harness):
+    """http.client connects lazily; a stop with no socket yet has nothing to close."""
+    src = harness([_FakeResponse(304)])
+    with src._conn_lock:
+        src._in_flight_conn = _FakeConn([], [], sock=None)
+
+    src._cancel_in_flight_request()  # must not raise on the missing socket
+
+
+def test_cancel_tolerates_an_already_closed_socket(harness):
+    """A socket the worker closed first raises OSError; the stop swallows it."""
+    src = harness([_FakeResponse(304)])
+    with src._conn_lock:
+        src._in_flight_conn = _FakeConn([], [], sock=_FakeSocket(error=OSError("not connected")))
+
+    src._cancel_in_flight_request()  # must not propagate
+
+
+def test_no_request_is_issued_after_a_stop_was_requested(harness):
+    """A poll that starts after the stop flag is set never reaches the network."""
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})])
+    src._stopping = True
+
+    src.periodic()
+
+    assert src._requests == []  # returned before conn.request()
+    assert src._applied == []
 
 
 def test_backoff_wait_is_interruptible(harness):

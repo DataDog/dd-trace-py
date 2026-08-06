@@ -14,6 +14,8 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 from collections import namedtuple
 import os
 import random
+import socket
+import threading
 import time
 from typing import Any
 from typing import Callable
@@ -134,6 +136,13 @@ class AgentlessConfigurationSource(PeriodicService):
         # early instead of holding the worker thread for their full delay.
         self._stopping = False
 
+        # The connection of the poll currently in flight, if any. Shutdown uses it
+        # to unblock the worker thread mid-request; see _cancel_in_flight_request.
+        # The lock keeps the shutdown thread from touching a connection the worker
+        # is concurrently replacing or closing.
+        self._conn_lock = threading.Lock()
+        self._in_flight_conn: Optional[Any] = None
+
     # -- scheduling ---------------------------------------------------------
 
     def _start_service(self, *args: Any, **kwargs: Any) -> None:
@@ -144,7 +153,38 @@ class AgentlessConfigurationSource(PeriodicService):
         # Request the stop first so any in-tick wait ends at its next slice and
         # the worker thread can finish promptly.
         self._stopping = True
+        # Then tear down any request already on the wire. Without this, a caller
+        # joining the worker waits out the per-request timeout on every blocking
+        # socket call still to come (connect, then each read).
+        self._cancel_in_flight_request()
         super()._stop_service(*args, **kwargs)
+
+    def _cancel_in_flight_request(self) -> None:
+        """Unblock a poll waiting on the network so shutdown does not wait for it.
+
+        Half-closing the socket from this thread makes the worker's pending
+        connect/recv return or raise at once; close() alone would not, since the
+        worker is already blocked inside a syscall on that file descriptor. The
+        worker owns cleanup either way -- _request closes the connection in its
+        finally block, and the resulting error is reported as a failed poll, which
+        keeps last-known-good.
+
+        One window stays uncancellable: http.client connects lazily inside
+        request(), so a stop that lands before the socket exists has nothing to
+        half-close and the worker blocks in connect() for up to the request
+        timeout. Requests already past connect -- the long pole, since a poll
+        spends its time reading the UFC body -- are cancelled immediately.
+        """
+        with self._conn_lock:
+            conn = self._in_flight_conn
+            sock = getattr(conn, "sock", None) if conn is not None else None
+            if sock is None:
+                return
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                # Already closed, never connected, or shut down by the worker first.
+                log.debug("Feature Flagging agentless request was not cancellable", exc_info=True)
 
     def _wait(self, delay: float) -> bool:
         """Wait up to ``delay`` seconds. Returns True if a shutdown was requested.
@@ -235,6 +275,14 @@ class AgentlessConfigurationSource(PeriodicService):
         conn = None
         try:
             conn = get_connection(self._conn_url, timeout=self._request_timeout)
+            # Publish the connection so a concurrent shutdown can half-close it
+            # instead of waiting out the request timeout. Claiming the slot and
+            # re-reading the stop flag under one lock keeps a poll from starting
+            # after _stop_service has already looked for something to cancel.
+            with self._conn_lock:
+                if self._stopping:
+                    return _PollResponse(status=None, etag=None, content_encoding=None, body=None, error=None)
+                self._in_flight_conn = conn
             # Suppress self-tracing: no HTTP span, no trace-header injection.
             setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
             conn.request("GET", self._request_target, None, self._headers())  # type: ignore[no-untyped-call]
@@ -250,6 +298,8 @@ class AgentlessConfigurationSource(PeriodicService):
         except Exception as e:
             return _PollResponse(status=None, etag=None, content_encoding=None, body=None, error=e)
         finally:
+            with self._conn_lock:
+                self._in_flight_conn = None
             if conn is not None:
                 conn.close()
 
