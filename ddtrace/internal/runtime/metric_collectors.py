@@ -1,5 +1,7 @@
-import os
+import time
+from typing import NamedTuple
 
+from .. import forksafe
 from .collector import ValueCollector
 from .constants import CPU_PERCENT
 from .constants import CPU_TIME_SYS
@@ -39,53 +41,85 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         return metrics
 
 
-class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
-    """Collector for psutil metrics.
-
-    Performs batched operations via proc.oneshot() to optimize the calls.
-    See https://psutil.readthedocs.io/en/latest/#psutil.Process.oneshot
-    for more information.
+class _ProcessMetrics(NamedTuple):
+    """Named view over the plain tuple returned by native.process_metrics(), for
+    readability at the one call site that reads these fields.
     """
 
-    required_modules = ["ddtrace.vendor.psutil"]
-    delta_funs = {
-        CPU_TIME_SYS: lambda p: p.cpu_times().system,
-        CPU_TIME_USER: lambda p: p.cpu_times().user,
-        CTX_SWITCH_VOLUNTARY: lambda p: p.num_ctx_switches().voluntary,
-        CTX_SWITCH_INVOLUNTARY: lambda p: p.num_ctx_switches().involuntary,
-    }
-    abs_funs = {
-        THREAD_COUNT: lambda p: p.num_threads(),
-        MEM_RSS: lambda p: p.memory_info().rss,
-        CPU_PERCENT: lambda p: p.cpu_percent(),
-    }
+    cpu_time_sys_ns: int
+    cpu_time_user_ns: int
+    ctx_switches_voluntary: int
+    ctx_switches_involuntary: int
+    num_threads: int
+    rss_bytes: int
+
+
+class NativeProcessMetricCollector(RuntimeMetricCollector):
+    """
+    Collector for process-level metrics (cpu time, memory, threads, context
+    switches).
+    """
+
+    required_modules = ["ddtrace.internal.native"]
+
+    _NS_TO_SEC = 1e-9
 
     def _on_modules_load(self):
-        self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
-        self.stored_values = {key: 0 for key in self.delta_funs.keys()}
+        # Smoke test: if this raises, `_load_modules`'s caller never sees it since it's
+        # not an ImportError, so surface it the same way a failed import would.
+        try:
+            self.modules["ddtrace.internal.native"].process_metrics()
+        except Exception:
+            self.enabled = False
+            return
+
+        self._reset_state()
+        forksafe.register(self._reset_state)
+
+    def _reset_state(self):
+        # A forked child inherits these as the parent's last-observed values, while its own
+        # /proc/self/stat counters restart near zero -- without resetting here, the child's
+        # first post-fork delta would be negative.
+        self.stored_cpu_times = {CPU_TIME_SYS: 0.0, CPU_TIME_USER: 0.0}
+        self.stored_ctx_switches = {CTX_SWITCH_VOLUNTARY: 0, CTX_SWITCH_INVOLUNTARY: 0}
+        self._last_wall_time = time.monotonic()
 
     def collect_fn(self, keys):
-        with self.proc.oneshot():
-            metrics = {}
+        native = self.modules["ddtrace.internal.native"]
 
-            # Populate metrics for which we compute delta values
-            for metric, delta_fun in self.delta_funs.items():
-                try:
-                    value = delta_fun(self.proc)
-                except Exception:
-                    value = 0
+        process_metrics = _ProcessMetrics(*native.process_metrics())
 
-                delta = value - self.stored_values.get(metric, 0)
-                self.stored_values[metric] = value
-                metrics[metric] = delta
+        now = time.monotonic()
+        elapsed = now - self._last_wall_time
+        self._last_wall_time = now
 
-            # Populate metrics that just take instantaneous reading
-            for metric, abs_fun in self.abs_funs.items():
-                try:
-                    value = abs_fun(self.proc)
-                except Exception:
-                    value = 0
+        cpu_time_sys = process_metrics.cpu_time_sys_ns * self._NS_TO_SEC
+        cpu_time_user = process_metrics.cpu_time_user_ns * self._NS_TO_SEC
+        delta_cpu_time_sys = cpu_time_sys - self.stored_cpu_times[CPU_TIME_SYS]
+        delta_cpu_time_user = cpu_time_user - self.stored_cpu_times[CPU_TIME_USER]
+        self.stored_cpu_times[CPU_TIME_SYS] = cpu_time_sys
+        self.stored_cpu_times[CPU_TIME_USER] = cpu_time_user
 
-                metrics[metric] = value
+        metrics = {
+            CPU_TIME_SYS: delta_cpu_time_sys,
+            CPU_TIME_USER: delta_cpu_time_user,
+            THREAD_COUNT: process_metrics.num_threads,
+            MEM_RSS: process_metrics.rss_bytes,
+            CPU_PERCENT: (delta_cpu_time_sys + delta_cpu_time_user) / elapsed * 100 if elapsed > 0 else 0.0,
+        }
 
-            return list(metrics.items())
+        # A negative value means the platform can't report ctx switches (see
+        # src/native/process_metrics/mod.rs) -- omit those two metrics rather
+        # than fabricate a delta.
+        if process_metrics.ctx_switches_voluntary >= 0:
+            metrics[CTX_SWITCH_VOLUNTARY] = (
+                process_metrics.ctx_switches_voluntary - self.stored_ctx_switches[CTX_SWITCH_VOLUNTARY]
+            )
+            self.stored_ctx_switches[CTX_SWITCH_VOLUNTARY] = process_metrics.ctx_switches_voluntary
+        if process_metrics.ctx_switches_involuntary >= 0:
+            metrics[CTX_SWITCH_INVOLUNTARY] = (
+                process_metrics.ctx_switches_involuntary - self.stored_ctx_switches[CTX_SWITCH_INVOLUNTARY]
+            )
+            self.stored_ctx_switches[CTX_SWITCH_INVOLUNTARY] = process_metrics.ctx_switches_involuntary
+
+        return list(metrics.items())
