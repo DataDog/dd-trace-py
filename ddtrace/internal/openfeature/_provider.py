@@ -117,9 +117,21 @@ class DataDogProvider(AbstractProvider):
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
 
-        # Event set when the first RC config arrives; used by on_configuration_received()
+        # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
         self._config_received = threading.Event()
+
+        # Read through a fresh config instance so values reflect the environment at
+        # provider-construction time rather than at import time (see the killswitch
+        # note below for the same reasoning).
+        instance_config = OpenFeatureConfig()
+
+        # How long initialize() waits for that first config, in seconds. The
+        # constructor argument wins so embedders and tests can override the
+        # environment; otherwise the configured value applies.
+        if initialization_timeout is None:
+            initialization_timeout = instance_config.initialization_timeout_ms / 1000.0
+        self._initialization_timeout = initialization_timeout
 
         # Cache for reported exposures to prevent duplicates
         # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
@@ -163,15 +175,14 @@ class DataDogProvider(AbstractProvider):
         # when the provider is enabled (preserves the existing OTel non-regression).
         # AIDEV-NOTE: the killswitch is read through the ddtrace config system
         # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
-        # supported-configurations.json) rather than raw os.environ. A fresh
-        # OpenFeatureConfig instance is constructed here so the value reflects the current
+        # supported-configurations.json) rather than raw os.environ. It comes from the
+        # fresh instance_config built at the top of __init__, so the value reflects the
         # environment at provider-construction time (the config var parses the live
         # environment via the DDConfig var system), which keeps the killswitch overridable
         # per-instance in tests.
         self._flag_eval_evp_writer: typing.Optional[FlagEvaluationWriter] = None
         self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
-        evp_config = OpenFeatureConfig()
-        evp_counts_enabled = evp_config.flagging_evaluation_counts_enabled
+        evp_counts_enabled = instance_config.flagging_evaluation_counts_enabled
         if self._active and evp_counts_enabled:
             self._flag_eval_evp_writer = FlagEvaluationWriter()
             self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
@@ -221,21 +232,24 @@ class DataDogProvider(AbstractProvider):
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
         """
-        Initialize the provider.
+        Initialize the provider, waiting up to the initialization timeout for config.
 
-        Returns immediately. This provider's internal status remains NOT_READY until
-        Remote Config delivers the first FFE_FLAGS payload via on_configuration_received().
-        openfeature-sdk 0.8.x still dispatches PROVIDER_READY after initialize()
-        returns, so flag resolution itself remains gated on the loaded config rather than
-        the SDK registry's ready event.
+        Blocking bounds PROVIDER_READY to a provider that can actually resolve flags,
+        matching the other server SDKs. Timing out is not an error: initialize() returns
+        normally, this provider's internal status stays NOT_READY, and
+        on_configuration_received() promotes it whenever the payload does land.
+        Evaluations before that return the caller-provided default with
+        ErrorCode.PROVIDER_NOT_READY. openfeature-sdk 0.8.x dispatches PROVIDER_READY
+        after initialize() returns either way, which is why flag resolution stays gated
+        on the loaded config rather than on the SDK registry's ready event.
 
-        If RC has already delivered config before initialize() runs (e.g. in the master
-        process of a pre-fork server), the fast path sets READY synchronously so the SDK
-        dispatches PROVIDER_READY on return.
+        If config already arrived before initialize() runs (e.g. in the master process of
+        a pre-fork server), the fast path sets READY without waiting.
 
         Provider lifecycle:
-            NOT_READY -> initialize() returns -> RC delivers config -> on_configuration_received()
-                      -> READY
+            NOT_READY -> initialize() waits -> config arrives -> READY
+            NOT_READY -> initialize() waits -> timeout -> returns NOT_READY
+                      -> config arrives -> on_configuration_received() -> READY
         """
         if not self._active:
             return
@@ -272,18 +286,29 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # Config not yet available — return without blocking. This provider's
-        # internal status stays NOT_READY; on_configuration_received() will flip it
-        # to READY when RC delivers the FFE_FLAGS payload. Note that openfeature-sdk
-        # 0.8.x dispatches PROVIDER_READY unconditionally after initialize()
-        # returns, even while our internal status and evaluation path are still
-        # waiting for config.
-        # AIDEV-NOTE: Do NOT block here with _config_received.wait(). Blocking
-        # initialize() breaks gunicorn/uWSGI pre-fork workers: when the OpenFeature
-        # SDK runs initialize() in a background thread, fork() kills that thread in
-        # child processes, leaving every worker stuck waiting forever (or timing out
-        # with PROVIDER_ERROR). The async path (on_configuration_received) is the
-        # correct contract for server SDK providers.
+        # Config not yet available — wait for the source to deliver it, so a caller
+        # that observes PROVIDER_READY can trust the first evaluation.
+        if self._config_received.wait(timeout=self._initialization_timeout):
+            self._status = ProviderStatus.READY
+            return  # SDK will dispatch PROVIDER_READY
+
+        # AIDEV-NOTE: the wait above must stay bounded and must NOT raise on expiry.
+        # Both halves are load-bearing:
+        #   - Bounded, because a blocked initialize() blocks the process that called
+        #     set_provider(). At 10s a pre-fork worker still boots well inside
+        #     gunicorn's 30s worker timeout; a longer wait risks WORKER TIMEOUT killing
+        #     the app (see the default in ddtrace/internal/settings/openfeature.py).
+        #   - Non-raising, because raising here surfaces as PROVIDER_ERROR (and, for the
+        #     common top-level set_provider() call, an exception at import time) for what
+        #     is usually transient delivery slowness. A previous revision raised
+        #     ProviderNotReadyError and had to be reverted for exactly that.
+        # Timing out therefore degrades to the async contract: NOT_READY now, READY when
+        # on_configuration_received() fires.
+        logger.warning(
+            "openfeature: no Feature Flagging configuration received after %.1fs; evaluations will return "
+            "default values until configuration arrives",
+            self._initialization_timeout,
+        )
 
     def shutdown(self) -> None:
         """

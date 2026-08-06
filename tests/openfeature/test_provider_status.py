@@ -5,7 +5,7 @@ Tests that the provider properly implements ProviderStatus:
 - NOT_READY by default
 - READY when first Remote Config payload is received
 - Event emission on status change
-- Non-blocking initialization while config arrives asynchronously
+- Bounded initialization wait, and READY arriving asynchronously after it expires
 """
 
 import threading
@@ -258,25 +258,58 @@ class TestProviderStatus:
 
 
 class TestProviderInitializationAsync:
-    """Test that initialize() returns immediately and READY arrives asynchronously."""
+    """Test the bounded initialization wait and the asynchronous READY that can follow it."""
 
-    def test_initialize_returns_immediately_without_config(self):
-        """initialize() should return immediately even if no config is available yet."""
+    def test_initialize_returns_when_the_timeout_expires(self):
+        """A timeout is not an error: initialize() returns NOT_READY instead of raising."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
-            provider = DataDogProvider()
+            provider = DataDogProvider(initialization_timeout=0.2)
 
             try:
                 start = time.monotonic()
-                # initialize() is called inside set_provider; it must not block
                 provider.initialize(EvaluationContext())
                 elapsed = time.monotonic() - start
 
-                # Should return near-instantly (no blocking wait)
-                assert elapsed < 0.5, f"initialize() blocked for {elapsed:.2f}s — must not block"
-                # Provider is NOT_READY; READY arrives via on_configuration_received()
+                # Waited for the configured timeout, then gave up rather than hanging.
+                assert 0.2 <= elapsed < 2.0, f"initialize() waited {elapsed:.2f}s, expected about 0.2s"
+                # READY still arrives later, via on_configuration_received().
                 assert provider._status == ProviderStatus.NOT_READY
             finally:
                 api.clear_providers()
+
+    def test_initialize_waits_for_config_and_becomes_ready(self):
+        """initialize() blocks until config arrives, so READY implies flags are resolvable."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=5.0)
+
+            config = create_config(create_boolean_flag("test-flag", enabled=True))
+            delivery = threading.Timer(0.1, process_ffe_configuration, args=(config,))
+
+            try:
+                delivery.start()
+                start = time.monotonic()
+                provider.initialize(EvaluationContext())
+                elapsed = time.monotonic() - start
+
+                # Returned on delivery rather than on the timeout.
+                assert elapsed < 5.0, f"initialize() waited {elapsed:.2f}s, expected to return on delivery"
+                assert provider._status == ProviderStatus.READY
+                assert provider._config_received.is_set()
+            finally:
+                delivery.cancel()
+                api.clear_providers()
+
+    def test_initialization_timeout_comes_from_the_environment(self, monkeypatch):
+        """The timeout is configurable without a constructor argument."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "2500")
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            assert DataDogProvider()._initialization_timeout == 2.5
+
+    def test_constructor_timeout_overrides_the_environment(self, monkeypatch):
+        """An explicit argument wins, so embedders are not bound to the environment."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "2500")
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            assert DataDogProvider(initialization_timeout=0.5)._initialization_timeout == 0.5
 
     def test_initialize_fast_path_when_config_exists(self):
         """initialize() should return immediately if config already exists."""

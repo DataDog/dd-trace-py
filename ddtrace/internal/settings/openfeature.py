@@ -50,9 +50,13 @@ class OpenFeatureConfig(DDConfig):
         default=1.0,
     )
 
-    # Provider initialization timeout in milliseconds.
-    # Controls how long initialize() blocks waiting for the first Remote Config payload.
-    # Default is 10000ms (10 seconds).
+    # Provider initialization timeout in milliseconds. Controls how long initialize()
+    # blocks waiting for the first configuration payload, from either configuration
+    # source. Expiry is not an error; the provider stays NOT_READY and becomes READY when
+    # configuration arrives.
+    # Default is 10000ms: long enough for a healthy delivery path, and short enough that a
+    # pre-fork worker boots inside gunicorn's 30s default worker timeout. Raising it much
+    # further risks the worker being killed before it finishes starting.
     initialization_timeout_ms = DDConfig.var(
         int,
         "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
