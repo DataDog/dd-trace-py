@@ -649,6 +649,7 @@ class _EvalEvent(typing.NamedTuple):
     runtime_default: bool
     error_message: str
     eval_time_ms: int
+    observe_full_evaluation_data: bool
 
 
 class _FlagEvaluationConnection(typing.Protocol):
@@ -879,6 +880,7 @@ class FlagEvaluationWriter(PeriodicService):
             runtime_default=event.runtime_default,
             error_message=event.error_message,
             eval_time_ms=event.eval_time_ms,
+            observe_full_evaluation_data=event.observe_full_evaluation_data,
         )
 
         closed = False

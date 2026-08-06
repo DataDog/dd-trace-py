@@ -20,6 +20,7 @@ from openfeature.hook import HookHints
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 
@@ -85,11 +86,20 @@ class FlagEvalEVPHook(Hook):
                 variant = details.variant
             runtime_default = variant == ""
 
+            # Consent for this evaluation, read only from metadata the evaluator
+            # stamped. Anything not exactly True is treated as consent-off:
+            # a missing key, a non-bool, or None -- so a broken upstream cannot
+            # silently opt in.
+            observe_full_evaluation_data = metadata.get(METADATA_OBSERVE_FULL_EVALUATION_DATA) is True
+
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
             targeting_key = eval_ctx.targeting_key or ""
-            # enqueue() snapshots synchronously and never retains this borrowed mapping.
-            attrs: typing.Mapping[str, typing.Any] = eval_ctx.attributes if eval_ctx.attributes is not None else {}
+            # Consent-off contexts never enter the queue. With consent, enqueue()
+            # snapshots synchronously and never retains this borrowed mapping.
+            attrs: typing.Mapping[str, typing.Any] = (
+                eval_ctx.attributes if observe_full_evaluation_data and eval_ctx.attributes is not None else {}
+            )
 
             # Error message (best-effort; absent on success paths).
             error_message = ""
@@ -109,6 +119,7 @@ class FlagEvalEVPHook(Hook):
                 runtime_default=runtime_default,
                 error_message=error_message,
                 eval_time_ms=eval_time_ms,
+                observe_full_evaluation_data=observe_full_evaluation_data,
             )
 
             self._writer.enqueue(event)

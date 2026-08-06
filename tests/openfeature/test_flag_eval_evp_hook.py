@@ -22,6 +22,8 @@ from openfeature.flag_evaluation import Reason
 from openfeature.hook import HookContext
 import pytest
 
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
+
 
 def _make_hook_context(
     flag_key: str = "my-flag",
@@ -154,7 +156,8 @@ class TestFlagEvalEVPHook:
     def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
-        details = _make_details()
+        # Consent-on so attrs capture is exercised (fail-closed default is off).
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
@@ -392,3 +395,49 @@ class TestKillswitchGating:
                 provider = DataDogProvider()
                 assert provider._flag_eval_evp_writer is not None
                 assert provider._flag_eval_evp_hook is not None
+
+
+class TestFlagEvalEVPHookReadsConsent:
+    """The hook reads observe_full_evaluation_data off details.flag_metadata,
+    fails closed on missing or malformed values, and skips attribute capture
+    when consent is off.
+    """
+
+    def test_consent_true_captured_from_metadata(self, hook, writer):
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is True
+        assert event.attrs == {"plan": "enterprise"}
+
+    def test_consent_false_captured_and_attrs_dropped(self, hook, writer):
+        """Consent-off: the context is neither serialized nor keyed, so the hook
+        skips attribute capture -- prevents PII living in the writer queue.
+        """
+        hc = _make_hook_context(attrs={"plan": "enterprise", "user_email": "leak@example.com"})
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: False})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    def test_missing_metadata_fails_closed(self, hook, writer):
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    @pytest.mark.parametrize("bad", ["true", "false", 1, 0, None, []])
+    def test_wrong_type_fails_closed(self, hook, writer, bad):
+        hc = _make_hook_context()
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: bad})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
