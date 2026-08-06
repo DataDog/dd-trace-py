@@ -554,3 +554,100 @@ class TestConsentLifecycle:
         else:
             assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
             assert event["context"]["evaluation"]["plan"] == "enterprise"
+
+
+class TestDoLogNonImpact:
+    """The RFC's `DoLog` non-impact proof: for each consent value, the emitted
+    shape must be identical across do_log values -- ignoring wall-clock fields.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_state(self):
+        _set_ffe_config(None)
+        yield
+        _set_ffe_config(None)
+
+    @pytest.mark.parametrize("consent", [False, True], ids=["consent_off", "consent_on"])
+    def test_do_log_does_not_affect_emitted_shape(self, monkeypatch, consent):
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+        monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true")
+
+        payload_shapes: dict = {}
+        for do_log in (False, True):
+            process_ffe_configuration(_pii_flag_config(consent, do_log=do_log))
+            provider = DataDogProvider()
+            writer = FlagEvaluationWriter(interval=10.0)
+            hook = FlagEvalEVPHook(writer=writer)
+
+            eval_ctx = EvaluationContext(
+                targeting_key=PII_CANONICAL_TARGETING_KEY,
+                attributes={"plan": "enterprise"},
+            )
+            details = provider.resolve_string_details("pii-flag", "fallback", eval_ctx)
+
+            hook_context = HookContext(
+                flag_key="pii-flag",
+                flag_type=FlagType.STRING,
+                default_value="fallback",
+                evaluation_context=eval_ctx,
+            )
+            hook_details = FlagEvaluationDetails(
+                flag_key="pii-flag",
+                value=details.value,
+                variant=details.variant,
+                reason=details.reason,
+                flag_metadata=details.flag_metadata,
+                error_message=details.error_message,
+                error_code=details.error_code,
+            )
+            hook.finally_after(hook_context, hook_details, {})
+
+            with mock.patch.object(writer, "_send_payload") as mock_send:
+                writer.periodic()
+            payload_bytes, _ = mock_send.call_args[0]
+            decoded = json.loads(payload_bytes)
+            event = decoded["flagEvaluations"][0]
+            # Drop wall-clock-derived fields so the diff isolates the PII shape.
+            event.pop("timestamp", None)
+            event.pop("first_evaluation", None)
+            event.pop("last_evaluation", None)
+            payload_shapes[do_log] = event
+
+        assert payload_shapes[False] == payload_shapes[True], (
+            f"DoLog must not affect the emitted shape:\n"
+            f"  do_log=False: {payload_shapes[False]}\n"
+            f"  do_log=True:  {payload_shapes[True]}"
+        )
+
+        # And the shape must be the correct one for the consent value.
+        if consent:
+            assert payload_shapes[True]["targeting_key"] == PII_CANONICAL_TARGETING_KEY
+        else:
+            assert payload_shapes[True]["targeting_key"] == PII_CANONICAL_HASHED
+
+
+class TestKillSwitch:
+    """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false disables the EVP flagevaluation
+    track entirely and always wins over observeFullEvaluationData.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_state(self):
+        _set_ffe_config(None)
+        yield
+        _set_ffe_config(None)
+
+    @pytest.mark.parametrize("consent", [False, True], ids=["consent_off", "consent_on"])
+    def test_kill_switch_off_constructs_no_writer_and_no_hook(self, monkeypatch, consent):
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+        monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "false")
+
+        process_ffe_configuration(_pii_flag_config(consent))
+
+        provider = DataDogProvider()
+
+        assert provider._flag_eval_evp_writer is None
+        assert provider._flag_eval_evp_hook is None
+        # The provider's hook list must omit the EVP hook too.
+        hook_types = {type(h).__name__ for h in provider.get_provider_hooks()}
+        assert "FlagEvalEVPHook" not in hook_types
