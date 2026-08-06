@@ -4635,7 +4635,7 @@ _ITR_MIN_PYTHON_VERSION = Version("3.12")
 
 
 def _is_true_env(name: str) -> bool:
-    return os.environ.get(name, "").lower() == "true"
+    return os.environ.get(name, "").lower() in ("true", "1")
 
 
 def _python_hint_to_version(hint: str) -> Version | None:
