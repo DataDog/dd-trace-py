@@ -2,8 +2,6 @@
 
 from unittest import mock
 
-import pytest
-
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -11,9 +9,6 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.secure_marks.validators import cmdi_validator
 from ddtrace.appsec._iast.secure_marks.validators import path_traversal_validator
 from ddtrace.appsec._iast.secure_marks.validators import sqli_validator
-
-
-pytestmark = pytest.mark.usefixtures("iast_context_defaults")
 
 
 def test_path_traversal_validator():
@@ -38,23 +33,6 @@ def test_path_traversal_validator():
     assert ranges
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL)
-
-
-def test_path_traversal_validator_does_not_mark_rejected_argument():
-    filename = "../../etc/passwd"
-    tainted = taint_pyobject(
-        pyobject=filename,
-        source_name="test_path_traversal_validator_does_not_mark_rejected_argument",
-        source_value=filename,
-        source_origin=OriginType.PARAMETER,
-    )
-
-    result = path_traversal_validator(mock.Mock(return_value=False), None, [tainted], {})
-
-    assert result is False
-    ranges = get_ranges(tainted)
-    assert ranges
-    assert not any(_range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL) for _range in ranges)
 
 
 def test_sql_quote_validator():

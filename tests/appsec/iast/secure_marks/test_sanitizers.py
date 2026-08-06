@@ -2,8 +2,6 @@
 
 from unittest import mock
 
-import pytest
-
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -16,8 +14,6 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 _iast_patched_module("shlex")
 mod = _iast_patched_module("tests.appsec.iast.fixtures.secure_marks.sanitizers")
-
-pytestmark = pytest.mark.usefixtures("iast_context_defaults")
 
 
 def test_secure_filename_sanitizer():
