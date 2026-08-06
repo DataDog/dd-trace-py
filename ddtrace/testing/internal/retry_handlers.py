@@ -6,18 +6,25 @@ import typing as t
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import TAG_FALSE
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 
 
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.session_manager import SessionManager
+class RetryHandlerSession(t.Protocol):
+    """The subset of SessionManager that retry handlers depend on.
+
+    Defined here (rather than importing SessionManager directly) so this module does not depend on
+    session_manager, which itself depends on the concrete retry handler classes below.
+    """
+
+    settings: Settings
 
 
 class RetryHandler(ABC):
-    def __init__(self, session_manager: "SessionManager") -> None:
+    def __init__(self, session_manager: RetryHandlerSession) -> None:
         self.session_manager = session_manager
 
     @abstractmethod
@@ -68,7 +75,7 @@ class RetryHandler(ABC):
 
 
 class AutoTestRetriesHandler(RetryHandler):
-    def __init__(self, session_manager: "SessionManager") -> None:
+    def __init__(self, session_manager: RetryHandlerSession) -> None:
         super().__init__(session_manager=session_manager)
         self.max_tests_to_retry_per_session = int(env.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
         self.max_retries_per_test = int(env.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))

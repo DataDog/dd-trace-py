@@ -219,6 +219,11 @@ def _extract_span(item):
     return InternalTest.get_span(test_id)
 
 
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
+
+
 def _is_enabled_early(early_config, args):
     """Checks if the ddtrace plugin is enabled before the config is fully populated.
 
