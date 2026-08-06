@@ -224,12 +224,11 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    std::size_t removed;
     Py_BEGIN_ALLOW_THREADS;
-    removed = ThreadSpanLinks::get_instance().unlink_finished_span(span_id);
+    ThreadSpanLinks::get_instance().unlink_finished_span(span_id);
     Py_END_ALLOW_THREADS;
 
-    return PyLong_FromSize_t(removed);
+    Py_RETURN_NONE;
 }
 
 // Records the asyncio task that offloaded work to the current (worker) thread.

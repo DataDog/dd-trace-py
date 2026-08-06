@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace Datadog {
 
@@ -70,29 +69,20 @@ ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
     }
 }
 
-std::size_t
+void
 ThreadSpanLinks::unlink_finished_span(uint64_t span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
     auto span_it = span_to_threads.find(span_id);
     if (span_it == span_to_threads.end()) {
-        return 0;
+        return;
     }
 
-    const std::vector<uint64_t> thread_ids(span_it->second.begin(), span_it->second.end());
-    std::size_t removed = 0;
-    for (const auto thread_id : thread_ids) {
-        auto thread_it = thread_id_to_span.find(thread_id);
-        if (thread_it == thread_id_to_span.end()) {
-            continue;
-        }
-        if (thread_it->second->span_id == span_id) {
-            remove_thread_locked(thread_id);
-            removed++;
-        }
+    for (const auto thread_id : span_it->second) {
+        thread_id_to_span.erase(thread_id);
     }
-    return removed;
+    span_to_threads.erase(span_it);
 }
 
 void

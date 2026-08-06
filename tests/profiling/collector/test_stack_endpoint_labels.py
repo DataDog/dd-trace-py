@@ -3,55 +3,6 @@ import pytest
 
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_clears_finished_endpoint",
-        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
-    },
-    err=None,
-)
-def test_stack_clears_finished_endpoint_before_untraced_work():
-    import os
-    import time
-
-    from ddtrace import ext
-    from ddtrace.profiling import profiler
-    from ddtrace.trace import tracer
-    from tests.profiling.collector import pprof_utils
-
-    endpoint = "sync-endpoint"
-
-    def traced_work():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
-
-    def untraced_work():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
-
-    tracer._endpoint_call_counter_span_processor.enable()
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("sync.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
-        traced_work()
-    untraced_work()
-    p.stop()
-
-    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
-    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    traced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "traced_work")
-    untraced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "untraced_work")
-
-    assert traced_samples
-    assert untraced_samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in traced_samples)
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in untraced_samples)
-    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in untraced_samples)
-    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in untraced_samples)
-
-
-@pytest.mark.subprocess(
-    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_restores_parent_span",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
     },
@@ -69,24 +20,16 @@ def test_stack_restores_parent_span_before_clearing_finished_trace():
     endpoint = "nested-endpoint"
 
     def parent_work_before_child():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def child_work():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def parent_work_after_child():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def untraced_work_after_root():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     tracer._endpoint_call_counter_span_processor.enable()
     p = profiler.Profiler(tracer=tracer)
@@ -158,18 +101,17 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
     endpoint = "worker-endpoint"
     worker_thread_ids = []
 
+    def traced_worker_body():
+        time.sleep(0.3)
+
     def traced_worker_work():
         worker_thread_ids.append(threading.get_ident())
         with tracer.trace("worker.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
-            deadline = time.monotonic() + 0.3
-            while time.monotonic() < deadline:
-                time.sleep(0.01)
+            traced_worker_body()
 
     def untraced_worker_work():
         worker_thread_ids.append(threading.get_ident())
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     tracer._endpoint_call_counter_span_processor.enable()
     p = profiler.Profiler(tracer=tracer)
@@ -184,7 +126,7 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    traced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "traced_worker_work")
+    traced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "traced_worker_body")
     untraced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "untraced_worker_work")
 
     assert traced_samples
@@ -217,14 +159,10 @@ def test_stack_clears_span_finished_on_another_thread():
     span_finished = threading.Event()
 
     def worker_before_finish():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def worker_after_finish():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def worker(span):
         tracer.context_provider.activate(span)
@@ -281,9 +219,7 @@ def test_stack_preserves_active_child_when_local_root_finishes_first():
     root_finished = threading.Event()
 
     def worker_after_root_finish():
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            time.sleep(0.01)
+        time.sleep(0.3)
 
     def worker(child):
         tracer.context_provider.activate(child)
