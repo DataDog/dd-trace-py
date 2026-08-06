@@ -1,5 +1,12 @@
 from io import BytesIO
 from io import StringIO
+from types import FrameType
+from typing import TYPE_CHECKING
+from typing import Optional
+
+
+if TYPE_CHECKING:
+    from _typeshed import TraceFunction
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._utils import _is_iast_propagation_debug_enabled
@@ -10,30 +17,30 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 if _is_iast_propagation_debug_enabled():
-    TAINTED_FRAMES = []
+    TAINTED_FRAMES: list[FrameType] = []
 
-    def trace_calls_and_returns(frame, event, arg):
+    def trace_calls_and_returns(frame: FrameType, event: str, arg: object) -> Optional["TraceFunction"]:
         co = frame.f_code
         func_name = co.co_name
         if func_name == "write":
             # Ignore write() calls from print statements
-            return
+            return None
         if func_name in ("is_pyobject_tainted", "__repr__"):
-            return
+            return None
         line_no = frame.f_lineno
         filename = co.co_filename
         if "ddtrace" in filename:
-            return
+            return None
         if event == "call":
             f_locals = frame.f_locals
             try:
-                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                if any(is_pyobject_tainted(value) for value in f_locals.values()):
                     TAINTED_FRAMES.append(frame)
                     log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
                     log.debug("Tainted arguments:")
-                    for arg in f_locals:
-                        if is_pyobject_tainted(f_locals[arg]):
-                            log.debug("\t%s: %s", arg, f_locals[arg])
+                    for local_name, value in f_locals.items():
+                        if is_pyobject_tainted(value):
+                            log.debug("\t%s: %s", local_name, value)
                     log.debug("-----")
                 return trace_calls_and_returns
             except AttributeError:
@@ -45,13 +52,13 @@ if _is_iast_propagation_debug_enabled():
                 if isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO, list, tuple, dict)):
                     if (
                         (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
-                        or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
-                        or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
+                        or (isinstance(arg, (list, tuple)) and any(is_pyobject_tainted(x) for x in arg))
+                        or (isinstance(arg, dict) and any(is_pyobject_tainted(x) for x in arg.values()))
                     ):
                         log.debug("Return value is tainted")
                     else:
                         log.debug("Return value is NOT tainted")
                 log.debug("-----")
-        return
+        return None
 
     threading.settrace(trace_calls_and_returns)
