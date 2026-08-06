@@ -49,6 +49,7 @@ suites:
       - tests/snapshots/tests.contrib.anthropic.*
     snapshot: true
   claude_agent_sdk:
+    itr_test_skipping_enabled: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -72,6 +73,7 @@ suites:
       - tests/contrib/google_adk/*
     snapshot: true
   google_genai:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -84,6 +86,7 @@ suites:
       - tests/snapshots/tests.contrib.google_genai.*
     snapshot: true
   vertexai:
+    itr_test_skipping_enabled: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -96,6 +99,7 @@ suites:
       - tests/snapshots/tests.contrib.vertexai.*
     snapshot: true
   llama_index:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -107,6 +111,7 @@ suites:
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
   langchain:
+    itr_test_skipping_enabled: true
     retry: 2
     parallelism: 6
     paths:
@@ -121,6 +126,7 @@ suites:
       - tests/snapshots/tests.contrib.langchain.*
     snapshot: true
   litellm:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -133,6 +139,7 @@ suites:
     snapshot: true
     venvs_per_job: 1
   llmobs:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -162,6 +169,7 @@ suites:
     snapshot: true
     venvs_per_job: 5
   mistralai:
+    itr_test_skipping_enabled: true
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -201,6 +209,7 @@ suites:
     snapshot: true
     venvs_per_job: 4
   crewai:
+    itr_test_skipping_enabled: true
     retry: 2
     parallelism: 3
     paths:
@@ -227,6 +236,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   pydantic_ai:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -239,6 +249,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   vllm:
+    itr_test_skipping_enabled: true
     venvs_per_job: 1
     paths:
       - '@bootstrap'

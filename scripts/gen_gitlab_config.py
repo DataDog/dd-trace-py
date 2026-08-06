@@ -32,6 +32,19 @@ BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
+def _get_bool_env(name: str) -> str:
+    """Return "true"/"false" for a boolean environment variable.
+
+    The result is interpolated verbatim into generated shell snippets, so it must never carry
+    anything the shell could expand. Only a case-insensitive "true" enables the flag; anything else
+    is treated as false.
+    """
+    value = os.getenv(name, "").lower()
+    if value not in ("", "true", "false"):
+        LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
+    return "true" if value == "true" else "false"
+
+
 @dataclass
 class BenchmarkSpec:
     name: str
@@ -61,6 +74,8 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False
+    itr_enabled: bool = True
+    itr_test_skipping_enabled: bool = False
 
     python_versions: t.Optional[set[str]] = None
 
@@ -112,7 +127,7 @@ class JobSpec:
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
-        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
+        _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
@@ -126,6 +141,8 @@ class JobSpec:
             env["SUITE_NAME"] = self.pattern or self.name
 
         suite_name = env["SUITE_NAME"]
+        env["DD_TRACE_PY_ENABLE_ITR_FOR_JOB"] = "true" if self.itr_enabled else "false"
+        env["DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB"] = "true" if self.itr_test_skipping_enabled else "false"
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
@@ -748,8 +765,8 @@ def gen_build_base_venvs() -> None:
             template(
                 "build-base-venvs",
                 python_versions=python_versions_str,
-                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
-                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
+                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
 
@@ -829,18 +846,19 @@ def template(name: str, **params):
     return "\n" + template_path.read_text().format(**params).strip() + "\n"
 
 
-has_error = False
+if __name__ == "__main__":
+    has_error = False
 
-LOGGER.info("Configuration generation steps:")
-for name, func in dict(globals()).items():
-    if name.startswith("gen_"):
-        desc = func.__doc__.splitlines()[0]
-        try:
-            start = time()
-            func()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
-        except Exception as e:
-            LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
-            has_error = True
+    LOGGER.info("Configuration generation steps:")
+    for name, func in dict(globals()).items():
+        if name.startswith("gen_"):
+            desc = func.__doc__.splitlines()[0]
+            try:
+                start = time()
+                func()
+                LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
+            except Exception as e:
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
 
-sys.exit(has_error)
+    sys.exit(has_error)

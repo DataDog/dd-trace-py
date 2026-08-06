@@ -7,6 +7,7 @@ components:
     - ddtrace/internal/settings/aiguard.py
 suites:
   ai_guard_api:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -18,6 +19,7 @@ suites:
     retry: 2
     venvs_per_job: 1
   ai_guard_langchain:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -31,6 +33,7 @@ suites:
       - testagent
     venvs_per_job: 2
   ai_guard_openai:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -43,6 +46,7 @@ suites:
       - testagent
     venvs_per_job: 2
   ai_guard_anthropic:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -55,6 +59,7 @@ suites:
       - testagent
     venvs_per_job: 2
   ai_guard_strands:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -66,6 +71,7 @@ suites:
     retry: 2
     venvs_per_job: 1
   ai_guard_litellm_guardrail:
+    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'

@@ -39,6 +39,7 @@ include:
       for hash in "${hashes[@]}"
       do
         echo "Running riot hash: ${hash}"
+        echo "ITR gate debug: suite=${SUITE_NAME:-} hash=${hash} branch=${CI_COMMIT_BRANCH:-} itr_job=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-} itr_skip_job=${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-}"
         riot list "${hash}"
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace

@@ -18,6 +18,7 @@ components:
     - ddtrace/testing/*
 suites:
   ci_visibility:
+    itr_enabled: false
     parallelism: 4
     paths:
       - '@ci_visibility'
@@ -32,6 +33,7 @@ suites:
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
   ci_visibility:snapshot:
+    itr_enabled: false
     parallelism: 4
     paths:
       - '@ci_visibility'
@@ -48,6 +50,7 @@ suites:
     snapshot: true
     pattern: 'ci_visibility:snapshot'
   dd_coverage:
+    itr_enabled: false
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -57,6 +60,7 @@ suites:
       - tests/coverage/*
     snapshot: true
   pytest:
+    itr_enabled: false
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -73,6 +77,7 @@ suites:
     snapshot: true
     pattern: 'pytest$'
   pytest:snapshot:
+    itr_enabled: false
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -89,6 +94,7 @@ suites:
     snapshot: true
     pattern: 'pytest:snapshot'
   pytest_benchmark:
+    itr_enabled: false
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -106,6 +112,7 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_bdd:
+    itr_enabled: false
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -123,6 +130,7 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_flaky:
+    itr_enabled: false
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -141,6 +149,7 @@ suites:
     snapshot: true
     pattern: 'pytest:flaky'
   testing:
+    itr_enabled: false
     retry: 2
     venvs_per_job: 1
     paths:
