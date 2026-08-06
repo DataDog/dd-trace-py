@@ -144,11 +144,8 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
                 assert root.span_id == req.parent_id
 
     def test_propagation_with_urllib3_also_patched(self):
-        # regression test: when urllib3 is also patched, requests' Session.send
-        # internally calls the now-traced HTTPConnectionPool.urlopen, creating a
-        # nested urllib3.request span around the same call. The propagation
-        # headers injected onto the wire must still point at the outer
-        # requests.request span (not get overwritten by the inner urllib3 span).
+        # regression test: with urllib3 also patched, propagation headers must still
+        # point at the outer requests.request span, not the nested urllib3.request span.
         urllib3_patch()
         try:
             with self.override_config("requests", dict(distributed_tracing=True)):
@@ -165,20 +162,15 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
                 assert req.parent_id == root.span_id
                 assert url3.parent_id == req.span_id
 
-                # go-httpbin (the /headers echo server used here) always represents
-                # header values as a list, even for a single occurrence, since Go's
-                # http.Header is a map[string][]string. A list with more than one
-                # entry would mean the header got injected twice (the regression this
-                # test guards against), so assert there's exactly one occurrence.
+                # go-httpbin always lists header values, even singletons; more than
+                # one entry means the header was injected twice.
                 assert received_headers["X-Datadog-Parent-Id"] == [str(req.span_id)]
         finally:
             urllib3_unpatch()
 
     def test_propagation_with_urllib3_also_patched_and_redirect(self):
-        # regression test: a `requests` call that follows a redirect must still get
-        # correct propagation headers injected on the redirected hop's `requests.request`
-        # span, even though the nested urllib3 span's injection is suppressed on every hop.
-        # See: https://github.com/DataDog/dd-trace-py/pull/19156 review discussion.
+        # regression test: a redirected requests call must still get correct propagation
+        # headers on the redirected hop's span, even with urllib3 injection suppressed on every hop.
         urllib3_patch()
         try:
             with self.override_config("requests", dict(distributed_tracing=True)):
@@ -194,10 +186,8 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
                 root = spans[0]
                 assert root.name == "root"
 
-                # Every hop produces a requests.request span with a nested urllib3.request
-                # span. Session.send recurses into itself for the redirect (still inside the
-                # first hop's context), so the spans nest hop-after-hop rather than fanning
-                # out flat under `root`: root -> req1 -> url3_1, and req1 -> req2 -> url3_2.
+                # Session.send recurses for the redirect, so spans nest hop-after-hop
+                # rather than fanning out flat: root -> req1 -> url3_1, req1 -> req2 -> url3_2.
                 request_spans = sorted((s for s in spans if s.name == "requests.request"), key=lambda s: s.start)
                 urllib3_spans = [s for s in spans if s.name == "urllib3.request"]
                 assert len(request_spans) == 2
@@ -211,15 +201,9 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
                     nested_urllib3 = [u for u in urllib3_spans if u.parent_id == req_span.span_id]
                     assert len(nested_urllib3) == 1
 
-                # The final (redirected) hop's requests.request span is what the server
-                # actually saw propagation headers for -- it must NOT be suppressed by the
-                # first hop's (already-reset) suppression window.
-                #
-                # go-httpbin (the /headers echo server used here) always represents
-                # header values as a list, even for a single occurrence, since Go's
-                # http.Header is a map[string][]string. A list with more than one
-                # entry would mean the header got injected twice (the regression this
-                # test guards against), so assert there's exactly one occurrence.
+                # The final hop's span must not be suppressed by the first hop's window.
+                # go-httpbin always lists header values, even singletons; more than
+                # one entry means the header was injected twice.
                 assert received_headers["X-Datadog-Parent-Id"] == [str(second_req.span_id)]
         finally:
             urllib3_unpatch()

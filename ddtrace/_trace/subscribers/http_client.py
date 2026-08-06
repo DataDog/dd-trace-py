@@ -15,14 +15,10 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: set True by a higher-level integration to make this subscriber skip its
-# own injection (already injected upstream, or DT disabled). Consumers: botocore/aiobotocore
-# patch.py (SigV4 before-sign injection) and requests connection.py (_wrap_adapter_send,
-# suppressing the nested urllib3 span). Per-thread via ContextVar.
-#
-# OWNERSHIP CONTRACT: only `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send`
-# may set this, and all must reset() in try/finally. The before-sign handler must never
-# touch it directly — see PR #18152 for the leak that caused.
+# AIDEV-NOTE: set True by a higher-level integration to skip its own injection
+# (e.g. botocore SigV4, requests suppressing the nested urllib3 span). Only
+# `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send` may set this,
+# and must reset() in try/finally — see PR #18152 for the leak that caused.
 _http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 

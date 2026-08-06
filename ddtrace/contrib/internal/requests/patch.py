@@ -28,10 +28,7 @@ config._add(
 # always patch our `TracedSession` when imported
 _w(TracedSession, "send", _wrap_send)
 Pin(_config=config.requests).onto(TracedSession)
-# HTTPAdapter.send is the direct per-hop dispatch into urllib3 (unlike Session.send,
-# it doesn't recurse for redirects), so it's the right place to scope the
-# urllib3-injection suppression narrowly. Always wrapped, like TracedSession.send
-# above, since it's a cheap no-op unless urllib3 tracing is also enabled.
+# always wrapped, like TracedSession.send above; a no-op unless urllib3 tracing is enabled
 _w(requests.adapters.HTTPAdapter, "send", _wrap_adapter_send)
 
 
