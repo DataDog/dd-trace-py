@@ -51,6 +51,38 @@ TEST_F(PythonErrorGuardCheck, Error)
     PyErr_Clear();
 }
 
+TEST_F(PythonErrorGuardCheck, ErrorStringResultDoesNotLeakAReference)
+{
+    py::dict scope;
+    py::exec(R"(
+class ErrorWithStableString(Exception):
+    def __init__(self, rendered):
+        self.rendered = rendered
+
+    def __str__(self):
+        return self.rendered
+
+rendered = "Test error"
+error = ErrorWithStableString(rendered)
+)",
+             scope);
+
+    py::object rendered = scope["rendered"];
+    py::object error = scope["error"];
+    const auto refcount_before = Py_REFCNT(rendered.ptr());
+    PyErr_SetObject(reinterpret_cast<PyObject*>(Py_TYPE(error.ptr())), error.ptr());
+
+    {
+        PythonErrorGuard guard;
+        {
+            py::str error_string = guard.error_as_pystr();
+            EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before + 1);
+        }
+        EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before);
+    }
+    PyErr_Clear();
+}
+
 TEST_F(PythonErrorGuardCheck, ErrorIsClearedThenNoErrorInGuard)
 {
     PyErr_SetString(PyExc_RuntimeError, "Test error");
@@ -755,10 +787,10 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return args as no slicing is required
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is None
@@ -769,10 +801,10 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return the full argument list since no slicing is needed
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is custom
@@ -786,8 +818,8 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::tuple>(result)).c_str(), "arg2");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg2");
 }
 
 // Test with no added args, original function is custom
@@ -800,6 +832,6 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::str>(result)).c_str(), "arg1");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg1");
 }
