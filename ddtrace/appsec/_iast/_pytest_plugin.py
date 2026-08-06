@@ -1,26 +1,39 @@
 #!/usr/bin/env python3
 import dataclasses
 import json
+from typing import TYPE_CHECKING
+from typing import Generator
+from typing import Optional
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast.reporter import Vulnerability
+from ddtrace.appsec._iast._report_types import EvidenceData
+from ddtrace.appsec._iast._report_types import IastReportData
+from ddtrace.appsec._iast._report_types import LocationData
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+
+
+if TYPE_CHECKING:
+    from _pytest.terminal import TerminalReporter
 
 
 log = get_logger(__name__)
 
 
-@dataclasses.dataclass(unsafe_hash=True)
-class VulnerabilityFoundInTest(Vulnerability):
+@dataclasses.dataclass
+class VulnerabilityFoundInTest:
+    type: str
+    evidence: EvidenceData
+    location: LocationData
     test: str
 
 
 try:
     import pytest
 
-    @pytest.fixture(autouse=asm_config._iast_enabled)
-    def ddtrace_iast(request, ddspan):
+    @pytest.fixture(autouse=asm_config._iast_enabled)  # type: ignore[misc]
+    def ddtrace_iast(request: pytest.FixtureRequest, ddspan: Optional[Span]) -> Generator[None, None, None]:
         """
         Extract the vulnerabilities discovered in tests.
         Optionally output the test as failed if vulnerabilities are found.
@@ -30,7 +43,7 @@ try:
             return
 
         # looking for IAST data in the span
-        dict_data = ddspan._get_struct_tag(IAST.STRUCT)
+        dict_data: Optional[IastReportData] = ddspan._get_struct_tag(IAST.STRUCT)  # type: ignore[assignment]
         if dict_data is None:
             data = ddspan.get_tag(IAST.JSON)
             if data is None:
@@ -60,7 +73,7 @@ except ImportError:
 vuln_data: list[VulnerabilityFoundInTest] = []
 
 
-def extract_code_snippet(filepath, line_number, context=3):
+def extract_code_snippet(filepath: str, line_number: int, context: int = 3) -> tuple[list[str], int]:
     """Extracts code snippet around the given line number."""
     try:
         with open(filepath, "r") as file:
@@ -71,10 +84,10 @@ def extract_code_snippet(filepath, line_number, context=3):
             return code, start  # Return lines and starting line number
     except Exception:
         log.debug("Error reading file %s", filepath, exc_info=True)
-        return "", 0
+        return [], 0
 
 
-def print_iast_report(terminalreporter):
+def print_iast_report(terminalreporter: "TerminalReporter") -> None:
     if not asm_config._iast_enabled:
         return
 
@@ -102,14 +115,10 @@ def print_iast_report(terminalreporter):
         if code_snippet:
             terminalreporter.write_line("Code:")
 
-            if start_line is not None:
-                for i, line in enumerate(code_snippet, start=start_line + 1):
-                    if i == entry.location["line"]:
-                        terminalreporter.write(f"{i:4d}: {line}", bold=True, purple=True)
-                    else:
-                        terminalreporter.write(f"{i:4d}: {line}")
-            else:
-                # If there's an error extracting the code snippet
-                terminalreporter.write_line(code_snippet[0], bold=True)
+            for i, line in enumerate(code_snippet, start=start_line + 1):
+                if i == entry.location["line"]:
+                    terminalreporter.write(f"{i:4d}: {line}", bold=True, purple=True)
+                else:
+                    terminalreporter.write(f"{i:4d}: {line}")
 
         terminalreporter.write_sep("=")
