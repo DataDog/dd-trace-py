@@ -610,6 +610,7 @@ class _Entry:
         "targeting_key",
         "context_attrs",
         "error_message",
+        "observe_full_evaluation_data",
     )
 
     def __init__(
@@ -619,6 +620,7 @@ class _Entry:
         targeting_key: str,
         context_attrs: typing.Mapping[str, typing.Any],
         error_message: str,
+        observe_full_evaluation_data: bool = False,
     ) -> None:
         self.count: int = 1
         self.first_evaluation: int = eval_time_ms
@@ -628,6 +630,9 @@ class _Entry:
         self.targeting_key: str = targeting_key
         self.context_attrs: dict[str, typing.Any] = dict(context_attrs)
         self.error_message: str = error_message
+        # Serialization branches on this value. Degraded-tier entries always
+        # store False here; consent is not a degraded key dimension.
+        self.observe_full_evaluation_data: bool = observe_full_evaluation_data
 
     def observe(self, eval_time_ms: int) -> None:
         """Update count and first/last bounds for a repeated evaluation."""
@@ -1125,8 +1130,24 @@ class FlagEvaluationWriter(PeriodicService):
         Implements: full-tier → degraded-tier → drop-counted cascade.
         Canonical key computation happens here (off the hot path). Context was already
         flattened, pruned, and made immutable before enqueue.
+
+        Consent handling:
+        - The full-tier key carries observe_full_evaluation_data so mixed-consent
+          evaluations never merge and inherit one policy.
+        - When consent is off, context is dropped from both the entry and the key,
+          because the wire event carries no context on that path -- so keying on
+          discarded data would burn per-flag cardinality on the privacy-protected
+          path specifically (see concern:consent-off-bucket-keying).
+        - On fast-path merge, AND-fold consent into the entry: any single
+          consent-off observation forces the whole bucket onto the protected wire
+          path, even if a future refactor drops consent from the key.
         """
-        context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
+        # Enforce the consent-off invariant: no context on the wire means no context
+        # in the key or entry.
+        if event.observe_full_evaluation_data:
+            context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
+        else:
+            context_attrs = _EMPTY_CONTEXT
 
         # Build the full-tier key tuple. A valid OpenFeature number can exceed
         # Python's configured integer-to-decimal conversion limit. Keep numeric
@@ -1156,12 +1177,20 @@ class FlagEvaluationWriter(PeriodicService):
             event.error_message,
             event.targeting_key,
             ctx_key,
+            event.observe_full_evaluation_data,
         )
 
         with self._lock:
             # Fast path: existing full-tier bucket.
             if full_key in self._full:
-                self._full[full_key].observe(event.eval_time_ms)
+                entry = self._full[full_key]
+                # Defense in depth: if the key ever stops carrying consent, one
+                # consent-off observation still forces the whole bucket onto the
+                # privacy-protected path.
+                entry.observe_full_evaluation_data = (
+                    entry.observe_full_evaluation_data and event.observe_full_evaluation_data
+                )
+                entry.observe(event.eval_time_ms)
                 return
 
             # Per-flag cap check.
@@ -1185,6 +1214,7 @@ class FlagEvaluationWriter(PeriodicService):
                 targeting_key=event.targeting_key,
                 context_attrs=_json_safe_context(context_attrs),
                 error_message=event.error_message,
+                observe_full_evaluation_data=event.observe_full_evaluation_data,
             )
             self._global_count += 1
 
