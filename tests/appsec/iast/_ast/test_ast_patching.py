@@ -52,6 +52,30 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     assert visit_ast(source_text, module_path, module_name) is not None
 
 
+def test_excluded_function_scope_does_not_leak():
+    source_text = """
+def format_html(value):
+    outer = value.upper()
+
+    def nested():
+        return value.lower()
+
+    return outer + nested()
+
+def included(value):
+    return value.upper()
+"""
+
+    patched_ast = visit_ast(source_text, "test.py", "django.utils.html")
+
+    assert patched_ast is not None
+    patched_code = unparse(patched_ast)
+    excluded_code, included_code = patched_code.split("def included")
+    assert "upper_aspect" not in excluded_code
+    assert "lower_aspect" not in excluded_code
+    assert "upper_aspect" in included_code
+
+
 @pytest.mark.parametrize(
     "module_name",
     [

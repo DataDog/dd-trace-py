@@ -2,6 +2,8 @@
 
 from unittest import mock
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -14,6 +16,8 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 _iast_patched_module("shlex")
 mod = _iast_patched_module("tests.appsec.iast.fixtures.secure_marks.sanitizers")
+
+pytestmark = pytest.mark.usefixtures("iast_context_defaults")
 
 
 def test_secure_filename_sanitizer():
@@ -39,6 +43,23 @@ def test_secure_filename_sanitizer():
     assert ranges
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL)
+
+
+def test_sanitizer_marks_bytearray_result():
+    value = bytearray(b"../../etc/passwd")
+    tainted = taint_pyobject(
+        pyobject=value,
+        source_name="test_sanitizer_marks_bytearray_result",
+        source_value=value,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = path_traversal_sanitizer(mock.Mock(return_value=tainted), None, [tainted], {})
+
+    assert result is tainted
+    ranges = get_ranges(result)
+    assert ranges
+    assert all(_range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL) for _range in ranges)
 
 
 def test_sql_quote_sanitizer():

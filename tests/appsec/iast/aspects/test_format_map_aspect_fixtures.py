@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+from collections import UserDict
 import math
 from typing import Any  # noqa:F401
 
@@ -52,6 +53,14 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
             expected_result="template parameter",
             escaped_expected_result="template :+-<input1>parameter<input1>-+:",
         )
+
+    def test_format_map_when_custom_mapping_value_is_tainted(self) -> None:
+        value = _to_tainted_string_with_origin(":+-<input1>parameter<input1>-+:")
+
+        result = mod.do_format_map("template {key}", UserDict({"key": value}))
+
+        assert result == "template parameter"
+        assert as_formatted_evidence(result, tag_mapping_function=None) == "template :+-<input1>parameter<input1>-+:"
 
     def test_format_map_when_tainted_template_range_no_brackets_then_tainted_result(self) -> None:
         self._assert_format_map_result(
