@@ -30,6 +30,10 @@ def test_evidence_hash_and_equality():
     _do_assert_equality(e, f, g, e2)
 
 
+def test_evidence_comparison_with_unrelated_type():
+    assert Evidence(value="value") != object()
+
+
 def test_evidence_hash_and_equality_valueParts():
     e = Evidence(valueParts=[{"value": "SomeEvidenceValue"}])
     f = Evidence(valueParts=[{"value": "SomeEvidenceValue"}])
@@ -48,6 +52,14 @@ def test_location_hash_and_equality():
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
+
+
+def test_location_without_stack_report_serializes():
+    assert Location(path="foobar.py", line=35, spanId=123)._to_dict() == {
+        "spanId": 123,
+        "path": "foobar.py",
+        "line": 35,
+    }
 
 
 def test_vulnerability_hash_and_equality():

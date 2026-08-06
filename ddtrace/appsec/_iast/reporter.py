@@ -69,13 +69,15 @@ class Evidence(NotNoneDictable):
         return hash((self.value, self._valueParts_hash()))
 
     def __eq__(self, other):
+        if not isinstance(other, Evidence):
+            return NotImplemented
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
-    stackId: Optional[int] = dataclasses.field(init=False, compare=False)
+    stackId: Optional[int] = dataclasses.field(default=None, init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
     method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
@@ -357,8 +359,7 @@ class IastSpanReporter(NotNoneDictable):
                     if "value" in part:
                         part["value"] = _truncate_evidence_value(part["value"])
                 redacted_sources = scrubbing_result["redacted_sources"]
-                i = 0
-                for source in self.sources:
+                for i, source in enumerate(self.sources):
                     if i in redacted_sources:
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
@@ -382,7 +383,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - list[dict]: list of unredacted value parts.
         """
-        value_parts = []
+        value_parts: list[dict[str, object]] = []
         from_index = 0
 
         for range_ in ranges:
@@ -391,12 +392,12 @@ class IastSpanReporter(NotNoneDictable):
 
             source_index = _get_source_index(sources, range_["source"])
 
-            value_parts.append(
-                {
-                    "value": _truncate_evidence_value(evidence_value[range_["start"] : range_["end"]]),
-                    "source": source_index,  # type: ignore[dict-item]
-                }
-            )
+            value_part: dict[str, object] = {
+                "value": _truncate_evidence_value(evidence_value[range_["start"] : range_["end"]])
+            }
+            if source_index >= 0:
+                value_part["source"] = source_index
+            value_parts.append(value_part)
 
             from_index = range_["end"]
 

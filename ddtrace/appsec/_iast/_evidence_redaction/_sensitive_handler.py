@@ -227,7 +227,6 @@ class SensitiveHandler:
         redacted_sources_context = dict()
 
         start = 0
-        next_tainted_index = 0
         source_index = None
 
         next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
@@ -237,7 +236,9 @@ class SensitiveHandler:
             if next_tainted and next_tainted["start"] == i:
                 self.write_value_part(value_parts, evidence_value[start:i], source_index)
 
-                source_index = _get_source_index(sources, next_tainted["source"])
+                resolved_source_index = _get_source_index(sources, next_tainted["source"])
+                source_index = resolved_source_index if resolved_source_index >= 0 else None
+                tainted_source_value = next_tainted["source"].value
 
                 while next_sensitive and self._contains(next_tainted, next_sensitive):
                     redaction_start = next_sensitive["start"] - next_tainted["start"]
@@ -252,6 +253,7 @@ class SensitiveHandler:
                             source_index,
                             redaction_start,
                             redaction_end,
+                            tainted_source_value,
                         )
                     next_sensitive = sensitive.pop(0) if sensitive else None
 
@@ -266,16 +268,19 @@ class SensitiveHandler:
                         source_index,
                         redaction_start,
                         redaction_end,
+                        tainted_source_value,
                     )
 
                     entries = self._remove(next_sensitive, next_tainted)
                     next_sensitive = entries[0] if entries else None
                     self._requeue_sensitive(sensitive, entries[1:])
 
-                if source_index < len(sources):
-                    if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
+                sensible_source = self.is_sensible_source(next_tainted["source"])
+                if source_index is not None and source_index < len(sources) and sensible_source:
+                    if source_index not in redacted_sources:
                         redacted_sources.append(source_index)
-                        sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
+                    if not sources[source_index].redacted:
+                        sources[source_index].pattern = get_redacted_source(len(tainted_source_value))
                         sources[source_index].redacted = True
 
                 if source_index in redacted_sources:
@@ -287,8 +292,9 @@ class SensitiveHandler:
                         source_index,
                         part_value,
                         sources[source_index],
+                        tainted_source_value,
                         redacted_sources_context.get(source_index),
-                        self.is_sensible_source(sources[source_index]),
+                        sensible_source,
                     )
                     redacted_sources_context[source_index] = []
                 else:
@@ -300,13 +306,14 @@ class SensitiveHandler:
                 start = i + (next_tainted["end"] - next_tainted["start"])
                 i = start - 1
                 next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
-                next_tainted_index += 1
                 source_index = None
                 continue
             elif next_sensitive and next_sensitive["start"] == i:
                 self.write_value_part(value_parts, evidence_value[start:i], source_index)
                 if next_tainted and self._intersects(next_sensitive, next_tainted):
-                    source_index = next_tainted_index
+                    resolved_source_index = _get_source_index(sources, next_tainted["source"])
+                    source_index = resolved_source_index if resolved_source_index >= 0 else None
+                    tainted_source_value = next_tainted["source"].value
 
                     redaction_start = next_sensitive["start"] - next_tainted["start"]
                     redaction_end = next_sensitive["end"] - next_tainted["start"]
@@ -314,9 +321,10 @@ class SensitiveHandler:
                         sources,
                         redacted_sources,
                         redacted_sources_context,
-                        next_tainted_index,
+                        source_index,
                         redaction_start,
                         redaction_end,
+                        tainted_source_value,
                     )
 
                     entries = self._remove(next_sensitive, next_tainted)
@@ -336,14 +344,17 @@ class SensitiveHandler:
 
         return {"redacted_value_parts": value_parts, "redacted_sources": redacted_sources}
 
-    def redact_source(self, sources, redacted_sources, redacted_sources_context, source_index, start, end):
-        if source_index is not None and source_index < len(sources):
-            if not sources[source_index].redacted:
+    def redact_source(
+        self, sources, redacted_sources, redacted_sources_context, source_index, start, end, source_value
+    ):
+        if source_index is not None and 0 <= source_index < len(sources):
+            if source_index not in redacted_sources:
                 redacted_sources.append(source_index)
-                sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
+            if not sources[source_index].redacted:
+                sources[source_index].pattern = get_redacted_source(len(source_value))
                 sources[source_index].redacted = True
 
-            if source_index not in redacted_sources_context.keys():
+            if source_index not in redacted_sources_context:
                 redacted_sources_context[source_index] = []
 
             redacted_sources_context[source_index].append({"start": start, "end": end})
@@ -364,11 +375,13 @@ class SensitiveHandler:
         source_index=None,
         part_value=None,
         source=None,
+        tainted_source_value=None,
         source_redaction_context=None,
         is_sensible_source=False,
     ):
         if source_index is not None:
-            placeholder = source.pattern if part_value and part_value in source.value else "*" * length
+            source_value = tainted_source_value or part_value
+            placeholder = source.pattern if part_value and part_value in source_value else "*" * length
 
             if is_sensible_source:
                 value_parts.append({"redacted": True, "source": source_index, "pattern": placeholder})
@@ -393,7 +406,7 @@ class SensitiveHandler:
                     if sensitive_start < 0:
                         sensitive_start = 0
                     sensitive = _value[sensitive_start : _source_redaction_context["end"] - offset]
-                    index_of_part_value_in_pattern = source.value.find(sensitive)
+                    index_of_part_value_in_pattern = source_value.find(sensitive)
 
                     pattern = (
                         placeholder[index_of_part_value_in_pattern : index_of_part_value_in_pattern + len(sensitive)]
