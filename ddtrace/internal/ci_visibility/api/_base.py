@@ -4,10 +4,10 @@ from enum import Enum
 import functools
 import json
 from pathlib import Path
-import typing
 from typing import Any
 from typing import Generic
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import Union
 
@@ -42,11 +42,40 @@ from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
 
-if typing.TYPE_CHECKING:
-    from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
-
-
 log = get_logger(__name__)
+
+
+class TestVisibilitySessionProtocol(Protocol):
+    """Structural interface for the top-level test visibility session item.
+
+    This mirrors the public surface of TestVisibilitySession that is used by items in this hierarchy (eg: via
+    get_session()). It exists so that TestVisibilityItemBase.get_session() does not need to import
+    ddtrace.internal.ci_visibility.api._session, which itself imports from this module.
+    """
+
+    def efd_is_enabled(self) -> bool: ...
+
+    def efd_is_faulty_session(self) -> bool: ...
+
+    def efd_has_failed_tests(self) -> bool: ...
+
+    def atr_is_enabled(self) -> bool: ...
+
+    def atr_has_failed_tests(self) -> bool: ...
+
+    def atr_max_retries_reached(self) -> bool: ...
+
+    def attempt_to_fix_has_failed_tests(self) -> bool: ...
+
+    def get_child_by_id(self, child_id: Any) -> Any: ...
+
+    def get_session_settings(self) -> "TestVisibilitySessionSettings": ...
+
+    def set_skipped_count(self, skipped_count: int) -> None: ...
+
+    def set_covered_lines_pct(self, coverage_pct: float) -> None: ...
+
+    def _atr_count_retry(self) -> None: ...
 
 
 @dataclasses.dataclass(frozen=True)
@@ -442,7 +471,7 @@ class TestVisibilityItemBase(abc.ABC):
     def is_prepared_for_finish(self) -> bool:
         return self._finish_time is not None
 
-    def get_session(self) -> Optional["TestVisibilitySession"]:
+    def get_session(self) -> Optional["TestVisibilitySessionProtocol"]:
         if self.parent is None:
             return None
         return self.parent.get_session()
