@@ -59,6 +59,11 @@ def test_span_context_is_thread_local():
             return span.span_id, _published_span_id()
 
     with scoped_tracer() as tracer:
+        # In CI, scoped_tracer forwards traces to a NativeWriter. Start it before the workers so its unrelated
+        # lazy-start race does not obscure the thread-local context behavior this test exercises.
+        with tracer.trace("writer-warmup"):
+            pass
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             results = executor.map(trace, ("one", "two"))
 
