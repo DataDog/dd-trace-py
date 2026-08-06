@@ -8,9 +8,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 using namespace Datadog;
+
+static_assert(!std::is_copy_constructible_v<StackRenderer>);
+static_assert(!std::is_move_constructible_v<StackRenderer>);
+static_assert(!std::is_copy_constructible_v<StackRenderer::RenderCycle>);
+static_assert(std::is_move_constructible_v<StackRenderer::RenderCycle>);
 
 namespace {
 
@@ -65,31 +75,83 @@ class StackRendererSampleLifecycle : public ::testing::Test
     }
 };
 
+void
+abandon_render_cycle(StackRenderer& renderer, std::uint64_t id)
+{
+    [[maybe_unused]] auto cycle = renderer.render_thread_begin(nullptr, "test-thread", 0, id, id);
+}
+
+void
+throw_during_render_cycle(StackRenderer& renderer)
+{
+    [[maybe_unused]] auto cycle = renderer.render_thread_begin(nullptr, "test-thread", 0, 1, 1);
+    throw std::runtime_error("injected render failure");
+}
+
 } // namespace
 
-TEST_F(StackRendererSampleLifecycle, StartingNextCycleRecoversAbandonedSample)
+TEST_F(StackRendererSampleLifecycle, ScopeExitRecoversIncompleteSample)
 {
     StackRenderer renderer;
 
-    // Simulate ThreadInfo::sample() returning after render_thread_begin() without reaching render_stack_end().
-    // ThreadInfo::update_cpu_time() normalizes deterministically constructible invalid-clock errors to success, so
-    // exercise the renderer lifecycle directly rather than relying on platform-specific syscall interposition.
+    // Run beyond the pool capacity so a missing guard cleanup would drain every reusable Sample.
     for (size_t i = 0; i < StaticSamplePool::CAPACITY * 4; ++i) {
-        renderer.render_thread_begin(nullptr, "test-thread", 0, i + 1, i + 1);
+        abandon_render_cycle(renderer, i + 1);
     }
-    renderer.abort_sample();
 
     EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY)
-      << "starting a new render cycle leaked the Sample abandoned by the previous cycle";
+      << "render-cycle scope exit leaked an incomplete Sample";
 }
 
-TEST_F(StackRendererSampleLifecycle, DestructionRecoversAbandonedSample)
+TEST_F(StackRendererSampleLifecycle, ExceptionUnwindRecoversIncompleteSample)
 {
+    StackRenderer renderer;
+
+    EXPECT_THROW(throw_during_render_cycle(renderer), std::runtime_error);
+    EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY)
+      << "exception unwinding leaked an incomplete Sample";
+}
+
+TEST_F(StackRendererSampleLifecycle, OlderGuardCannotAbortNewerCycle)
+{
+    StackRenderer renderer;
+    std::optional<StackRenderer::RenderCycle> older_cycle;
+    older_cycle.emplace(renderer.render_thread_begin(nullptr, "first-thread", 0, 1, 1));
+
     {
-        StackRenderer renderer;
-        renderer.render_thread_begin(nullptr, "test-thread", 0, 1, 1);
+        [[maybe_unused]] auto newer_cycle = renderer.render_thread_begin(nullptr, "second-thread", 0, 2, 2);
+        older_cycle.reset();
+
+        EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY - 1)
+          << "an invalidated guard aborted the Sample owned by a newer render cycle";
     }
 
     EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY)
-      << "renderer destruction leaked an in-flight Sample";
+      << "the newer render-cycle guard did not return its Sample";
+}
+
+TEST_F(StackRendererSampleLifecycle, MovingCycleGuardTransfersCleanup)
+{
+    StackRenderer renderer;
+
+    {
+        auto first_guard = renderer.render_thread_begin(nullptr, "test-thread", 0, 1, 1);
+        [[maybe_unused]] auto moved_guard = std::move(first_guard);
+    }
+
+    EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY)
+      << "moving the render-cycle guard lost or duplicated Sample ownership";
+}
+
+TEST_F(StackRendererSampleLifecycle, TaskCannotAcquireSampleWithoutCycleGuard)
+{
+    StackRenderer renderer;
+
+    testing::internal::CaptureStderr();
+    renderer.render_task_begin("orphan-task", true, 1);
+    const auto captured_error = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(captured_error.find("without an active render cycle"), std::string::npos);
+    EXPECT_EQ(count_available_samples(), StaticSamplePool::CAPACITY)
+      << "render_task_begin acquired a Sample without an active render cycle";
 }
