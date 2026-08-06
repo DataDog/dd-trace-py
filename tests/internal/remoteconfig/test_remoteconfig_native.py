@@ -164,11 +164,18 @@ def test_remoteconfig_product_defers_start_until_all_products_registered(monkeyp
 
     poller = RemoteConfigPoller()
     started_with_products = []
+    startup_events = []
 
     monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
-    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: startup_events.append("native"))
+    monkeypatch.setattr(
+        worker_module.forksafe,
+        "register_before_fork",
+        lambda hook: startup_events.append("before-fork"),
+    )
 
     def capture_start():
+        startup_events.append("poller")
         started_with_products.extend(poller._client._enabled_products)
         poller.status = ServiceStatus.RUNNING
 
@@ -186,8 +193,10 @@ def test_remoteconfig_product_defers_start_until_all_products_registered(monkeyp
 
         assert poller.status == ServiceStatus.STOPPED
         assert started_with_products == []
+        assert startup_events == ["native", "before-fork"]
 
         product.post_start()
+    assert startup_events == ["native", "before-fork", "poller"]
     assert set(started_with_products) == {
         RemoteConfigProduct.AgentConfig,
         RemoteConfigProduct.FfeFlags,

@@ -102,17 +102,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
         rc_env_enabled = ddconfig._remote_config_enabled
         if rc_env_enabled and self._enable:
-            if self._start_deferred:
-                return False
-
             if self.status == ServiceStatus.RUNNING:
                 return True
 
             if not self._before_fork_registered:
-                # Initialize early to avoid race-conditions with forking operations.
+                # AIDEV-NOTE: Initialize and register the fork hook before honoring
+                # the startup barrier. Polling can wait for product registration,
+                # but fork safety must be established as early as possible.
                 self._client.ensure_native()
                 forksafe.register_before_fork(self._before_fork)
                 self._before_fork_registered = True
+
+            if self._start_deferred:
+                return False
 
             self.start()
 
