@@ -167,6 +167,15 @@ def test_re_subn_aspect_not_tainted():
     assert not is_pyobject_tainted(res_str)
 
 
+def test_re_subn_aspect_preserves_non_tuple_result_from_re_module():
+    marker = object()
+
+    def original(*args, **kwargs):
+        return marker
+
+    assert re_subn_aspect(original, 1, re, "_", "foo/bar/baz") is marker
+
+
 def test_re_split_aspect_not_tainted_re_object():
     not_tainted_foobarbaz = "/foo/bar/baz.jpg"
 

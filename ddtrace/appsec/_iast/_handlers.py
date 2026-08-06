@@ -2,10 +2,12 @@ from collections.abc import MutableMapping
 import functools
 from types import ModuleType
 from typing import Any
+from typing import Awaitable
 from typing import Callable
-from typing import Coroutine
 from typing import Iterator
 from typing import Optional
+from typing import Protocol
+from typing import TypeVar
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
@@ -29,10 +31,18 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.span_bus import span_from_context
 
 
-MessageMapContainer = None
+MessageMapContainer: Optional[type[MutableMapping[object, object]]] = None
+_ReturnT = TypeVar("_ReturnT")
+
+
+class _StarletteURLComponents(Protocol):
+    path: str
+
+
+class _StarletteURL(Protocol):
+    components: _StarletteURLComponents
 
 
 # Only capture MessageMapContainer if the application (or another dependency)
@@ -164,7 +174,9 @@ def _iast_on_wrapped_view(kwargs: dict[str, Any]) -> dict[str, Any]:
     return kwargs
 
 
-def _on_wsgi_environ(wrapped: Callable[..., Any], _instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def _on_wsgi_environ(
+    wrapped: Callable[..., _ReturnT], _instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> _ReturnT:
     if is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
@@ -201,18 +213,21 @@ def _on_django_patch() -> None:
             iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Django", exc_info=True)
 
 
-def _on_django_middleware(ctx: core.ExecutionContext[Event], call_trace: bool = True, **kwargs: Any) -> None:
+def _on_django_middleware(ctx: core.ExecutionContext[Event]) -> None:
     if not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     request = ctx.find_item("request")
     if request:
-        args = (request,)
-        _taint_django_func_call(request, args, {})
+        _taint_django_func_call(request, {})
 
 
 def _on_django_func_wrapped(
-    fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any], first_arg_expected_type: type[Any], *_: Any
+    fn_args: tuple[Any, ...],
+    fn_kwargs: dict[str, Any],
+    first_arg_expected_type: type[Any],
+    _ctx: core.ExecutionContext[Event],
+    _ignored_excs: object,
 ) -> None:
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
@@ -220,10 +235,10 @@ def _on_django_func_wrapped(
         if not is_iast_request_enabled():
             return
 
-        _taint_django_func_call(fn_args[0], fn_args, fn_kwargs)
+        _taint_django_func_call(fn_args[0], fn_kwargs)
 
 
-def _taint_django_func_call(http_req: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+def _taint_django_func_call(http_req: Any, kwargs: dict[str, Any]) -> None:
     resolver_match = getattr(http_req, "resolver_match", None)
     if resolver_match is not None:
         set_iast_request_endpoint(http_req.method, resolver_match.route)
@@ -243,22 +258,16 @@ def _taint_django_func_call(http_req: Any, args: tuple[Any, ...], kwargs: dict[s
             )
         except AttributeError:
             log.debug("IAST can't set attribute http_req._body", exc_info=True)
-    # This condition is only for testing purposes.
-    # In real applications, http_req.body is typically a property that can be set.
-    # Here we check if it's not a property to handle test cases where body is directly assigned.
-    elif (
-        getattr(http_req, "body", None) is not None
-        and not isinstance(getattr(http_req, "body", None), property)
-        and len(http_req.body) > 0
-        and not is_pyobject_tainted(getattr(http_req, "body", None))
-    ):
+    else:
         try:
-            http_req.body = taint_pyobject(
-                http_req.body,
-                source_name=origin_to_str(OriginType.BODY),
-                source_value=http_req.body,
-                source_origin=OriginType.BODY,
-            )
+            body = http_req.body
+            if body and not is_pyobject_tainted(body):
+                http_req.body = taint_pyobject(
+                    body,
+                    source_name=origin_to_str(OriginType.BODY),
+                    source_value=body,
+                    source_origin=OriginType.BODY,
+                )
         except AttributeError:
             iast_propagation_listener_log_log("IAST can't set attribute http_req.body", exc_info=True)
 
@@ -315,9 +324,6 @@ def _custom_protobuf_getattribute(self: Any, name: str) -> Any:
     return ret
 
 
-_custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defined]
-
-
 # Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
 # of the original __getattribute__ method
 def _patch_protobuf_class(cls: type[object]) -> None:
@@ -325,7 +331,7 @@ def _patch_protobuf_class(cls: type[object]) -> None:
     if not getattr_method:
         return
 
-    if not hasattr(getattr_method, "__datadog_custom"):
+    if getattr_method is not _custom_protobuf_getattribute:
         try:
             # Replace the class __getattribute__ method with our custom one
             # (replacement is done at the class level because it would incur on a recursive loop with the instance)
@@ -367,11 +373,11 @@ def if_iast_taint_yield_tuple_for(
 def if_iast_taint_returned_object_for(
     origin: OriginType,
     override_pyobject_tainted: bool,
-    wrapped: Callable[..., Any],
-    instance: Any,
+    wrapped: Callable[..., _ReturnT],
+    instance: object,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
-) -> Any:
+) -> _ReturnT:
     value = wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
@@ -500,11 +506,10 @@ def _on_iast_fastapi_patch() -> None:
 
 
 def _on_pre_tracedrequest_iast(ctx: core.ExecutionContext[Event]) -> None:
-    current_span = span_from_context(ctx)
-    _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
+    _on_set_request_tags_iast(ctx.get_item("flask_request"))
 
 
-def _on_set_request_tags_iast(request: Any, span: Any, flask_config: Any) -> None:
+def _on_set_request_tags_iast(request: Any) -> None:
     if is_iast_request_enabled():
         try:
             if request.url_rule is not None:
@@ -610,7 +615,7 @@ def _on_werkzeug_render_debugger_html(html: str) -> None:
 def _iast_instrument_starlette_request(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> None:
-    def receive(self: Any) -> Callable[[], Coroutine[Any, Any, Any]]:
+    def receive(self: Any) -> Callable[[], Awaitable[Any]]:
         """This pattern comes from a Request._receive property, which returns a callable"""
 
         async def wrapped_property_call() -> Any:
@@ -625,8 +630,8 @@ def _iast_instrument_starlette_request(
 
 
 async def _iast_instrument_starlette_request_body(
-    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
+    wrapped: Callable[..., Awaitable[_ReturnT]], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> _ReturnT:
     result = await wrapped(*args, **kwargs)
 
     return taint_pyobject(
@@ -650,11 +655,12 @@ def _iast_instrument_starlette_scope(scope: dict[str, Any], route: str) -> None:
 def _iast_instrument_starlette_url(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> None:
-    def path(self: Any) -> str:
-        return taint_pyobject(  # type: ignore[no-any-return]
-            self.components.path,
+    def path(self: _StarletteURL) -> str:
+        path_value = self.components.path
+        return taint_pyobject(
+            path_value,
             source_name=origin_to_str(OriginType.PATH),
-            source_value=self.components.path,
+            source_value=path_value,
             source_origin=OriginType.PATH,
         )
 

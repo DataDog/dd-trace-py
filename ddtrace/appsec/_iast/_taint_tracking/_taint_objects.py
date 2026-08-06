@@ -14,12 +14,12 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
+from ddtrace.appsec._iast._typing import TextTypeT
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 
-TextType = TypeVar("TextType", str, bytes, bytearray)
 PyObject = TypeVar("PyObject")
 
 
@@ -39,7 +39,7 @@ def taint_pyobject(
     return pyobject
 
 
-def copy_ranges_to_string(pyobject: TextType, ranges: Sequence[TaintRange]) -> TextType:
+def copy_ranges_to_string(pyobject: TextTypeT, ranges: Sequence[TaintRange]) -> TextTypeT:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     if (contextid := _get_iast_context_id()) is not None:
         if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):

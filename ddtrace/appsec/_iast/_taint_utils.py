@@ -535,10 +535,19 @@ if asm_config._iast_lazy_taint:
     def taint_structure(  # noqa: F811
         main_obj: Any, source_key: Any, source_value: Any, override_pyobject_tainted: bool = False
     ) -> Any:
-        if isinstance(main_obj, abc.Mapping):
+        if isinstance(main_obj, IAST.TEXT_TYPES):
+            if override_pyobject_tainted or not is_pyobject_tainted(main_obj):
+                return taint_pyobject(
+                    pyobject=main_obj,
+                    source_name=source_key,
+                    source_value=main_obj,
+                    source_origin=source_value,
+                )
+        elif isinstance(main_obj, abc.Mapping):
             return LazyTaintDict(main_obj, (source_key, source_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
             return LazyTaintList(main_obj, (source_key, source_value), override_pyobject_tainted)
+        return main_obj
 
 
 def taint_dictionary(

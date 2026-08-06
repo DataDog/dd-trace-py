@@ -11,8 +11,8 @@ from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
-from typing import TypeVar
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
@@ -50,11 +50,10 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_w
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.appsec._iast._typing import TextTypeT
 
 
-TEXT_TYPES = Union[str, bytes, bytearray]
 AspectCallable = Callable[..., Any]
-TextType = TypeVar("TextType", str, bytes, bytearray)
 
 _extend_aspect = aspects.extend_aspect
 _join_aspect = aspects.join_aspect
@@ -489,12 +488,12 @@ def format_map_aspect(orig_function: Optional[AspectCallable], flag_added_args: 
 
     result = candidate_text.format_map(*args, **kwargs)
 
-    if not isinstance(candidate_text, IAST.TEXT_TYPES):
+    if not isinstance(candidate_text, str):
         return result
 
     try:
-        mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+        mapping: Mapping[str, object] = parse_params(0, "mapping", None, *args, **kwargs)  # type: ignore[assignment]
+        mapping_tuple = tuple(mapping.values())
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
             candidate_text,
             args + mapping_tuple,
@@ -514,8 +513,6 @@ def format_map_aspect(orig_function: Optional[AspectCallable], flag_added_args: 
                     )
                     for key, value in mapping.items()
                 }
-                if isinstance(mapping, dict)
-                else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
         )
@@ -562,7 +559,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> TEXT_TYPES:
+) -> str:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -576,34 +573,31 @@ def format_value_aspect(
             return format(new_text, format_spec)
         return format(new_text)
 
-    if format_spec:
-        new_new_text = f"{new_text:{format_spec}}"  # type: ignore[str-bytes-safe]
-        try:
-            # Apply formatting
-            text_ranges = get_tainted_ranges(new_text)
-            if text_ranges:
-                try:
-                    new_ranges = list()
-                    for text_range in text_ranges:
-                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))  # type: ignore
-                    if new_ranges:
-                        taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
-                    return new_new_text
-                except ValueError:
-                    return new_new_text
+    formatted_text = format(new_text, format_spec or "")
+    try:
+        text_ranges = get_tainted_ranges(new_text)
+        if text_ranges:
+            if isinstance(new_text, bytes):
+                check_offset = ascii(new_text)[2:-1]
+            elif isinstance(new_text, bytearray):
+                check_offset = ascii(new_text)[12:-2]
             else:
-                return new_new_text
-        except Exception as e:
-            iast_propagation_error_log("format_value_aspect", e)
-            return new_new_text
+                check_offset = new_text
+            offset = formatted_text.index(check_offset)
+            new_ranges = [shift_taint_range(text_range, offset) for text_range in text_ranges]
+            taint_pyobject_with_ranges(formatted_text, tuple(new_ranges))
+    except Exception as e:
+        iast_propagation_error_log("format_value_aspect", e)
+    return formatted_text
 
-    return format(new_text)
 
-
-def incremental_translation(self: TEXT_TYPES, incr_coder: Any, funcode: AspectCallable, empty: TEXT_TYPES) -> Any:
+def incremental_translation(
+    self: Union[str, bytes], incr_coder: Any, funcode: Callable[..., TextTypeT], empty: TextTypeT
+) -> TextTypeT:
     tainted_ranges = iter(get_tainted_ranges(self))
-    result_list, new_ranges = [], []
-    result_length, i = 0, 0
+    result_list: list[TextTypeT] = []
+    new_ranges: list[TaintRange] = []
+    i = 0
     tainted_range = next(tainted_ranges, None)
     tainted_new_length = 0
     in_tainted = False
@@ -624,8 +618,6 @@ def incremental_translation(self: TEXT_TYPES, incr_coder: Any, funcode: AspectCa
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
-            result_length += len(new_prod)
-
             if in_tainted:
                 tainted_new_length += len(new_prod)
             else:
@@ -740,16 +732,16 @@ def lower_aspect(orig_function: Optional[AspectCallable], flag_added_args: int, 
 
 
 def _distribute_ranges_and_escape(
-    split_elements: list[Optional[TEXT_TYPES]],
+    split_elements: list[Optional[TextTypeT]],
     len_separator: int,
     ranges: list[TaintRange],
-) -> list[Optional[TEXT_TYPES]]:
+) -> list[Optional[TextTypeT]]:
     # FIXME: converts to set, and then to list again, probably to remove
     # duplicates. This should be removed once the ranges values on the
     # taint dictionary are stored in a set.
     range_set = set(ranges)
     range_set_remove = range_set.remove
-    formatted_elements: list[Optional[TEXT_TYPES]] = []
+    formatted_elements: list[Optional[TextTypeT]] = []
     formatted_elements_append = formatted_elements.append
     element_start = 0
     extra = 0
@@ -810,8 +802,8 @@ def _distribute_ranges_and_escape(
 
 
 def aspect_replace_api(
-    candidate_text: TEXT_TYPES, old_value: Any, new_value: Any, count: int, orig_result: TEXT_TYPES
-) -> TEXT_TYPES:
+    candidate_text: TextTypeT, old_value: TextTypeT, new_value: TextTypeT, count: int, orig_result: TextTypeT
+) -> TextTypeT:
     ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, (old_value, new_value))
     if not ranges_orig:  # Ranges in args/kwargs are checked
         return orig_result
@@ -826,7 +818,7 @@ def aspect_replace_api(
             if isinstance(candidate_text, str):
                 char_list = list(candidate_text)
             else:
-                char_list = [bytes([x]) for x in candidate_text]  # type: ignore
+                char_list = [bytes([x]) for x in candidate_text]
 
             elements = (
                 [
@@ -859,7 +851,7 @@ def aspect_replace_api(
                 if len(elements) == count and elements[-1] != b"":
                     elements.append(empty)
     i = 0
-    new_elements: list[Optional[TEXT_TYPES]] = []
+    new_elements: list[Optional[TextTypeT]] = []
     new_elements_append = new_elements.append
 
     # if new value is blank, _distribute_ranges_and_escape function doesn't
@@ -900,14 +892,15 @@ def aspect_replace_api(
     else:
         new_elements = [element for element in new_elements if element is not None]
 
-    result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
+    join_elements = [element for element in new_elements if element is not None]
+    result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(join_elements)
 
     result = _convert_escaped_text_to_tainted_text(
         result_formatted,
         ranges_orig=ranges_orig,
     )
 
-    return result  # type: ignore[no-any-return]
+    return result
 
 
 def replace_aspect(orig_function: Optional[AspectCallable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -1222,7 +1215,7 @@ def re_subn_aspect(orig_function: Optional[AspectCallable], flag_added_args: int
         # In this case, the first argument is the pattern
         # which we don't need to check for tainted ranges
         args = args[1:]
-    elif not isinstance(result, tuple) and not len(result) == 2:
+    if not isinstance(result, tuple) or len(result) != 2:
         return result
 
     new_string, number = result
@@ -1580,7 +1573,7 @@ def strip_aspect(orig_function: Optional[AspectCallable], flag_added_args: int, 
     return result
 
 
-def _strip_lstrip_aspect(candidate_text: TextType, result: TextType) -> None:
+def _strip_lstrip_aspect(candidate_text: TextTypeT, result: TextTypeT) -> None:
     ranges_new: list[TaintRange] = []
     ranges = get_ranges(candidate_text)
     start_pos = candidate_text.index(result)

@@ -6,8 +6,10 @@ import copy
 import os
 import sys
 from typing import Any
-from typing import Optional
 from typing import Text
+from typing import TypedDict
+from typing import TypeVar
+from typing import Union
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
@@ -27,14 +29,40 @@ TAINT_SINK_FUNCTION_REPLACEMENT = _PREFIX + "taint_sinks.ast_function"
 SOURCES_FUNCTION_REPLACEMENT = _PREFIX + "sources.ast_function"
 
 
-def _mark_avoid_convert_recursively(node: Optional[ast.AST]) -> None:
-    if node is not None:
-        node.avoid_convert = True  # type: ignore[attr-defined]
-        for child in ast.iter_child_nodes(node):
-            _mark_avoid_convert_recursively(child)
+_NodeT = TypeVar("_NodeT", bound=ast.AST)
 
 
-_ASPECTS_SPEC: dict[Text, Any] = {
+class _SlicesSpec(TypedDict):
+    index: str
+    slice: str
+
+
+class _TaintSinksSpec(TypedDict):
+    weak_randomness: set[str]
+    path_traversal: dict[str, set[str]]
+    cmd_injection: dict[str, set[str]]
+    ssrf: dict[str, set[str]]
+    disabled: set[str]
+
+
+class _SourcesSpec(TypedDict):
+    io: dict[str, set[str]]
+
+
+class _AspectsSpec(TypedDict):
+    definitions_module: str
+    alias_module: str
+    functions: dict[str, str]
+    stringalike_methods: dict[str, str]
+    slices: _SlicesSpec
+    module_functions: dict[str, dict[str, str]]
+    operators: dict[object, str]
+    excluded_from_patching: dict[str, dict[str, tuple[str, ...]]]
+    taint_sinks: _TaintSinksSpec
+    sources: _SourcesSpec
+
+
+_ASPECTS_SPEC: _AspectsSpec = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": _PREFIX + "aspects",
     "functions": {
@@ -146,7 +174,7 @@ _ASPECTS_SPEC: dict[Text, Any] = {
             "super",
         },
     },
-    "sources": {"io": DEFAULT_SOURCE_IO_FUNCTIONS, "disabled": {}},
+    "sources": {"io": DEFAULT_SOURCE_IO_FUNCTIONS},
 }
 
 
@@ -205,15 +233,8 @@ class AstVisitor(ast.NodeTransformer):
 
         excluded_from_patching: dict[str, dict[str, tuple[str, ...]]] = _ASPECTS_SPEC["excluded_from_patching"]
         self.excluded_functions = excluded_from_patching.get(self.module_name, {})
-        self.dont_patch_these_functionsdefs: set[str] = set()
-        for _, v in self.excluded_functions.items():
-            if v:
-                for i in v:
-                    self.dont_patch_these_functionsdefs.add(i)
-
-        # This will be enabled when we find a module and function where we avoid doing
-        # replacements and enabled again on all the others
-        self.replacements_disabled_for_functiondef = False
+        self._function_scope: list[str] = []
+        self._avoid_convert: set[ast.AST] = set()
 
         self.codetype = CODE_TYPE_FIRST_PARTY
         if "ast/tests/fixtures" in self.filename:
@@ -248,18 +269,13 @@ class AstVisitor(ast.NodeTransformer):
 
         return False
 
-    @staticmethod
-    def _get_function_name(call_node: ast.Call, is_function: bool) -> Text:
-        if is_function:
-            return call_node.func.id  # type: ignore[attr-defined,no-any-return]
-        # If the call is to a method
-        elif type(call_node.func) is ast.Name:
-            return call_node.func.id
-
-        return call_node.func.attr  # type: ignore[attr-defined,no-any-return]
-
     def _is_node_constant_or_binop(self, node: Any) -> bool:
         return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
+
+    def _mark_avoid_convert_recursively(self, node: ast.AST) -> None:
+        self._avoid_convert.add(node)
+        for child in ast.iter_child_nodes(node):
+            self._mark_avoid_convert_recursively(child)
 
     def _is_call_excluded(self, func_name_node: Text) -> bool:
         if not self.excluded_functions:
@@ -267,50 +283,38 @@ class AstVisitor(ast.NodeTransformer):
         excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
             "", tuple()
         )
-        return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
+        return "" in excluded_for_caller or any(name in excluded_for_caller for name in self._function_scope)
 
-    def _is_string_format_with_literals(self, call_node: ast.Call) -> bool:
+    def _is_string_format_with_literals(self, call_node: ast.Call, func_node: ast.Attribute) -> bool:
         return (
-            self._is_string_node(call_node.func.value)  # type: ignore[attr-defined]
-            and call_node.func.attr == "format"  # type: ignore[attr-defined]
+            self._is_string_node(func_node.value)
+            and func_node.attr == "format"
             and all(map(self._is_node_constant_or_binop, call_node.args))
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
 
-    def _should_replace_with_taint_sink(self, call_node: ast.Call, is_function: bool) -> bool:
-        function_name = self._get_function_name(call_node, is_function)
-
+    def _should_replace_with_taint_sink(self, function_name: str) -> bool:
         if function_name in self._taint_sink_replace_disabled:
             return False
 
         return function_name in self._taint_sink_replace_any
 
-    def _should_replace_with_source(self, call_node: ast.Call, is_function: bool) -> bool:
-        function_name = self._get_function_name(call_node, is_function)
-
+    def _should_replace_with_source(self, function_name: str) -> bool:
         return function_name in self._source_replace_any
 
-    def _add_original_function_as_arg(self, call_node: ast.Call, is_function: bool) -> Any:
+    @staticmethod
+    def _add_original_function_as_arg(call_node: ast.Call) -> list[ast.expr]:
         """
         Creates the arguments for the original function
         """
-        function_name = self._get_function_name(call_node, is_function)
-        function_name_arg = (
-            self._name_node(call_node, function_name, ctx=ast.Load()) if is_function else copy.copy(call_node.func)
-        )
-
         # Arguments for stack info change from:
         # my_function(self, *args, **kwargs)
         # to:
         # _add_original_function_as_arg(function_name=my_function, self, *args, **kwargs)
-        new_args = [
-            function_name_arg,
-        ] + call_node.args
-
-        return new_args
+        return [copy.copy(call_node.func)] + call_node.args
 
     @staticmethod
-    def _node(type_: Any, pos_from_node: Any, **kwargs: Any) -> Any:
+    def _node(type_: type[_NodeT], pos_from_node: ast.AST, **kwargs: Any) -> _NodeT:
         """
         Abstract some basic differences in node structure between versions
         """
@@ -323,19 +327,24 @@ class AstVisitor(ast.NodeTransformer):
         end_lineno = getattr(pos_from_node, "end_lineno", 1)
         end_col_offset = getattr(pos_from_node, "end_col_offset", 0)
 
-        return type_(
+        return type_(  # type: ignore[call-arg]
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node: Any, _id: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
-        return self._node(  # type: ignore[no-any-return]
+    def _name_node(self, from_node: ast.AST, _id: Text, ctx: ast.expr_context = ast.Load()) -> ast.Name:  # noqa: B008
+        return self._node(
             ast.Name,
             from_node,
             id=_id,
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node: Any, attr: Text, ctx: Any = ast.Load()) -> ast.Attribute:  # noqa: B008
+    def _attr_node(
+        self,
+        from_node: ast.AST,
+        attr: Text,
+        ctx: ast.expr_context = ast.Load(),  # noqa: B008
+    ) -> ast.Attribute:
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -345,11 +354,9 @@ class AstVisitor(ast.NodeTransformer):
                 name_attr = aspect_split[0]
 
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
-        return self._node(  # type: ignore[no-any-return]
-            ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node
-        )
+        return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
+    def _assign_node(self, from_node: ast.AST, targets: list[ast.expr], value: ast.expr) -> ast.Assign:
         return self._node(
             ast.Assign,
             from_node,
@@ -393,7 +400,7 @@ class AstVisitor(ast.NodeTransformer):
         return insert_position
 
     @staticmethod
-    def _none_constant(from_node: Any) -> Any:  # noqa: B008
+    def _none_constant(from_node: ast.expr) -> ast.Constant:  # noqa: B008
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
@@ -404,7 +411,7 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     @staticmethod
-    def _int_constant(from_node: Any, value: int) -> ast.Constant:
+    def _int_constant(from_node: ast.expr, value: int) -> ast.Constant:
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
@@ -414,10 +421,10 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node: Any, func: Any, args: list[Any]) -> Any:
+    def _call_node(self, from_node: ast.AST, func: ast.expr, args: list[ast.expr]) -> ast.Call:
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
-    def visit_Module(self, module_node: ast.Module) -> Any:
+    def visit_Module(self, module_node: ast.Module) -> ast.Module:
         """
         Insert the import statement for the replacements module
         """
@@ -469,46 +476,42 @@ class AstVisitor(ast.NodeTransformer):
         module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
-        return self.generic_visit(module_node)
+        self.generic_visit(module_node)
+        return module_node
 
-    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
+    def _visit_function_def(self, def_node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> None:
         """
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
         if f"{_PREFIX}dir" in def_node.name or f"{_PREFIX}set_dir_filter" in def_node.name:
-            return def_node
+            return
 
-        self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
+        if def_node.args.vararg and def_node.args.vararg.annotation:
+            self._mark_avoid_convert_recursively(def_node.args.vararg.annotation)
 
-        if hasattr(def_node.args, "vararg") and def_node.args.vararg:
-            if def_node.args.vararg.annotation:
-                _mark_avoid_convert_recursively(def_node.args.vararg.annotation)
+        if def_node.args.kwarg and def_node.args.kwarg.annotation:
+            self._mark_avoid_convert_recursively(def_node.args.kwarg.annotation)
 
-        if hasattr(def_node.args, "kwarg") and def_node.args.kwarg:
-            if def_node.args.kwarg.annotation:
-                _mark_avoid_convert_recursively(def_node.args.kwarg.annotation)
+        if def_node.returns is not None:
+            self._mark_avoid_convert_recursively(def_node.returns)
 
-        if hasattr(def_node, "returns"):
-            _mark_avoid_convert_recursively(def_node.returns)
+        for argument in def_node.args.args + def_node.args.kwonlyargs + def_node.args.posonlyargs:
+            if argument.annotation is not None:
+                self._mark_avoid_convert_recursively(argument.annotation)
 
-        for i in def_node.args.args:
-            if hasattr(i, "annotation"):
-                _mark_avoid_convert_recursively(i.annotation)
+        self._function_scope.append(def_node.name)
+        try:
+            self.generic_visit(def_node)
+        finally:
+            self._function_scope.pop()
 
-        if hasattr(def_node.args, "kwonlyargs"):
-            for i in def_node.args.kwonlyargs:
-                if hasattr(i, "annotation"):
-                    _mark_avoid_convert_recursively(i.annotation)
+    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> ast.FunctionDef:
+        self._visit_function_def(def_node)
+        return def_node
 
-        if hasattr(def_node.args, "posonlyargs"):
-            for i in def_node.args.posonlyargs:
-                if hasattr(i, "annotation"):
-                    _mark_avoid_convert_recursively(i.annotation)
-
-        self.generic_visit(def_node)
-        self._current_function_name = None
-
+    def visit_AsyncFunctionDef(self, def_node: ast.AsyncFunctionDef) -> ast.AsyncFunctionDef:
+        self._visit_function_def(def_node)
         return def_node
 
     def visit_Call(self, call_node: ast.Call) -> Any:
@@ -518,10 +521,9 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(call_node)
         func_member = call_node.func
         call_modified = False
-        if self.replacements_disabled_for_functiondef:
-            return call_node
-
         if isinstance(func_member, ast.Name) and func_member.id:
+            if self._is_call_excluded(func_member.id):
+                return call_node
             # Normal function call with func=Name(...), just change the name
             func_name_node = func_member.id
             aspect = self._aspect_functions.get(func_name_node)
@@ -529,7 +531,7 @@ class AstVisitor(ast.NodeTransformer):
                 # Send 0 as flag_added_args value
                 call_node.args.insert(0, self._int_constant(call_node, 0))
                 # Insert original function name as first parameter
-                call_node.args = self._add_original_function_as_arg(call_node, True)
+                call_node.args = self._add_original_function_as_arg(call_node)
                 # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
@@ -545,7 +547,7 @@ class AstVisitor(ast.NodeTransformer):
                 # Early return if method is excluded
                 return call_node
 
-            if self._is_string_format_with_literals(call_node):
+            if self._is_string_format_with_literals(call_node, func_member):
                 return call_node
 
             # This resolve moduleparent.modulechild.name
@@ -554,7 +556,7 @@ class AstVisitor(ast.NodeTransformer):
             func_value_value = getattr(func_value, "value", None) if func_value else None
             func_value_value_id = getattr(func_value_value, "id", None) if func_value_value else None
             func_value_attr = getattr(func_value, "attr", None) if func_value else None
-            func_attr = getattr(func_member, "attr", None)
+            func_attr = func_member.attr
             aspect = None
             is_module_symbol = False
 
@@ -609,33 +611,30 @@ class AstVisitor(ast.NodeTransformer):
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
                 else:
-                    aspect = self._should_replace_with_source(call_node, False)
-                    if aspect:
+                    if self._should_replace_with_source(method_name):
                         # Send 0 as flag_added_args value
                         call_node.args.insert(0, self._int_constant(call_node, 0))
-                        call_node.args = self._add_original_function_as_arg(call_node, False)
+                        call_node.args = self._add_original_function_as_arg(call_node)
                         call_node.func = self._attr_node(call_node, SOURCES_FUNCTION_REPLACEMENT)
                         self.ast_modified = call_modified = True
 
         if self.codetype in self.allowed_replacements:
             # Function replacement case
             if isinstance(call_node.func, ast.Name):
-                aspect = self._should_replace_with_taint_sink(call_node, True)
-                if aspect:
+                if self._should_replace_with_taint_sink(call_node.func.id):
                     # Send 0 as flag_added_args value
                     call_node.args.insert(0, self._int_constant(call_node, 0))
-                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
             # Method replacement case
             elif isinstance(call_node.func, ast.Attribute):
-                aspect = self._should_replace_with_taint_sink(call_node, False)
-                if aspect:
+                if self._should_replace_with_taint_sink(call_node.func.attr):
                     # Send 0 as flag_added_args value
                     call_node.args.insert(0, self._int_constant(call_node, 0))
                     # Create a new Name node for the replacement and set it as node.func
-                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
@@ -778,7 +777,7 @@ class AstVisitor(ast.NodeTransformer):
         # Build args for the aspect call:
         # - String constants: passed as-is (ast.Constant nodes)
         # - Interpolations: pass as ast.Tuple with (value_expr, expr_text, conversion, format_spec)
-        args = []
+        args: list[ast.expr] = []
         for node in templatestr_node.values:
             if hasattr(node, "value") and not isinstance(node, ast.Constant):
                 # This is an Interpolation node
@@ -871,18 +870,18 @@ class AstVisitor(ast.NodeTransformer):
                     "TypeVar",
                     "Union",
                 ):
-                    _mark_avoid_convert_recursively(assign_node.value)
+                    self._mark_avoid_convert_recursively(assign_node.value)
 
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
-                target.avoid_convert = True  # type: ignore[attr-defined]
+                self._avoid_convert.add(target)
             elif isinstance(target, (ast.List, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):
-                        element.avoid_convert = True  # type: ignore[attr-defined]
+                        self._avoid_convert.add(element)
 
             # Create a normal assignment. This way we decompose multiple assignments
         self.generic_visit(assign_node)
@@ -894,7 +893,7 @@ class AstVisitor(ast.NodeTransformer):
 
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
-                target.avoid_convert = True  # type: ignore[attr-defined]
+                self._avoid_convert.add(target)
 
         self.generic_visit(assign_node)
         return assign_node
@@ -902,13 +901,13 @@ class AstVisitor(ast.NodeTransformer):
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # AnnAssign is a type annotation, we don't need to convert it
         # and we avoid converting any subscript inside it.
-        _mark_avoid_convert_recursively(node)
+        self._mark_avoid_convert_recursively(node)
         self.generic_visit(node)
         return node
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
         for i in node.bases:
-            _mark_avoid_convert_recursively(i)
+            self._mark_avoid_convert_recursively(i)
 
         self.generic_visit(node)
         return node
@@ -922,7 +921,7 @@ class AstVisitor(ast.NodeTransformer):
 
         # We mark nodes to avoid_convert (check visit_Delete, visit_AugAssign, visit_Assign) due to complex
         # expressions that raise errors when try to replace with index aspects
-        if hasattr(subscr_node, "avoid_convert"):
+        if subscr_node in self._avoid_convert:
             return subscr_node
 
         # We only want to convert subscript nodes that are being used as a load.
@@ -934,33 +933,22 @@ class AstVisitor(ast.NodeTransformer):
         if self._is_string_node(subscr_node.value):
             return subscr_node
 
-        attr_node = self._attr_node(subscr_node, "")
-
-        call_node = self._call_node(
-            subscr_node,
-            func=attr_node,
-            args=[],
-        )
         if isinstance(subscr_node.slice, ast.Slice):
             # Slice[0:1:2]. The other cases in this if are Indexes[0]
-            aspect_split = self._aspect_slice.split(".")
-            call_node.func.attr = aspect_split[1]
-            call_node.func.value.id = aspect_split[0]
+            attr_node = self._attr_node(subscr_node, self._aspect_slice)
             none_node = self._none_constant(subscr_node)
             lower = none_node if subscr_node.slice.lower is None else subscr_node.slice.lower
             upper = none_node if subscr_node.slice.upper is None else subscr_node.slice.upper
             step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
-            call_node.args.extend([subscr_node.value, lower, upper, step])
+            args = [subscr_node.value, lower, upper, step]
             self.ast_modified = True
         else:
             # Index case: subscr_node.slice is directly an unwrapped value
             # (e.g. Constant for a number, Name for a var, etc)
             if self._is_string_node(subscr_node.slice):
                 return subscr_node
-            aspect_split = self._aspect_index.split(".")
-            call_node.func.attr = aspect_split[1]
-            call_node.func.value.id = aspect_split[0]
-            call_node.args.extend([subscr_node.value, subscr_node.slice])
+            attr_node = self._attr_node(subscr_node, self._aspect_index)
+            args = [subscr_node.value, subscr_node.slice]
             self.ast_modified = True
 
-        return call_node
+        return self._call_node(subscr_node, func=attr_node, args=args)

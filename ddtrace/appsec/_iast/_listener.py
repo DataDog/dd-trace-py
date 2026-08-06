@@ -12,8 +12,6 @@ from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
-from ddtrace.appsec._iast._handlers import _on_request_init
-from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
 from ddtrace.appsec._iast._handlers import _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
@@ -50,8 +48,6 @@ def iast_listen() -> None:
     core.on("django.technical_500_response", _on_django_technical_500_response)
 
     core.on("flask.patch", _on_flask_patch)
-    core.on("flask.request_init", _on_request_init)
-    core.on("flask.set_request_tags", _on_set_request_tags_iast)
     core.on("flask.wrapped_view", _iast_on_wrapped_view, "check_kwargs")
     core.on("flask._patched_request", _on_pre_tracedrequest_iast)
     core.on("asgi.finalize_response", _on_asgi_finalize_response)

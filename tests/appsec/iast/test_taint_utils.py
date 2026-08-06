@@ -270,3 +270,16 @@ def test_taint_structure(iast_context_defaults):
     d = {1: "foo"}
     tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
     assert is_pyobject_tainted(tainted[1])
+
+
+@pytest.mark.subprocess(env={"DD_IAST_LAZY_TAINT": "true"})
+def test_lazy_taint_structure_preserves_scalar_types():
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import LazyTaintList
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+
+    text = taint_structure("value", OriginType.PARAMETER, OriginType.PARAMETER)
+
+    assert text == "value"
+    assert not isinstance(text, LazyTaintList)
+    assert taint_structure(42, OriginType.PARAMETER, OriginType.PARAMETER) == 42

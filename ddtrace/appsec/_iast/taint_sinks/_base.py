@@ -7,6 +7,7 @@ from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._typing import TextType
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._patch_utils import get_caller_frame_info
@@ -25,7 +26,6 @@ from ..reporter import Location
 from ..reporter import Vulnerability
 
 
-TEXT_TYPES = Union[str, bytes, bytearray]
 F = TypeVar("F", bound=Callable[..., Optional[bool]])
 R = TypeVar("R")
 
@@ -115,7 +115,7 @@ class VulnerabilityBase:
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
-        evidence_value: TEXT_TYPES = "",
+        evidence_value: TextType = "",
         dialect: Optional[str] = None,
         file_name: Optional[str] = None,
         line_number: Optional[int] = None,
@@ -132,7 +132,7 @@ class VulnerabilityBase:
         )
 
     @classmethod
-    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> bool:
+    def report(cls, evidence_value: TextType = "", dialect: Optional[str] = None) -> bool:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         result = False
         if should_process_vulnerability(cls.vulnerability_type):
@@ -154,7 +154,7 @@ class VulnerabilityBase:
         return result
 
     @classmethod
-    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: set[OriginType] = set()) -> bool:
+    def is_tainted_pyobject(cls, string_to_check: TextType, origins_to_exclude: set[OriginType] = set()) -> bool:
         """Check if a string contains tainted ranges that are not marked as secure and don't come exclusively
         from excluded origins.
 
