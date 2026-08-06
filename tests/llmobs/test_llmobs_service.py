@@ -822,6 +822,50 @@ async def test_evaluation_concurrent_async_tasks_are_isolated(llmobs):
     assert len({j1.span_id, j2.span_id, c1.span_id, c2.span_id}) == 4
 
 
+async def test_original_trace_child_ignores_concurrently_open_judge(llmobs):
+    # The precise worry: the LLMObs context lives in a *module-level* ContextVar (_DD_LLMOBS_CONTEXTVAR),
+    # so it LOOKS global. It is not shared — each asyncio task gets its own copy. This holds a judge OPEN
+    # (mid-flight) in a separate task while the ORIGINAL task creates a child of its agent span, and
+    # asserts the child nests under the agent. The concurrently-active judge in the other task's context
+    # must not capture it. If the ContextVar were a plain global, the child would land under the judge.
+    judge_open = asyncio.Event()
+    let_judge_finish = asyncio.Event()
+    holder = {}
+
+    async def run_judge(evaluated):
+        async with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+            holder["judge"] = judge
+            judge_open.set()  # judge is now open & active in ITS task's context
+            await let_judge_finish.wait()  # stay open while the original task makes its child
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as jchild:
+                pass
+            holder["judge_child"] = jchild
+
+    with llmobs.agent(name="qa_agent") as agent_span:
+        judge_task = asyncio.create_task(run_judge(llmobs.export_span(agent_span)))
+        await judge_open.wait()  # judge is confirmed open/active before we touch the agent's child
+        # The original task's view is unaffected by the other task's activate(None)/activate(judge).
+        assert llmobs._instance._current_span() is agent_span
+        with llmobs.tool(name="child_of_agent") as child:
+            pass
+        let_judge_finish.set()
+        await judge_task
+
+    judge, judge_child = holder["judge"], holder["judge_child"]
+    # The agent's child stayed in the AGENT trace, parented under the agent — despite the judge being
+    # open concurrently in another task.
+    assert get_llmobs_trace_id(child) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(child) == str(agent_span.span_id)
+    assert get_llmobs_trace_id(child) != get_llmobs_trace_id(judge)
+    assert get_llmobs_parent_id(child) != str(judge.span_id)
+    # The judge is still its own solo trace with its own nested child.
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    assert len({agent_span.span_id, child.span_id, judge.span_id, judge_child.span_id}) == 4
+
+
 def test_evaluation_in_worker_thread_does_not_disturb_main_trace(llmobs):
     # A judge opened in a worker thread runs in a fresh (empty) LLMObs context — it does not see the
     # main thread's active agent, and its detach never touches the main thread's context. So after the
