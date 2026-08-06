@@ -15,6 +15,7 @@ from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
 from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 
 
@@ -190,3 +191,82 @@ class TestUFCObserveFullEvaluationDataParsing:
             assert snap.observe_full_evaluation_data is False
         finally:
             _set_ffe_config(None)
+
+
+class TestProviderStampsConsent:
+    """The provider stamps observe_full_evaluation_data on flag_metadata on every
+    return path, from the exact snapshot the evaluation ran against.
+    """
+
+    def _config_with_consent(self, observe: bool):
+        """Build a minimal UFC dict with the given consent value."""
+        return {
+            "id": "test-config",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "format": "SERVER",
+            "observeFullEvaluationData": observe,
+            "environment": {"name": "Staging"},
+            "flags": {
+                "test-bool": {
+                    "key": "test-bool",
+                    "enabled": True,
+                    "variationType": "BOOLEAN",
+                    "defaultVariation": "on",
+                    "variations": {"on": {"key": "on", "value": True}},
+                    "allocations": [
+                        {
+                            "key": "default",
+                            "rules": [],
+                            "splits": [{"variationKey": "on", "shards": []}],
+                            "doLog": True,
+                        }
+                    ],
+                },
+            },
+        }
+
+    @pytest.fixture(autouse=True)
+    def _clear_state(self):
+        _set_ffe_config(None)
+        yield
+        _set_ffe_config(None)
+
+    def _provider(self, monkeypatch):
+        # Enable the provider so _resolve_details doesn't early-return DISABLED.
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+        # Killswitch on for these tests -- we only care about the metadata stamp.
+        monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true")
+        from ddtrace.internal.openfeature._provider import DataDogProvider
+
+        return DataDogProvider()
+
+    def test_success_path_stamps_consent_true(self, monkeypatch):
+        process_ffe_configuration(self._config_with_consent(True))
+        provider = self._provider(monkeypatch)
+
+        details = provider.resolve_boolean_details("test-bool", False)
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+
+    def test_success_path_stamps_consent_false(self, monkeypatch):
+        process_ffe_configuration(self._config_with_consent(False))
+        provider = self._provider(monkeypatch)
+
+        details = provider.resolve_boolean_details("test-bool", False)
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is False
+
+    def test_flag_not_found_still_stamps_consent(self, monkeypatch):
+        process_ffe_configuration(self._config_with_consent(True))
+        provider = self._provider(monkeypatch)
+
+        details = provider.resolve_boolean_details("no-such-flag", False)
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+
+    def test_no_configuration_fails_closed(self, monkeypatch):
+        """PROVIDER_NOT_READY: no environment behind the evaluation, so no consent
+        to honor. Must stamp False rather than leave the key absent-and-ambiguous.
+        """
+        # No process_ffe_configuration call -- snapshot stays None.
+        provider = self._provider(monkeypatch)
+
+        details = provider.resolve_boolean_details("anything", False)
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is False

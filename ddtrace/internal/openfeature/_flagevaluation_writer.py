@@ -134,6 +134,12 @@ DRAIN_WORKER_JOIN_TIMEOUT = 5.0
 # Flag metadata key where the provider stamps the evaluation timestamp (ms).
 EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
 
+# Flag metadata key where the provider stamps the environment consent value.
+# The evaluator snapshots observeFullEvaluationData from the UFC it evaluated
+# against, so nothing downstream reads live config. Unprefixed snake_case
+# because it is the cross-SDK contract key.
+METADATA_OBSERVE_FULL_EVALUATION_DATA = "observe_full_evaluation_data"
+
 # Type-tag bytes for the canonical context key encoding (mirrors Go's ctxTag* constants).
 _TAG_STR = b"s"
 _TAG_BOOL = b"b"
