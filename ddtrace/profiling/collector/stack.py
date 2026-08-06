@@ -1,6 +1,5 @@
 """Simple wrapper around stack native extension module."""
 
-import functools
 import logging
 import sys
 from types import ModuleType
@@ -21,15 +20,6 @@ from ddtrace.trace import Tracer
 LOG = logging.getLogger(__name__)
 
 
-def _link_span(
-    tracer: Tracer,
-    provider: BaseContextProvider,
-    span: typing.Optional[typing.Union[Context, Span]],
-) -> None:
-    if provider is tracer.context_provider:
-        stack.link_span(span)
-
-
 class StackCollector(collector.Collector):
     """Execution stacks collector."""
 
@@ -37,8 +27,6 @@ class StackCollector(collector.Collector):
         "nframes",
         "tracer",
         "_native_call_monitor",
-        "_span_link_callback",
-        "_span_finish_callback",
     )
 
     def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
@@ -47,8 +35,6 @@ class StackCollector(collector.Collector):
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
         self._native_call_monitor: typing.Optional[ModuleType] = None
-        self._span_link_callback: typing.Optional[typing.Callable[..., None]] = None
-        self._span_finish_callback: typing.Optional[typing.Callable[..., None]] = None
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -105,17 +91,21 @@ class StackCollector(collector.Collector):
         # Register only after every fallible initialization step. A failed collector is dropped without
         # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
         if self.tracer is not None:
-            self._span_link_callback = functools.partial(_link_span, self.tracer)
-            self._span_finish_callback = stack.unlink_finished_span
             try:
-                core.on("ddtrace.context_provider.activate", self._span_link_callback)
-                core.on("trace.span_finish", self._span_finish_callback)
+                core.on("ddtrace.context_provider.activate", self._link_span)
+                core.on("trace.span_finish", stack.unlink_finished_span)
             except Exception:
-                core.reset_listeners("ddtrace.context_provider.activate", self._span_link_callback)
-                core.reset_listeners("trace.span_finish", self._span_finish_callback)
-                self._span_link_callback = None
-                self._span_finish_callback = None
+                core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
+                core.reset_listeners("trace.span_finish", stack.unlink_finished_span)
                 raise
+
+    def _link_span(
+        self,
+        provider: BaseContextProvider,
+        span: typing.Optional[typing.Union[Context, Span]],
+    ) -> None:
+        if self.tracer is not None and provider is self.tracer.context_provider:
+            stack.link_span(span)
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -131,12 +121,9 @@ class StackCollector(collector.Collector):
             except Exception:
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
-        if self._span_link_callback is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", self._span_link_callback)
-            self._span_link_callback = None
-        if self._span_finish_callback is not None:
-            core.reset_listeners("trace.span_finish", self._span_finish_callback)
-            self._span_finish_callback = None
+        if self.tracer is not None:
+            core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
+            core.reset_listeners("trace.span_finish", stack.unlink_finished_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

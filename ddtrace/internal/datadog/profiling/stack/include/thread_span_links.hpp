@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -49,7 +48,7 @@ class ThreadSpanLinks
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
     void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
-    std::size_t unlink_finished_span(uint64_t span_id);
+    void unlink_finished_span(uint64_t span_id);
     void reset();
 
     static void postfork_child();
