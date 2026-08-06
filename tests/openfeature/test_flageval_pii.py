@@ -10,12 +10,17 @@ import time
 from unittest import mock
 from unittest.mock import MagicMock
 
+from openfeature.evaluation_context import EvaluationContext
+from openfeature.flag_evaluation import FlagEvaluationDetails
+from openfeature.flag_evaluation import FlagType
+from openfeature.hook import HookContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
 from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
@@ -441,3 +446,111 @@ class TestFlushSerialization:
                 assert "context" not in event
         finally:
             _flagevaluation_writer.GLOBAL_CAP = original_global_cap
+
+
+def _pii_flag_config(observe: bool, do_log: bool = True) -> dict:
+    """Minimal single-flag UFC dict for lifecycle/DoLog/kill-switch tests."""
+    return {
+        "id": "test-config-pii",
+        "createdAt": "2026-08-06T00:00:00Z",
+        "format": "SERVER",
+        "observeFullEvaluationData": observe,
+        "environment": {"name": "Staging"},
+        "flags": {
+            "pii-flag": {
+                "key": "pii-flag",
+                "enabled": True,
+                "variationType": "STRING",
+                "defaultVariation": "on",
+                "variations": {"on": {"key": "on", "value": "on-value"}},
+                "allocations": [
+                    {
+                        "key": "default-allocation",
+                        "rules": [],
+                        "splits": [{"variationKey": "on", "shards": []}],
+                        "doLog": do_log,
+                    }
+                ],
+            },
+        },
+    }
+
+
+class TestConsentLifecycle:
+    """The Java-pilot L3 bug: consent read from live config at flush time. A
+    later RC update retroactively applied another environment's policy. Both
+    directions leak. dd-trace-py's design snapshots consent at evaluation time
+    and carries it on the event; this test guards that.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_state(self):
+        _set_ffe_config(None)
+        yield
+        _set_ffe_config(None)
+
+    @pytest.mark.parametrize(
+        "consent_at_evaluation,consent_after_update,want_hashed",
+        [
+            # Later opt-in must NOT retroactively unmask an already-hashed subject.
+            (False, True, True),
+            # Later opt-out must NOT retroactively hash an already-consented subject.
+            (True, False, False),
+        ],
+        ids=["off_to_on_stays_hashed", "on_to_off_stays_raw"],
+    )
+    def test_consent_is_not_re_read_after_evaluation(
+        self, monkeypatch, consent_at_evaluation, consent_after_update, want_hashed
+    ):
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+        monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true")
+
+        # 1. Install the consent-at-evaluation config.
+        process_ffe_configuration(_pii_flag_config(consent_at_evaluation))
+
+        # 2. Build provider + writer + hook, evaluate.
+        provider = DataDogProvider()
+        writer = FlagEvaluationWriter(interval=10.0)
+        hook = FlagEvalEVPHook(writer=writer)
+
+        eval_ctx = EvaluationContext(
+            targeting_key=PII_CANONICAL_TARGETING_KEY,
+            attributes={"plan": "enterprise"},
+        )
+        details = provider.resolve_string_details("pii-flag", "fallback", eval_ctx)
+
+        # 3. Run the hook exactly as the SDK would.
+        hook_context = HookContext(
+            flag_key="pii-flag",
+            flag_type=FlagType.STRING,
+            default_value="fallback",
+            evaluation_context=eval_ctx,
+        )
+        hook_details = FlagEvaluationDetails(
+            flag_key="pii-flag",
+            value=details.value,
+            variant=details.variant,
+            reason=details.reason,
+            flag_metadata=details.flag_metadata,
+            error_message=details.error_message,
+            error_code=details.error_code,
+        )
+        hook.finally_after(hook_context, hook_details, {})
+
+        # 4. Remote Config replaces the configuration BEFORE aggregation/flush.
+        #    Nothing downstream of the evaluator may notice.
+        process_ffe_configuration(_pii_flag_config(consent_after_update))
+
+        # 5. Flush and inspect the wire bytes.
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+        payload_bytes, _ = mock_send.call_args[0]
+        decoded = json.loads(payload_bytes)
+        event = decoded["flagEvaluations"][0]
+
+        if want_hashed:
+            assert event["targeting_key"] == PII_CANONICAL_HASHED
+            assert "context" not in event
+        else:
+            assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
+            assert event["context"]["evaluation"]["plan"] == "enterprise"
