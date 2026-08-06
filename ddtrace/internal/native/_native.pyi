@@ -839,7 +839,7 @@ class TraceExporterBuilder:
         """
         ...
 
-class NativeTraceBuffer:
+class TraceBuffer:
     """Trace buffer owned by libdatadog: it holds built v0.4 spans, bounds itself by bytes, and
     exports them from its own worker thread.
 
@@ -853,6 +853,8 @@ class NativeTraceBuffer:
         max_buffered_bytes: Optional[int] = None,
         flush_threshold_bytes: Optional[int] = None,
         max_flush_interval_ns: Optional[int] = None,
+        synchronous_export: bool = False,
+        synchronous_export_timeout_ns: Optional[int] = None,
     ) -> None:
         """
         :param builder: The exporter configuration. Cannot be reused afterwards.
@@ -860,14 +862,18 @@ class NativeTraceBuffer:
         :param max_buffered_bytes: Drop new chunks above this size. None keeps libdatadog's default.
         :param flush_threshold_bytes: Export once the buffer holds this many bytes. None keeps the default.
         :param max_flush_interval_ns: Export at least this often. None keeps the default.
+        :param synchronous_export: Block every write until the batch is exported. Needed where the host
+            can freeze or kill the process between requests.
+        :param synchronous_export_timeout_ns: Bound for that block. None waits forever.
         """
         ...
-    def write(self, spans: list[Span], dd_origin: Optional[str] = None) -> Optional[str]:
+    def write(self, spans: Iterable[Span], dd_origin: Optional[str] = None) -> Optional[str]:
         """Build one trace chunk and enqueue it.
 
         Never raises, because Span.finish() calls it on an application thread. Returns None when the
         buffer accepted every span, else a reason describing what it dropped.
-        :param spans: The spans of one trace chunk.
+        :param spans: The spans of one trace chunk, as any iterable. A TraceProcessor can return a
+            tuple or a generator, and neither may reach the caller as an exception.
         :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span. A value that
             is not a string is ignored.
         """
@@ -875,10 +881,27 @@ class NativeTraceBuffer:
     def force_flush(self) -> None:
         """Ask the worker to export what is buffered. Returns before the export completes."""
         ...
-    def shutdown(self, timeout_ns: int) -> None:
-        """Flush, stop the worker, and wait up to timeout_ns for it to report shutdown.
+    def flush(self, timeout_ns: int) -> None:
+        """Flush what is buffered and block until the worker exports it, or until timeout_ns
+        elapses. Leaves the buffer usable.
 
-        timeout_ns bounds only that report. A second call does nothing.
+        timeout_ns of 0 only triggers the flush, the same as force_flush.
+
+        Raises RuntimeError("TimedOut...") if the export did not finish in time, or
+        RuntimeError("AlreadyShutdown...") if the buffer no longer accepts chunks or a concurrent
+        shutdown ended the wait. Neither means the data was lost: a timed-out export is still
+        queued, and a shutdown drain can still export data left over from an AlreadyShutdown wait.
+        """
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Flush what is buffered, stop the worker, and shut the exporter down, within timeout_ns.
+
+        Shutting the exporter down is what reclaims the workers it owns, so a buffer that is dropped
+        without this call leaks them until the process ends.
+
+        The budget splits across the flush, the worker stop, and the exporter shutdown, so this
+        returns close to timeout_ns even against an agent that never answers. A second call does
+        nothing.
         """
         ...
     def take_agent_response(self) -> Optional[str]:

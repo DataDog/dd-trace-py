@@ -9,7 +9,6 @@ use pyo3::types::{
     PyString,
 };
 use pyo3::{Bound, Py, PyAny, Python};
-use std::borrow::Borrow;
 use std::collections::HashMap;
 
 use libdd_trace_utils::span::v04::{
@@ -26,8 +25,9 @@ use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 const ORIGIN_KEY: &str = "_dd.origin";
 
 /// Mirror `MAX_SPAN_META_VALUE_LEN` and `TRUNCATED_SPAN_ATTRIBUTE_LEN` in
-/// `ddtrace/_trace/_limits.py`. This module caps every oversized field to keep wire-format parity.
-/// Without the cap a payload grows without bound, and downstream consumers assume the cap holds.
+/// `ddtrace/_trace/_limits.py`. This module caps every oversized user-tag field to keep wire-format
+/// parity, and exempts the reserved tags that [`build_wire_span`] injects. Without the cap a payload
+/// grows without bound, and downstream consumers assume the cap holds.
 const MAX_SPAN_META_VALUE_LEN: usize = 25000;
 const TRUNCATED_SPAN_ATTRIBUTE_LEN: usize = 2500;
 const TRUNCATED_SUFFIX: &str = "<truncated>...";
@@ -36,12 +36,8 @@ const TRUNCATED_SUFFIX: &str = "<truncated>...";
 /// nearest representable neighbour.
 const MAX_EXACT_F64_INT: u64 = 1 << 53;
 
-#[inline]
-fn as_str(s: &PyBackedString) -> &str {
-    <PyBackedString as Borrow<str>>::borrow(s)
-}
-
-/// Return `s` capped at MAX_SPAN_META_VALUE_LEN characters, not bytes.
+/// Return `s` unchanged below MAX_SPAN_META_VALUE_LEN characters, and otherwise cut to
+/// TRUNCATED_SPAN_ATTRIBUTE_LEN characters. Both limits count characters, not bytes.
 ///
 /// The check reads byte length first. A UTF-8 encoding is never shorter than its character count, so
 /// a string inside the byte budget is inside the character budget too, and the common short ASCII
@@ -49,8 +45,8 @@ fn as_str(s: &PyBackedString) -> &str {
 /// with no extra refcount traffic.
 ///
 /// The oversized branch allocates a `PyString` to hold text that is already Rust-owned. Holding it
-/// as a Rust string instead needs a third storage state on `PyBackedString`, not a wider `storage`
-/// field: widening it costs throughput on every span, and truncation is rare.
+/// as a Rust string instead needs a third state on `PyBackedString::storage`, which every reader of
+/// every span field would then have to discriminate. Truncation is rare, so the allocation stays.
 fn wire_str(py: Python<'_>, s: PyBackedString) -> PyBackedString {
     if s.len() <= MAX_SPAN_META_VALUE_LEN || s.chars().count() <= MAX_SPAN_META_VALUE_LEN {
         return s;
@@ -83,14 +79,41 @@ fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
     PACKB.get()
 }
 
+/// Log the first dropped meta_struct entry of the process.
+///
+/// The packer fails on the shape of a value, not on one instance of it, so the same drop repeats for
+/// every span that AppSec, IAST or LLMObs tags. One line per span would flood the log, so later drops
+/// stay silent.
+fn log_meta_struct_drop(reason: &str) {
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        tracing::warn!("dropped a meta_struct entry and will not log further drops: {reason}");
+    }
+}
+
 /// Pack one meta_struct value into msgpack with the existing Python packer.
 ///
 /// Returns None when the packer is unavailable or rejects the value. The caller runs inside
 /// `span.finish()` on an application thread, so an error raised from here escapes into user code.
 fn pack_meta_struct_value(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Option<Bytes> {
-    let packed = get_packb(py)?.call1(py, (obj,)).ok()?;
-    let bytes = packed.bind(py).cast::<PyBytes>().ok()?.as_bytes().to_vec();
-    Some(Bytes::from_owned_bytes(bytes))
+    let Some(packb) = get_packb(py) else {
+        log_meta_struct_drop("ddtrace.internal._encoding.packb is unavailable");
+        return None;
+    };
+    let packed = match packb.call1(py, (obj,)) {
+        Ok(packed) => packed,
+        Err(err) => {
+            log_meta_struct_drop(&format!("packb raised {err}"));
+            return None;
+        }
+    };
+    match packed.bind(py).cast::<PyBytes>() {
+        Ok(bytes) => Some(Bytes::from_owned_bytes(bytes.as_bytes().to_vec())),
+        Err(_) => {
+            log_meta_struct_drop("packb returned a non-bytes value");
+            None
+        }
+    }
 }
 
 /// Build the v0.4 wire span for `span`.
@@ -103,7 +126,6 @@ fn pack_meta_struct_value(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Option<Byte
 /// `_dd.origin` into every span, because the attribute store only carries it on the chunk-root span.
 /// It is not truncated: it is an internal reserved tag, exempt from the user-tag length cap.
 ///
-/// `mask_link_flags` selects the `flags` convention that the consumer of this span expects. See
 /// [`wire_link`].
 ///
 /// This function never raises. It skips a key or value with no valid UTF-8 form, and a meta_struct
@@ -112,7 +134,6 @@ pub(crate) fn build_wire_span(
     py: Python<'_>,
     span: &SpanData,
     dd_origin: Option<&PyBackedString>,
-    mask_link_flags: bool,
 ) -> Span<PyTraceData> {
     let mut out = Span::<PyTraceData> {
         trace_id: span.trace_id,
@@ -130,7 +151,8 @@ pub(crate) fn build_wire_span(
         ..Default::default()
     };
 
-    // The value variant picks the wire map: Str goes to meta, and Int and Float go to metrics.
+    // The value variant picks the wire map: Str goes to meta, Float to metrics, and Int to whichever
+    // of the two holds it exactly.
     for (key, value) in &span.attributes {
         // A key carrying lone surrogates has no valid UTF-8 wire form. Skip it rather than emit bytes
         // that the msgpack payload cannot legally carry.
@@ -139,7 +161,7 @@ pub(crate) fn build_wire_span(
         };
         // Skip a user tag that collides with the injected reserved key below. The injected value
         // wins, and the wire keys stay unique for `mark_deduped`.
-        let collides = dd_origin.is_some() && as_str(&wire_key) == ORIGIN_KEY;
+        let collides = dd_origin.is_some() && wire_key.as_ref() == ORIGIN_KEY;
         match value {
             AttributeValue::Str(s) => {
                 if collides {
@@ -171,11 +193,7 @@ pub(crate) fn build_wire_span(
         }
     }
 
-    out.span_links = span
-        .span_links
-        .iter()
-        .map(|l| wire_link(py, l, mask_link_flags))
-        .collect();
+    out.span_links = span.span_links.iter().map(|l| wire_link(py, l)).collect();
     out.span_events = span.span_events.iter().map(|e| wire_event(py, e)).collect();
 
     if let Some(origin) = dd_origin {
@@ -224,32 +242,20 @@ pub(crate) fn build_wire_span(
 
 /// Project one span link, truncating every string field.
 ///
-/// Bit 31 of `flags` marks "flags present". The bit lets a reader tell `flags = 0`, a sampling
-/// decision of "drop", apart from "no flags at all". `build_native_link` sets the bit and
-/// `_get_links` strips it again.
+/// `build_native_link` sets [`SPAN_LINK_FLAGS_PRESENT`] and `_get_links` strips it again.
 ///
 /// The v0.4 msgpack payload wants the bit set, because the agent makes the same distinction, and the
 /// Cython encoder set it too (`_encoding.pyx`). Pass `mask_flags = true` for a consumer that reads
 /// `flags` as a plain W3C value and does not know the convention. libdatadog's v0.4 to v0.5 JSON
 /// conversion is one such consumer: it copies `flags` into `meta["_dd.span_links"]` without
 /// stripping the bit, so an unmasked value reaches the agent as `0x80000001`.
-fn wire_link(
-    py: Python<'_>,
-    link: &SpanLink<PyTraceData>,
-    mask_flags: bool,
-) -> SpanLink<PyTraceData> {
-    // A masked value keeps only the low 31 bits, and collapses "no flags" to 0.
-    let flags = if mask_flags {
-        link.flags & 0x7FFF_FFFF
-    } else {
-        link.flags
-    };
+fn wire_link(py: Python<'_>, link: &SpanLink<PyTraceData>) -> SpanLink<PyTraceData> {
     SpanLink {
         trace_id: link.trace_id,
         trace_id_high: link.trace_id_high,
         span_id: link.span_id,
         tracestate: wire_str(py, link.tracestate.clone_ref(py)),
-        flags,
+        flags: link.flags,
         attributes: link
             .attributes
             .iter()
@@ -283,8 +289,8 @@ fn wire_attr_any(
     }
 }
 
-/// Project one attribute value. Only the String variant carries text to truncate. It is cloned with
-/// `clone_ref`, not `Clone`, because `Clone` re-acquires the GIL once per element.
+/// Project one attribute value. Only the String variant carries text to truncate. Cloning that string
+/// takes the GIL token, because the clone increments the refcount of the Python object behind it.
 fn wire_attr_array(
     py: Python<'_>,
     value: &AttributeArrayValue<PyTraceData>,

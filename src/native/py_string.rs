@@ -199,8 +199,7 @@ impl std::borrow::Borrow<str> for PyBackedString {
     }
 }
 
-// See the note on `AsRef<[u8]> for Bytes`: libdatadog's `BufferSize` blanket impl for
-// `v04::Span<T>` needs `AsRef` on both wire types.
+// libdatadog's `BufferSize` blanket impl for `v04::Span<T>` needs `AsRef` on both wire types.
 impl AsRef<str> for PyBackedString {
     fn as_ref(&self) -> &str {
         self.deref()

@@ -22,7 +22,6 @@ from ._native import LogLevel  # noqa: F401
 from ._native import MetricContext  # noqa: F401
 from ._native import MetricNamespace  # noqa: F401
 from ._native import MetricType  # noqa: F401
-from ._native import NativeTraceBuffer  # noqa: F401
 from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
@@ -38,6 +37,7 @@ from ._native import SharedRuntime  # noqa: F401
 from ._native import SymDBSender  # noqa: F401
 from ._native import TelemetryWorker  # noqa: F401
 from ._native import TimedOutError  # noqa: F401
+from ._native import TraceBuffer  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
