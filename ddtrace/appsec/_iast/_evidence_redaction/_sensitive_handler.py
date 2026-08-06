@@ -1,5 +1,7 @@
 import re
 import string
+from typing import Optional
+from typing import Sequence
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
@@ -14,6 +16,14 @@ from ..constants import VULN_SQL_INJECTION
 from ..constants import VULN_SSRF
 from ..constants import VULN_UNVALIDATED_REDIRECT
 from ..constants import VULN_XSS
+from ._types import EvidenceLike
+from ._types import RedactableSource
+from ._types import RedactionResult
+from ._types import SensitiveAnalyzer
+from ._types import SensitiveRange
+from ._types import SensitiveSource
+from ._types import TaintedRange
+from ._types import ValuePart
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
 from .default_sensitive_analyzer import default_sensitive_analyzer
 from .header_injection_sensitive_analyzer import header_injection_sensitive_analyzer
@@ -28,7 +38,7 @@ LEN_SOURCE_BUFFER = len(REDACTED_SOURCE_BUFFER)
 VALUE_MAX_LENGHT = 45
 
 
-def get_redacted_source(length):
+def get_redacted_source(length: int) -> str:
     full_repeats = length // LEN_SOURCE_BUFFER
     remainder = length % LEN_SOURCE_BUFFER
     result = REDACTED_SOURCE_BUFFER * full_repeats + REDACTED_SOURCE_BUFFER[:remainder]
@@ -40,13 +50,13 @@ class SensitiveHandler:
     Class responsible for handling sensitive information.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._name_pattern = re.compile(asm_config._iast_redaction_name_pattern, re.IGNORECASE | re.MULTILINE)
         self._value_pattern = re.compile(asm_config._iast_redaction_value_pattern, re.IGNORECASE | re.MULTILINE)
         # Query string obfuscation pattern for synchronization with span-level redaction
         self._query_string_pattern = config._obfuscation_query_string_pattern
 
-        self._sensitive_analyzers = {
+        self._sensitive_analyzers: dict[str, SensitiveAnalyzer] = {
             VULN_CMDI: command_injection_sensitive_analyzer,
             VULN_SQL_INJECTION: sql_sensitive_analyzer,
             VULN_SSRF: url_sensitive_analyzer,
@@ -57,7 +67,7 @@ class SensitiveHandler:
         }
 
     @staticmethod
-    def _contains(range_container, range_contained):
+    def _contains(range_container: SensitiveRange, range_contained: SensitiveRange) -> bool:
         """
         Checks if a range_container contains another range_contained.
 
@@ -73,7 +83,7 @@ class SensitiveHandler:
         return range_container["end"] >= range_contained["end"]
 
     @staticmethod
-    def _intersects(range_a, range_b):
+    def _intersects(range_a: SensitiveRange, range_b: SensitiveRange) -> bool:
         """
         Checks if two ranges intersect.
 
@@ -86,7 +96,7 @@ class SensitiveHandler:
         """
         return range_b["start"] < range_a["end"] and range_b["end"] > range_a["start"]
 
-    def _remove(self, range_, range_to_remove):
+    def _remove(self, range_: SensitiveRange, range_to_remove: SensitiveRange) -> list[SensitiveRange]:
         """
         Removes a range_to_remove from a range_.
 
@@ -102,7 +112,7 @@ class SensitiveHandler:
         elif self._contains(range_to_remove, range_):
             return []
         else:
-            result = []
+            result: list[SensitiveRange] = []
             if range_to_remove["start"] > range_["start"]:
                 offset = range_to_remove["start"] - range_["start"]
                 result.append({"start": range_["start"], "end": range_["start"] + offset})
@@ -112,12 +122,12 @@ class SensitiveHandler:
             return result
 
     @staticmethod
-    def _requeue_sensitive(sensitive, entries):
+    def _requeue_sensitive(sensitive: list[SensitiveRange], entries: list[SensitiveRange]) -> None:
         for extra in entries:
             idx = next((k for k, s in enumerate(sensitive) if s["start"] > extra["start"]), len(sensitive))
             sensitive.insert(idx, extra)
 
-    def is_sensible_name(self, name):
+    def is_sensible_name(self, name: str) -> bool:
         """
         Checks if a name is sensible based on the name pattern.
 
@@ -129,7 +139,7 @@ class SensitiveHandler:
         """
         return bool(self._name_pattern.search(name))
 
-    def is_sensible_value(self, value):
+    def is_sensible_value(self, value: str) -> bool:
         """
         Checks if a value is sensible based on the value pattern.
 
@@ -141,7 +151,7 @@ class SensitiveHandler:
         """
         return bool(self._value_pattern.search(value))
 
-    def is_query_string_source(self, source):
+    def is_query_string_source(self, source: Optional[SensitiveSource]) -> bool:
         """
         Checks if a source originates from a query string.
 
@@ -151,12 +161,9 @@ class SensitiveHandler:
         Returns:
         - bool: True if the source is from a query string, False otherwise.
         """
-        try:
-            return source is not None and hasattr(source, "origin") and source.origin == OriginType.QUERY
-        except Exception:
-            return False
+        return source is not None and source.origin == OriginType.QUERY
 
-    def is_sensible_source(self, source):
+    def is_sensible_source(self, source: Optional[SensitiveSource]) -> bool:
         """
         Checks if a source is sensible.
 
@@ -166,24 +173,33 @@ class SensitiveHandler:
         Returns:
         - bool: True if the source is sensible, False otherwise.
         """
+        return self._sensible_source_value(source) is not None
+
+    def _sensible_source_value(self, source: Optional[SensitiveSource]) -> Optional[str]:
         if source is None or source.value is None:
-            return False
+            return None
+
+        source_value = source.value
 
         # For query string sources, check against the query string obfuscation pattern
         # to maintain synchronization with span-level redaction
         if self.is_query_string_source(source) and self._query_string_pattern is not None:
-            try:
-                # Convert pattern to string for matching (pattern is in bytes, source value is string)
-                value_bytes = source.value if isinstance(source.value, bytes) else source.value.encode("utf-8")
-                if self._query_string_pattern.search(value_bytes):
-                    return True
-            except Exception:
-                log.debug("Error checking query string pattern against source", exc_info=True)
+            # Convert pattern to string for matching (pattern is in bytes, source value is string)
+            if self._query_string_pattern.search(source_value.encode("utf-8")):
+                return source_value
 
         # Standard IAST redaction patterns
-        return self.is_sensible_name(source.name) or self.is_sensible_value(source.value)
+        if self.is_sensible_name(source.name) or self.is_sensible_value(source_value):
+            return source_value
+        return None
 
-    def scrub_evidence(self, vulnerability_type, evidence, tainted_ranges, sources):
+    def scrub_evidence(
+        self,
+        vulnerability_type: str,
+        evidence: EvidenceLike,
+        tainted_ranges: list[TaintedRange],
+        sources: Sequence[RedactableSource],
+    ) -> Optional[RedactionResult]:
         """
         Scrubs evidence based on the given vulnerability type.
 
@@ -209,7 +225,13 @@ class SensitiveHandler:
                 return self.to_redacted_json(evidence.value, sensitive_ranges, tainted_ranges, sources)
         return None
 
-    def to_redacted_json(self, evidence_value, sensitive, tainted_ranges, sources):
+    def to_redacted_json(
+        self,
+        evidence_value: str,
+        sensitive: list[SensitiveRange],
+        tainted_ranges: list[TaintedRange],
+        sources: Sequence[RedactableSource],
+    ) -> RedactionResult:
         """
         Converts evidence value to redacted JSON format.
 
@@ -222,12 +244,11 @@ class SensitiveHandler:
         Returns:
         - dict: The redacted JSON.
         """
-        value_parts = []
-        redacted_sources = []
-        redacted_sources_context = dict()
+        value_parts: list[ValuePart] = []
+        redacted_sources: list[int] = []
+        redacted_sources_context: dict[int, list[SensitiveRange]] = {}
 
         start = 0
-        next_tainted_index = 0
         source_index = None
 
         next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
@@ -237,13 +258,15 @@ class SensitiveHandler:
             if next_tainted and next_tainted["start"] == i:
                 self.write_value_part(value_parts, evidence_value[start:i], source_index)
 
-                source_index = _get_source_index(sources, next_tainted["source"])
+                resolved_source_index = _get_source_index(sources, next_tainted["source"])
+                source_index = resolved_source_index if resolved_source_index >= 0 else None
+                tainted_source_value = next_tainted["source"].value
 
                 while next_sensitive and self._contains(next_tainted, next_sensitive):
                     redaction_start = next_sensitive["start"] - next_tainted["start"]
                     redaction_end = next_sensitive["end"] - next_tainted["start"]
                     if redaction_start == redaction_end:
-                        self.write_redacted_value_part(value_parts, 0)
+                        value_parts.append({"redacted": True})
                     else:
                         self.redact_source(
                             sources,
@@ -252,6 +275,7 @@ class SensitiveHandler:
                             source_index,
                             redaction_start,
                             redaction_end,
+                            tainted_source_value,
                         )
                     next_sensitive = sensitive.pop(0) if sensitive else None
 
@@ -266,17 +290,22 @@ class SensitiveHandler:
                         source_index,
                         redaction_start,
                         redaction_end,
+                        tainted_source_value,
                     )
 
                     entries = self._remove(next_sensitive, next_tainted)
                     next_sensitive = entries[0] if entries else None
                     self._requeue_sensitive(sensitive, entries[1:])
 
-                if source_index < len(sources):
-                    if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
-                        redacted_sources.append(source_index)
-                        sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
-                        sources[source_index].redacted = True
+                if source_index is not None and source_index < len(sources):
+                    source = sources[source_index]
+                    sensible_source_value = self._sensible_source_value(next_tainted["source"])
+                    if sensible_source_value is not None:
+                        if source_index not in redacted_sources:
+                            redacted_sources.append(source_index)
+                        if not source.redacted:
+                            source.pattern = get_redacted_source(len(sensible_source_value))
+                            source.redacted = True
 
                 if source_index in redacted_sources:
                     part_value = evidence_value[i : i + (next_tainted["end"] - next_tainted["start"])]
@@ -287,8 +316,9 @@ class SensitiveHandler:
                         source_index,
                         part_value,
                         sources[source_index],
+                        tainted_source_value,
                         redacted_sources_context.get(source_index),
-                        self.is_sensible_source(sources[source_index]),
+                        sensible_source_value is not None,
                     )
                     redacted_sources_context[source_index] = []
                 else:
@@ -300,13 +330,14 @@ class SensitiveHandler:
                 start = i + (next_tainted["end"] - next_tainted["start"])
                 i = start - 1
                 next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
-                next_tainted_index += 1
                 source_index = None
                 continue
             elif next_sensitive and next_sensitive["start"] == i:
                 self.write_value_part(value_parts, evidence_value[start:i], source_index)
                 if next_tainted and self._intersects(next_sensitive, next_tainted):
-                    source_index = next_tainted_index
+                    resolved_source_index = _get_source_index(sources, next_tainted["source"])
+                    source_index = resolved_source_index if resolved_source_index >= 0 else None
+                    tainted_source_value = next_tainted["source"].value
 
                     redaction_start = next_sensitive["start"] - next_tainted["start"]
                     redaction_end = next_sensitive["end"] - next_tainted["start"]
@@ -314,17 +345,18 @@ class SensitiveHandler:
                         sources,
                         redacted_sources,
                         redacted_sources_context,
-                        next_tainted_index,
+                        source_index,
                         redaction_start,
                         redaction_end,
+                        tainted_source_value,
                     )
 
                     entries = self._remove(next_sensitive, next_tainted)
-                    next_sensitive = entries[0] if entries else None
+                    next_sensitive = entries[0]
                     self._requeue_sensitive(sensitive, entries[1:])
 
                 length = next_sensitive["end"] - next_sensitive["start"]
-                self.write_redacted_value_part(value_parts, length)
+                value_parts.append({"redacted": True})
 
                 start = i + length
                 i = start - 1
@@ -336,19 +368,29 @@ class SensitiveHandler:
 
         return {"redacted_value_parts": value_parts, "redacted_sources": redacted_sources}
 
-    def redact_source(self, sources, redacted_sources, redacted_sources_context, source_index, start, end):
-        if source_index is not None and source_index < len(sources):
-            if not sources[source_index].redacted:
+    def redact_source(
+        self,
+        sources: Sequence[RedactableSource],
+        redacted_sources: list[int],
+        redacted_sources_context: dict[int, list[SensitiveRange]],
+        source_index: Optional[int],
+        start: int,
+        end: int,
+        source_value: Optional[str],
+    ) -> None:
+        if source_index is not None and 0 <= source_index < len(sources):
+            if source_index not in redacted_sources:
                 redacted_sources.append(source_index)
-                sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
+            if not sources[source_index].redacted:
+                sources[source_index].pattern = get_redacted_source(len(source_value))  # type: ignore[arg-type]
                 sources[source_index].redacted = True
 
-            if source_index not in redacted_sources_context.keys():
+            if source_index not in redacted_sources_context:
                 redacted_sources_context[source_index] = []
 
             redacted_sources_context[source_index].append({"start": start, "end": end})
 
-    def write_value_part(self, value_parts, value, source_index=None):
+    def write_value_part(self, value_parts: list[ValuePart], value: str, source_index: Optional[int] = None) -> None:
         if value:
             if source_index is not None:
                 value_parts.append({"value": value, "source": source_index})
@@ -359,57 +401,63 @@ class SensitiveHandler:
 
     def write_redacted_value_part(
         self,
-        value_parts,
-        length,
-        source_index=None,
-        part_value=None,
-        source=None,
-        source_redaction_context=None,
-        is_sensible_source=False,
-    ):
-        if source_index is not None:
-            placeholder = source.pattern if part_value and part_value in source.value else "*" * length
+        value_parts: list[ValuePart],
+        length: int,
+        source_index: int,
+        part_value: str,
+        source: RedactableSource,
+        tainted_source_value: Optional[str],
+        source_redaction_context: Optional[list[SensitiveRange]],
+        is_sensible_source: bool,
+    ) -> None:
+        source_value = tainted_source_value or part_value
+        source_pattern = source.pattern
+        placeholder = (
+            source_pattern if part_value and part_value in source_value and source_pattern is not None else "*" * length
+        )
 
-            if is_sensible_source:
-                value_parts.append({"redacted": True, "source": source_index, "pattern": placeholder})
-            else:
-                _value = part_value
-                deduped_source_redaction_contexts = []
-
-                for _source_redaction_context in source_redaction_context:
-                    if _source_redaction_context not in deduped_source_redaction_contexts:
-                        deduped_source_redaction_contexts.append(_source_redaction_context)
-
-                offset = 0
-                for _source_redaction_context in deduped_source_redaction_contexts:
-                    if _source_redaction_context["start"] > 0:
-                        value_parts.append(
-                            {"source": source_index, "value": _value[: _source_redaction_context["start"] - offset]}
-                        )
-                        _value = _value[_source_redaction_context["start"] - offset :]
-                        offset = _source_redaction_context["start"]
-
-                    sensitive_start = _source_redaction_context["start"] - offset
-                    if sensitive_start < 0:
-                        sensitive_start = 0
-                    sensitive = _value[sensitive_start : _source_redaction_context["end"] - offset]
-                    index_of_part_value_in_pattern = source.value.find(sensitive)
-
-                    pattern = (
-                        placeholder[index_of_part_value_in_pattern : index_of_part_value_in_pattern + len(sensitive)]
-                        if index_of_part_value_in_pattern > -1
-                        else placeholder[_source_redaction_context["start"] : _source_redaction_context["end"]]
-                    )
-                    value_parts.append({"redacted": True, "source": source_index, "pattern": pattern})
-                    _value = _value[len(pattern) :]
-                    offset += len(pattern)
-                if _value:
-                    value_parts.append({"source": source_index, "value": _value})
-
+        if is_sensible_source:
+            value_parts.append({"redacted": True, "source": source_index, "pattern": placeholder})
         else:
-            value_parts.append({"redacted": True})
+            _value = part_value
+            contexts: list[SensitiveRange] = source_redaction_context  # type: ignore[assignment]
+            deduped_source_redaction_contexts: list[SensitiveRange] = []
 
-    def set_redaction_patterns(self, redaction_name_pattern=None, redaction_value_pattern=None):
+            for _source_redaction_context in contexts:
+                if _source_redaction_context not in deduped_source_redaction_contexts:
+                    deduped_source_redaction_contexts.append(_source_redaction_context)
+
+            offset = 0
+            for _source_redaction_context in deduped_source_redaction_contexts:
+                if _source_redaction_context["start"] > 0:
+                    value_parts.append(
+                        {"source": source_index, "value": _value[: _source_redaction_context["start"] - offset]}
+                    )
+                    _value = _value[_source_redaction_context["start"] - offset :]
+                    offset = _source_redaction_context["start"]
+
+                sensitive_start = _source_redaction_context["start"] - offset
+                if sensitive_start < 0:
+                    sensitive_start = 0
+                sensitive = _value[sensitive_start : _source_redaction_context["end"] - offset]
+                index_of_part_value_in_pattern = source_value.find(sensitive)
+
+                pattern = (
+                    placeholder[index_of_part_value_in_pattern : index_of_part_value_in_pattern + len(sensitive)]
+                    if index_of_part_value_in_pattern > -1
+                    else placeholder[_source_redaction_context["start"] : _source_redaction_context["end"]]
+                )
+                value_parts.append({"redacted": True, "source": source_index, "pattern": pattern})
+                _value = _value[len(pattern) :]
+                offset += len(pattern)
+            if _value:
+                value_parts.append({"source": source_index, "value": _value})
+
+    def set_redaction_patterns(
+        self,
+        redaction_name_pattern: Optional[str] = None,
+        redaction_value_pattern: Optional[str] = None,
+    ) -> None:
         if redaction_name_pattern:
             try:
                 self._name_pattern = re.compile(redaction_name_pattern, re.IGNORECASE | re.MULTILINE)

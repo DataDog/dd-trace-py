@@ -4,12 +4,16 @@ import json
 import operator
 from typing import Any
 from typing import Optional
+from typing import Sequence
 from typing import Union
+from typing import overload
 import zlib
 
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
+from ddtrace.appsec._iast._evidence_redaction._types import TaintedRange
+from ddtrace.appsec._iast._evidence_redaction._types import ValuePart
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._utils import _get_source_index
@@ -28,6 +32,14 @@ EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, 
 
 # Default truncation length if environment variable is not set
 DEFAULT_EVIDENCE_TRUNCATION_LENGTH = 250
+
+
+@overload
+def _truncate_evidence_value(value: str) -> str: ...
+
+
+@overload
+def _truncate_evidence_value(value: None) -> None: ...
 
 
 def _truncate_evidence_value(value: Optional[str]) -> Optional[str]:
@@ -52,8 +64,8 @@ class NotNoneDictable:
 class Evidence(NotNoneDictable):
     dialect: Optional[str] = None
     value: Optional[str] = None
-    _ranges: list[dict] = dataclasses.field(default_factory=list)
-    valueParts: Optional[list] = None
+    _ranges: list[TaintedRange] = dataclasses.field(default_factory=list)
+    valueParts: Optional[list[ValuePart]] = None
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -294,7 +306,7 @@ class IastSpanReporter(NotNoneDictable):
         }
 
     @staticmethod
-    def taint_ranges_as_evidence_info(pyobject: Any) -> tuple[list[Source], list[dict]]:
+    def taint_ranges_as_evidence_info(pyobject: Any) -> tuple[list[Source], list[TaintedRange]]:
         """
         Extracts tainted ranges as evidence information.
 
@@ -306,9 +318,9 @@ class IastSpanReporter(NotNoneDictable):
         """
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
-        sources = list()
+        sources: list[Source] = []
         tainted_ranges = get_tainted_ranges(pyobject)
-        tainted_ranges_to_dict = list()
+        tainted_ranges_to_dict: list[TaintedRange] = []
         if not len(tainted_ranges):
             return [], []
 
@@ -372,7 +384,9 @@ class IastSpanReporter(NotNoneDictable):
                 vuln.evidence.value = None
         return self._to_dict()
 
-    def get_unredacted_value_parts(self, evidence_value: str, ranges: list[dict], sources: list[Any]) -> list[dict]:
+    def get_unredacted_value_parts(
+        self, evidence_value: str, ranges: list[TaintedRange], sources: Sequence[object]
+    ) -> list[ValuePart]:
         """
         Gets unredacted value parts of evidence.
 
@@ -384,7 +398,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - list[dict]: list of unredacted value parts.
         """
-        value_parts = []
+        value_parts: list[ValuePart] = []
         from_index = 0
 
         for range_ in ranges:
@@ -393,12 +407,10 @@ class IastSpanReporter(NotNoneDictable):
 
             source_index = _get_source_index(sources, range_["source"])
 
-            value_parts.append(
-                {
-                    "value": _truncate_evidence_value(evidence_value[range_["start"] : range_["end"]]),
-                    "source": source_index,  # type: ignore[dict-item]
-                }
-            )
+            value_part: ValuePart = {"value": _truncate_evidence_value(evidence_value[range_["start"] : range_["end"]])}
+            if source_index >= 0:
+                value_part["source"] = source_index
+            value_parts.append(value_part)
 
             from_index = range_["end"]
 
