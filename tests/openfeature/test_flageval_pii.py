@@ -42,8 +42,8 @@ class TestHashTargetingKey:
         """
         # NFC precomposed U+00E9 vs NFD "e" + U+0301 combining acute. Use explicit
         # escapes so a text-editor autonormalize can't collapse the two.
-        nfc_accent = "josé@datadoghq.com"
-        nfd_accent = "josé@datadoghq.com"
+        nfc_accent = "jos\u00e9@datadoghq.com"
+        nfd_accent = "jose\u0301@datadoghq.com"
         assert nfc_accent.encode("utf-8") != nfd_accent.encode("utf-8"), (
             "NFC and NFD forms must have distinct UTF-8 bytes for this test to be meaningful"
         )
