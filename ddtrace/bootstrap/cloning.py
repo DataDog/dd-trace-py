@@ -69,13 +69,13 @@ def cleanup_loaded_modules() -> None:
             "concurrent",
             "importlib._bootstrap",  # special import that must not be unloaded
             "typing",
+            "annotationlib",  # owns the ForwardRef class aliased by typing on CPython >= 3.14
+            "enum",  # annotationlib.Format is an IntEnum; keep enum so isinstance/issubclass hold
             "_operator",  # pickling issues with typing module
             "re",  # referenced by the typing module
             "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
-            "google",
-            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch

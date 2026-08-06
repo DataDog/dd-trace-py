@@ -35,7 +35,10 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     This recursively strips parent directories until it finds a file that
     exists according to sys.path.
     """
-    path = Path(_path)
+    # Probe paths can come from remote-config with Windows-style backslash
+    # separators (e.g. from a Windows client) even when running on a POSIX
+    # system, where pathlib does not treat "\\" as a separator.
+    path = Path(_path.replace("\\", "/"))
     if path.is_file():
         return path.resolve()
 
@@ -139,6 +142,8 @@ class ProbeConditionMixin(AbstractProbeMixIn):
     condition: Optional[DDExpression]
     condition_error_rate: float = field(compare=False)
     condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
+    # monotonic timestamp before which evaluation should be skipped at probe entry (RFC: probe-entry skip)
+    _error_throttled_until: float = field(default=0.0, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the LangChain integration failed to submit traced chat model stream spans that completed without yielding any chunks.

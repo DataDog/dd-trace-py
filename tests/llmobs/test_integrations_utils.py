@@ -2,13 +2,23 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.audio_utils import g711_variant
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
+from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
-from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
-from ddtrace.llmobs._integrations.utils import format_audio_part
+from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -25,6 +35,19 @@ def test_format_audio_part_from_base64_string():
     """An already-encoded base64 string is passed through unchanged."""
     part = format_audio_part("AAECAw==", "audio/mp3")
     assert part == {"mime_type": "audio/mp3", "content": "AAECAw=="}
+
+
+def test_format_image_part_from_bytes():
+    """Raw bytes are base64-encoded into an ImagePart with the given mime type."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_image_part(raw, "image/png")
+    assert part == {"mime_type": "image/png", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_image_part_from_base64_string():
+    """An already-encoded base64 string is passed through unchanged."""
+    part = format_image_part("AAECAw==", "image/jpeg")
+    assert part == {"mime_type": "image/jpeg", "content": "AAECAw=="}
 
 
 def test_audio_mime_type_from_format():
@@ -86,6 +109,122 @@ def test_extract_content_parts_no_audio():
     )
     assert text == "hello\n[image]"
     assert audio_parts == []
+
+
+def test_realtime_audio_format_to_mime_legacy_strings():
+    """Legacy string realtime formats map to MIME types."""
+    assert realtime_audio_format_to_mime("pcm16") == "audio/pcm"
+    assert realtime_audio_format_to_mime("pcm") == "audio/pcm"
+    assert realtime_audio_format_to_mime("g711_ulaw") == "audio/pcmu"
+    assert realtime_audio_format_to_mime("g711_alaw") == "audio/pcma"
+    assert realtime_audio_format_to_mime("wav") == "audio/wav"
+    assert realtime_audio_format_to_mime("") == ""
+    assert realtime_audio_format_to_mime(None) == ""
+
+
+def test_realtime_audio_format_to_mime_object_form():
+    """The newer discriminated-union object form carries a MIME type in its ``type`` field."""
+    assert realtime_audio_format_to_mime(SimpleNamespace(type="audio/pcm")) == "audio/pcm"
+    assert realtime_audio_format_to_mime({"type": "audio/pcmu"}) == "audio/pcmu"
+    assert realtime_audio_format_to_mime({"type": "AUDIO/WAV"}) == "audio/wav"
+
+
+def test_is_renderable_audio_mime():
+    """Raw PCM family formats are not renderable; common encoded formats are."""
+    assert is_renderable_audio_mime("audio/wav")
+    assert is_renderable_audio_mime("audio/mpeg")
+    assert not is_renderable_audio_mime("audio/pcm")
+    assert not is_renderable_audio_mime("audio/pcmu")
+    assert not is_renderable_audio_mime("audio/pcma")
+    assert not is_renderable_audio_mime("")
+
+
+def test_concat_base64_audio():
+    """Base64 chunks are decoded then concatenated at the byte level."""
+    chunk1 = base64.b64encode(b"\x00\x01").decode("utf-8")
+    chunk2 = base64.b64encode(b"\x02\x03\x04").decode("utf-8")
+    assert concat_base64_audio([chunk1, chunk2]) == b"\x00\x01\x02\x03\x04"
+    assert concat_base64_audio([]) == b""
+    # Invalid chunks are skipped rather than raising.
+    assert concat_base64_audio([chunk1, "!!!notb64", chunk2]) == b"\x00\x01\x02\x03\x04"
+
+
+def test_format_audio_part_with_guard_renderable():
+    """A renderable format within budget yields an inline AudioPart."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_audio_part_with_guard(raw, "audio/wav")
+    assert part == {"mime_type": "audio/wav", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_audio_part_with_guard_non_renderable():
+    """Raw PCM is not renderable, so no inline AudioPart is emitted."""
+    assert format_audio_part_with_guard(b"\x00\x01\x02\x03", "audio/pcm") is None
+
+
+def test_format_audio_part_with_guard_oversize():
+    """Audio over the byte budget is dropped to respect the per-span-event size limit."""
+    assert format_audio_part_with_guard(b"\x00" * 100, "audio/wav", max_bytes=10) is None
+
+
+def test_format_audio_part_with_guard_uses_encoded_size():
+    """The guard measures base64-encoded size: 8 raw bytes -> 12 encoded, over a 10-byte budget."""
+    # Under the budget by raw size (8 <= 10) but over once base64-encoded (12 > 10) -> dropped.
+    assert format_audio_part_with_guard(b"\x00" * 8, "audio/wav", max_bytes=10) is None
+
+
+def test_g711_variant():
+    """G.711 MIME types resolve to their companding variant; others are None."""
+    assert g711_variant("audio/pcmu") == "ulaw"
+    assert g711_variant("audio/g711_ulaw") == "ulaw"
+    assert g711_variant("audio/pcma") == "alaw"
+    assert g711_variant("audio/g711_alaw") == "alaw"
+    assert g711_variant("AUDIO/PCMU") == "ulaw"
+    assert g711_variant("audio/pcm") is None
+    assert g711_variant("") is None
+
+
+def test_g711_to_pcm16_decodes():
+    """G.711 bytes decode to little-endian PCM16 (2 bytes/sample) with the standard zero values."""
+    import struct
+
+    # μ-law 0xFF and A-law 0xD5 are the encodings of (near-)silence.
+    assert struct.unpack("<h", g711_to_pcm16(b"\xff", "ulaw"))[0] == 0
+    assert struct.unpack("<h", g711_to_pcm16(b"\xd5", "alaw"))[0] == 8
+    # One output sample (2 bytes) per input byte; μ-law and A-law differ for the same byte.
+    assert len(g711_to_pcm16(b"\x01\x02\x03", "ulaw")) == 6
+    assert g711_to_pcm16(b"\x12\x34", "ulaw") != g711_to_pcm16(b"\x12\x34", "alaw")
+
+
+def test_format_audio_part_with_guard_empty():
+    """No audio bytes yields no AudioPart."""
+    assert format_audio_part_with_guard(b"", "audio/wav") is None
+
+
+def test_is_pcm16_audio_mime():
+    """PCM16 mime types are recognized; G.711 and encoded formats are not."""
+    assert is_pcm16_audio_mime("audio/pcm")
+    assert is_pcm16_audio_mime("audio/pcm16")
+    assert is_pcm16_audio_mime("audio/l16")
+    assert is_pcm16_audio_mime("AUDIO/PCM")
+    assert not is_pcm16_audio_mime("audio/pcmu")
+    assert not is_pcm16_audio_mime("audio/wav")
+    assert not is_pcm16_audio_mime("")
+
+
+def test_pcm16_to_wav_wraps_in_container():
+    """pcm16_to_wav prepends a valid RIFF/WAVE header and preserves the PCM payload losslessly."""
+    import io
+    import wave
+
+    pcm = b"\x01\x02\x03\x04\x05\x06\x07\x08"
+    wav_bytes = pcm16_to_wav(pcm, sample_rate=24000, channels=1)
+    assert wav_bytes[:4] == b"RIFF"
+    assert wav_bytes[8:12] == b"WAVE"
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wav_file:
+        assert wav_file.getnchannels() == 1
+        assert wav_file.getsampwidth() == 2
+        assert wav_file.getframerate() == 24000
+        assert wav_file.readframes(wav_file.getnframes()) == pcm
 
 
 def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
@@ -492,3 +631,44 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
+
+
+class TestOpenAIConstructToolCallFromStreamedChunk:
+    """OpenAI-compatible backends (e.g. DashScope/Qwen) may stream a tool-call delta with
+    ``function.arguments`` / ``custom.input`` set to ``None`` rather than ``""``. ``getattr``
+    returns that ``None`` (the default only applies when the attribute is absent), so the
+    ``str += None`` accumulation used to raise TypeError and drop the whole LLMObs span.
+    """
+
+    def test_function_call_chunk_with_none_arguments(self):
+        function_call = SimpleNamespace(name="get_weather", arguments=None)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, function_call_chunk=function_call)
+        assert stored[0]["arguments"] == ""
+
+    def test_tool_call_chunk_with_none_function_arguments(self):
+        function = SimpleNamespace(name="get_weather", arguments=None)
+        tool_call = SimpleNamespace(index=0, id="call_1", type="function", function=function, custom=None)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, tool_call_chunk=tool_call)
+        assert stored[0]["function"]["arguments"] == ""
+
+    def test_tool_call_chunk_with_none_custom_input(self):
+        custom = SimpleNamespace(name="my_tool", input=None)
+        tool_call = SimpleNamespace(index=0, id="call_2", type="custom", function=None, custom=custom)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, tool_call_chunk=tool_call)
+        assert stored[0]["custom"]["input"] == ""
+
+    def test_none_then_value_arguments_accumulate(self):
+        # DashScope emits arguments=None in the first tool-call delta, then the JSON in later deltas.
+        first = SimpleNamespace(name="get_weather", arguments=None)
+        later = SimpleNamespace(name=None, arguments='{"city": "NYC"}')
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(
+            stored, tool_call_chunk=SimpleNamespace(index=0, id="call_1", type="function", function=first, custom=None)
+        )
+        openai_construct_tool_call_from_streamed_chunk(
+            stored, tool_call_chunk=SimpleNamespace(index=0, id=None, type=None, function=later, custom=None)
+        )
+        assert stored[0]["function"]["arguments"] == '{"city": "NYC"}'

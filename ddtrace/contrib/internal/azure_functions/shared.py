@@ -16,6 +16,7 @@ from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -152,7 +153,7 @@ def wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_deta
                 for message in msg_arg_value:
                     parent_context = HTTPPropagator.extract(message.application_properties)
                     if parent_context.trace_id is not None and parent_context.span_id is not None:
-                        ctx.span.link_span(parent_context)
+                        span_from_context(ctx).link_span(parent_context)
         elif isinstance(msg_arg_value, azure_functions.ServiceBusMessage):
             batch_count = None
             fully_qualified_namespace = (
@@ -163,7 +164,7 @@ def wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_deta
             if config.azure_functions.distributed_tracing:
                 parent_context = HTTPPropagator.extract(msg_arg_value.application_properties)
                 if parent_context.trace_id is not None and parent_context.span_id is not None:
-                    ctx.span.link_span(parent_context)
+                    span_from_context(ctx).link_span(parent_context)
         else:
             batch_count = None
             fully_qualified_namespace = None
@@ -215,7 +216,7 @@ def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_detai
                 for properties in metadata.get("PropertiesArray", []):
                     parent_context = HTTPPropagator.extract(properties)
                     if parent_context.trace_id is not None and parent_context.span_id is not None:
-                        ctx.span.link_span(parent_context)
+                        span_from_context(ctx).link_span(parent_context)
         elif isinstance(msg_arg_value, azure_functions.EventHubEvent):
             batch_count = None
             metadata = getattr(msg_arg_value, "metadata", {})
@@ -229,7 +230,7 @@ def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_detai
                     and parent_context.trace_id is not None
                     and parent_context.span_id is not None
                 ):
-                    ctx.span.link_span(parent_context)
+                    span_from_context(ctx).link_span(parent_context)
         else:
             batch_count = None
             fully_qualified_namespace = None

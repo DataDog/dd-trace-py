@@ -1,5 +1,3 @@
-import os
-
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
@@ -12,16 +10,6 @@ from .hello_pb2_grpc import add_HelloServicer_to_server
 from .hello_servicer import _HelloServicer
 
 
-def _get_grpc_port():
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
-    try:
-        worker_num = int(worker[2:])
-    except (ValueError, IndexError):
-        worker_num = 0
-    return 50531 + worker_num
-
-
-_GRPC_PORT = _get_grpc_port()
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
 
@@ -41,8 +29,11 @@ class GrpcBaseTestCase(TracerTestCase):
 
     def _start_server(self):
         self._server_pool = logging_pool.pool(1)
-        self._server = grpc.server(self._server_pool)
-        self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
+        # Disable SO_REUSEPORT so a new server can never share a port with a not-yet-released
+        # dying one, and bind to an ephemeral port ("[::]:0") so the OS atomically assigns a
+        # guaranteed-free port.  add_insecure_port returns the chosen port.
+        self._server = grpc.server(self._server_pool, options=(("grpc.so_reuseport", 0),))
+        self._grpc_port = self._server.add_insecure_port("[::]:0")
         add_HelloServicer_to_server(_HelloServicer(), self._server)
         self._server.start()
 

@@ -13,11 +13,20 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
+        from ddtrace.debugging._redaction import redact
+        from ddtrace.debugging._redaction import redact_type
         from ddtrace.internal.settings._config import Config
         import ddtrace.internal.settings.dynamic_instrumentation
 
         old_config = ddtrace.internal.settings.dynamic_instrumentation.ddconfig
         old_di_config = ddtrace.internal.settings.dynamic_instrumentation.config.__dict__
+
+        # redact and redact_type memoize their results, but the answer
+        # depends on the (swapped) configuration below. Clear the caches on the
+        # way in and out so a config change is actually observed and does not
+        # leak into other tests.
+        redact.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+        redact_type.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
 
         try:
             ddtrace.internal.settings.dynamic_instrumentation.ddconfig = Config()
@@ -29,6 +38,8 @@ def debugger_config(**kwargs):
         finally:
             ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = old_di_config
             ddtrace.internal.settings.dynamic_instrumentation.ddconfig = old_config
+            redact.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+            redact_type.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
 
 
 def test_tags():

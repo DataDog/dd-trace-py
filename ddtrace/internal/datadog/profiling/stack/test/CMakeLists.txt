@@ -78,3 +78,30 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
+
+function(configure_stack_internal_test name)
+    target_include_directories(${name} PRIVATE ../..)
+    target_include_directories(
+        ${name} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+    target_compile_definitions(${name} PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
+    if(LIB_INSTALL_DIR)
+        set_property(
+            TARGET ${name}
+            APPEND
+            PROPERTY INSTALL_RPATH "${LIB_INSTALL_DIR}")
+    endif()
+endfunction()
+
+dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
+target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
+configure_stack_internal_test(test_sample_lifecycle)
+
+dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
+configure_stack_internal_test(test_sampling_cycle_state)
+
+dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
+# ThreadAltStack lives in the vendored echion header tree.
+target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
