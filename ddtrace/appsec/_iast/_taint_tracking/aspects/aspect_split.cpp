@@ -42,12 +42,12 @@ split_text_common(const py::object& orig_function,
                   const py::kwargs& kwargs,
                   const std::string& split_func)
 {
-    PyObject* result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     py::tuple args_tuple;
-    if (PyTuple_Check(result_or_args)) {
-        args_tuple = py::reinterpret_borrow<py::tuple>(result_or_args);
+    if (PyTuple_Check(result_or_args.ptr())) {
+        args_tuple = result_or_args.cast<py::tuple>();
     } else {
-        return py::reinterpret_borrow<py::list>(result_or_args);
+        return result_or_args.cast<py::list>();
     }
 
     const auto& text = args_tuple[0];
@@ -84,8 +84,7 @@ api_splitlines_text(const py::object& orig_function,
                     const py::args& args,
                     const py::kwargs& kwargs)
 {
-    const auto result_or_args = py::reinterpret_borrow<py::object>(
-      process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr()));
+    const auto result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
 
     py::tuple args_tuple;
     if (py::isinstance<py::tuple>(result_or_args)) {
