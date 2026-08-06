@@ -129,8 +129,19 @@ def _put_field(fields: dict[str, Any], name: str, value: Any) -> None:
 
 
 def _is_number(value: Any) -> bool:
-    """bool is an int subclass, so True would otherwise pass as a count."""
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    """A finite JSON number.
+
+    bool is an int subclass, so True would otherwise pass as a count. A non-finite float is rejected
+    for the same reason _wire_value rejects one: it encodes as a bare Infinity or NaN token, which is
+    not valid JSON, and spans ship batched, so one of them invalidates the whole payload rather than
+    this one field. tool_timeout=float("inf") is a plausible way to say "no timeout".
+
+    isfinite is applied only to floats: a Python int is never non-finite, and converting a very large
+    one to float to check would raise.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value) if isinstance(value, float) else True
 
 
 def _wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> Any:
@@ -858,13 +869,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         wraps members in $ref and $defs, so it is reserved for a real multi-member union.
         """
         try:
-            from pydantic import BaseModel
             from pydantic import TypeAdapter
 
             if len(candidates) == 1:
                 candidate = candidates[0]
-                if isinstance(candidate, type) and issubclass(candidate, BaseModel):
-                    schema: dict[str, Any] = candidate.model_json_schema()
+                # Duck-typed rather than issubclass(BaseModel): a bare model carries the method and a
+                # parameterized generic does not, which is exactly the split, and it keeps the narrowing
+                # honest for the type checker.
+                model_json_schema = getattr(candidate, "model_json_schema", None)
+                if callable(model_json_schema):
+                    schema: dict[str, Any] = model_json_schema()
                 else:
                     # A parameterized generic has no model_json_schema, so the adapter is the only way
                     # to reach the member model's fields. It emits $ref plus $defs, which is fine here:

@@ -1217,6 +1217,21 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest, allow_nan=False)
         assert manifest["model_settings"] == {"top_p": 0.9}
 
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no tool_timeout")
+    async def test_non_finite_agent_settings_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """The same rule for agent_settings, which does not go through the value coercer.
+
+        tool_timeout=float("inf") is a plausible way to say "no timeout", and it reached the wire as a
+        bare Infinity token. Python's json parser accepts that, a strict one does not, and spans ship
+        batched, so a single such agent can invalidate a whole payload.
+        """
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", tool_timeout=float("inf"), model=_test_model()
+        )
+
+        json.dumps(manifest, allow_nan=False)
+        assert "tool_timeout" not in manifest["agent_settings"]
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no agent metadata")
     async def test_cyclic_metadata_does_not_cost_the_section(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A self-referential value terminates instead of recursing until the interpreter gives up."""
