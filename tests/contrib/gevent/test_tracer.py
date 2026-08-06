@@ -61,7 +61,7 @@ def test_native_thread_logging_does_not_deadlock_greenlets():
 
     import ddtrace.internal.gevent_logging as gevent_logging
 
-    assert gevent_logging.enabled
+    assert gevent_logging.gevent_threading_patched
     assert type(gevent_logging._DEFERRED_LOG_STATE_LOCK) is type(monkey.get_original("_thread", "allocate_lock")())
 
     import gevent

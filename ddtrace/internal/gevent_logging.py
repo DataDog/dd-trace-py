@@ -1,4 +1,13 @@
-"""Keep ddtrace logging on gevent-managed threads when threading is monkey-patched."""
+"""Route ddtrace log records from native threads through the owning gevent hub.
+
+When gevent patches threading, logging handler locks become gevent semaphores. A hubless native
+thread can acquire such a lock, but releasing it from that thread can permanently strand a
+greenlet waiting for the lock. The invariant enforced here is that a ddtrace record created
+outside the hub thread never reaches logging.Handler.handle on that native thread.
+
+The logger filter places those records in a bounded queue and calls the hub's thread-safe wakeup.
+The hub callback starts a raw greenlet to emit them because logging handlers are allowed to yield.
+"""
 
 from _thread import allocate_lock as _allocate_native_lock
 from _thread import get_ident as _get_native_ident
@@ -27,33 +36,33 @@ _DEFERRED_LOG_RECORDS: Deque[logging.LogRecord] = collections.deque(maxlen=_DEFE
 _DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
 _DEFERRED_RECORD_ATTRIBUTE = "_dd_deferred"
 _DEFERRED_RECORD_SENTINEL = object()
-_FORKSAFE_REGISTERED = False
-_DRAIN_SCHEDULED = False
-_HUB: Optional[_GeventHub] = None
-_SPAWN_RAW: Optional[Callable[..., object]] = None
-_MAIN_THREAD_IDENT = _get_native_ident()
-enabled = False
+_FORKSAFE_HOOK_REGISTERED = False
+_DEFERRED_DRAIN_SCHEDULED = False
+_OWNER_HUB: Optional[_GeventHub] = None
+_SPAWN_RAW_GREENLET: Optional[Callable[..., object]] = None
+_HUB_THREAD_IDENT = _get_native_ident()
+gevent_threading_patched = False
 
 
-def is_main_thread() -> bool:
-    return _get_native_ident() == _MAIN_THREAD_IDENT
+def is_hub_thread() -> bool:
+    return _get_native_ident() == _HUB_THREAD_IDENT
 
 
-def consume_replayed_record(record: logging.LogRecord) -> bool:
+def consume_replay_marker(record: logging.LogRecord) -> bool:
     if getattr(record, _DEFERRED_RECORD_ATTRIBUTE, None) is not _DEFERRED_RECORD_SENTINEL:
         return False
     delattr(record, _DEFERRED_RECORD_ATTRIBUTE)
     return True
 
 
-def defer_record(record: logging.LogRecord) -> None:
+def defer_record_to_hub(record: logging.LogRecord) -> None:
     _DEFERRED_LOG_RECORDS.append(record)
-    _schedule_drain()
+    _schedule_drain_on_hub()
 
 
-def _drain() -> None:
+def _drain_deferred_records() -> None:
     """Emit one bounded batch of deferred records from a gevent-managed greenlet."""
-    global _DRAIN_SCHEDULED
+    global _DEFERRED_DRAIN_SCHEDULED
 
     try:
         # Bound each drain to the records present on entry so producers cannot starve the hub thread.
@@ -66,52 +75,52 @@ def _drain() -> None:
             logging.getLogger(record.name).handle(record)
     finally:
         with _DEFERRED_LOG_STATE_LOCK:
-            _DRAIN_SCHEDULED = False
+            _DEFERRED_DRAIN_SCHEDULED = False
             schedule_another_drain = bool(_DEFERRED_LOG_RECORDS)
         if schedule_another_drain:
-            _schedule_drain()
+            _schedule_drain_on_hub()
 
 
-atexit.register(_drain)
+atexit.register(_drain_deferred_records)
 
 
-def _schedule_drain() -> None:
+def _schedule_drain_on_hub() -> None:
     """Wake the owning gevent hub when a native thread defers a log record."""
-    global _DRAIN_SCHEDULED
+    global _DEFERRED_DRAIN_SCHEDULED
 
     with _DEFERRED_LOG_STATE_LOCK:
-        hub = _HUB
-        spawn_raw = _SPAWN_RAW
-        if _DRAIN_SCHEDULED or hub is None or spawn_raw is None:
+        hub = _OWNER_HUB
+        spawn_raw_greenlet = _SPAWN_RAW_GREENLET
+        if _DEFERRED_DRAIN_SCHEDULED or hub is None or spawn_raw_greenlet is None:
             return
-        _DRAIN_SCHEDULED = True
+        _DEFERRED_DRAIN_SCHEDULED = True
 
     try:
         # Loop callbacks cannot yield, but logging handlers can. Start a raw greenlet before invoking them.
-        hub.loop.run_callback_threadsafe(spawn_raw, _drain)
+        hub.loop.run_callback_threadsafe(spawn_raw_greenlet, _drain_deferred_records)
     except Exception:
         # The hub can already be destroyed during interpreter shutdown. The atexit drain remains as a fallback.
         with _DEFERRED_LOG_STATE_LOCK:
-            _DRAIN_SCHEDULED = False
+            _DEFERRED_DRAIN_SCHEDULED = False
 
 
-def _after_fork() -> None:
-    global _DEFERRED_LOG_STATE_LOCK, _DRAIN_SCHEDULED, _HUB, _MAIN_THREAD_IDENT
+def _reset_after_fork() -> None:
+    global _DEFERRED_LOG_STATE_LOCK, _DEFERRED_DRAIN_SCHEDULED, _HUB_THREAD_IDENT, _OWNER_HUB
 
     from gevent.hub import get_hub
 
     _DEFERRED_LOG_RECORDS.clear()
     _DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
-    _DRAIN_SCHEDULED = False
-    _HUB = get_hub()
-    _MAIN_THREAD_IDENT = _get_native_ident()
+    _DEFERRED_DRAIN_SCHEDULED = False
+    _OWNER_HUB = get_hub()
+    _HUB_THREAD_IDENT = _get_native_ident()
 
 
-def _enable(gevent_monkey: Any) -> None:
-    global _DEFERRED_LOG_STATE_LOCK, _FORKSAFE_REGISTERED, _HUB, _SPAWN_RAW
-    global _MAIN_THREAD_IDENT, _allocate_native_lock, _get_native_ident, enabled
+def _enable_if_threading_patched(gevent_monkey: Any) -> None:
+    global _DEFERRED_LOG_STATE_LOCK, _FORKSAFE_HOOK_REGISTERED, _OWNER_HUB, _SPAWN_RAW_GREENLET
+    global _HUB_THREAD_IDENT, _allocate_native_lock, _get_native_ident, gevent_threading_patched
 
-    if enabled or not gevent_monkey.is_module_patched("threading"):
+    if gevent_threading_patched or not gevent_monkey.is_module_patched("threading"):
         return
 
     # ddtrace can be imported after monkey.patch_all(), in which case the module-level alias was patched too.
@@ -121,24 +130,24 @@ def _enable(gevent_monkey: Any) -> None:
     from gevent.hub import spawn_raw
 
     # Capture the patching thread's hub. Calling get_hub() later from a foreign worker would create an unused hub.
-    _HUB = get_hub()
-    _SPAWN_RAW = spawn_raw
-    _MAIN_THREAD_IDENT = _get_native_ident()
+    _OWNER_HUB = get_hub()
+    _SPAWN_RAW_GREENLET = spawn_raw
+    _HUB_THREAD_IDENT = _get_native_ident()
     _DEFERRED_LOG_STATE_LOCK = _allocate_native_lock()
-    enabled = True
-    if _FORKSAFE_REGISTERED:
+    gevent_threading_patched = True
+    if _FORKSAFE_HOOK_REGISTERED:
         return
 
     from ddtrace.internal import forksafe
 
-    forksafe.register(_after_fork)
-    _FORKSAFE_REGISTERED = True
+    forksafe.register(_reset_after_fork)
+    _FORKSAFE_HOOK_REGISTERED = True
 
 
-def configure(gevent_monkey: Any) -> None:
+def configure_gevent_logging(gevent_monkey: Any) -> None:
     """Route native-thread records through the gevent hub after threading is patched."""
     if getattr(gevent_monkey, "_ddtrace_logging_wrapped", False):
-        _enable(gevent_monkey)
+        _enable_if_threading_patched(gevent_monkey)
         return
 
     original_patch_all = gevent_monkey.patch_all
@@ -147,16 +156,16 @@ def configure(gevent_monkey: Any) -> None:
     @functools.wraps(original_patch_all)
     def patch_all(*args: Any, **kwargs: Any) -> Any:
         result = original_patch_all(*args, **kwargs)
-        _enable(gevent_monkey)
+        _enable_if_threading_patched(gevent_monkey)
         return result
 
     @functools.wraps(original_patch_thread)
     def patch_thread(*args: Any, **kwargs: Any) -> Any:
         result = original_patch_thread(*args, **kwargs)
-        _enable(gevent_monkey)
+        _enable_if_threading_patched(gevent_monkey)
         return result
 
     gevent_monkey.patch_all = patch_all
     gevent_monkey.patch_thread = patch_thread
     gevent_monkey._ddtrace_logging_wrapped = True
-    _enable(gevent_monkey)
+    _enable_if_threading_patched(gevent_monkey)

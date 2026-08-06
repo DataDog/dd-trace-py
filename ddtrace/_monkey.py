@@ -7,7 +7,7 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.internal.gevent_logging import configure as configure_gevent_logging
+from ddtrace.internal.gevent_logging import configure_gevent_logging
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config

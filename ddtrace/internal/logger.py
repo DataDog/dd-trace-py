@@ -170,11 +170,11 @@ def log_filter(record: logging.LogRecord) -> bool:
     This function will:
       - Rate limit log records based on the logger name, record level, filename, and line number
     """
-    gevent_threading_patched = gevent_logging.enabled
-    is_main_thread = False
+    gevent_threading_patched = gevent_logging.gevent_threading_patched
+    is_hub_thread = False
     if gevent_threading_patched:
-        is_main_thread = gevent_logging.is_main_thread()
-        if is_main_thread and gevent_logging.consume_replayed_record(record):
+        is_hub_thread = gevent_logging.is_hub_thread()
+        if is_hub_thread and gevent_logging.consume_replay_marker(record):
             return True
 
     logger = logging.getLogger(record.name)
@@ -222,8 +222,8 @@ def log_filter(record: logging.LogRecord) -> bool:
             record.msg = f"{record.msg}{skip_str}"
     # AIDEV-NOTE: A gevent Handler lock can permanently strand a greenlet when a hubless native thread releases it.
     # Defer foreign-thread records before Handler.handle; gevent_logging wakes the owning hub to emit them promptly.
-    if must_be_propagated and gevent_threading_patched and not is_main_thread:
-        gevent_logging.defer_record(record)
+    if must_be_propagated and gevent_threading_patched and not is_hub_thread:
+        gevent_logging.defer_record_to_hub(record)
         return False
     return must_be_propagated
 
