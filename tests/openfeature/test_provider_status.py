@@ -286,9 +286,7 @@ class TestProviderInitializationAsync:
             finally:
                 api.clear_providers()
 
-    @pytest.mark.skipif(
-        not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+"
-    )
+    @pytest.mark.skipif(not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+")
     def test_set_provider_and_wait_propagates_the_initialization_error(self):
         """Blocking registration propagates ProviderNotReadyError to the caller."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
