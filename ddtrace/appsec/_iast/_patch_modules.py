@@ -167,7 +167,7 @@ class WrapFunctonsForIAST:
                 MODULES_TO_UNPATCH.remove(module)
 
 
-def _testing_unpatch_iast():
+def _testing_unpatch_iast() -> None:
     """Utility function to unpatch all IAST functions in testing mode.
 
     This function creates a WrapFunctonsForIAST instance and uses it to remove
@@ -177,7 +177,9 @@ def _testing_unpatch_iast():
     iast_funcs.testing_unpatch()
 
 
-def _apply_custom_security_controls(iast_funcs: Optional[WrapFunctonsForIAST] = None):
+def _apply_custom_security_controls(
+    iast_funcs: Optional[WrapFunctonsForIAST] = None,
+) -> Optional[WrapFunctonsForIAST]:
     """Apply custom security controls from DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable."""
     try:
         if iast_funcs is None:
@@ -186,7 +188,7 @@ def _apply_custom_security_controls(iast_funcs: Optional[WrapFunctonsForIAST] = 
 
         if not security_controls:
             log.debug("No custom security controls configured")
-            return
+            return None
 
         log.debug("Applying %s custom security controls", len(security_controls))
 
@@ -198,9 +200,10 @@ def _apply_custom_security_controls(iast_funcs: Optional[WrapFunctonsForIAST] = 
         return iast_funcs
     except Exception:
         log.warning("Failed to load custom security controls", exc_info=True)
+        return None
 
 
-def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityControl):
+def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityControl) -> None:
     """Apply a single security control configuration.
 
     Args:

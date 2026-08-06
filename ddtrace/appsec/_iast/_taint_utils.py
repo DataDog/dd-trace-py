@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from collections import abc
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import Union
 
@@ -27,11 +28,11 @@ class _DeepTaintCommand:
         pre: bool,
         source_key: str,
         obj: Any,
-        store_struct: Union[list, dict],
+        store_struct: Union[list[Any], dict[Any, Any]],
         key: Optional[list[str]] = None,
-        struct: Optional[Union[list, dict]] = None,
+        struct: Optional[Union[list[Any], dict[Any, Any]]] = None,
         is_key: bool = False,
-    ):
+    ) -> None:
         self.pre = pre
         self.source_key = source_key
         self.obj = obj
@@ -40,7 +41,7 @@ class _DeepTaintCommand:
         self.struct = struct
         self.is_key = is_key
 
-    def store(self, value):
+    def store(self, value: Any) -> None:
         if isinstance(self.store_struct, list):
             self.store_struct.append(value)
         elif isinstance(self.store_struct, dict):
@@ -49,14 +50,14 @@ class _DeepTaintCommand:
         else:
             raise ValueError(f"store_struct of type {type(self.store_struct)}")
 
-    def post(self, struct):
+    def post(self, struct: Union[list[Any], dict[Any, Any]]) -> "_DeepTaintCommand":
         return self.__class__(False, self.source_key, self.obj, self.store_struct, self.key, struct)
 
 
-def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
+def build_new_tainted_object_from_generic_object(initial_object: Any, wanted_object: Any) -> Any:
     if initial_object.__class__ is wanted_object.__class__:
         return wanted_object
-    #### custom tailor actions
+    # Custom tailor actions
     wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
     if wanted_type == ("builtins", "tuple"):
         return tuple(wanted_object)
@@ -83,7 +84,7 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
     return initial_object
 
 
-def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
+def taint_structure(main_obj: Any, source_key: Any, source_value: Any, override_pyobject_tainted: bool = False) -> Any:
     """taint any structured object
     use a queue like mechanism to avoid recursion
     Best effort: mutate mutable structures and rebuild immutable ones if possible
@@ -92,7 +93,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
         return main_obj
 
     result = None
-    main_res = []
+    main_res: list[Any] = []
     try:
         # fifo contains tuple (pre/post:bool, source key, object to taint,
         # key to use, struct to store result, struct to )
@@ -114,20 +115,20 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     else:
                         command.store(command.obj)
                 elif isinstance(command.obj, abc.Mapping):
-                    res = {}
+                    res: dict[Any, Any] = {}
                     stack.append(command.post(res))
                     # use dict fundamental enumeration if possible to bypass any override of custom classes
                     iterable = dict.items(command.obj) if isinstance(command.obj, dict) else command.obj.items()
-                    todo = []
+                    todo: list[_DeepTaintCommand] = []
                     for k, v in list(iterable):
-                        key_store = []
+                        key_store: list[Any] = []
                         todo.append(_DeepTaintCommand(True, str(k), k, key_store, is_key=True))
                         todo.append(_DeepTaintCommand(True, str(k), v, res, key_store))
                     stack.extend(reversed(todo))
                 elif isinstance(command.obj, abc.Sequence):
-                    res = []
-                    stack.append(command.post(res))
-                    todo = [_DeepTaintCommand(True, command.source_key, v, res) for v in command.obj]
+                    sequence_result: list[Any] = []
+                    stack.append(command.post(sequence_result))
+                    todo = [_DeepTaintCommand(True, command.source_key, v, sequence_result) for v in command.obj]
                     stack.extend(reversed(todo))
                 else:
                     command.store(command.obj)
@@ -144,7 +145,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
 # Lazy Tainting
 
 
-def _is_tainted_struct(obj):
+def _is_tainted_struct(obj: object) -> bool:
     return hasattr(obj, "_origins")
 
 
@@ -154,14 +155,20 @@ class LazyTaintList:
     It will appear and act as the original list except for some additional private fields
     """
 
-    def __init__(self, original_list, origins=(0, 0), override_pyobject_tainted=False, source_name="[]"):
+    def __init__(
+        self,
+        original_list: Any,
+        origins: tuple[Any, Any] = (0, 0),
+        override_pyobject_tainted: bool = False,
+        source_name: str = "[]",
+    ) -> None:
         self._obj = original_list._obj if _is_tainted_struct(original_list) else original_list
         self._origins = origins
         self._origin_value = origins[1]
         self._override_pyobject_tainted = override_pyobject_tainted
         self._source_name = source_name
 
-    def _taint(self, value):
+    def _taint(self, value: Any) -> Any:
         if value:
             if isinstance(value, IAST.TEXT_TYPES):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
@@ -192,7 +199,7 @@ class LazyTaintList:
                 )
         return value
 
-    def __add__(self, other):
+    def __add__(self, other: Any) -> "LazyTaintList":
         if _is_tainted_struct(other):
             other = other._obj
         return LazyTaintList(
@@ -203,58 +210,60 @@ class LazyTaintList:
         )
 
     @property  # type: ignore
-    def __class__(self):
+    def __class__(self) -> type[list[Any]]:  # type: ignore[override]
         return list
 
-    def __contains__(self, item):
+    def __contains__(self, item: object) -> bool:
         return item in self._obj
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         del self._obj[key]
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj == other
+        return self._obj == other  # type: ignore[no-any-return]
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj >= other
+        return self._obj >= other  # type: ignore[no-any-return]
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._taint(self._obj[key])
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj > other
+        return self._obj > other  # type: ignore[no-any-return]
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: Any) -> "LazyTaintList":
         if _is_tainted_struct(other):
             other = other._obj
         self._obj += other
+        return self
 
-    def __imul__(self, other):
+    def __imul__(self, other: int) -> "LazyTaintList":
         self._obj *= other
+        return self
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return (self[i] for i in range(len(self._obj)))
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj <= other
+        return self._obj <= other  # type: ignore[no-any-return]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._obj)
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj < other
+        return self._obj < other  # type: ignore[no-any-return]
 
-    def __mul__(self, other):
+    def __mul__(self, other: int) -> "LazyTaintList":
         return LazyTaintList(
             self._obj * other,
             origins=self._origins,
@@ -262,31 +271,31 @@ class LazyTaintList:
             source_name=self._source_name,
         )
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj != other
+        return self._obj != other  # type: ignore[no-any-return]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self._obj)
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[Any]:
         return (self[i] for i in reversed(range(len(self._obj))))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         self._obj[key] = value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._obj)
 
-    def append(self, item):
+    def append(self, item: Any) -> None:
         self._obj.append(item)
 
-    def clear(self):
+    def clear(self) -> None:
         # TODO: stop tainting in this case
         self._obj.clear()
 
-    def copy(self):
+    def copy(self) -> "LazyTaintList":
         return LazyTaintList(
             self._obj.copy(),
             origins=self._origins,
@@ -294,32 +303,32 @@ class LazyTaintList:
             source_name=self._source_name,
         )
 
-    def count(self, *args):
-        return self._obj.count(*args)
+    def count(self, *args: Any) -> int:
+        return self._obj.count(*args)  # type: ignore[no-any-return]
 
-    def extend(self, *args):
-        return self._obj.extend(*args)
+    def extend(self, *args: Any) -> None:
+        self._obj.extend(*args)
 
-    def index(self, *args):
-        return self._obj.index(*args)
+    def index(self, *args: Any) -> int:
+        return self._obj.index(*args)  # type: ignore[no-any-return]
 
-    def insert(self, *args):
-        return self._obj.insert(*args)
+    def insert(self, *args: Any) -> None:
+        self._obj.insert(*args)
 
-    def pop(self, *args):
+    def pop(self, *args: Any) -> Any:
         return self._taint(self._obj.pop(*args))
 
-    def remove(self, *args):
-        return self._obj.remove(*args)
+    def remove(self, *args: Any) -> None:
+        self._obj.remove(*args)
 
-    def reverse(self, *args):
-        return self._obj.reverse(*args)
+    def reverse(self, *args: Any) -> None:
+        self._obj.reverse(*args)
 
-    def sort(self, *args):
-        return self._obj.sort(*args)
+    def sort(self, *args: Any) -> None:
+        self._obj.sort(*args)
 
     # psycopg2 support
-    def __conform__(self, proto):
+    def __conform__(self, proto: object) -> "LazyTaintList":
         return self
 
     def getquoted(self) -> bytes:
@@ -327,11 +336,13 @@ class LazyTaintList:
 
         value = ext.adapt(self._obj).getquoted()
         value = self._taint(value)
-        return value
+        return value  # type: ignore[no-any-return]
 
 
 class LazyTaintDict:
-    def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):
+    def __init__(
+        self, original_dict: Any, origins: tuple[Any, Any] = (0, 0), override_pyobject_tainted: bool = False
+    ) -> None:
         from ddtrace.appsec._iast._taint_tracking import OriginType
 
         self._obj = original_dict
@@ -340,7 +351,7 @@ class LazyTaintDict:
         self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER
         self._override_pyobject_tainted = override_pyobject_tainted
 
-    def _taint(self, value, key, origin=None):
+    def _taint(self, value: Any, key: Any, origin: Optional[Any] = None) -> Any:
         if origin is None:
             origin = self._origin_value
         if value:
@@ -370,60 +381,61 @@ class LazyTaintDict:
         return value
 
     @property  # type: ignore
-    def __class__(self):
+    def __class__(self) -> type[dict[Any, Any]]:  # type: ignore[override]
         return dict
 
-    def __contains__(self, item):
+    def __contains__(self, item: object) -> bool:
         return item in self._obj
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         del self._obj[key]
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj == other
+        return self._obj == other  # type: ignore[no-any-return]
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj >= other
+        return self._obj >= other  # type: ignore[no-any-return]
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._taint(self._obj[key], key)
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj > other
+        return self._obj > other  # type: ignore[no-any-return]
 
-    def __ior__(self, other):
+    def __ior__(self, other: Any) -> "LazyTaintDict":
         if _is_tainted_struct(other):
             other = other._obj
         self._obj |= other
+        return self
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self.keys())
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj <= other
+        return self._obj <= other  # type: ignore[no-any-return]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._obj)
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj < other
+        return self._obj < other  # type: ignore[no-any-return]
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if _is_tainted_struct(other):
             other = other._obj
-        return self._obj != other
+        return self._obj != other  # type: ignore[no-any-return]
 
-    def __or__(self, other):
+    def __or__(self, other: Any) -> "LazyTaintDict":
         if _is_tainted_struct(other):
             other = other._obj
         return LazyTaintDict(
@@ -432,23 +444,23 @@ class LazyTaintDict:
             override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self._obj)
 
-    def __reversed__(self):
-        return reversed(self.keys())
+    def __reversed__(self) -> Iterator[Any]:
+        return reversed(list(self.keys()))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         self._obj[key] = value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._obj)
 
-    def clear(self):
+    def clear(self) -> None:
         # TODO: stop tainting in this case
         self._obj.clear()
 
-    def copy(self):
+    def copy(self) -> "LazyTaintDict":
         return LazyTaintDict(
             self._obj.copy(),
             origins=self._origins,
@@ -456,78 +468,87 @@ class LazyTaintDict:
         )
 
     @classmethod
-    def fromkeys(cls, *args):
+    def fromkeys(cls, *args: Any) -> dict[Any, Any]:
         return dict.fromkeys(*args)
 
-    def get(self, key, default=None):
+    def get(self, key: Any, default: Any = None) -> Any:
         observer = object()
         res = self._obj.get(key, observer)
         if res is observer:
             return default
         return self._taint(res, key)
 
-    def items(self):
+    def items(self) -> Iterator[tuple[Any, Any]]:
         for k in self.keys():
             yield (k, self[k])
 
-    def keys(self):
+    def keys(self) -> Iterator[Any]:
         for k in self._obj.keys():
             yield self._taint(k, k, self._origin_key)
 
-    def pop(self, *args):
+    def pop(self, *args: Any) -> Any:
         return self._taint(self._obj.pop(*args), "pop")
 
-    def popitem(self):
+    def popitem(self) -> tuple[Any, Any]:
         k, v = self._obj.popitem()
         return self._taint(k, k), self._taint(v, k)
 
-    def remove(self, *args):
+    def remove(self, *args: Any) -> Any:
         return self._obj.remove(*args)
 
-    def setdefault(self, *args):
+    def setdefault(self, *args: Any) -> Any:
         return self._taint(self._obj.setdefault(*args), args[0])
 
-    def update(self, *args, **kargs):
+    def update(self, *args: Any, **kargs: Any) -> None:
         self._obj.update(*args, **kargs)
 
-    def values(self):
+    def values(self) -> Iterator[Any]:
         for _, v in self.items():
             yield v
 
     # Django Query Dict support
-    def getlist(self, key, default=None):
+    def getlist(self, key: Any, default: Any = None) -> Any:
         return self._taint(self._obj.getlist(key, default=default), key)
 
-    def setlist(self, key, list_):
+    def setlist(self, key: Any, list_: list[Any]) -> None:
         self._obj.setlist(key, list_)
 
-    def appendlist(self, key, item):
+    def appendlist(self, key: Any, item: Any) -> None:
         self._obj.appendlist(key, item)
 
-    def setlistdefault(self, key, default_list=None):
+    def setlistdefault(self, key: Any, default_list: Optional[list[Any]] = None) -> Any:
         return self._taint(self._obj.setlistdefault(key, default_list=default_list), key)
 
-    def lists(self):
+    def lists(self) -> Any:
         return self._taint(self._obj.lists(), self._origin_value)
 
-    def dict(self):
+    def dict(self) -> "LazyTaintDict":
         return self
 
-    def urlencode(self, safe=None):
+    def urlencode(self, safe: Optional[str] = None) -> Any:
         return self._taint(self._obj.urlencode(safe=safe), self._origin_value)
 
 
 if asm_config._iast_lazy_taint:
     # redefining taint_structure to use lazy object if required
 
-    def taint_structure(main_obj, origin_key, origin_value, override_pyobject_tainted=False):  # noqa: F811
+    def taint_structure(  # noqa: F811
+        main_obj: Any, source_key: Any, source_value: Any, override_pyobject_tainted: bool = False
+    ) -> Any:
         if isinstance(main_obj, abc.Mapping):
-            return LazyTaintDict(main_obj, (origin_key, origin_value), override_pyobject_tainted)
+            return LazyTaintDict(main_obj, (source_key, source_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
-            return LazyTaintList(main_obj, (origin_key, origin_value), override_pyobject_tainted)
+            return LazyTaintList(main_obj, (source_key, source_value), override_pyobject_tainted)
 
 
-def taint_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
+def taint_dictionary(
+    origin_key: Any,
+    origin_value: Any,
+    original_func: Any,
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     result = original_func(*args, **kwargs)
 
     return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)

@@ -6,6 +6,7 @@ import copy
 import os
 import sys
 from typing import Any
+from typing import Optional
 from typing import Text
 
 from ..._constants import IAST
@@ -26,9 +27,9 @@ TAINT_SINK_FUNCTION_REPLACEMENT = _PREFIX + "taint_sinks.ast_function"
 SOURCES_FUNCTION_REPLACEMENT = _PREFIX + "sources.ast_function"
 
 
-def _mark_avoid_convert_recursively(node):
+def _mark_avoid_convert_recursively(node: Optional[ast.AST]) -> None:
     if node is not None:
-        node.avoid_convert = True
+        node.avoid_convert = True  # type: ignore[attr-defined]
         for child in ast.iter_child_nodes(node):
             _mark_avoid_convert_recursively(child)
 
@@ -159,9 +160,9 @@ if sys.version_info >= (3, 12) or os.name == "nt":
 class AstVisitor(ast.NodeTransformer):
     def __init__(
         self,
-        filename="",
-        module_name="",
-    ):
+        filename: str = "",
+        module_name: str = "",
+    ) -> None:
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": _PREFIX + "taint_sinks",
@@ -197,14 +198,14 @@ class AstVisitor(ast.NodeTransformer):
         self.update_location(filename, module_name)
         self.allowed_replacements = {CODE_TYPE_FIRST_PARTY, CODE_TYPE_SITE_PACKAGES}
 
-    def update_location(self, filename: str = "", module_name: str = ""):
+    def update_location(self, filename: str = "", module_name: str = "") -> None:
         self.filename = filename
         self.module_name = module_name
         self.ast_modified = False
 
-        excluded_from_patching: dict[str, dict[str, tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
+        excluded_from_patching: dict[str, dict[str, tuple[str, ...]]] = _ASPECTS_SPEC["excluded_from_patching"]
         self.excluded_functions = excluded_from_patching.get(self.module_name, {})
-        self.dont_patch_these_functionsdefs = set()
+        self.dont_patch_these_functionsdefs: set[str] = set()
         for _, v in self.excluded_functions.items():
             if v:
                 for i in v:
@@ -250,12 +251,12 @@ class AstVisitor(ast.NodeTransformer):
     @staticmethod
     def _get_function_name(call_node: ast.Call, is_function: bool) -> Text:
         if is_function:
-            return call_node.func.id  # type: ignore[attr-defined]
+            return call_node.func.id  # type: ignore[attr-defined,no-any-return]
         # If the call is to a method
-        elif type(call_node.func) == ast.Name:
+        elif type(call_node.func) is ast.Name:
             return call_node.func.id
 
-        return call_node.func.attr  # type: ignore[attr-defined]
+        return call_node.func.attr  # type: ignore[attr-defined,no-any-return]
 
     def _is_node_constant_or_binop(self, node: Any) -> bool:
         return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
@@ -327,14 +328,14 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     def _name_node(self, from_node: Any, _id: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
-        return self._node(
+        return self._node(  # type: ignore[no-any-return]
             ast.Name,
             from_node,
             id=_id,
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node: Any, attr: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
+    def _attr_node(self, from_node: Any, attr: Text, ctx: Any = ast.Load()) -> ast.Attribute:  # noqa: B008
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -344,7 +345,9 @@ class AstVisitor(ast.NodeTransformer):
                 name_attr = aspect_split[0]
 
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
-        return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
+        return self._node(  # type: ignore[no-any-return]
+            ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node
+        )
 
     def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
         return self._node(
@@ -401,7 +404,7 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     @staticmethod
-    def _int_constant(from_node, value):
+    def _int_constant(from_node: Any, value: int) -> ast.Constant:
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,

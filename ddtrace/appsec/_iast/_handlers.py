@@ -2,6 +2,11 @@ from collections.abc import MutableMapping
 import functools
 from types import ModuleType
 from typing import Any
+from typing import Callable
+from typing import Coroutine
+from typing import Iterator
+from typing import Optional
+from typing import Union
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
@@ -20,6 +25,7 @@ from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
@@ -43,7 +49,7 @@ def _(module: ModuleType) -> None:
 log = get_logger(__name__)
 
 
-def _on_request_init(wrapped, instance, args, kwargs):
+def _on_request_init(wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
@@ -63,7 +69,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
             iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
-def _on_flask_patch(flask_version):
+def _on_flask_patch(flask_version: tuple[int, ...]) -> None:
     """Handle Flask framework patch event.
 
     Args:
@@ -143,7 +149,7 @@ def _on_flask_patch(flask_version):
             iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Flask", exc_info=True)
 
 
-def _iast_on_wrapped_view(kwargs):
+def _iast_on_wrapped_view(kwargs: dict[str, Any]) -> dict[str, Any]:
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if kwargs and asm_config._iast_enabled:
         if not is_iast_request_enabled():
@@ -158,14 +164,14 @@ def _iast_on_wrapped_view(kwargs):
     return kwargs
 
 
-def _on_wsgi_environ(wrapped, _instance, args, kwargs):
+def _on_wsgi_environ(wrapped: Callable[..., Any], _instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     if is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
 
 
-def _on_django_patch():
+def _on_django_patch() -> None:
     """Handle Django framework patch event."""
     if asm_config._iast_enabled:
         try:
@@ -195,7 +201,7 @@ def _on_django_patch():
             iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Django", exc_info=True)
 
 
-def _on_django_middleware(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+def _on_django_middleware(ctx: core.ExecutionContext[Event], call_trace: bool = True, **kwargs: Any) -> None:
     if not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
@@ -205,7 +211,9 @@ def _on_django_middleware(ctx: core.ExecutionContext, call_trace: bool = True, *
         _taint_django_func_call(request, args, {})
 
 
-def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
+def _on_django_func_wrapped(
+    fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any], first_arg_expected_type: type[Any], *_: Any
+) -> None:
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if asm_config._iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
@@ -286,7 +294,7 @@ def _taint_django_func_call(http_req: Any, args: tuple[Any, ...], kwargs: dict[s
             iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
 
-def _custom_protobuf_getattribute(self, name):
+def _custom_protobuf_getattribute(self: Any, name: str) -> Any:
     ret = type(self).__saved_getattr(self, name)
     if isinstance(ret, IAST.TEXT_TYPES):
         ret = taint_pyobject(
@@ -334,7 +342,13 @@ def _on_grpc_response(message: object) -> None:
         _patch_protobuf_class(msg_cls)
 
 
-def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
+def if_iast_taint_yield_tuple_for(
+    origins: tuple[OriginType, OriginType],
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Iterator[tuple[Any, Any]]:
     if is_iast_request_enabled():
         try:
             for key, value in wrapped(*args, **kwargs):
@@ -350,7 +364,14 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield key, value
 
 
-def if_iast_taint_returned_object_for(origin, override_pyobject_tainted, wrapped, instance, args, kwargs):
+def if_iast_taint_returned_object_for(
+    origin: OriginType,
+    override_pyobject_tainted: bool,
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     value = wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
@@ -364,7 +385,13 @@ def if_iast_taint_returned_object_for(origin, override_pyobject_tainted, wrapped
     return value
 
 
-def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
+def if_iast_taint_starlette_datastructures(
+    origin: OriginType,
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     value = wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
@@ -387,7 +414,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
     return value
 
 
-def _on_iast_fastapi_patch():
+def _on_iast_fastapi_patch() -> None:
     try:
         iast_funcs = WrapFunctonsForIAST()
         # Cookies sources
@@ -472,12 +499,12 @@ def _on_iast_fastapi_patch():
         iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
-def _on_pre_tracedrequest_iast(ctx):
+def _on_pre_tracedrequest_iast(ctx: core.ExecutionContext[Event]) -> None:
     current_span = span_from_context(ctx)
     _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
 
 
-def _on_set_request_tags_iast(request, span, flask_config):
+def _on_set_request_tags_iast(request: Any, span: Any, flask_config: Any) -> None:
     if is_iast_request_enabled():
         try:
             if request.url_rule is not None:
@@ -506,7 +533,9 @@ def _on_set_request_tags_iast(request, span, flask_config):
             iast_propagation_listener_log_log("Unexpected exception while tainting Flask request", exc_info=True)
 
 
-def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
+def _on_django_finalize_response_pre(
+    ctx: core.ExecutionContext[Event], after_request_tags: Any, request: Any, response: Any
+) -> None:
     if not response or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
@@ -519,7 +548,9 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
         iast_propagation_listener_log_log("Unexpected exception checking for stacktrace leak", exc_info=True)
 
 
-def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
+def _on_django_technical_500_response(
+    request: Any, response: Any, exc_type: type[BaseException], exc_value: BaseException, tb: Any
+) -> None:
     if not exc_value or not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
@@ -535,7 +566,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
         )
 
 
-def _on_flask_finalize_request_post(response, _):
+def _on_flask_finalize_request_post(response: Any, _: Any) -> None:
     if not response or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
@@ -549,20 +580,20 @@ def _on_flask_finalize_request_post(response, _):
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
 
-def _on_asgi_finalize_response(body, _):
+def _on_asgi_finalize_response(body: Optional[Union[str, bytes]], _: Any) -> None:
     if not body or not is_iast_request_enabled():
         return
 
     try:
         from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
-        content = body.decode("utf-8", errors="ignore")
+        content = body if isinstance(body, str) else body.decode("utf-8", errors="ignore")
         iast_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
 
-def _on_werkzeug_render_debugger_html(html):
+def _on_werkzeug_render_debugger_html(html: str) -> None:
     # we don't check is_iast_request_enabled() due to werkzeug.render_debugger_html works outside the request
     if not html or not asm_config._iast_enabled:
         return
@@ -576,11 +607,13 @@ def _on_werkzeug_render_debugger_html(html):
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
 
-def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
-    def receive(self):
+def _iast_instrument_starlette_request(
+    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> None:
+    def receive(self: Any) -> Callable[[], Coroutine[Any, Any, Any]]:
         """This pattern comes from a Request._receive property, which returns a callable"""
 
-        async def wrapped_property_call():
+        async def wrapped_property_call() -> Any:
             body = await self._receive()
             return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
 
@@ -591,7 +624,9 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
     instance.__class__.receive = property(receive)
 
 
-async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
+async def _iast_instrument_starlette_request_body(
+    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     result = await wrapped(*args, **kwargs)
 
     return taint_pyobject(
@@ -599,7 +634,7 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     )
 
 
-def _iast_instrument_starlette_scope(scope, route):
+def _iast_instrument_starlette_scope(scope: dict[str, Any], route: str) -> None:
     try:
         if is_iast_request_enabled():
             set_iast_request_endpoint(scope.get("method"), route)
@@ -612,9 +647,11 @@ def _iast_instrument_starlette_scope(scope, route):
         iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
 
-def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
-    def path(self) -> str:
-        return taint_pyobject(
+def _iast_instrument_starlette_url(
+    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> None:
+    def path(self: Any) -> str:
+        return taint_pyobject(  # type: ignore[no-any-return]
             self.components.path,
             source_name=origin_to_str(OriginType.PATH),
             source_value=self.components.path,

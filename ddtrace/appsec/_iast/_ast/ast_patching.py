@@ -28,7 +28,7 @@ IAST_PATCHING_LAZY_LOADED = True
 log = get_logger(__name__)
 
 
-def initialize_iast_lists():
+def initialize_iast_lists() -> None:
     """Initialize IAST module lists safely from Python.
 
     This function initializes the user allowlist and denylist for IAST module patching.
@@ -175,7 +175,7 @@ def visit_ast(
     """
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
-    modified_ast = _VISITOR.visit(parsed_ast)
+    modified_ast: ast.Module = _VISITOR.visit(parsed_ast)
 
     if not _VISITOR.ast_modified:
         return None

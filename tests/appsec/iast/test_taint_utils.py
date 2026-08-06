@@ -121,6 +121,28 @@ def test_tainted_get(iast_context_defaults):
     assert not is_pyobject_tainted(robin)
 
 
+def test_lazy_taint_list_inplace_operations_preserve_proxy():
+    tainted_list = LazyTaintList([1, 2])
+    original_proxy = tainted_list
+
+    tainted_list += [3]
+    assert tainted_list is original_proxy
+    assert list(tainted_list) == [1, 2, 3]
+
+    tainted_list *= 2
+    assert tainted_list is original_proxy
+    assert list(tainted_list) == [1, 2, 3, 1, 2, 3]
+
+
+def test_lazy_taint_dict_inplace_union_and_reversed_preserve_proxy():
+    tainted_dict = LazyTaintDict({1: "one", 2: "two"})
+    original_proxy = tainted_dict
+
+    tainted_dict |= {3: "three"}
+    assert tainted_dict is original_proxy
+    assert list(reversed(tainted_dict)) == [3, 2, 1]
+
+
 def test_tainted_items(iast_context_defaults):
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict(
