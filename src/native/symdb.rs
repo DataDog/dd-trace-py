@@ -20,8 +20,8 @@ use crate::shared_runtime::SharedRuntimePy;
 // reach Datadog through the debugger intake: same host, same agentless route, and
 // libdatadog derives both from one `Config`.
 
-#[pyclass(name = "SymDbSender", frozen)]
-pub struct SymDbSenderPy {
+#[pyclass(name = "SymDBSender", frozen)]
+pub struct SymDBSenderPy {
     runtime: Arc<ForkSafeRuntime>,
     config: SenderConfig,
     url: Endpoint,
@@ -32,7 +32,7 @@ pub struct SymDbSenderPy {
 }
 
 #[pymethods]
-impl SymDbSenderPy {
+impl SymDBSenderPy {
     #[new]
     #[pyo3(signature = (
         runtime,
@@ -95,7 +95,7 @@ impl SymDbSenderPy {
 
     fn __repr__(&self) -> String {
         format!(
-            "SymDbSender(url={:?}, agentless={})",
+            "SymDBSender(url={:?}, agentless={})",
             self.url.url.to_string(),
             self.agentless,
         )
@@ -103,6 +103,6 @@ impl SymDbSenderPy {
 }
 
 pub fn register_symdb(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SymDbSenderPy>()?;
+    m.add_class::<SymDBSenderPy>()?;
     Ok(())
 }

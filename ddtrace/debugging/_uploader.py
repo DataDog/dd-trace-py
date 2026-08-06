@@ -210,19 +210,6 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
 
-    def _downgrade_to_diagnostics(self) -> bool:
-        """Downgrade the logs and snapshots tracks to the diagnostics endpoint.
-
-        Returns whether the downgrade happened; it does not when the tracks are
-        already downgraded, or in agentless mode where all tracks share one path.
-        """
-        if not self._sender.downgrade_to_diagnostics():
-            return False
-
-        log.debug("Downgraded debugger endpoints to the diagnostics endpoint")
-
-        return True
-
     def _flush_track(self, track: UploaderTrack) -> None:
         if (data := track.queue.flush()) is not None and track.enabled:
             payload, count = data
@@ -230,7 +217,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 self._write_with_backoff(payload, track.debugger_type)
                 meter.distribution("batch.cardinality", count)
             except SignalUploaderError:
-                if self._downgrade_to_diagnostics():
+                if self._sender.downgrade_to_diagnostics():
+                    log.debug("Downgraded debugger endpoints to the diagnostics endpoint")
                     # Retry once against the diagnostics endpoint
                     self._write_with_backoff(payload, track.debugger_type)
                     meter.distribution("batch.cardinality", count)

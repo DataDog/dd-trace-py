@@ -33,7 +33,7 @@ from ._native import RequestError  # noqa: F401
 from ._native import RequestFailedError  # noqa: F401
 from ._native import SerializationError  # noqa: F401
 from ._native import SharedRuntime  # noqa: F401
-from ._native import SymDbSender  # noqa: F401
+from ._native import SymDBSender  # noqa: F401
 from ._native import TelemetryWorker  # noqa: F401
 from ._native import TimedOutError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401

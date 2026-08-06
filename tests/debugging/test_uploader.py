@@ -120,7 +120,7 @@ def test_info_check_endpoint_selection():
 
     # Test 5: an agent that regains the v2 endpoint undoes an earlier downgrade
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    assert uploader._downgrade_to_diagnostics() is True
+    assert uploader._sender.downgrade_to_diagnostics() is True
     assert uploader._sender.downgraded is True
     assert uploader.info_check({"endpoints": ["debugger/v2/input"]}) is True
     assert uploader._sender.downgraded is False
@@ -129,10 +129,10 @@ def test_info_check_endpoint_selection():
 def test_downgrade_to_diagnostics_is_idempotent():
     uploader = SignalUploader(interval=LONG_INTERVAL)
 
-    assert uploader._downgrade_to_diagnostics() is True
+    assert uploader._sender.downgrade_to_diagnostics() is True
     # A second downgrade is a no-op, which is what stops _flush_track from
     # retrying the same endpoint forever.
-    assert uploader._downgrade_to_diagnostics() is False
+    assert uploader._sender.downgrade_to_diagnostics() is False
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ def test_flush_track_downgrades_and_retries_on_signal_uploader_error():
 
 def test_flush_track_reraises_when_already_on_diagnostics():
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    uploader._downgrade_to_diagnostics()
+    uploader._sender.downgrade_to_diagnostics()
     _put_data(uploader)
 
     with (
