@@ -35,6 +35,7 @@ from typing import Callable
 from typing import Collection
 from typing import Mapping
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 
@@ -486,6 +487,9 @@ class DDExpressionEvaluationError(Exception):
         self.error = str(e)
 
 
+E = TypeVar("E", bound="DDExpression")
+
+
 def _invalid_expression(_: Any) -> None:
     """Forces probes with invalid expression/conditions to never trigger.
 
@@ -517,7 +521,7 @@ class DDExpression:
         return _invalid_expression
 
     @classmethod
-    def compile(cls, expr: Mapping[str, Any]) -> "DDExpression":
+    def compile(cls: type[E], expr: Mapping[str, Any]) -> E:
         ast = expr["json"]
         dsl = expr["dsl"]
 

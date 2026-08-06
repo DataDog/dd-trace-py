@@ -149,6 +149,9 @@ def serialize(
     if _isinstance(value, CALLABLE_TYPES):
         return object.__repr__(value)
 
+    if redact_type(type(value).__qualname__):
+        return REDACTED_PLACEHOLDER
+
     if type(value) in SIMPLE_TYPES:
         r = repr(value)
         return "".join((r[:maxlen], "..." + ("'" if r[0] == "'" else "") if len(r) > maxlen else ""))
