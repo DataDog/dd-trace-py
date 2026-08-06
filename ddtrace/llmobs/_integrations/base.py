@@ -99,15 +99,26 @@ class BaseLLMIntegration:
         return span
 
     def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
-        """Stamp the span kind at start so a parent agent's kind is visible before its children
-        activate. Agent attribution reads it at child activation; under LIFO nesting a finish-time
-        write lands too late. Called from trace() and from LlmTracingSubscriber.on_started.
+        """Stamp the span kind (and name when available) at start so a parent agent is fully
+        resolvable before its children activate. Agent attribution reads both at child activation;
+        under LIFO nesting a finish-time write lands too late. Called from trace() and from
+        LlmTracingSubscriber.on_started.
         """
         if span.span_type != SpanTypes.LLM:
             return
         span_kind = self._llmobs_span_kind(operation_id, span, **kwargs)
-        if span_kind is not None:
-            _annotate_llmobs_span_data(span, kind=span_kind)
+        if span_kind is None:
+            return
+        agent_name = self._llmobs_agent_name_at_start(span, **kwargs)
+        _annotate_llmobs_span_data(span, kind=span_kind, **({"name": agent_name} if agent_name else {}))
+
+    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+        """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.
+
+        Integrations that have the agent name available at trace()-call time should override this.
+        The finish-time write in _llmobs_set_tags still runs and is idempotent.
+        """
+        return None
 
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
         """Return the kind to stamp at start, or None to leave it to _llmobs_set_tags at finish.

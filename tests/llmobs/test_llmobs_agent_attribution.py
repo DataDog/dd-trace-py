@@ -8,6 +8,8 @@ is why integrations must have that kind set by the time a child activates (see t
 auto-instrumented regression test below).
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 from ddtrace import config
@@ -149,3 +151,47 @@ def test_event_based_agent_parent_attributes_child(llmobs, llmobs_events):
 
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"]["pagent_span_id"] == str(agent_span.span_id)
+
+
+def test_google_adk_agent_name_stamped_at_start(llmobs, llmobs_events):
+    """Google ADK never passes span_name to trace(); without name-at-start stamping, children
+    attribute to 'google_adk.request' (the APM span name) instead of the actual ADK agent name.
+    Regression guard: _dd_agent kwarg must flow through trace() to _llmobs_agent_name_at_start.
+    """
+    integration = GoogleAdkIntegration(IntegrationConfig(config, "google_adk"))
+    mock_agent = SimpleNamespace(name="my_adk_agent")
+    # Mirrors _traced_agent_run_async: no span_name, passes _dd_agent with the agent object.
+    agent_span = integration.trace("Runner.run_async", kind="agent", submit_to_llmobs=True, _dd_agent=mock_agent)
+    try:
+        with llmobs.tool(name="my_tool"):
+            pass
+    finally:
+        agent_span.finish()
+    tool_event = _event_by_name(llmobs_events, "my_tool")
+    assert tool_event["meta"]["agent_attribution"] == {
+        "pagent_name": "my_adk_agent",
+        "pagent_span_id": str(agent_span.span_id),
+    }
+
+
+def test_langgraph_agent_name_stamped_at_start(llmobs, llmobs_events):
+    """LangGraph's LLMObs agent name is instance.name (short), but the APM span name is
+    '{module}.CompiledGraph.{name}'. Without name-at-start stamping, children attribute to the
+    long composed APM name. Regression guard: LangGraphIntegration.trace() must stamp name.
+    """
+    integration = LangGraphIntegration(IntegrationConfig(config, "langgraph"))
+    mock_graph = SimpleNamespace(name="my_graph")
+    # Mirrors traced_pregel_stream: long operation_id, instance carries the short name.
+    agent_span = integration.trace(
+        "module.CompiledGraph.my_graph", kind="agent", submit_to_llmobs=True, instance=mock_graph
+    )
+    try:
+        with llmobs.tool(name="my_tool"):
+            pass
+    finally:
+        agent_span.finish()
+    tool_event = _event_by_name(llmobs_events, "my_tool")
+    assert tool_event["meta"]["agent_attribution"] == {
+        "pagent_name": "my_graph",
+        "pagent_span_id": str(agent_span.span_id),
+    }
