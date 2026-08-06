@@ -169,7 +169,11 @@ def ddtrace_iast_flask_patch():
 
     from ._ast.ast_patching import astpatch_module
 
-    module_name = inspect.currentframe().f_back.f_globals["__name__"]
+    current_frame = inspect.currentframe()
+    if current_frame is None or current_frame.f_back is None:
+        log.debug("Unable to locate the caller frame for IAST Flask patching")
+        return
+    module_name = current_frame.f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
         module_path, patched_ast = astpatch_module(module)

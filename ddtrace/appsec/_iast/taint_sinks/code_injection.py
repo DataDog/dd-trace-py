@@ -82,7 +82,8 @@ def _iast_coi(wrapped, instance, args, kwargs):
                 frames = inspect.currentframe()
                 if frames is not None:
                     caller_frame = frames.f_back
-                    func_globals = caller_frame.f_globals
+                    if caller_frame is not None:
+                        func_globals = caller_frame.f_globals
 
             if len(args) > 2:
                 func_locals = args[2]
@@ -132,5 +133,5 @@ def _iast_report_code_injection(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in _iast_report_code_injection", e)
+        iast_error("propagation::sink_point::Error in _iast_report_code_injection", exc=e)
     return reported

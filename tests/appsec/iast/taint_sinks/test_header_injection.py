@@ -3,8 +3,23 @@ import pytest
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast.taint_sinks.header_injection import _iast_django_response
 from ddtrace.appsec._iast.taint_sinks.header_injection import _iast_report_header_injection
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
+
+
+def test_django_response_propagates_wrapped_exception():
+    class Wrapper:
+        pass
+
+    def fail(instance):
+        raise RuntimeError("Django constructor failed")
+
+    wrapped = Wrapper()
+    wrapped.__func__ = fail
+
+    with pytest.raises(RuntimeError, match="Django constructor failed"):
+        _iast_django_response(wrapped, object(), (), {})
 
 
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
