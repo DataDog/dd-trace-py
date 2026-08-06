@@ -709,14 +709,16 @@ class LLMObs(Service):
             )
             return False
 
-        if span_kind != "agent":
-            # These identify a versioned agent, so they belong only on agent spans. An
-            # annotation_context applies to every span in its block and runs before the kind is
-            # resolved, so the drop happens here rather than at annotation time.
-            span_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS)
-            if span_tags:
+        # The agent tags identify a versioned agent, so they belong only on agent spans. An
+        # annotation_context applies to every span in its block and runs before the kind is
+        # resolved, so both the drop and the agent_name default are handled here.
+        span_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS)
+        if span_tags:
+            if span_kind != "agent":
                 span_tags.pop(AGENT_NAME_TAG_KEY, None)
                 span_tags.pop(AGENT_VERSION_TAG_KEY, None)
+            elif span_tags.get(AGENT_VERSION_TAG_KEY) and not span_tags.get(AGENT_NAME_TAG_KEY):
+                span_tags[AGENT_NAME_TAG_KEY] = get_llmobs_span_name(span) or span.name
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -2724,8 +2726,7 @@ class LLMObs(Service):
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str version: The version of this agent. Set as an ``agent_version`` tag on this span,
-                            alongside an ``agent_name`` tag taken from ``name``. Neither is set on child
-                            spans; those are linked to this agent through ``meta.agent_attribution``.
+                            alongside an ``agent_name`` tag taken from ``name``. Neither is set on child spans.
 
         :returns: The Span object representing the traced operation.
         """

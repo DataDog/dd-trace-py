@@ -209,9 +209,7 @@ def _llmobs_decorator(operation_kind):
     ):
         if version is not None and operation_kind != "agent":
             log.warning(
-                "The `version` argument is only supported on @agent, ignoring it for @%s. "
-                "%s spans inherit the version of their nearest agent ancestor.",
-                operation_kind,
+                "The `version` argument is only supported on @agent, ignoring it for @%s.",
                 operation_kind,
             )
         version_kwargs = {"version": version} if operation_kind == "agent" and version is not None else {}

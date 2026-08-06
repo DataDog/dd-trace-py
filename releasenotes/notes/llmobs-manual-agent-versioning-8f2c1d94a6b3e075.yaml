@@ -6,5 +6,4 @@ features:
     ``@agent(version="v3")`` decorator, and the agent span is tagged with ``agent_name`` and
     ``agent_version``. For agents created by an auto-instrumented framework, use
     ``LLMObs.annotation_context(agent={"name": "my-agent", "version": "v3"})``, where ``name`` is
-    optional and defaults to the agent span's own name. Both tags are set on agent spans only; child
-    spans are linked to their agent through ``meta.agent_attribution``.
+    optional and defaults to the agent span's own name. Both tags are set on agent spans only.

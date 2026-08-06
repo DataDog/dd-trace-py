@@ -178,8 +178,6 @@ class Agent(TypedDict, total=False):
         version: str - user tag for the version of the agent.
 
     Set as `agent_name` and `agent_version` tags on the agent span only, never on its children.
-    Child spans are linked to their agent through `meta.agent_attribution`, so the version is
-    resolved by joining on the agent span rather than by copying it downward.
     """
 
     name: str

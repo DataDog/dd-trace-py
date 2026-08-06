@@ -2000,9 +2000,7 @@ def test_agent_span_sets_agent_name_and_version_tags(llmobs):
 
 
 def test_agent_span_tags_not_set_on_children(llmobs):
-    """The version identifies the agent, so it stays on the agent span. Children are linked to it
-    through meta.agent_attribution instead.
-    """
+    """The version identifies the agent, so it stays on the agent span."""
     with llmobs.agent(name="test_agent", version="v3"):
         with llmobs.workflow(name="test_workflow") as workflow_span:
             with llmobs.llm(name="test_llm", model_name="test") as llm_span:
@@ -2046,6 +2044,13 @@ def test_annotation_context_sets_agent_tags_on_agent_span_only(llmobs):
                 pass
     assert get_llmobs_tags(agent_span)["agent_version"] == "v3"
     assert "agent_version" not in get_llmobs_tags(llm_span)
+
+
+def test_annotation_context_agent_name_defaults_to_span_name(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        with llmobs.agent(name="my_agent") as span:
+            pass
+    assert get_llmobs_tags(span)["agent_name"] == "my_agent"
 
 
 def test_annotation_context_agent_name_overrides_span_name(llmobs):
