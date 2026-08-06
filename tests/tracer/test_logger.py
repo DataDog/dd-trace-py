@@ -4,6 +4,7 @@ import time
 import mock
 import pytest
 
+import ddtrace.internal.gevent_logging as gevent_logging
 import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
@@ -21,8 +22,8 @@ class LoggerTestCase(BaseTestCase):
 
         # Reset to default values
         ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._DEFERRED_LOG_RECORDS.clear()
-        ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED = False
+        gevent_logging._DEFERRED_LOG_RECORDS.clear()
+        gevent_logging._DRAIN_SCHEDULED = False
         ddtrace.internal.logger._rate_limit = 60
 
     def tearDown(self):
@@ -34,8 +35,8 @@ class LoggerTestCase(BaseTestCase):
 
         # Reset to default values
         ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._DEFERRED_LOG_RECORDS.clear()
-        ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED = False
+        gevent_logging._DEFERRED_LOG_RECORDS.clear()
+        gevent_logging._DRAIN_SCHEDULED = False
         ddtrace.internal.logger._rate_limit = 60
 
         super(LoggerTestCase, self).tearDown()
@@ -132,31 +133,29 @@ class LoggerTestCase(BaseTestCase):
         ddtrace.internal.logger._rate_limit = 0
         current_ident = [2]
         hub = mock.Mock()
-        deferred_attribute = ddtrace.internal.logger._DEFERRED_RECORD_ATTRIBUTE
-        deferred_sentinel = ddtrace.internal.logger._DEFERRED_RECORD_SENTINEL
+        deferred_attribute = gevent_logging._DEFERRED_RECORD_ATTRIBUTE
+        deferred_sentinel = gevent_logging._DEFERRED_RECORD_SENTINEL
 
         def spawn_raw(callback):
             callback()
 
         with (
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_THREADING_PATCHED", True),
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_HUB", hub),
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_SPAWN_RAW", spawn_raw),
-            mock.patch.object(ddtrace.internal.logger, "_MAIN_THREAD_IDENT", 1),
-            mock.patch.object(ddtrace.internal.logger, "_get_native_ident", side_effect=lambda: current_ident[0]),
+            mock.patch.object(gevent_logging, "enabled", True),
+            mock.patch.object(gevent_logging, "_HUB", hub),
+            mock.patch.object(gevent_logging, "_SPAWN_RAW", spawn_raw),
+            mock.patch.object(gevent_logging, "_MAIN_THREAD_IDENT", 1),
+            mock.patch.object(gevent_logging, "_get_native_ident", side_effect=lambda: current_ident[0]),
         ):
             log.info("from native thread", extra={deferred_attribute: deferred_sentinel})
 
             call_handlers.assert_not_called()
-            hub.loop.run_callback_threadsafe.assert_called_once_with(
-                spawn_raw, ddtrace.internal.logger._drain_deferred_log_records
-            )
-            self.assertEqual(len(ddtrace.internal.logger._DEFERRED_LOG_RECORDS), 1)
+            hub.loop.run_callback_threadsafe.assert_called_once_with(spawn_raw, gevent_logging._drain)
+            self.assertEqual(len(gevent_logging._DEFERRED_LOG_RECORDS), 1)
 
             current_ident[0] = 1
             log.info("from main thread")
             self.assertEqual(call_handlers.call_count, 1)
-            self.assertEqual(len(ddtrace.internal.logger._DEFERRED_LOG_RECORDS), 1)
+            self.assertEqual(len(gevent_logging._DEFERRED_LOG_RECORDS), 1)
 
             scheduled_callback, *scheduled_args = hub.loop.run_callback_threadsafe.call_args.args
             scheduled_callback(*scheduled_args)
@@ -165,8 +164,8 @@ class LoggerTestCase(BaseTestCase):
         self.assertEqual(call_handlers.call_args_list[0].args[0].msg, "from main thread")
         self.assertEqual(call_handlers.call_args_list[1].args[0].msg, "from native thread")
         self.assertFalse(hasattr(call_handlers.call_args_list[1].args[0], deferred_attribute))
-        self.assertEqual(len(ddtrace.internal.logger._DEFERRED_LOG_RECORDS), 0)
-        self.assertFalse(ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED)
+        self.assertEqual(len(gevent_logging._DEFERRED_LOG_RECORDS), 0)
+        self.assertFalse(gevent_logging._DRAIN_SCHEDULED)
 
     @mock.patch("logging.Logger.callHandlers")
     def test_gevent_deferred_record_buffer_is_bounded(self, call_handlers):
@@ -175,43 +174,41 @@ class LoggerTestCase(BaseTestCase):
         ddtrace.internal.logger._rate_limit = 0
 
         with (
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_THREADING_PATCHED", True),
-            mock.patch.object(ddtrace.internal.logger, "_MAIN_THREAD_IDENT", 1),
-            mock.patch.object(ddtrace.internal.logger, "_get_native_ident", return_value=2),
+            mock.patch.object(gevent_logging, "enabled", True),
+            mock.patch.object(gevent_logging, "_MAIN_THREAD_IDENT", 1),
+            mock.patch.object(gevent_logging, "_get_native_ident", return_value=2),
         ):
-            for index in range(ddtrace.internal.logger._DEFERRED_LOG_RECORD_LIMIT + 1):
+            for index in range(gevent_logging._DEFERRED_LOG_RECORD_LIMIT + 1):
                 log.info("record %d", index)
 
         call_handlers.assert_not_called()
         self.assertEqual(
-            len(ddtrace.internal.logger._DEFERRED_LOG_RECORDS),
-            ddtrace.internal.logger._DEFERRED_LOG_RECORD_LIMIT,
+            len(gevent_logging._DEFERRED_LOG_RECORDS),
+            gevent_logging._DEFERRED_LOG_RECORD_LIMIT,
         )
-        self.assertEqual(ddtrace.internal.logger._DEFERRED_LOG_RECORDS[0].args, (1,))
+        self.assertEqual(gevent_logging._DEFERRED_LOG_RECORDS[0].args, (1,))
 
     def test_gevent_handler_exception_reschedules_remaining_records(self):
         first = logging.LogRecord("test.logger", logging.INFO, __file__, 1, "first", (), None)
         second = logging.LogRecord("test.logger", logging.INFO, __file__, 2, "second", (), None)
-        ddtrace.internal.logger._DEFERRED_LOG_RECORDS.extend((first, second))
-        ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED = True
+        gevent_logging._DEFERRED_LOG_RECORDS.extend((first, second))
+        gevent_logging._DRAIN_SCHEDULED = True
         hub = mock.Mock()
         spawn_raw = mock.Mock()
         replay_logger = mock.Mock()
         replay_logger.handle.side_effect = RuntimeError("handler failed")
 
         with (
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_HUB", hub),
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_SPAWN_RAW", spawn_raw),
+            mock.patch.object(gevent_logging, "_HUB", hub),
+            mock.patch.object(gevent_logging, "_SPAWN_RAW", spawn_raw),
             mock.patch("logging.getLogger", return_value=replay_logger),
             self.assertRaisesRegex(RuntimeError, "handler failed"),
         ):
-            ddtrace.internal.logger._drain_deferred_log_records()
+            gevent_logging._drain()
 
-        self.assertEqual(list(ddtrace.internal.logger._DEFERRED_LOG_RECORDS), [second])
-        self.assertTrue(ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED)
-        hub.loop.run_callback_threadsafe.assert_called_once_with(
-            spawn_raw, ddtrace.internal.logger._drain_deferred_log_records
-        )
+        self.assertEqual(list(gevent_logging._DEFERRED_LOG_RECORDS), [second])
+        self.assertTrue(gevent_logging._DRAIN_SCHEDULED)
+        hub.loop.run_callback_threadsafe.assert_called_once_with(spawn_raw, gevent_logging._drain)
 
     def test_gevent_callback_scheduling_failure_allows_retry(self):
         hub = mock.Mock()
@@ -219,14 +216,14 @@ class LoggerTestCase(BaseTestCase):
         spawn_raw = mock.Mock()
 
         with (
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_HUB", hub),
-            mock.patch.object(ddtrace.internal.logger, "_GEVENT_SPAWN_RAW", spawn_raw),
+            mock.patch.object(gevent_logging, "_HUB", hub),
+            mock.patch.object(gevent_logging, "_SPAWN_RAW", spawn_raw),
         ):
-            ddtrace.internal.logger._schedule_deferred_log_drain()
-            self.assertFalse(ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED)
+            gevent_logging._schedule_drain()
+            self.assertFalse(gevent_logging._DRAIN_SCHEDULED)
 
-            ddtrace.internal.logger._schedule_deferred_log_drain()
-            self.assertTrue(ddtrace.internal.logger._GEVENT_DRAIN_SCHEDULED)
+            gevent_logging._schedule_drain()
+            self.assertTrue(gevent_logging._DRAIN_SCHEDULED)
 
         self.assertEqual(hub.loop.run_callback_threadsafe.call_count, 2)
 
@@ -438,12 +435,12 @@ def test_logger_adds_handler_as_default():
 @pytest.mark.subprocess()
 def test_deferred_log_drain_runs_after_tracer_shutdown():
     from ddtrace.internal import atexit
-    from ddtrace.internal.logger import _drain_deferred_log_records
+    from ddtrace.internal.gevent_logging import _drain
     from ddtrace.trace import tracer
 
     callbacks = list(atexit._atexit_wrapped)
 
-    assert callbacks.index(_drain_deferred_log_records) < callbacks.index(tracer._atexit)
+    assert callbacks.index(_drain) < callbacks.index(tracer._atexit)
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_LOG_STREAM_HANDLER="false"))

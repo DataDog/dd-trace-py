@@ -7,6 +7,7 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal.gevent_logging import configure as configure_gevent_logging
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
@@ -17,7 +18,6 @@ from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
-from .internal.logger import configure_gevent_logging
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
