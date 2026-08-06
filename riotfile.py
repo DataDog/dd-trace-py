@@ -4661,14 +4661,15 @@ def _configure_ci_itr_env_for_instance(inst) -> None:
 
     if (
         _is_true_env("DD_TRACE_PY_ENABLE_ITR_FOR_JOB")
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst_env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
         inst_env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
-        inst_env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
+        inst_env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            inst_env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "true"
+            inst_env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
         elif _is_true_env("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB"):
             inst_env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
 
