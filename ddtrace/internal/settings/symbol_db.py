@@ -1,6 +1,12 @@
 import re
 
+from envier.env import EnvVariable
+
 from ddtrace.internal.settings._core import DDConfig
+
+
+def _derive_includes_re(config: "SymbolDatabaseConfig") -> re.Pattern[str]:
+    return re.compile("(" + "|".join(f"^{p}$|^{p}[.]" for p in config.includes) + ")")
 
 
 class SymbolDatabaseConfig(DDConfig):
@@ -14,16 +20,14 @@ class SymbolDatabaseConfig(DDConfig):
         help="Whether to upload source code symbols to the Datadog backend",
     )
 
-    includes = DDConfig.v(
+    includes: EnvVariable[set[str]] = DDConfig.v(
         set,
         "includes",
         default=set(),
         help_type="List",
         help="List of modules/packages to include in the symbol uploads",
     )
-    _includes_re = DDConfig.d(
-        re.Pattern, lambda c: re.compile("(" + "|".join(f"^{p}$|^{p}[.]" for p in c.includes) + ")")
-    )
+    _includes_re = DDConfig.d(re.Pattern, _derive_includes_re)
 
     # ---- Private settings ----
 

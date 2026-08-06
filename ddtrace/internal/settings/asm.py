@@ -4,6 +4,8 @@ from platform import system
 import sys
 from typing import Optional
 
+from envier.env import EnvVariable
+
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -65,10 +67,7 @@ class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
     _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
-    _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
-    # prevent empty string
-    if _asm_static_rule_file == "":
-        _asm_static_rule_file = None
+    _asm_static_rule_file: EnvVariable[Optional[str]] = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     _asm_processed_span_types = {SpanTypes.WEB}
     _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
@@ -188,9 +187,11 @@ class ASMConfig(DDConfig):
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
-    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
+    _dr_sample_rate: EnvVariable[float] = DDConfig.var(
+        float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
+    )
     # max number of downstream requests analysis  with bodies per request
-    _dr_body_limit_per_request: int = DDConfig.var(
+    _dr_body_limit_per_request: EnvVariable[int] = DDConfig.var(
         int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
     )
 

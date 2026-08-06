@@ -5,6 +5,8 @@ from typing import TypeVar
 from typing import Union
 from urllib.parse import urlparse
 
+from envier.env import EnvVariable
+
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
@@ -85,7 +87,7 @@ def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
 class AgentConfig(DDConfig):
     __prefix__ = "dd"
 
-    _trace_agent_hostname = DDConfig.v(
+    _trace_agent_hostname: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "trace_agent_hostname",
         default=None,
@@ -93,7 +95,7 @@ class AgentConfig(DDConfig):
         help="Legacy configuration, stores the hostname of the trace agent",
     )
 
-    _trace_agent_port = DDConfig.v(
+    _trace_agent_port: EnvVariable[Optional[int]] = DDConfig.v(
         Optional[int],
         "trace_agent_port",
         default=None,
@@ -101,7 +103,7 @@ class AgentConfig(DDConfig):
         help="Legacy configuration, stores the port of the trace agent",
     )
 
-    _trace_agent_url = DDConfig.v(
+    _trace_agent_url: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "trace_agent_url",
         default=None,
@@ -117,7 +119,7 @@ class AgentConfig(DDConfig):
         help="Stores the timeout in seconds for the trace agent",
     )
 
-    _dogstatsd_host = DDConfig.v(
+    _dogstatsd_host: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "dogstatsd_host",
         default=None,
@@ -125,7 +127,7 @@ class AgentConfig(DDConfig):
         help="Stores the hostname of the agent receiving DogStatsD metrics",
     )
 
-    _dogstatsd_port = DDConfig.v(
+    _dogstatsd_port: EnvVariable[Optional[int]] = DDConfig.v(
         Optional[int],
         "dogstatsd_port",
         default=None,
@@ -133,7 +135,7 @@ class AgentConfig(DDConfig):
         help="Stores the port of the agent receiving DogStatsD metrics",
     )
 
-    _dogstatsd_url = DDConfig.v(
+    _dogstatsd_url: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "dogstatsd_url",
         default=None,
@@ -141,7 +143,7 @@ class AgentConfig(DDConfig):
         help="Stores the URL of the DogStatsD agent",
     )
 
-    _agent_host = DDConfig.v(
+    _agent_host: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "agent_host",
         default=None,
@@ -149,7 +151,7 @@ class AgentConfig(DDConfig):
         help="Stores the hostname of the agent",
     )
 
-    _agent_port = DDConfig.v(
+    _agent_port: EnvVariable[Optional[int]] = DDConfig.v(
         Optional[int],
         "agent_port",
         default=None,
@@ -157,7 +159,7 @@ class AgentConfig(DDConfig):
         help="Stores the port of the agent",
     )
 
-    _trace_agent_protocol_version = DDConfig.v(
+    _trace_agent_protocol_version: EnvVariable[Optional[str]] = DDConfig.v(
         Optional[str],
         "trace_agent_protocol_version",
         default=None,

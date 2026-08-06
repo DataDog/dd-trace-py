@@ -25,5 +25,7 @@ class CodeOriginConfig(DDConfig):
             help="Enable code origin for spans",
         )
 
+    span: SpanCodeOriginConfig
+
 
 config = CodeOriginConfig()

@@ -128,6 +128,9 @@ def _is_otlp_trace_metrics_enabled(
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
+    if t.TYPE_CHECKING:
+        exporter: "ExporterConfig"
+
 
 class ExporterConfig(DDConfig):
     __prefix__ = "exporter"
