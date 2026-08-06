@@ -5,7 +5,7 @@ from typing import Literal
 from typing import Optional
 
 from ddtrace.appsec import _constants
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._deduplications import deduplicate
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import _observator
@@ -56,7 +56,7 @@ def _safe_metric(
     return decorator
 
 
-@deduplication
+@deduplicate
 def report_error(msg: str, version: str, action: str, error_level: bool = True) -> None:
     """used for waf configuration errors"""
     # Two independent operations: log + metric. Each must not block the other.
