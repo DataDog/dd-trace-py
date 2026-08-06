@@ -5,6 +5,10 @@ Every SDK produces the same digest for the same subject, so hashed values join
 across languages. This file pins that contract for dd-trace-py.
 """
 
+from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
+from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
+
+
 # Canonical cross-SDK vector. Every SDK must reproduce this digest byte-for-byte
 # for the same subject. Asserted here and in system-tests
 # (tests/ffe/test_flag_eval_evp.py, once the manifest is flipped).
@@ -15,15 +19,10 @@ PII_CANONICAL_HASHED = "sha256_b4698f9b6d186781fa8dc59e533578fa2d8379a46b1cf6db8
 class TestHashTargetingKey:
     def test_canonical_vector(self):
         """The single load-bearing cross-SDK assertion."""
-        from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
-
         assert hash_targeting_key(PII_CANONICAL_TARGETING_KEY) == PII_CANONICAL_HASHED
 
     def test_prefix_length_and_charset(self):
         """71 chars total, sha256_ prefix, 64 lowercase-hex digest."""
-        from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
-        from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
-
         got = hash_targeting_key(PII_CANONICAL_TARGETING_KEY)
         assert len(got) == 71
         assert got.startswith(TARGETING_KEY_HASH_PREFIX)
@@ -33,8 +32,6 @@ class TestHashTargetingKey:
 
     def test_empty_input_stays_empty(self):
         """Absent targeting_key stays absent -- must NOT fabricate a shared pseudo-subject."""
-        from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
-
         assert hash_targeting_key("") == ""
 
     def test_does_not_normalize(self):
@@ -43,8 +40,6 @@ class TestHashTargetingKey:
         Trimming, case folding, or Unicode normalization would silently break the
         cross-SDK join. NFC vs NFD is the subtle case: same grapheme, different bytes.
         """
-        from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
-
         # NFC precomposed U+00E9 vs NFD "e" + U+0301 combining acute. Use explicit
         # escapes so a text-editor autonormalize can't collapse the two.
         nfc_accent = "josé@datadoghq.com"
