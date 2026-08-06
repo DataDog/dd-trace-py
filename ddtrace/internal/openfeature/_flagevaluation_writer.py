@@ -43,6 +43,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLAT
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -1016,16 +1017,25 @@ class FlagEvaluationWriter(PeriodicService):
             ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
-            if entry.targeting_key:
-                ev["targeting_key"] = entry.targeting_key
+            # Consent-on emits raw targeting_key + context; consent-off emits the
+            # hashed key and omits context entirely (absent, not null, not {}).
+            # Consent is read from the bucket snapshot -- never from live config.
+            if entry.observe_full_evaluation_data:
+                if entry.targeting_key:
+                    ev["targeting_key"] = entry.targeting_key
+                if entry.context_attrs:
+                    ev["context"] = {"evaluation": entry.context_attrs}
+            else:
+                hashed = hash_targeting_key(entry.targeting_key)
+                if hashed:
+                    ev["targeting_key"] = hashed
+                # No context field under any circumstances when consent is off.
             if variant:
                 ev["variant"] = {"key": variant}
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
                 ev["error"] = {"message": entry.error_message}
-            if entry.context_attrs:
-                ev["context"] = {"evaluation": entry.context_attrs}
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
