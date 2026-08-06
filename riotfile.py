@@ -4646,6 +4646,7 @@ def _python_hint_to_version(hint: str) -> Version | None:
 
 
 def _is_protected_ci_branch() -> bool:
+    return True
     branch = os.environ.get("CI_COMMIT_BRANCH", "")
     return branch == "main" or branch.startswith("mq-")
 
