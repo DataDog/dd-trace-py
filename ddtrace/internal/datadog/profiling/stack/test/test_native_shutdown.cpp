@@ -8,22 +8,15 @@
 #include <cstdlib>
 #include <thread>
 
-namespace {
-
-void
-keep_process_alive_after_profiler_teardown()
+TEST(NativeShutdownTest, ExitWithoutStoppingSampler)
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-}
-
-[[noreturn]] void
-exit_without_stopping_sampler()
-{
+    // Exiting this test process directly lets CTest validate the process status
+    // without introducing a sanitizer-sensitive death-test subprocess.
     Py_Initialize();
 
     // Register this before profiler state and the sampler so it runs after their
     // native exit handlers and widens the use-after-free window.
-    std::atexit(keep_process_alive_after_profiler_teardown);
+    std::atexit([]() { std::this_thread::sleep_for(std::chrono::milliseconds(500)); });
 
     configure("shutdown-test", "test", "1.0", "http://127.0.0.1:8126", "cpython", "test", "test", 64);
 
@@ -43,13 +36,4 @@ exit_without_stopping_sampler()
     // Embedders such as uWSGI can begin native process teardown without first
     // invoking the profiler's Python shutdown handler.
     std::exit(0);
-}
-
-}
-
-TEST(NativeShutdownTest, ExitWithoutStoppingSampler)
-{
-    // Exiting this test process directly lets CTest validate the process status
-    // without introducing a sanitizer-sensitive death-test subprocess.
-    exit_without_stopping_sampler();
 }
