@@ -10,6 +10,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 from tests.appsec.iast.iast_utils import _get_iast_data
@@ -109,6 +110,26 @@ def test_redacted_report_source_value_match(iast_context_defaults):
 
     for v in result["sources"]:
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghijkl", "redacted": True}
+
+
+def test_redacted_report_clears_source_value_after_first_source(iast_context_defaults):
+    unrelated_source = Source(origin=OriginType.PARAMETER, name="unrelated", value="prefix")
+    sensitive_source = Source(origin=OriginType.PARAMETER, name="secret", value="secret")
+    evidence = Evidence(
+        value="prefixsecret",
+        _ranges=[{"start": 6, "end": 12, "length": 6, "source": sensitive_source}],
+    )
+    vulnerability = Vulnerability(
+        type=VULN_SQL_INJECTION,
+        evidence=evidence,
+        location=Location(path="foobar.py", line=35, spanId=123),
+    )
+    report = IastSpanReporter(sources=[unrelated_source, sensitive_source], vulnerabilities={vulnerability})
+
+    result = report.build_and_scrub_value_parts()
+
+    assert result["sources"][0]["value"] == "prefix"
+    assert "value" not in result["sources"][1]
 
 
 def test_redacted_report_evidence_value_match_also_redacts_source_value(iast_context_defaults):

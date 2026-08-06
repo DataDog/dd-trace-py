@@ -30,9 +30,6 @@ log = get_logger(__name__)
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
-# Default truncation length if environment variable is not set
-DEFAULT_EVIDENCE_TRUNCATION_LENGTH = 250
-
 
 @overload
 def _truncate_evidence_value(value: str) -> str: ...
@@ -53,8 +50,8 @@ def _truncate_evidence_value(value: Optional[str]) -> Optional[str]:
 
 
 class NotNoneDictable:
-    def _to_dict(self):
-        return dataclasses.asdict(
+    def _to_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(  # type: ignore[call-overload,no-any-return]
             self,
             dict_factory=lambda x: {k: v for k, v in x if v is not None and k not in ATTRS_TO_SKIP},
         )
@@ -67,9 +64,9 @@ class Evidence(NotNoneDictable):
     _ranges: list[TaintedRange] = dataclasses.field(default_factory=list)
     valueParts: Optional[list[ValuePart]] = None
 
-    def _valueParts_hash(self):
+    def _valueParts_hash(self) -> Optional[int]:
         if not self.valueParts:
-            return
+            return None
 
         _hash = 0
         for part in self.valueParts:
@@ -79,30 +76,29 @@ class Evidence(NotNoneDictable):
 
         return _hash
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.value, self._valueParts_hash()))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Evidence):
+            return NotImplemented
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
-    stackId: Optional[int] = dataclasses.field(init=False, compare=False)
+    stackId: Optional[int] = dataclasses.field(default=None, init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
     method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
     class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
 
-    def __post_init__(self):
-        self.hash = zlib.crc32(repr(self).encode())
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Location(path='{self.path}', line={self.line})"
 
-    def _to_dict(self):
-        result = {}
+    def _to_dict(self) -> dict[str, Union[int, str]]:
+        result: dict[str, Union[int, str]] = {}
         if self.spanId is not None:
             result["spanId"] = self.spanId
         if self.path:
@@ -125,14 +121,14 @@ class Vulnerability:
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in env), repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.hash = zlib.crc32(repr(self).encode())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Vulnerability(type='{self.type}', location={self.location})"
 
-    def _to_dict(self):
-        to_dict = {
+    def _to_dict(self) -> dict[str, object]:
+        to_dict: dict[str, object] = {
             "type": self.type,
             "evidence": self.evidence._to_dict(),
             "location": self.location._to_dict(),
@@ -149,7 +145,7 @@ class Source(NotNoneDictable):
     value: Optional[str] = dataclasses.field(default=None, repr=False)
     pattern: Optional[str] = dataclasses.field(default=None, repr=False)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """origin & name serve as hashes. This approach aims to mitigate false positives when searching for
         identical sources in a list, especially when sources undergo changes. The provided example illustrates how
         two sources with different attributes could actually represent the same source. For example:
@@ -180,7 +176,7 @@ class IastSpanReporter(NotNoneDictable):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         Populates the stacktrace_id of provided vulnerabilities if any.
         """
@@ -246,19 +242,15 @@ class IastSpanReporter(NotNoneDictable):
         self.sources = self.sources + other.sources
         self._update_vulnerabilities(other, len_previous_sources)
 
-    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int):
+    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int) -> None:
         for vuln in other.vulnerabilities:
-            if (
-                hasattr(vuln, "evidence")
-                and hasattr(vuln.evidence, "valueParts")
-                and vuln.evidence.valueParts is not None
-            ):
+            if vuln.evidence.valueParts is not None:
                 for part in vuln.evidence.valueParts:
                     if "source" in part:
                         part["source"] = part["source"] + offset
             self.vulnerabilities.add(vuln)
 
-    def _from_dict(self, data: dict[str, Any]):
+    def _from_dict(self, data: dict[str, Any]) -> None:
         """Initializes the IAST span reporter from a dictionary."""
         from ._taint_tracking import str_to_origin
 
@@ -299,7 +291,7 @@ class IastSpanReporter(NotNoneDictable):
                 )
             )
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "sources": [i._to_dict() for i in self.sources],
             "vulnerabilities": [i._to_dict() for i in self.vulnerabilities],
@@ -371,8 +363,7 @@ class IastSpanReporter(NotNoneDictable):
                     if "value" in part:
                         part["value"] = _truncate_evidence_value(part["value"])
                 redacted_sources = scrubbing_result["redacted_sources"]
-                i = 0
-                for source in self.sources:
+                for i, source in enumerate(self.sources):
                     if i in redacted_sources:
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
@@ -419,7 +410,7 @@ class IastSpanReporter(NotNoneDictable):
 
         return value_parts
 
-    def _to_str(self, dict_data=None) -> str:
+    def _to_str(self, dict_data: Optional[dict[str, Any]] = None) -> str:
         """
         Converts the IAST span reporter to a JSON string.
 
@@ -430,7 +421,7 @@ class IastSpanReporter(NotNoneDictable):
         from ._taint_tracking import origin_to_str
 
         class OriginTypeEncoder(json.JSONEncoder):
-            def default(self, obj):
+            def default(self, obj: object) -> object:
                 if isinstance(obj, OriginType):
                     # if the obj is uuid, we simply return the value of uuid
                     return origin_to_str(obj)
