@@ -110,9 +110,10 @@ class BaseLLMIntegration:
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
         """Return the kind to stamp at start, or None to leave it to _llmobs_set_tags at finish.
 
-        Overridden by integrations that create agent spans; the finish-time write still runs.
+        Integrations that signal agent spans via a different kwarg should override this.
+        The finish-time write in _llmobs_set_tags still runs regardless.
         """
-        return None
+        return "agent" if kwargs.get("kind") == "agent" else None
 
     def llmobs_set_tags(
         self,

@@ -32,9 +32,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     # because links are driven by SDK stream events (AssistantMessage / UserMessage / etc.)
     # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler.
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
-        return "agent" if kwargs.get("kind") == "agent" else None
-
     def _llmobs_set_tags(
         self,
         span: Span,
