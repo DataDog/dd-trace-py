@@ -317,9 +317,16 @@ class TestAggregatorConsent:
         writer._aggregate(self._event(observe_full_evaluation_data=True))
         assert len(writer._full) == 2
 
-    def test_and_fold_on_merge(self, writer):
-        """Defense in depth: if key drift lets a consent-off observation land on
-        a consent-on bucket, the entry must still flip to consent-off.
+    def test_and_fold_semantics_are_consent_off_wins(self, writer):
+        """Document the AND-fold's monotone-toward-False invariant: once an entry
+        observes a consent-off event, its consent field must stay False.
+
+        This is a Python-semantics assertion, not an aggregation-flow assertion.
+        The fast-path AND-fold branch in _aggregate is not directly exercisable
+        today because consent is part of the full-tier key, so distinct-consent
+        events land in distinct buckets and never merge. If a future refactor
+        removes consent from the key, this test documents the guarantee the
+        AND-fold must uphold: consent-off wins.
         """
         # Seed a consent-on bucket.
         writer._aggregate(self._event(observe_full_evaluation_data=True))
@@ -327,9 +334,9 @@ class TestAggregatorConsent:
         entry = list(writer._full.values())[0]
         assert entry.observe_full_evaluation_data is True
 
-        # Simulate key drift by manually flipping the entry's consent field via
-        # the AND-fold. Would not happen through _aggregate today; this exercises
-        # the AND-fold branch directly.
+        # Apply the AND-fold directly on the entry, mirroring what _aggregate
+        # would do on a fast-path merge if a consent-off observation ever
+        # landed on this bucket.
         (full_key,) = writer._full.keys()
         with writer._lock:
             entry = writer._full[full_key]
