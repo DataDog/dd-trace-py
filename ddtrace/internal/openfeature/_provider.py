@@ -18,6 +18,7 @@ if typing.TYPE_CHECKING:
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
+from openfeature.exception import ProviderNotReadyError
 from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import FlagValueType
 from openfeature.flag_evaluation import Reason
@@ -120,6 +121,7 @@ class DataDogProvider(AbstractProvider):
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
         self._config_received = threading.Event()
+        self._initialization_timed_out = False
 
         # Read through a fresh config instance so values reflect the environment at
         # provider-construction time rather than at import time (see the killswitch
@@ -235,24 +237,24 @@ class DataDogProvider(AbstractProvider):
         Initialize the provider, waiting up to the initialization timeout for config.
 
         Blocking bounds PROVIDER_READY to a provider that can actually resolve flags,
-        matching the other server SDKs. Timing out is not an error: initialize() returns
-        normally, this provider's internal status stays NOT_READY, and
-        on_configuration_received() promotes it whenever the payload does land.
+        matching the other server SDKs. A timeout raises ProviderNotReadyError so the
+        OpenFeature SDK reports PROVIDER_ERROR instead of a false PROVIDER_READY.
+        on_configuration_received() promotes the provider whenever the payload does land.
         Evaluations before that return the caller-provided default with
-        ErrorCode.PROVIDER_NOT_READY. openfeature-sdk 0.8.x dispatches PROVIDER_READY
-        after initialize() returns either way, which is why flag resolution stays gated
-        on the loaded config rather than on the SDK registry's ready event.
+        ErrorCode.PROVIDER_NOT_READY.
 
         If config already arrived before initialize() runs (e.g. in the master process of
         a pre-fork server), the fast path sets READY without waiting.
 
         Provider lifecycle:
             NOT_READY -> initialize() waits -> config arrives -> READY
-            NOT_READY -> initialize() waits -> timeout -> returns NOT_READY
+            NOT_READY -> initialize() waits -> timeout -> ERROR
                       -> config arrives -> on_configuration_received() -> READY
         """
         if not self._active:
             return
+
+        self._initialization_timed_out = False
 
         # Register for RC config callbacks (in initialize, not __init__, so
         # re-initialization after shutdown re-registers the provider)
@@ -292,23 +294,18 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # AIDEV-NOTE: the wait above must stay bounded and must NOT raise on expiry.
-        # Both halves are load-bearing:
-        #   - Bounded, because a blocked initialize() blocks the process that called
-        #     set_provider(). At 10s a pre-fork worker still boots well inside
-        #     gunicorn's 30s worker timeout; a longer wait risks WORKER TIMEOUT killing
-        #     the app (see the default in ddtrace/internal/settings/openfeature.py).
-        #   - Non-raising, because raising here surfaces as PROVIDER_ERROR (and, for the
-        #     common top-level set_provider() call, an exception at import time) for what
-        #     is usually transient delivery slowness. A previous revision raised
-        #     ProviderNotReadyError and had to be reverted for exactly that.
-        # Timing out therefore degrades to the async contract: NOT_READY now, READY when
-        # on_configuration_received() fires.
+        # AIDEV-NOTE: the wait above must stay bounded. A blocked initialize() blocks
+        # set_provider() in openfeature-sdk 0.8.x and set_provider_and_wait() in 0.10+.
+        # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
+        # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
+        # non-blocking registration and propagates it for blocking registration.
         logger.warning(
             "openfeature: no Feature Flagging configuration received after %.1fs; evaluations will return "
             "default values until configuration arrives",
             self._initialization_timeout,
         )
+        self._initialization_timed_out = True
+        raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
 
     def shutdown(self) -> None:
         """
@@ -359,6 +356,7 @@ class DataDogProvider(AbstractProvider):
         _unregister_provider(self)
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
+        self._initialization_timed_out = False
 
     def _start_configuration_source(self) -> None:
         """Start the agentless poller when agentless is the resolved source."""
@@ -670,15 +668,15 @@ class DataDogProvider(AbstractProvider):
         Called when a Remote Configuration payload is received and processed.
 
         Updates status first, then signals the event for observers.
-        Emits PROVIDER_READY for late arrivals after non-blocking initialize().
-        Some openfeature-sdk versions also emit PROVIDER_READY immediately after
-        initialize() returns; this late event is the Datadog config-loaded signal.
+        Emits PROVIDER_READY for late arrivals after initialization fails.
         """
         if not self._config_received.is_set():
             self._status = ProviderStatus.READY
             logger.debug("First FFE configuration received, provider is now READY")
-            # Emit READY for late recovery: config arrived after initialize() returned.
-            self._emit_ready_event()
+            # The SDK emits READY after successful initialization. The provider only
+            # owns the recovery event after initialization reported an error.
+            if self._initialization_timed_out:
+                self._emit_ready_event()
 
         # Signal the event last after status is updated.
         self._config_received.set()
