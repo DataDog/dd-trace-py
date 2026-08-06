@@ -1994,9 +1994,10 @@ def test_annotation_context_finished_context_does_not_modify_name(llmobs):
 
 def test_agent_span_sets_agent_name_and_version_tags(llmobs):
     with llmobs.agent(name="test_agent", version="v3") as span:
-        tags = get_llmobs_tags(span)
-        assert tags["agent_version"] == "v3"
-        assert tags["agent_name"] == "test_agent"
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["agent_version"] == "v3"
+    assert tags["agent_name"] == "test_agent"
 
 
 def test_agent_span_tags_not_set_on_children(llmobs):
@@ -2066,10 +2067,36 @@ def test_annotation_context_agent_name_overrides_span_name(llmobs):
     assert span.name == "Runner.run_async"
 
 
+def test_annotation_context_nested_agent_annotation_replaces_name_and_version(llmobs):
+    """An inner context supplying only a version must not keep the outer context's name, which
+    would emit a name/version pair that never existed.
+    """
+    with llmobs.annotation_context(agent={"name": "outer", "version": "v1"}):
+        with llmobs.annotation_context(agent={"version": "v2"}):
+            with llmobs.agent(name="inner_span") as span:
+                pass
+    tags = get_llmobs_tags(span)
+    assert tags["agent_version"] == "v2"
+    assert tags["agent_name"] == "inner_span"
+
+
+def test_user_supplied_agent_tags_are_left_alone(llmobs):
+    """`tags` is an arbitrary user namespace, so an app already using these keys keeps them."""
+    with llmobs.annotation_context(tags={"agent_name": "mine", "agent_version": "mine-v1"}):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            pass
+        with llmobs.agent(name="test_agent") as agent_span:
+            pass
+    for span in (workflow_span, agent_span):
+        assert get_llmobs_tags(span)["agent_name"] == "mine"
+        assert get_llmobs_tags(span)["agent_version"] == "mine-v1"
+
+
 def test_annotation_context_agent_version_wins_over_explicit_tag(llmobs):
     with llmobs.annotation_context(tags={"agent_version": "from_tags"}, agent={"version": "from_agent"}):
         with llmobs.agent(name="test_agent") as span:
-            assert get_llmobs_tags(span)["agent_version"] == "from_agent"
+            pass
+    assert get_llmobs_tags(span)["agent_version"] == "from_agent"
 
 
 @pytest.mark.parametrize("agent", [{}, {"version": None}, {"version": ""}, {"name": "no-version"}, "not_a_dict", 42])
@@ -2077,27 +2104,30 @@ def test_annotation_context_agent_without_version_sets_no_tag(llmobs, agent):
     """Agent input is unvalidated by design: anything without a usable version is a no-op."""
     with llmobs.annotation_context(agent=agent):
         with llmobs.agent(name="test_agent") as span:
-            assert "agent_version" not in get_llmobs_tags(span)
+            pass
+    assert "agent_version" not in get_llmobs_tags(span)
 
 
 def test_annotation_context_finished_context_does_not_modify_agent_version(llmobs):
     with llmobs.annotation_context(agent={"version": "v3"}):
         pass
     with llmobs.agent(name="test_agent") as span:
-        assert "agent_version" not in get_llmobs_tags(span)
+        pass
+    assert "agent_version" not in get_llmobs_tags(span)
 
 
 def test_annotation_context_nested_overrides_agent_version(llmobs):
     with llmobs.annotation_context(agent={"version": "outer"}):
         with llmobs.annotation_context(agent={"version": "inner"}):
             with llmobs.agent(name="test_agent") as span:
-                assert get_llmobs_tags(span)["agent_version"] == "inner"
+                pass
+    assert get_llmobs_tags(span)["agent_version"] == "inner"
 
 
 def test_annotate_sets_agent_version_tag(llmobs):
     with llmobs.agent(name="test_agent") as span:
         llmobs.annotate(span=span, agent={"version": "v3"})
-        assert get_llmobs_tags(span)["agent_version"] == "v3"
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
 def test_annotation_context_nested(llmobs):

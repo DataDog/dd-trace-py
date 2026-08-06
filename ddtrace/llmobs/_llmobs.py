@@ -48,6 +48,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_NAME_TAG_KEY
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
@@ -709,16 +710,18 @@ class LLMObs(Service):
             )
             return False
 
-        # The agent tags identify a versioned agent, so they belong only on agent spans. An
-        # annotation_context applies to every span in its block and runs before the kind is
-        # resolved, so both the drop and the agent_name default are handled here.
-        span_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS)
-        if span_tags:
-            if span_kind != "agent":
-                span_tags.pop(AGENT_NAME_TAG_KEY, None)
-                span_tags.pop(AGENT_VERSION_TAG_KEY, None)
-            elif span_tags.get(AGENT_VERSION_TAG_KEY) and not span_tags.get(AGENT_NAME_TAG_KEY):
-                span_tags[AGENT_NAME_TAG_KEY] = get_llmobs_span_name(span) or span.name
+        # Agent annotations are applied here, where the span kind is known: annotation_context
+        # reaches every span in its block, but only agent spans carry the tags. Written rather
+        # than stripped so a same-named tag the user set themselves is left alone elsewhere.
+        agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
+        if agent_annotation and span_kind == "agent":
+            annotated_name, annotated_version = agent_annotation
+            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {}).update(
+                {
+                    AGENT_NAME_TAG_KEY: annotated_name or get_llmobs_span_name(span) or span.name,
+                    AGENT_VERSION_TAG_KEY: annotated_version,
+                }
+            )
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -2589,8 +2592,9 @@ class LLMObs(Service):
             model_provider=model_provider,
             session_id=session_id,
             ml_app=agent_service,
-            tags={AGENT_NAME_TAG_KEY: name, AGENT_VERSION_TAG_KEY: agent_version} if agent_version else None,
         )
+        if agent_version:
+            span._set_ctx_item(AGENT_ANNOTATION, (name, agent_version))
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -3032,11 +3036,9 @@ class LLMObs(Service):
             if agent is not None:
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
-                    agent_tags = {AGENT_VERSION_TAG_KEY: agent_version}
-                    agent_name = agent.get("name")
-                    if agent_name:
-                        agent_tags[AGENT_NAME_TAG_KEY] = agent_name
-                    _annotate_llmobs_span_data(span, tags=agent_tags)
+                    # Stashed rather than tagged: the span kind is not resolved yet, and the pair
+                    # must be replaced atomically so a nested context cannot leave a stale name.
+                    span._set_ctx_item(AGENT_ANNOTATION, (agent.get("name"), agent_version))
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
