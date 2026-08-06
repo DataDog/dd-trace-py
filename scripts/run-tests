@@ -56,6 +56,8 @@ from tests.suitespec import get_suites  # noqa: E402
 # Constants
 TESTAGENT_PORT_DEFAULT = 9126
 PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
+BASE_COMPOSE_FILE = ROOT / "docker-compose.base.yml"
+DOCKER_COMPOSE_FILE = ROOT / "docker-compose.yml"
 PODMAN_COMPOSE_FILE = ROOT / "docker-compose.podman.yml"
 
 
@@ -152,7 +154,9 @@ class TestRunner:
         """Return the Compose command for the selected container backend."""
         cmd = ["docker", "compose"]
         if self.podman_compat:
-            cmd.extend(["-f", str(PODMAN_COMPOSE_FILE)])
+            cmd.extend(["-f", str(BASE_COMPOSE_FILE), "-f", str(PODMAN_COMPOSE_FILE)])
+        else:
+            cmd.extend(["-f", str(DOCKER_COMPOSE_FILE)])
         cmd.extend(args)
         return cmd
 
