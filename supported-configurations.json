@@ -5994,14 +5994,6 @@
         "internal": true
       }
     ],
-    "_DD_OTEL_THREAD_CONTEXT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": true,
-        "internal": true
-      }
-    ],
     "_DD_PARENT_PY_SESSION_ID": [
       {
         "implementation": "A",
