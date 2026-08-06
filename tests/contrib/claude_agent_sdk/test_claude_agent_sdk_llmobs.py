@@ -19,6 +19,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_SPLIT_TOOL_USE_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
@@ -1023,6 +1024,68 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(input_msgs),
             output_value=safe_json(output_msgs),
             metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_partial_messages_split_text_tool(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_partial_messages_split_text_tool,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """On older SDKs one model message (a text block plus a tool_use block) arrives as two
+        message_id-less AssistantMessages. They must join by the streaming message_start id into a
+        single llm span carrying the whole message's tokens, matching the >= 0.1.49 behavior.
+        """
+        prompt = "Run 'echo alpha' using the Bash tool"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        # Two model turns: the split text+tool_use message and the final text message.
+        assert len(llm_spans) == 2
+        first_llm_span = llm_spans[0]
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        # The whole first message's token count lands on the single merged llm span, rather than
+        # being lost because its text and tool_use halves arrived as separate message_id-less chunks.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [
+            {"content": "I'll run the command.", "role": "assistant"},
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "Bash",
+                        "arguments": {"command": "echo alpha"},
+                        "tool_id": MOCK_PARTIAL_SPLIT_TOOL_USE_ID,
+                        "type": "tool_use",
+                    }
+                ],
+            },
+        ]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(first_llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(tool_span),
+            span_kind="tool",
+            input_value=safe_json({"command": "echo alpha"}),
+            output_value="alpha",
+            metadata={"tool_id": MOCK_PARTIAL_SPLIT_TOOL_USE_ID},
             tags=COMMON_TAGS,
         )
 

@@ -343,6 +343,60 @@ MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE = [
 ]
 
 
+# Simulates an older SDK version where one model message (a text block plus a tool_use block) is
+# split into two message_id-less AssistantMessages. The integration must join them by the
+# streaming message id into ONE llm span carrying the whole message's tokens.
+MOCK_PARTIAL_SPLIT_MESSAGE_ID = "msg_01PartialSplitAaaaaaaaaaa"
+MOCK_PARTIAL_SPLIT_TOOL_USE_ID = "toolu_01PartialSplitBbbbbbbbbb"
+MOCK_PARTIAL_SPLIT_FINAL_MESSAGE_ID = "msg_01PartialSplitCccccccccc"
+MOCK_PARTIAL_SPLIT_FINAL_OUTPUT_TOKENS = 30
+MOCK_PARTIAL_MESSAGES_SPLIT_TEXT_TOOL_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_SPLIT_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    # One message, two chunks (no message_id): the text block, then the tool_use block.
+    create_mock_assistant_message("I'll run the command.", usage=None, message_id=None),
+    create_mock_assistant_message_with_tool_use([("Bash", {"command": "echo alpha"}, MOCK_PARTIAL_SPLIT_TOOL_USE_ID)]),
+    # The message's single true output count streams in at the end, after both chunks.
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    # The tool result ends the first turn and flushes the merged llm span.
+    create_mock_user_message_with_tool_result([(MOCK_PARTIAL_SPLIT_TOOL_USE_ID, "alpha")]),
+    # The model closes the turn with a final text message (its own streaming id and output count).
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_SPLIT_FINAL_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    create_mock_assistant_message("The command printed alpha.", usage=None, message_id=None),
+    create_mock_stream_event(
+        {"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_SPLIT_FINAL_OUTPUT_TOKENS}}
+    ),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
 MOCK_READ_TOOL_ID = "toolu_01C4Thx957VoSn21zERxbeQX"
 MOCK_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_tool_use(
     [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],

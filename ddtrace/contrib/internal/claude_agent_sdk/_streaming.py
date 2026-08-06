@@ -388,18 +388,28 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
         """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
 
-        AIDEV-NOTE: The SDK may split one model turn into several AssistantMessage
-        chunks that share a message_id and each repeat the same usage. Buffering and
-        merging same-id chunks (flushed on message_id change / UserMessage /
-        ResultMessage) keeps token counts from being double-counted. When message_id
-        is absent (older SDKs) each chunk is still buffered and flushed on the next
-        turn boundary so a message_delta that trails the AssistantMessage is captured
-        before the span is finalized.
+        AIDEV-NOTE: The SDK may split one model turn (e.g. a text block plus a tool_use
+        block) into several AssistantMessage chunks that each repeat the same message-level
+        usage. Buffering and merging chunks of one message into a single llm span (flushed on
+        turn change / UserMessage / ResultMessage) keeps token counts from being
+        double-counted. Newer SDKs (>= 0.1.49) join the chunks by AssistantMessage.message_id;
+        older SDKs omit that field, so we join by the streaming message id from message_start
+        (unchanged until the next message_start), giving the same one-span-per-message result.
         """
         incoming_id = getattr(chunk, "message_id", None)
 
-        # Same turn continued: accumulate onto the buffered chunks (usage counted once).
-        if self._pending_chunks and incoming_id is not None and incoming_id == self._pending_message_id:
+        # Same turn continued: accumulate onto the buffered chunks (usage counted once). Match
+        # on message_id when the SDK provides it, otherwise on the streaming message id, which
+        # stays constant across a message's chunks until the next message_start.
+        same_turn = self._pending_chunks and (
+            (incoming_id is not None and incoming_id == self._pending_message_id)
+            or (
+                incoming_id is None
+                and self._partial_current_id is not None
+                and self._partial_current_id == self._pending_partial_id
+            )
+        )
+        if same_turn:
             self._pending_chunks.append(chunk)
             self._open_tool_spans(content)
             return
