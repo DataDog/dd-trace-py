@@ -1992,15 +1992,13 @@ def test_annotation_context_finished_context_does_not_modify_name(llmobs):
         assert span.name == "test_agent"
 
 
-def test_agent_span_sets_agent_name_and_version_tags(llmobs):
+def test_agent_span_sets_agent_version_tag(llmobs):
     with llmobs.agent(name="test_agent", version="v3") as span:
         pass
-    tags = get_llmobs_tags(span)
-    assert tags["agent_version"] == "v3"
-    assert tags["agent_name"] == "test_agent"
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
-def test_agent_span_tags_not_set_on_children(llmobs):
+def test_agent_span_version_not_set_on_children(llmobs):
     """The version identifies the agent, so it stays on the agent span."""
     with llmobs.agent(name="test_agent", version="v3"):
         with llmobs.workflow(name="test_workflow") as workflow_span:
@@ -2010,14 +2008,12 @@ def test_agent_span_tags_not_set_on_children(llmobs):
                 pass
     for span in (workflow_span, llm_span, tool_span):
         assert "agent_version" not in get_llmobs_tags(span)
-        assert "agent_name" not in get_llmobs_tags(span)
 
 
-def test_agent_span_without_version_sets_no_tags(llmobs):
+def test_agent_span_without_version_sets_no_tag(llmobs):
     with llmobs.agent(name="test_agent") as span:
         pass
     assert "agent_version" not in get_llmobs_tags(span)
-    assert "agent_name" not in get_llmobs_tags(span)
 
 
 def test_nested_agent_spans_each_carry_their_own_version(llmobs):
@@ -2025,9 +2021,7 @@ def test_nested_agent_spans_each_carry_their_own_version(llmobs):
         with llmobs.agent(name="inner_agent", version="v3") as inner_span:
             pass
     assert get_llmobs_tags(outer_span)["agent_version"] == "v1"
-    assert get_llmobs_tags(outer_span)["agent_name"] == "outer_agent"
     assert get_llmobs_tags(inner_span)["agent_version"] == "v3"
-    assert get_llmobs_tags(inner_span)["agent_name"] == "inner_agent"
 
 
 def test_nested_agent_span_does_not_inherit_ancestor_version(llmobs):
@@ -2047,48 +2041,14 @@ def test_annotation_context_sets_agent_tags_on_agent_span_only(llmobs):
     assert "agent_version" not in get_llmobs_tags(llm_span)
 
 
-def test_annotation_context_agent_name_defaults_to_span_name(llmobs):
-    with llmobs.annotation_context(agent={"version": "v3"}):
-        with llmobs.agent(name="my_agent") as span:
-            pass
-    assert get_llmobs_tags(span)["agent_name"] == "my_agent"
-
-
-def test_annotation_context_agent_name_overrides_span_name(llmobs):
-    """Integrations often name the agent span after the method they patched, so the user can
-    supply a meaningful agent name without renaming the span.
-    """
-    with llmobs.annotation_context(agent={"name": "weather-agent", "version": "v3"}):
-        with llmobs.agent(name="Runner.run_async") as span:
-            pass
-    tags = get_llmobs_tags(span)
-    assert tags["agent_name"] == "weather-agent"
-    assert tags["agent_version"] == "v3"
-    assert span.name == "Runner.run_async"
-
-
-def test_annotation_context_nested_agent_annotation_replaces_name_and_version(llmobs):
-    """An inner context supplying only a version must not keep the outer context's name, which
-    would emit a name/version pair that never existed.
-    """
-    with llmobs.annotation_context(agent={"name": "outer", "version": "v1"}):
-        with llmobs.annotation_context(agent={"version": "v2"}):
-            with llmobs.agent(name="inner_span") as span:
-                pass
-    tags = get_llmobs_tags(span)
-    assert tags["agent_version"] == "v2"
-    assert tags["agent_name"] == "inner_span"
-
-
-def test_user_supplied_agent_tags_are_left_alone(llmobs):
-    """`tags` is an arbitrary user namespace, so an app already using these keys keeps them."""
-    with llmobs.annotation_context(tags={"agent_name": "mine", "agent_version": "mine-v1"}):
+def test_user_supplied_agent_version_tag_is_left_alone(llmobs):
+    """`tags` is an arbitrary user namespace, so an app already using this key keeps it."""
+    with llmobs.annotation_context(tags={"agent_version": "mine-v1"}):
         with llmobs.workflow(name="test_workflow") as workflow_span:
             pass
         with llmobs.agent(name="test_agent") as agent_span:
             pass
     for span in (workflow_span, agent_span):
-        assert get_llmobs_tags(span)["agent_name"] == "mine"
         assert get_llmobs_tags(span)["agent_version"] == "mine-v1"
 
 

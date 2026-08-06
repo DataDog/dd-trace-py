@@ -137,10 +137,9 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-# Agent tracking tags. Set on agent spans only, at span finish.
-AGENT_NAME_TAG_KEY = "agent_name"
+# Agent tracking tag. Set on agent spans only, at span finish.
 AGENT_VERSION_TAG_KEY = "agent_version"
-# Holds the (name, version) an annotation supplied, until the span kind is known at finish.
+# Holds the version an annotation supplied, until the span kind is known at finish.
 AGENT_ANNOTATION = "_ml_obs.agent_annotation"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"

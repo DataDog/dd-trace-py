@@ -174,13 +174,11 @@ class Prompt(TypedDict, total=False):
 class Agent(TypedDict, total=False):
     """
     An Agent object that identifies a versioned agent.
-        name: str - the name of the agent. Defaults to the agent span's name.
         version: str - user tag for the version of the agent.
 
-    Set as `agent_name` and `agent_version` tags on the agent span only, never on its children.
+    Set as an `agent_version` tag on the agent span only, never on its children.
     """
 
-    name: str
     version: str
 
 

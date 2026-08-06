@@ -49,7 +49,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
-from ddtrace.llmobs._constants import AGENT_NAME_TAG_KEY
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -714,13 +713,7 @@ class LLMObs(Service):
         # reaches every span in its block, but only agent spans carry the tags.
         agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
         if agent_annotation and span_kind == "agent":
-            annotated_name, annotated_version = agent_annotation
-            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {}).update(
-                {
-                    AGENT_NAME_TAG_KEY: annotated_name or get_llmobs_span_name(span) or span.name,
-                    AGENT_VERSION_TAG_KEY: annotated_version,
-                }
-            )
+            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = agent_annotation
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -1933,11 +1926,9 @@ class LLMObs(Service):
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
         :param agent: A dictionary declaring the versioned agent running in this context, of the form
-                      `{"name": "...", "version": "..."}`. Can also be set using the
-                      ``ddtrace.llmobs.Agent`` class. Set as ``agent_name`` and ``agent_version`` tags
-                      on agent spans created within the context; other span kinds are unaffected.
-                      ``name`` defaults to the agent span's own name, and is worth setting when an
-                      integration names the span something less meaningful than the agent itself.
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
+                      Set as an ``agent_version`` tag on agent spans created within the context;
+                      other span kinds are unaffected.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2593,7 +2584,7 @@ class LLMObs(Service):
             ml_app=agent_service,
         )
         if agent_version:
-            span._set_ctx_item(AGENT_ANNOTATION, (name, agent_version))
+            span._set_ctx_item(AGENT_ANNOTATION, agent_version)
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -2729,7 +2720,7 @@ class LLMObs(Service):
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str version: The version of this agent. Set as an ``agent_version`` tag on this span,
-                            alongside an ``agent_name`` tag taken from ``name``. Neither is set on child spans.
+                            and not on its child spans.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2988,9 +2979,8 @@ class LLMObs(Service):
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         :param agent: A dictionary declaring the versioned agent this span represents, of the form
-                      `{"name": "...", "version": "..."}`. Can also be set using the
-                      ``ddtrace.llmobs.Agent`` class. Set as ``agent_name`` / ``agent_version`` tags,
-                      and dropped at span finish if this is not an agent span.
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent``
+                      class. Set as an ``agent_version`` tag, and only on agent spans.
         """
         error = None
         try:
@@ -3035,9 +3025,8 @@ class LLMObs(Service):
             if agent is not None:
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
-                    # Stashed rather than tagged: the span kind is not resolved yet, and the pair
-                    # must be replaced atomically so a nested context cannot leave a stale name.
-                    span._set_ctx_item(AGENT_ANNOTATION, (agent.get("name"), agent_version))
+                    # Stashed rather than tagged: the span kind is not resolved yet.
+                    span._set_ctx_item(AGENT_ANNOTATION, agent_version)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)

@@ -1140,7 +1140,6 @@ def test_agent_decorator_sets_agent_tags_on_agent_span_only(llmobs, test_spans):
     spans = {s.name: s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)}
     assert set(spans) == {"my_agent", "test_tool"}
     assert get_llmobs_tags(spans["my_agent"])["agent_version"] == "v3"
-    assert get_llmobs_tags(spans["my_agent"])["agent_name"] == "my_agent"
     assert "agent_version" not in get_llmobs_tags(spans["test_tool"])
 
 
