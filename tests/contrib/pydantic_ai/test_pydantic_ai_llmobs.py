@@ -1,4 +1,6 @@
 import json
+from typing import Literal
+from typing import Optional
 
 import mock
 from pydantic import BaseModel
@@ -466,7 +468,7 @@ class TestLLMObsPydanticAI:
         settings = _manifest_of(spans[0])["model_settings"]
         # The whole manifest has to survive the encoder, which is what the sentinel used to break.
         json.dumps(_manifest_of(spans[0]))
-        assert settings["max_output_tokens"] == 100
+        assert settings["max_tokens"] == 100
         # A sentinel stands for "not set", so the field is absent rather than holding the string
         # "Omit()" in a slot that is meant to hold a number.
         assert "temperature" not in settings
@@ -640,7 +642,7 @@ MANIFEST_FIELD_CASES = [
     pytest.param(
         lambda: dict(model_settings={"temperature": 0, "parallel_tool_calls": False, "max_tokens": 0}),
         # Falsy is not absent. Filtering on truthiness is what loses a deliberate temperature of 0.
-        {"model_settings": {"temperature": 0, "parallel_tool_calls": False, "max_output_tokens": 0}},
+        {"model_settings": {"temperature": 0, "parallel_tool_calls": False, "max_tokens": 0}},
         None,
         id="falsy_model_params_survive",
     ),
@@ -872,7 +874,7 @@ class TestPydanticAIAgentManifest:
         assert actual["name"] == "support_orchestrator"
         assert actual["instructions"] == "You orchestrate specialists."
         assert actual["system_prompts"] == ["Cite sources."]
-        assert actual["model_settings"] == {"temperature": 0.2, "max_output_tokens": 1024}
+        assert actual["model_settings"] == {"temperature": 0.2, "max_tokens": 1024}
         assert actual["tools"] == expected_calculate_square_tool()
         assert actual["data_contracts"] == {"output": {"name": "Resolution", "schema": mock.ANY}}
         assert actual["agent_settings"]["end_strategy"] == "exhaustive"
@@ -959,18 +961,21 @@ class TestPydanticAIAgentManifest:
         assert manifest["model_settings"]["stop_sequences"] == ["END", "STOP"]
         assert manifest["model_settings"]["logit_bias"] == {"50256": -100}
 
-    async def test_unnamed_agent_omits_the_name_field(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """An agent with no recoverable name omits name instead of substituting a constant.
+    async def test_unnamed_agent_reports_the_placeholder_name(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """An agent with no recoverable name still reports a name, per review.
 
-        origin/main emitted the literal "PydanticAI Agent", so two distinct unnamed agents were
-        indistinguishable. The agents are held in a list so pydantic-ai's own name inference, which
-        scans the calling frame for a variable bound to the agent, finds nothing.
+        A consumer needs something to display, and the span name already falls back to the same
+        literal, so the manifest agreeing with it beats an absent key. The consequence is that two
+        distinct unnamed agents share this name, which is why name is not identity for versioning.
+
+        The agents are held in a list so pydantic-ai's own name inference, which scans the calling
+        frame for a variable bound to the agent, finds nothing.
         """
         agents = [pydantic_ai.Agent(model=_function_model())]
         await agents[0].run("Hello, world!")
         manifest = _manifest_of(test_spans.pop_traces()[0][0])
 
-        assert "name" not in manifest
+        assert manifest["name"] == "PydanticAI Agent"
 
     async def test_agent_name_may_be_inferred_by_the_framework(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """pydantic-ai infers a name from the calling frame, and the builder cannot tell it apart.
@@ -1224,7 +1229,11 @@ class TestPydanticAIAgentManifest:
         assert manifest["name"] == "test_agent"
 
     async def test_generic_output_type_keeps_the_contract(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A parameterized generic has no __name__, so a naive read raises and costs the contract."""
+        """A parameterized generic has no __name__, so a naive read raises and costs the contract.
+
+        The schema assertion is the point: a truthiness check on name passed while the schema was
+        silently dropped, so a field change inside Row could not move the recorded contract.
+        """
 
         class Row(BaseModel):
             value: int
@@ -1233,7 +1242,97 @@ class TestPydanticAIAgentManifest:
             pydantic_ai, test_spans, name="test_agent", output_type=list[Row], model=_test_model()
         )
 
-        assert manifest["data_contracts"]["output"]["name"]
+        output = manifest["data_contracts"]["output"]
+        assert output["name"]
+        assert output["schema"], "a container output must still carry the member model's schema"
+        # Row's own field has to be reachable, whether inlined or behind the adapter's $ref/$defs.
+        assert "value" in json.dumps(output["schema"])
+
+    async def test_nested_generic_output_type_keeps_the_schema(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A model nested two levels deep still counts, so the depth cap cannot silently exclude it."""
+
+        class Row(BaseModel):
+            value: int
+
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=dict[str, list[Row]], model=_test_model()
+        )
+
+        output = manifest["data_contracts"]["output"]
+        assert output["schema"], "a nested container output must still carry the member model's schema"
+        assert "value" in json.dumps(output["schema"])
+
+    async def test_output_schema_keeps_json_nulls(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A null inside a declared schema is data, not absence, so it round-trips verbatim.
+
+        An enum of ["a", "b", null] previously lost the whole list, recording the field as
+        unconstrained, which is a stable wrong contract rather than a missing one.
+        """
+
+        class Choice(BaseModel):
+            choice: Literal["a", "b", None]
+            maybe: Optional[str] = None
+
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=Choice, model=_test_model()
+        )
+
+        schema = manifest["data_contracts"]["output"]["schema"]
+        assert schema == Choice.model_json_schema(), "the declared schema must round-trip unchanged"
+        assert schema["properties"]["choice"]["enum"] == ["a", "b", None]
+        assert schema["properties"]["maybe"]["default"] is None
+
+    async def test_callable_metadata_emits_no_metadata(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A metadata resolver is not captured, and is never called to find out what it returns.
+
+        metadata is caller labels rather than behaviour and nothing versions on it, so the resolver's
+        identity is not worth a key the shared schema does not define. What matters here is the
+        negative: building a manifest must not execute caller code.
+        """
+        if PYDANTIC_AI_VERSION < (1, 39, 0):
+            pytest.skip("pydantic-ai < 1.39.0 does not accept a callable metadata")
+
+        called = []
+
+        def tenant_metadata(ctx=None):
+            """Compute metadata for the current run."""
+            called.append(True)
+            return {"tier": "gold"}
+
+        agent = pydantic_ai.Agent(model=_test_model(), name="test_agent", metadata=tenant_metadata)
+        # Built directly rather than through a run: pydantic-ai resolves metadata itself during a run,
+        # so a run-scoped call counter cannot tell its calls apart from ours.
+        manifest = pydantic_ai._datadog_integration._build_agent_manifest(agent)
+
+        assert "metadata" not in manifest
+        assert not called, "building the manifest must not evaluate a caller-supplied resolver"
+
+    async def test_tool_preparation_is_recorded_as_a_capability(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A prepare hook rewrites the tool list per step, so a change to it must move the manifest.
+
+        This records that a transformation exists. It does NOT make the tool list correct: the tools
+        key still reports what was declared, including a tool the hook removes.
+        """
+
+        async def drop_destructive(ctx, defs):
+            """Withhold the destructive tool."""
+            return [d for d in defs if d.name != "delete_account"]
+
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", prepare_tools=drop_destructive, model=_test_model()
+        )
+
+        prep = [cap for cap in manifest["capabilities"] if cap.get("type") == "tool_preparation"]
+        assert len(prep) == 1
+        assert prep[0]["name"] == "drop_destructive"
+        assert prep[0]["content"]["source_hash"]
+
+    async def test_scalar_output_type_carries_no_schema(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """Widening the gate must not start emitting a schema for a plain str output."""
+
+        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", output_type=str, model=_test_model())
+
+        assert "schema" not in manifest["data_contracts"]["output"]
 
     async def test_section_failure_is_isolated(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """One section raising costs that section only, not the whole manifest.

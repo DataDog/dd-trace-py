@@ -6,19 +6,26 @@ security:
     token, or an end-user identifier. Only known inference parameters are captured.
 fixes:
   - |
-    LLM Observability: The ``pydantic_ai`` integration no longer reports agents created without a
-    ``name`` under the placeholder name ``PydanticAI Agent``.
-  - |
     LLM Observability: The ``pydantic_ai`` integration no longer reports empty or null values for agent
     configuration that was not set.
   - |
     LLM Observability: The ``pydantic_ai`` integration now reports the model for agents created with
     ``defer_model_check=True``, which previously omitted it.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now reports the output schema for agents whose
+    ``output_type`` is a container such as ``list[Model]``, which previously reported only the type name.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now preserves JSON nulls inside a reported
+    output schema. A nullable enum or a field defaulting to null previously lost that part of the
+    schema, which understated the declared contract.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now reports ``prepare_tools`` and
+    ``prepare_output_tools`` hooks as capabilities, so a change to a hook is reflected in the agent
+    manifest. The reported tool list remains the declared one, which a hook may alter at run time.
 upgrade:
   - |
     LLM Observability: The ``pydantic_ai`` integration now reports agent configuration using the shared
     agent manifest schema. ``framework``, ``name``, ``model``, ``model_settings``, ``instructions``,
-    ``system_prompts`` and ``tools`` are unchanged, except that ``model_settings`` reports
-    ``max_output_tokens`` in place of ``max_tokens``. New keys are ``manifest_version``,
+    ``system_prompts`` and ``tools`` keep their names and meaning. New keys are ``manifest_version``,
     ``description``, ``metadata``, ``extra_instructions``, ``capabilities``, ``data_contracts``,
     ``memory_policies``, ``guardrails`` and ``agent_settings``.

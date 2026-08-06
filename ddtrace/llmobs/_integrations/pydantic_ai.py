@@ -5,6 +5,7 @@ import math
 from typing import Any
 from typing import Optional
 from typing import Sequence
+from typing import get_args
 from typing import get_origin
 import urllib.parse
 
@@ -40,6 +41,9 @@ _HTTP_MCP_SCHEMES = frozenset({"http", "https"})
 _HOSTNAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-:")
 # Deep enough for a nested output schema, shallow enough that a cyclic value terminates.
 _MAX_WIRE_DEPTH = 20
+# How far into a declared generic to look for a model. dict[str, list[Row]] is 2, and a caller can
+# nest further, but an output contract that deep is not worth an unbounded walk on every agent span.
+_MAX_OUTPUT_TYPE_DEPTH = 4
 
 # AIDEV-NOTE: an ALLOWLIST, not a denylist. Provider passthroughs on model_settings carry credentials
 # (extra_headers shipped a live Bearer token on origin/main) and providers keep adding them, so a
@@ -85,10 +89,6 @@ def _is_flat_scalar_value(value: Any) -> bool:
         )
     return False
 
-
-# The one rename the shared schema asks for: every framework spells this differently and the canonical
-# name says what it bounds. Applied on the way out so agent.model_settings is never mutated.
-_MODEL_SETTINGS_RENAMES = {"max_tokens": "max_output_tokens"}
 
 # Builtin-tool config fields allowed onto the wire, so a newly added secret-bearing field drops by
 # default rather than by name. A url is emitted separately and scrubbed; tokens and headers never are.
@@ -163,6 +163,46 @@ def _wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> 
                 coerced[str(key)] = wired
         return coerced or None
     return None
+
+
+# Distinct from None, which is a legal value inside a JSON document. _wire_value conflates the two
+# because for a config field a null and an absent key mean the same thing.
+_UNENCODABLE = object()
+
+
+def _wire_document(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> Any:
+    """Coerce a whole JSON document, keeping null as data rather than treating it as absence.
+
+    For a config field a null means "not configured" and _wire_value is right to drop it. A declared
+    JSON Schema is a document, where "default": null and an enum containing null are assertions the
+    caller made. Dropping those silently narrows the recorded contract: an enum of ["a", "b", null]
+    would otherwise lose the whole list and record the field as unconstrained.
+    """
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else _UNENCODABLE
+    if isinstance(value, (list, tuple, dict)):
+        if depth > _MAX_WIRE_DEPTH or id(value) in ancestors:
+            return _UNENCODABLE
+        ancestors = ancestors + (id(value),)
+    if isinstance(value, (list, tuple)):
+        items = [_wire_document(item, depth + 1, ancestors) for item in value]
+        return _UNENCODABLE if any(item is _UNENCODABLE for item in items) else items
+    if isinstance(value, dict):
+        coerced: dict[str, Any] = {}
+        for key, item in value.items():
+            wired = _wire_document(item, depth + 1, ancestors)
+            if wired is not _UNENCODABLE:
+                coerced[str(key)] = wired
+        return coerced
+    return _UNENCODABLE
+
+
+def _wire_schema(value: Any) -> Any:
+    """_wire_document for a _put_field call site: an undecodable document drops the key entirely."""
+    wired = _wire_document(value)
+    return None if wired is _UNENCODABLE else wired
 
 
 def _redact_mcp_uri(raw: Any) -> Optional[str]:
@@ -490,7 +530,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # The name is a literal, not section.__name__: reading an attribute off the section inside the
         # handler can itself raise, and a second exception there escapes and costs the whole manifest.
         for name, section in (
-            ("identity", self._manifest_identity),
+            ("labels", self._manifest_labels),
             ("instructions", self._manifest_instructions),
             ("model", self._manifest_model),
             ("capabilities", self._manifest_capabilities),
@@ -505,16 +545,27 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
         return manifest
 
-    def _manifest_identity(self, agent: Any) -> dict[str, Any]:
-        """Labels that identify the agent rather than describing its behaviour."""
+    def _manifest_labels(self, agent: Any) -> dict[str, Any]:
+        """Labels that name the agent rather than describing its behaviour.
+
+        These are builder groupings for failure isolation, not schema sections. The manifest is one
+        flat document, so no grouping name reaches the wire.
+        """
         fields: dict[str, Any] = {"framework": FRAMEWORK_NAME}
-        # AIDEV-NOTE: omit rather than substitute a constant, which made distinct unnamed agents look
-        # like one. pydantic-ai may still infer a name from the caller's frame, which we cannot detect.
-        _put_field(fields, "name", getattr(agent, "name", None))
-        # _description exists from 1.107.1 on, so on older versions the key never appears.
+        # AIDEV-NOTE: the placeholder is deliberate, per review: a consumer needs something to display
+        # for an unnamed agent, and the span name already falls back to the same literal. The cost is
+        # that two distinct unnamed agents share a name here, so name must not be treated as identity
+        # for versioning. pydantic-ai may also infer a name from the caller's frame, which we cannot
+        # detect, so an absent name is not proof the caller left it unset.
+        _put_field(fields, "name", getattr(agent, "name", None) or "PydanticAI Agent")
+        # _description is absent across the whole supported range (0.8.1 to 1.63.0) and present by
+        # 2.24.0, so on every version CI exercises this key never appears.
         description = getattr(agent, "_description", None)
         _put_field(fields, "description", description if isinstance(description, str) else None)
         metadata = getattr(agent, "_metadata", None)
+        # metadata accepts a callable from 1.39.0 on, resolved per run. Not captured: it is caller
+        # labels rather than behaviour, and nothing downstream versions on it, so a resolver's
+        # identity would buy nothing. Recording it needs a key the shared schema does not define.
         _put_field(fields, "metadata", _wire_value(metadata) if isinstance(metadata, dict) else None)
         return fields
 
@@ -572,7 +623,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 # Through _put_field, not a direct assignment: _wire_value returns None for a value
                 # it cannot encode, such as NaN, and a direct assignment would ship that as an
                 # explicit null. Absence has to keep meaning "not configured".
-                _put_field(allowed, _MODEL_SETTINGS_RENAMES.get(key, key), _wire_value(value))
+                _put_field(allowed, key, _wire_value(value))
             _put_field(fields, "model_settings", allowed)
         return fields
 
@@ -583,11 +634,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         tools = self._get_agent_tools(agent)
         _put_field(fields, "tools", tools)
+        # AIDEV-NOTE: a prepare hook rewrites or removes tool definitions on every step, so the list
+        # above is what was declared, NOT what the model was shown. Recording the hook makes a change
+        # to it move the manifest; it does NOT make the tool list correct. An agent that gates a
+        # destructive tool behind prepare_tools still lists that tool here. Correcting the list needs
+        # the resolved per-run toolset, which is separate work.
+        prepared = [
+            fn
+            for fn in (getattr(agent, "_prepare_tools", None), getattr(agent, "_prepare_output_tools", None))
+            if callable(fn)
+        ]
         capabilities: list[dict[str, Any]] = [self._as_capability(entry, "tool") for entry in tools]
         for kind, entries in (
             ("mcp", self._get_mcp_servers(agent)),
             ("builtin", self._get_builtin_tools(agent)),
             ("custom", self._get_toolsets(agent)),
+            ("tool_preparation", self._describe_functions(prepared)),
         ):
             capabilities.extend(self._as_capability(entry, kind) for entry in entries)
         _put_field(fields, "capabilities", capabilities)
@@ -598,7 +660,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         output = self._get_agent_output_type(agent)
         contract: dict[str, Any] = {}
         _put_field(contract, "name", output.get("name"))
-        _put_field(contract, "schema", _wire_value(output.get("schema")))
+        _put_field(contract, "schema", _wire_schema(output.get("schema")))
         return {"data_contracts": {"output": contract}} if contract else {}
 
     def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
@@ -771,11 +833,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if not candidates:
             return {}
         output_type: dict[str, Any] = {"name": " | ".join(_type_name(c) for c in candidates)}
-        if any(isinstance(c, type) and self._is_pydantic_model(c) for c in candidates):
+        # A container such as list[Row] is not itself a model, so testing the candidate alone drops the
+        # schema and leaves the contract as a bare name. pydantic-ai validates the container all the
+        # same, so a field change inside Row has to move the schema.
+        if any(self._references_pydantic_model(c) for c in candidates):
             schema = self._output_schema(candidates)
             if schema is not None:
                 output_type["schema"] = schema
         return output_type
+
+    def _references_pydantic_model(self, candidate: Any, depth: int = 0) -> bool:
+        """True if candidate is a pydantic model or parameterizes one, such as list[Row]."""
+        if self._is_pydantic_model(candidate):
+            return True
+        if depth >= _MAX_OUTPUT_TYPE_DEPTH:
+            return False
+        return any(self._references_pydantic_model(arg, depth + 1) for arg in get_args(candidate))
 
     @staticmethod
     def _output_schema(candidates: list[Any]) -> Optional[dict[str, Any]]:
@@ -785,12 +858,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
         wraps members in $ref and $defs, so it is reserved for a real multi-member union.
         """
         try:
+            from pydantic import BaseModel
+            from pydantic import TypeAdapter
+
             if len(candidates) == 1:
-                schema: dict[str, Any] = candidates[0].model_json_schema()
+                candidate = candidates[0]
+                if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                    schema: dict[str, Any] = candidate.model_json_schema()
+                else:
+                    # A parameterized generic has no model_json_schema, so the adapter is the only way
+                    # to reach the member model's fields. It emits $ref plus $defs, which is fine here:
+                    # the container is the contract, so the indirection is the shape.
+                    schema = TypeAdapter(candidate).json_schema()
             else:
                 from typing import Union
-
-                from pydantic import TypeAdapter
 
                 schema = TypeAdapter(Union[tuple(candidates)]).json_schema()
         except Exception:  # noqa: BLE001 - schema and union generation can raise on exotic models
