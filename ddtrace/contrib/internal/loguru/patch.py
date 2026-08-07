@@ -23,7 +23,8 @@ def _supported_versions() -> dict[str, str]:
 def _tracer_injection(event_dict):
     if not config._logs_injection:
         # log injection is opt-out for structured logging
-        return event_dict
+        return {}
+
     event_dd_attributes = ddtrace.tracer.get_log_correlation_context()
     event_dict.update(event_dd_attributes)
     return event_dd_attributes

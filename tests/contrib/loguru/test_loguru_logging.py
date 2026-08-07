@@ -90,6 +90,53 @@ def test_log_injection_disabled():
         f"DD_LOGS_INJECTION is disabled, record: {log_json.get('record')}"
 
 
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv", DD_LOGS_INJECTION="false"),
+    out=None,
+    err=None,
+)
+def test_log_injection_disabled_does_not_copy_extra_into_record():
+    """Regression: ``_tracer_injection`` returned ``event_dict`` (=
+    ``record["extra"]``) when ``DD_LOGS_INJECTION=false``, so the patcher
+    did ``record.update(record["extra"])`` and copied every user-provided
+    ``extra`` key into the log record's top level — invisible to the user
+    until something tried to format the record with a key that suddenly
+    existed in two places. With injection disabled the helper should now
+    return an empty dict and the record's top-level keys should stay
+    untouched.
+    """
+    from loguru import logger
+
+    from ddtrace import tracer
+
+    # Loguru serialises records as JSON; the only way to observe the
+    # full record (including dynamically-injected top-level keys) is via
+    # the dict form delivered to a ``sink`` callable.
+    captured_records = []
+
+    def _record_sink(message):
+        captured_records.append(dict(message.record))
+
+    logger.add(_record_sink)
+
+    with tracer.trace("test.logging"):
+        logger.bind(user_id=42, custom_field="hello").info("hi")
+
+    assert captured_records, "expected at least one captured record"
+    for record in captured_records:
+        # The user's bound extras must live in ``extra`` only — and must
+        # NOT have been copied into the top-level record.
+        assert record["extra"].get("user_id") == 42
+        assert record["extra"].get("custom_field") == "hello"
+        assert "user_id" not in (key for key in record if key != "extra"), (
+            f"user_id should not have leaked to record top level: {list(record)}"
+        )
+        assert "custom_field" not in (key for key in record if key != "extra"), (
+            f"custom_field should not have leaked to record top level: {list(record)}"
+        )
+
+
 def test_log_trace_global_values(captured_logs):
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
