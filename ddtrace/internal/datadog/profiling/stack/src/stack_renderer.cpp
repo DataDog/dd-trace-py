@@ -87,7 +87,10 @@ StackRenderer::render_cpu_sample_begin(std::string_view name,
     if (failed) {
         return;
     }
-    sample = SampleManager::start_sample();
+    // Return an incomplete Sample before asking the pool for its replacement.
+    sample.reset();
+    // Keep acquisition separate from the reset above so start_sample() can reuse the slot we just returned.
+    sample.reset(SampleManager::start_sample());
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack sampler will be disabled." << std::endl;
         failed = true;
