@@ -1,8 +1,16 @@
 # type: ignore
 import logging
 import os
+import typing as t
+from typing import TYPE_CHECKING
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
 from riot import Venv
+
+
+if TYPE_CHECKING:
+    from riot.venv import VenvInstance
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +146,7 @@ venv = Venv(
             pys=["3.10"],
             command="pytest {cmdargs} tests/meta",
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
         ),
@@ -255,6 +264,7 @@ venv = Venv(
             pys=["3.10", "3.11", "3.12"],
             command="pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_IAST_ENABLED": "true",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
             },
@@ -551,6 +561,7 @@ venv = Venv(
             pys=select_pys(),
             command="python -X importtime scripts/global-lock-detection.py",
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_DYNAMIC_INSTRUMENTATION_ENABLED": "1",
                 "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1",
                 "DD_EXCEPTION_REPLAY_ENABLED": "1",
@@ -1934,6 +1945,7 @@ venv = Venv(
                 "pytest-xdist": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
@@ -1990,6 +2002,7 @@ venv = Venv(
                 "pytest-xdist": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
@@ -2029,6 +2042,7 @@ venv = Venv(
                 "pytest-timeout": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_AGENT_PORT": "9126",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
                 # Disable coverage report upload for this suite: these tests exercise the
@@ -2086,6 +2100,9 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+            },
             command="pytest {cmdargs} tests/contrib/asynctest/",
             pkgs={
                 "pytest-randomly": latest,
@@ -2098,6 +2115,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest_bdd",
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+            },
             command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
             pkgs={
                 "msgpack": latest,
@@ -2129,6 +2149,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest_benchmark",
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py",
             pkgs={
@@ -2141,6 +2164,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest:flaky",
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py",
             pkgs={
@@ -3056,6 +3082,9 @@ venv = Venv(
         ),
         Venv(
             name="langchain",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -3133,6 +3162,9 @@ venv = Venv(
         ),
         Venv(
             name="litellm",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3158,6 +3190,9 @@ venv = Venv(
         ),
         Venv(
             name="llama_index",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/llama_index",
             pys=select_pys(min_version="3.10", max_version="3.13"),
             pkgs={
@@ -3218,6 +3253,9 @@ venv = Venv(
         ),
         Venv(
             name="vertexai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
@@ -3241,6 +3279,9 @@ venv = Venv(
         ),
         Venv(
             name="mistralai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/mistralai",
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -3250,6 +3291,9 @@ venv = Venv(
         ),
         Venv(
             name="google_genai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/google_genai",
             pys=select_pys(),
             pkgs={
@@ -3259,6 +3303,9 @@ venv = Venv(
         ),
         Venv(
             name="crewai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
             pkgs={
@@ -3270,6 +3317,9 @@ venv = Venv(
         ),
         Venv(
             name="pydantic_ai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/pydantic_ai",
             pkgs={
                 "pytest-asyncio": latest,
@@ -3319,6 +3369,9 @@ venv = Venv(
         ),
         Venv(
             name="logbook",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
             pkgs={
@@ -3328,6 +3381,9 @@ venv = Venv(
         ),
         Venv(
             name="loguru",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/loguru",
             pkgs={
@@ -3337,6 +3393,9 @@ venv = Venv(
         ),
         Venv(
             name="molten",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest -n 8 {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
@@ -3348,6 +3407,9 @@ venv = Venv(
         ),
         Venv(
             name="gunicorn",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/gunicorn",
             pkgs={
                 "requests": latest,
@@ -3360,6 +3422,7 @@ venv = Venv(
         Venv(
             name="kafka",
             env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
             },
@@ -3386,6 +3449,9 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3397,6 +3463,9 @@ venv = Venv(
         ),
         Venv(
             name="aws_durable_execution_sdk_python",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
             pys=select_pys(min_version="3.11"),
             pkgs={
@@ -3407,6 +3476,7 @@ venv = Venv(
         Venv(
             name="aiokafka",
             env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
             },
@@ -3420,6 +3490,9 @@ venv = Venv(
         ),
         Venv(
             name="google_cloud_pubsub",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             pkgs={
                 "falcon": latest,
@@ -3449,6 +3522,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_cosmos",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_cosmos",
             pys=select_pys(),
             pkgs={
@@ -3460,6 +3536,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_eventhubs",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3469,6 +3548,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3478,6 +3560,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_durable_functions",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3486,6 +3571,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:cosmos",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
@@ -3497,6 +3585,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:eventhubs",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3507,6 +3598,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:servicebus",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3516,6 +3610,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_servicebus",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             venvs=[
                 Venv(
@@ -3536,6 +3633,9 @@ venv = Venv(
         ),
         Venv(
             name="sourcecode",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
@@ -3557,6 +3657,7 @@ venv = Venv(
                 "gevent": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3571,6 +3672,7 @@ venv = Venv(
                 "gevent": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3598,6 +3700,9 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             venvs=[
                 Venv(
                     command="pytest -n auto {cmdargs} tests/llmobs",
@@ -3640,6 +3745,9 @@ venv = Venv(
         ),
         Venv(
             name="vllm",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/vllm",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -3651,6 +3759,9 @@ venv = Venv(
         ),
         Venv(
             name="valkey",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/valkey",
             pkgs={
                 "valkey": latest,
@@ -3668,6 +3779,8 @@ venv = Venv(
                 "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "false",
             },
             pkgs={
                 "gunicorn": latest,
@@ -4386,6 +4499,7 @@ venv = Venv(
                 "httpx": latest,
             },
             env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
@@ -4421,6 +4535,7 @@ venv = Venv(
                 "httpx": latest,
             },
             env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
@@ -4487,6 +4602,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_api",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/api/",
             pkgs={
                 "requests": latest,
@@ -4495,6 +4613,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_langchain",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/langchain/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4531,6 +4652,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_openai",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/openai/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4562,6 +4686,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_anthropic",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/anthropic/",
             pys=select_pys(),
             pkgs={
@@ -4582,6 +4709,9 @@ venv = Venv(
         ),
         Venv(
             name="claude_agent_sdk",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -4591,6 +4721,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_strands",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/strands_hooks/",
             pkgs={
                 "strands-agents": ">=1.29.0",
@@ -4599,6 +4732,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_litellm_guardrail",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
             pkgs={
                 "pytest-asyncio": latest,
@@ -4620,8 +4756,67 @@ venv = Venv(
         ),
         Venv(
             name="sca",
+            env={
+                "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0",
+            },
             command="pytest {cmdargs} tests/appsec/sca/",
             pys=select_pys(),
         ),
     ],
 )
+
+
+_ITR_MIN_PYTHON_VERSION = Version("3.12")
+
+def _python_hint_to_version(hint: str) -> t.Optional[Version]:
+    try:
+        return Version(hint)
+    except InvalidVersion:
+        return None
+
+
+def _is_protected_ci_branch() -> bool:
+    branch = os.environ.get("CI_COMMIT_BRANCH", "")
+    return branch == "main" or branch.startswith("mq-")
+
+
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    python_hint = getattr(inst.py, "_hint", "")
+    python_version = _python_hint_to_version(python_hint)
+
+    # Ensure inst.env is a mutable dict we can update in-place.
+    if not inst.env:
+        inst.env = {}
+
+    if python_hint:
+        inst.env["_CI_DD_TAGS"] = (
+            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
+        )
+    else:
+        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
+
+    # ITR is enabled by default for Python >= 3.12, unless the venv explicitly sets
+    # DD_CIVISIBILITY_ITR_ENABLED=false in its env.
+    if (
+        "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
+        and python_version is not None
+        and python_version >= _ITR_MIN_PYTHON_VERSION
+    ):
+        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+        if _is_protected_ci_branch():
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+
+_venv_instances = venv.instances
+
+
+def _ci_itr_venv_instances(parent_inst: t.Optional["VenvInstance"] = None) -> t.Generator["VenvInstance", None, None]:
+    for inst in _venv_instances(parent_inst):
+        _configure_ci_itr_env_for_instance(inst)
+        yield inst
+
+
+venv.instances = _ci_itr_venv_instances
