@@ -1,24 +1,20 @@
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
-import typing as t
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import TAG_FALSE
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 
 
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.session_manager import SessionManager
-
-
 class RetryHandler(ABC):
-    def __init__(self, session_manager: "SessionManager") -> None:
-        self.session_manager = session_manager
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
 
     @abstractmethod
     def should_apply(self, test: Test) -> bool:
@@ -26,7 +22,7 @@ class RetryHandler(ABC):
         Return whether this retry policy should be applied to the given test.
 
         This is called before any test runs have happened, and should consider test properties (such as whether it's
-        new), as well as per-session retry limits (accessible via `self.session_manager`).
+        new), as well as per-session retry limits (accessible via `self.settings`).
 
         For each test, the test plugin will try each retry handler in the session's retry handlers list, and use the
         first one for which `should_apply()` returns True. The `should_apply()` check can assume that the retry feature
@@ -68,8 +64,8 @@ class RetryHandler(ABC):
 
 
 class AutoTestRetriesHandler(RetryHandler):
-    def __init__(self, session_manager: "SessionManager") -> None:
-        super().__init__(session_manager=session_manager)
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings=settings)
         self.max_tests_to_retry_per_session = int(env.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
         self.max_retries_per_test = int(env.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
 
@@ -116,7 +112,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         return test.is_new() and not test.has_parameters()
 
     def _target_number_of_retries(self, test: Test) -> int:
-        efd_settings = self.session_manager.settings.early_flake_detection
+        efd_settings = self.settings.early_flake_detection
         initial_attempt_seconds = test.test_runs[0].seconds_so_far()
 
         if initial_attempt_seconds <= 5:
@@ -183,7 +179,7 @@ class AttemptToFixHandler(RetryHandler):
             return False
 
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
-        return retries_so_far < self.session_manager.settings.test_management.attempt_to_fix_retries
+        return retries_so_far < self.settings.test_management.attempt_to_fix_retries
 
     def get_final_status(self, test: Test) -> TestStatus:
         final_status: TestStatus
