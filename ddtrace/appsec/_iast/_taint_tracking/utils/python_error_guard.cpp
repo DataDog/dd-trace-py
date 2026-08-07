@@ -42,7 +42,7 @@ PythonErrorGuard::PythonErrorGuard()
     PyErr_Clear();
 }
 
-PythonErrorGuard::~PythonErrorGuard()
+PythonErrorGuard::~PythonErrorGuard() noexcept
 {
     restore();
 }
@@ -91,10 +91,11 @@ PythonErrorGuard::traceback_as_stdstring() const
 }
 
 void
-PythonErrorGuard::restore()
+PythonErrorGuard::restore() noexcept
 {
     if (ptype || pvalue || ptraceback) {
-        py::gil_scoped_acquire acquire;
+        // Keep destructor cleanup on CPython's non-throwing GIL API.
+        const PyGILState_STATE gil_state = PyGILState_Ensure();
 
         if (had_exception) {
             // Restore the fetched Python error
@@ -104,5 +105,6 @@ PythonErrorGuard::restore()
             pvalue = {};
             ptraceback = {};
         }
+        PyGILState_Release(gil_state);
     }
 }

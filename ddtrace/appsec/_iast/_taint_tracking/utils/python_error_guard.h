@@ -30,7 +30,7 @@ class PythonErrorGuard
      * Restores the fetched Python error if one was present. Otherwise the
      * owned handles release any fetched objects normally.
      */
-    ~PythonErrorGuard();
+    ~PythonErrorGuard() noexcept;
 
     // Delete copy constructor and copy assignment operator
     PythonErrorGuard(const PythonErrorGuard&) = delete;
@@ -51,5 +51,5 @@ class PythonErrorGuard
     py::object ptraceback;
     bool had_exception;
 
-    void restore();
+    void restore() noexcept;
 };
