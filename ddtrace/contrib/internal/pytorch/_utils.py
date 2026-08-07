@@ -5,6 +5,8 @@ from typing import Any
 from typing import Optional
 import uuid
 
+import torch
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 
@@ -113,6 +115,54 @@ def job_id_env_set() -> bool:
         if raw and raw.strip():
             return True
     return False
+
+
+# Process-wide cache of torch.distributed.get_backend(); shared by _distributed
+# (which populates/resets it) and _rank_root (which reads it for span tags).
+# Lives here rather than in _distributed to avoid a _distributed <-> _rank_root
+# import cycle.
+_cached_distributed_backend: Optional[str] = None
+
+
+def distributed_available() -> bool:
+    try:
+        return bool(torch.distributed.is_available())
+    except Exception:
+        return False
+
+
+def get_cached_backend() -> Optional[str]:
+    """One-shot lookup of ``torch.distributed.get_backend()``. Caches the
+    result on first successful call. The backend (nccl/gloo/mpi) does not
+    change during the lifetime of a process group.
+    """
+    global _cached_distributed_backend
+    if _cached_distributed_backend is not None:
+        return _cached_distributed_backend
+    try:
+        if distributed_available() and torch.distributed.is_initialized():
+            _cached_distributed_backend = str(torch.distributed.get_backend())
+    except Exception:
+        return None
+    return _cached_distributed_backend
+
+
+def reset_cached_backend() -> None:
+    global _cached_distributed_backend
+    _cached_distributed_backend = None
+
+
+def detect_launcher() -> Optional[str]:
+    """Return a best-guess launcher name from env, or None."""
+    if env.get("TORCHELASTIC_RUN_ID"):
+        return "torchrun"
+    if env.get("RAY_JOB_ID"):
+        return "ray"
+    if env.get("SLURM_JOB_ID"):
+        return "slurm"
+    if env.get("KUBEFLOW_TRAINING_JOB_ID"):
+        return "kubeflow"
+    return None
 
 
 # Ray Train run-context cache. Writers use _run_metadata_lock; readers use the lock-free view.

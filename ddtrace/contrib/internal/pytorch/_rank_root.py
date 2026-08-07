@@ -167,13 +167,13 @@ def _build_span(kwargs: dict[str, Any]) -> Optional[Any]:
             log.debug("pytorch.rank: env-signal tagging failed", exc_info=True)
 
         try:
-            from ddtrace.contrib.internal.pytorch._distributed import _detect_launcher  # noqa: PLC0415
-            from ddtrace.contrib.internal.pytorch._distributed import _get_cached_backend  # noqa: PLC0415
+            from ddtrace.contrib.internal.pytorch._utils import detect_launcher  # noqa: PLC0415
+            from ddtrace.contrib.internal.pytorch._utils import get_cached_backend  # noqa: PLC0415
 
-            launcher = _detect_launcher()
+            launcher = detect_launcher()
             if launcher:
                 span._set_attribute("launcher", launcher)
-            backend = _get_cached_backend()
+            backend = get_cached_backend()
             if backend:
                 span._set_attribute("torch.distributed.backend", backend)
         except Exception:
