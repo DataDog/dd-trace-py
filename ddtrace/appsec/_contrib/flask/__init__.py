@@ -29,6 +29,7 @@ from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
@@ -207,7 +208,7 @@ def _on_pre_tracedrequest(ctx: ExecutionContext) -> None:
     import functools
 
     if asm_config._asm_enabled:
-        set_block_request_callable(functools.partial(_flask_block_request_callable, ctx.span))
+        set_block_request_callable(functools.partial(_flask_block_request_callable, span_from_context(ctx)))
         if get_blocked():
             block_request()
 

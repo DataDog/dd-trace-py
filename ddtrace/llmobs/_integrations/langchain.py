@@ -51,6 +51,8 @@ BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
+GOOGLE_GENAI_PROVIDER_NAME = "google-generative-ai"
+GOOGLE_GENAI_LLM_PROVIDER_NAME = "google_gemini"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -118,6 +120,16 @@ def _is_chain_instance(instance):
     return instance and hasattr(instance, "steps")
 
 
+def _is_google_genai_backed(instance) -> bool:
+    """True if the client is a google.genai object ddtrace can patch (not the legacy
+    langchain-google-genai<4 client), so demoting the span leaves a google_genai child span in its place.
+    """
+    client = getattr(instance, "client", None)
+    client = getattr(client, "client", client)
+    module = type(client).__module__ if client is not None else ""
+    return module == "google.genai" or module.startswith("google.genai.")
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
@@ -163,6 +175,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
+        instance = self._instances.get(span)
 
         is_workflow = False
 
@@ -177,6 +190,22 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
+            # match by substring, not prefix: the raw provider string differs between the
+            # non-streaming and streaming code paths ("google-generative-ai" vs "chat-google-generative-ai")
+            elif (
+                operation == "chat"
+                and GOOGLE_GENAI_PROVIDER_NAME in model_provider
+                and _is_google_genai_backed(instance)
+            ):
+                llmobs_integration = "google_genai"
+            # GoogleGenerativeAI (the LLM wrapper) delegates to an inner ChatGoogleGenerativeAI, so it would
+            # also produce two llm-kind spans for one call (like chat) unless demoted.
+            elif (
+                operation == "llm"
+                and model_provider == GOOGLE_GENAI_LLM_PROVIDER_NAME
+                and _is_google_genai_backed(instance)
+            ):
+                llmobs_integration = "google_genai"
 
             is_workflow = (
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
@@ -541,7 +570,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         if stream:
-            content = chat_completions.content
+            content = _get_attr(chat_completions, "content", "") or ""
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
             _annotate_llmobs_span_data(
                 span, **cast(dict[str, Any], {output_key: [Message(content=content, role=ROLE_MAPPING.get(role, ""))]})

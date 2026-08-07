@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import copy
+from unittest import mock
 
 import pytest
 
-import ddtrace
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from tests.utils import override_env
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 @pytest.fixture(
@@ -21,11 +21,8 @@ from tests.utils import override_env
     + [{"DD_APPSEC_SCA_ENABLED": sca, "iast_enabled": iast} for sca in ["1", "0"] for iast in [True, False]]
 )
 def tracer_appsec_standalone(request, tracer):
-    new_env = {k: v for k, v in request.param.items() if k.startswith("DD_")}
-    with override_env(new_env):
-        # Reset the config so it picks up the env var value
-        ddtrace.config._reset()
-
+    sca_enabled = request.param["DD_APPSEC_SCA_ENABLED"] == "1"
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled):
         # Copy the params to a new dict, including the env var
         request_param_copy = copy.deepcopy(request.param)
 
@@ -36,7 +33,6 @@ def tracer_appsec_standalone(request, tracer):
         yield tracer, request_param_copy
 
     # Reset tracer configuration
-    ddtrace.config._reset()
     tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 

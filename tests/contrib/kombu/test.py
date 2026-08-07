@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import DDSketch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -380,7 +380,7 @@ class TestKombuDsm(TracerTestCase):
         assert len(buckets) == 1
         first = list(buckets.values())[0].pathway_stats
 
-        out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
+        out_tags = ",".join(["direction:out", "topic:tasks", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
         self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 

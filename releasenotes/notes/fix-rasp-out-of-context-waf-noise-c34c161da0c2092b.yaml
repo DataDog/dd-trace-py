@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: Reduces noisy warning logs from exploit prevention (RASP) checks running outside of
+    a request context.

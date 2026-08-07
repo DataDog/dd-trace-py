@@ -1,4 +1,4 @@
-use datadog_remote_config::{RemoteConfigData, RemoteConfigProduct};
+use libdd_remote_config::config::{agent_config, agent_task};
 use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
@@ -58,7 +58,11 @@ fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// Python wrapper for FlareAction
-#[pyclass(from_py_object, name = "FlareAction")]
+// TODO(py-315)(pyo3 0.28): `from_py_object` preserves the automatic FromPyObject
+// derive for Clone-able pyclasses, which pyo3 deprecated as opt-in in 0.28.
+// Required because `FlareActionPy` is accepted as an argument to
+// `TracerFlareManagerPy.zip_and_send`.
+#[pyclass(name = "FlareAction", from_py_object)]
 #[derive(Clone)]
 pub struct FlareActionPy {
     inner: FlareAction,
@@ -157,36 +161,40 @@ impl TracerFlareManagerPy {
     fn handle_remote_config_data(&self, data: &[u8], product: &str) -> PyResult<FlareActionPy> {
         let manager = &self.manager;
 
-        let product: RemoteConfigProduct = match product {
-            "AGENT_CONFIG" => RemoteConfigProduct::AgentConfig,
-            "AGENT_TASK" => RemoteConfigProduct::AgentTask,
-            _ => {
-                return Err(ParsingError::new_err(format!(
-                    "Received unexpected tracer flare product type: {}",
-                    product
-                )));
-            }
-        };
-
-        let config_data: RemoteConfigData = match RemoteConfigData::try_parse(product, data) {
-            Ok(data) => data,
-            Err(e) => {
+        match product {
+            "AGENT_CONFIG" => match agent_config::parse_json(data) {
+                Ok(config) => Ok(manager
+                    .handle_remote_config_data(&config)
+                    .map_err(|e| {
+                        ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e))
+                    })?
+                    .into()),
                 // AGENT_CONFIG has multiple payload shapes; e.g. configuration_order
                 // is valid JSON but not our schema. Valid-JSON parse failures return none_action()
                 // silently; truly malformed JSON propagates as ParsingError.
-                if product == RemoteConfigProduct::AgentConfig
-                    && serde_json::from_slice::<serde_json::Value>(data).is_ok()
-                {
-                    return Ok(FlareActionPy::none_action());
+                Err(e) => {
+                    if serde_json::from_slice::<serde_json::Value>(data).is_ok() {
+                        Ok(FlareActionPy::none_action())
+                    } else {
+                        Err(ParsingError::new_err(format!("Parsing error: {}", e)))
+                    }
                 }
-                return Err(ParsingError::new_err(format!("Parsing error: {}", e)));
+            },
+            "AGENT_TASK" => {
+                let task = agent_task::parse_json(data)
+                    .map_err(|e| ParsingError::new_err(format!("Parsing error: {}", e)))?;
+                Ok(manager
+                    .handle_remote_config_data(&task)
+                    .map_err(|e| {
+                        ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e))
+                    })?
+                    .into())
             }
-        };
-
-        Ok(manager
-            .handle_remote_config_data(&config_data)
-            .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?
-            .into())
+            _ => Err(ParsingError::new_err(format!(
+                "Received unexpected tracer flare product type: {}",
+                product
+            ))),
+        }
     }
 
     /// Zips files from a directory and sends them to the agent.

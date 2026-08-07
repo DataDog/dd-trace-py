@@ -36,10 +36,9 @@ from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import HourGlass
-
-
-CAPTURE_TIME_BUDGET = 0.2  # seconds
+from ddtrace.internal.utils.time import Time
 
 
 _NOTSET = object()
@@ -54,7 +53,7 @@ def _capture_context(
     retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
 ) -> dict[str, Any]:
-    with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
+    with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
 
         def timeout(_: Any) -> bool:
             return not hg.trickling()
@@ -93,7 +92,7 @@ def _capture_expressions(
     exprs: list[CaptureExpression],
     scope: Mapping[str, Any],
 ) -> dict[str, Any]:
-    with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
+    with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
 
         def timeout(_: Any) -> bool:
             return not hg.trickling()
@@ -131,6 +130,8 @@ class Snapshot(LogSignal):
     _stack: Optional[list[dict[str, Any]]] = field(default=None)
     _message: Optional[str] = field(default=None)
     duration: Optional[int] = field(default=None)  # nanoseconds
+    _capture_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    _template_eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Mapping[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -151,7 +152,21 @@ class Snapshot(LogSignal):
 
     def _eval_message(self, _locals: Mapping[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)
+        t_start = Time.monotonic()
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
+        self._template_eval_duration_ms = (Time.monotonic() - t_start) * 1000
+        # RFC: treat overruns as guardrail input — record as evaluation error
+        eval_timeout_ms = di_config.evaluation_timeout_ms
+        if self._template_eval_duration_ms > eval_timeout_ms:
+            self.errors.append(
+                EvaluationError(
+                    expr=probe.template,
+                    message=(
+                        f"Template evaluation exceeded budget: "
+                        f"{self._template_eval_duration_ms:.1f}ms > {eval_timeout_ms}ms"
+                    ),
+                )
+            )
 
     def _do(self, retval: Any, exc_info: ExcInfoType, scope: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         probe = cast(LogProbeMixin, self.probe)
@@ -162,10 +177,16 @@ class Snapshot(LogSignal):
         self._stack = utils.capture_stack(self.frame)
 
         if probe.take_snapshot:
-            return _capture_context(frame, exc_info, retval=retval, limits=probe.limits)
+            t_start = Time.monotonic()
+            result = _capture_context(frame, exc_info, retval=retval, limits=probe.limits)
+            self._capture_duration_ms = (Time.monotonic() - t_start) * 1000
+            return result
 
         if probe.capture_expressions:
-            return _capture_expressions(probe.capture_expressions, scope)
+            t_start = Time.monotonic()
+            result = _capture_expressions(probe.capture_expressions, scope)
+            self._capture_duration_ms = (Time.monotonic() - t_start) * 1000
+            return result
 
         return None
 

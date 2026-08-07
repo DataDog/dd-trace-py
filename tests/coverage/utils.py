@@ -1,4 +1,5 @@
 from pathlib import Path
+import typing as t
 
 
 def _get_relpath_str(rootpath: Path, path: Path):
@@ -8,7 +9,7 @@ def _get_relpath_str(rootpath: Path, path: Path):
         return str(path)
 
 
-def _get_relpath_dict(rootpath: str, dict_to_update: dict):
+def _get_relpath_dict(rootpath: str, dict_to_update: dict[str, t.Any]):
     """Expects a dictionary of path strings to anything and returns an identical dictionary with the keys changed to
     relative path strings
     """

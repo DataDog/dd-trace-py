@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Code Security: Fixes an issue where applications could crash when asynchronous tasks accessed request data
+    after the originating request completed.

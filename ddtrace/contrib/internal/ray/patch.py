@@ -158,6 +158,8 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     # This prevents inferred services (for example "ray.dashboard") from being
     # attached as _dd.base_service on worker spans.
     env_vars.setdefault("DD_SERVICE", job_name)
+    # TODO(dubloom): Overwrite the internal submission ID and job name instead of using setdefault.
+    # Reusing a runtime_env across submissions can otherwise propagate stale correlation values.
     # Ray doesn't propagate submission_id / job_name as env vars; workers need them for span tags.
     env_vars.setdefault(RAY_SUBMISSION_ID, submission_id)
     env_vars.setdefault(RAY_JOB_NAME, job_name)

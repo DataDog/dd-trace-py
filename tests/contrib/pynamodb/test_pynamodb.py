@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.pynamodb.patch import patch
 from ddtrace.contrib.internal.pynamodb.patch import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

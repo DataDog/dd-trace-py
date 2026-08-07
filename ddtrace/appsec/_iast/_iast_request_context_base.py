@@ -22,15 +22,26 @@ log = get_logger(__name__)
 
 IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
 
+# Keep source suppression separate from IAST_CONTEXT. Clearing the
+# request context id disables request-scoped taint queries and propagation and
+# can send no-context queries through unsafe native fallback paths.
+_IAST_TAINT_SOURCES_SUPPRESSED: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "iast_taint_sources_suppressed", default=False
+)
+
 
 @contextlib.contextmanager
 def iast_suppress_context():
     """Temporarily disable IAST taint *source* generation for the current context."""
-    token = IAST_CONTEXT.set(None)
+    token = _IAST_TAINT_SOURCES_SUPPRESSED.set(True)
     try:
         yield
     finally:
-        IAST_CONTEXT.reset(token)
+        _IAST_TAINT_SOURCES_SUPPRESSED.reset(token)
+
+
+def _is_iast_taint_source_enabled() -> bool:
+    return not _IAST_TAINT_SOURCES_SUPPRESSED.get()
 
 
 def _set_span_tag_iast_request_tainted(span):

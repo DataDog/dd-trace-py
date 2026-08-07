@@ -3,7 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

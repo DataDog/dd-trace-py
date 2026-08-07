@@ -49,6 +49,12 @@ pub mod ffe {
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
+        // Serial id of the selected split, surfaced for APM span enrichment
+        // (DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED). Threaded
+        // into the provider flag_metadata as __dd_split_serial_id. The libdatadog
+        // assignment field is Option<i32>; cast to i64 to match the Python stub.
+        #[pyo3(get)]
+        serial_id: Option<i64>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,6 +151,7 @@ pub mod ffe {
                         .into_iter()
                         .collect(),
                     do_log: assignment.do_log,
+                    serial_id: assignment.serial_id.map(|id| id as i64),
                 },
                 Err(err) => err.into(),
             };
@@ -164,6 +171,7 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
+                serial_id: None,
             }
         }
 
@@ -177,6 +185,7 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
+                serial_id: None,
             }
         }
     }
@@ -188,7 +197,8 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError => {
+                EvaluationError::ConfigurationParseError
+                | EvaluationError::FlagConfigurationInvalid => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
@@ -231,6 +241,7 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
     }

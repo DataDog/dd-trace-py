@@ -9,6 +9,7 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -54,7 +55,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
             return
 
         if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:
-            HTTPPropagator.inject(ctx.span.context, cast(dict[str, str], event.request_headers))
+            HTTPPropagator.inject(span_from_context(ctx).context, cast(dict[str, str], event.request_headers))
 
     @classmethod
     def on_ended(
@@ -66,7 +67,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
 
         try:
             trace_utils.set_http_meta(
-                ctx.span,
+                span_from_context(ctx),
                 event.integration_config,
                 method=event.request_method,
                 url=event.request_url,

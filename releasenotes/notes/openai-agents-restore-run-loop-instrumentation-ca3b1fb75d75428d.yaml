@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    openai_agents: This fix resolves an issue where the integration stopped capturing the
+    agent manifest on ``openai-agents >= 0.8.0``. The integration now instruments those
+    versions, restoring agent manifest capture.

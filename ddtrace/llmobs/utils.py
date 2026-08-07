@@ -4,6 +4,7 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -101,6 +102,36 @@ def _extract_audio_part(audio_part: dict[str, Any]) -> "AudioPart":
     return formatted_audio_part
 
 
+def _extract_image_part(image_part: dict[str, Any]) -> "ImagePart":
+    """Extract and validate an image part dictionary."""
+    if not isinstance(image_part, dict):
+        raise TypeError("Each image_part must be a dictionary.")
+
+    mime_type = image_part.get("mime_type")
+    if not mime_type or not isinstance(mime_type, str):
+        raise TypeError("ImagePart mime_type must be a non-empty string.")
+
+    # exactly one of content / attachment_key
+    content = image_part.get("content")
+    attachment_key = image_part.get("attachment_key")
+    if content is None and attachment_key is None:
+        raise TypeError("ImagePart must have either 'content' or 'attachment_key'.")
+    if content is not None and attachment_key is not None:
+        raise TypeError("ImagePart must have only one of 'content' or 'attachment_key', not both.")
+
+    formatted_image_part = ImagePart(mime_type=mime_type)
+    if content is not None:
+        if not isinstance(content, str):
+            raise TypeError("ImagePart content must be a base64-encoded string.")
+        formatted_image_part["content"] = content
+    if attachment_key is not None:
+        if not isinstance(attachment_key, str):
+            raise TypeError("ImagePart attachment_key must be a string.")
+        formatted_image_part["attachment_key"] = attachment_key
+
+    return formatted_image_part
+
+
 def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[ToolDefinition]:
     """Return a list of validated tool definitions."""
     if not isinstance(tool_definitions, list):
@@ -195,6 +226,13 @@ class Messages:
                     raise TypeError("audio_parts must be a list.")
                 formatted_audio_parts = [_extract_audio_part(audio_part) for audio_part in audio_parts]
                 msg_dict["audio_parts"] = formatted_audio_parts
+
+            image_parts = message.get("image_parts")
+            if image_parts is not None:
+                if not isinstance(image_parts, list):
+                    raise TypeError("image_parts must be a list.")
+                formatted_image_parts = [_extract_image_part(image_part) for image_part in image_parts]
+                msg_dict["image_parts"] = formatted_image_parts
 
             self.messages.append(msg_dict)
 

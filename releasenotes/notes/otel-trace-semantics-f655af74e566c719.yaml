@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` to opt in to OpenTelemetry trace semantics for spans
+    created through OpenTelemetry APIs and for OpenTelemetry Protocol (OTLP) trace export.

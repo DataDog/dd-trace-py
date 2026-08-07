@@ -32,6 +32,19 @@ BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
+def _get_bool_env(name: str) -> str:
+    """Return "true"/"false" for a boolean environment variable.
+
+    The result is interpolated verbatim into generated shell snippets, so it must never carry
+    anything the shell could expand. Only a case-insensitive "true" enables the flag; anything else
+    is treated as false.
+    """
+    value = os.getenv(name, "").lower()
+    if value not in ("", "true", "false"):
+        LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
+    return "true" if value == "true" else "false"
+
+
 @dataclass
 class BenchmarkSpec:
     name: str
@@ -60,7 +73,6 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_venv_artifacts: bool = False
     skip_pip_cache: bool = False
 
     python_versions: t.Optional[set[str]] = None
@@ -93,7 +105,10 @@ class JobSpec:
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
 
-        services = set(self.services or [])
+        # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
+        # some services depend on others being ready first (e.g. azureeventhubsemulator
+        # depends on azurite), and the wait script checks readiness in argument order.
+        services = list(dict.fromkeys(self.services or []))
         if services:
             lines.append("  services:")
 
@@ -104,13 +119,13 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for = services.copy()
+        wait_for = list(services)
         if self.snapshot:
-            wait_for.add("testagent")
+            wait_for.append("testagent")
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
-        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
+        _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
@@ -154,16 +169,6 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
-
-        if self.skip_venv_artifacts:
-            lines.append("  artifacts:")
-            lines.append("    when: always")
-            lines.append("    paths:")
-            lines.append("      - core.*")
-            lines.append("      - ddtrace/**/*.so*")
-            lines.append("    reports:")
-            lines.append("      junit: test-results/junit*.xml")
-            lines.append("    expire_in: 1 week")
 
         return "\n".join(lines)
 
@@ -651,6 +656,19 @@ def gen_pre_checks() -> None:
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
+        name="Check profiling native coverage",
+        command="scripts/lint profiling-native-check",
+        paths={
+            ".gitlab-ci.yml",
+            "ddtrace/internal/datadog/profiling/*",
+            "ddtrace/profiling/*",
+            "scripts/check_profiling_native_coverage.py",
+            "scripts/gen_gitlab_config.py",
+            "scripts/lint",
+            "src/native/*",
+        },
+    )
+    check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
         paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
@@ -743,8 +761,8 @@ def gen_build_base_venvs() -> None:
             template(
                 "build-base-venvs",
                 python_versions=python_versions_str,
-                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
-                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
+                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
 
@@ -824,18 +842,19 @@ def template(name: str, **params):
     return "\n" + template_path.read_text().format(**params).strip() + "\n"
 
 
-has_error = False
+if __name__ == "__main__":
+    has_error = False
 
-LOGGER.info("Configuration generation steps:")
-for name, func in dict(globals()).items():
-    if name.startswith("gen_"):
-        desc = func.__doc__.splitlines()[0]
-        try:
-            start = time()
-            func()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
-        except Exception as e:
-            LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
-            has_error = True
+    LOGGER.info("Configuration generation steps:")
+    for name, func in dict(globals()).items():
+        if name.startswith("gen_"):
+            desc = func.__doc__.splitlines()[0]
+            try:
+                start = time()
+                func()
+                LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
+            except Exception as e:
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
 
-sys.exit(has_error)
+    sys.exit(has_error)

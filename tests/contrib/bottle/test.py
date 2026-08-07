@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

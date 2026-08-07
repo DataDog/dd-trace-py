@@ -20,7 +20,7 @@ VariationType = ffe.FlagType
 ResolutionDetails = ffe.ResolutionDetails
 
 
-def process_ffe_configuration(config):
+def process_ffe_configuration(config) -> bool:
     """
     Process FFE configuration and store as native Configuration object.
 
@@ -28,6 +28,12 @@ def process_ffe_configuration(config):
 
     Args:
         config: Configuration dict in format {"flags": {...}} or wrapped format
+
+    Returns:
+        True when the configuration was applied, False when the native library
+        rejected it. On rejection the previously applied configuration is left
+        in place, so callers that track delivery state (e.g. the agentless
+        source's ETag) must not treat a False result as success.
     """
     try:
         config_json = json.dumps(config)
@@ -40,6 +46,7 @@ def process_ffe_configuration(config):
         from ddtrace.internal.openfeature._provider import _notify_providers_config_received
 
         _notify_providers_config_received()
+        return True
     except ValueError as e:
         log.debug(
             "Failed to parse FFE configuration. The native library expects complete server format with: "
@@ -48,6 +55,7 @@ def process_ffe_configuration(config):
             e,
             exc_info=True,
         )
+        return False
 
 
 def resolve_flag(

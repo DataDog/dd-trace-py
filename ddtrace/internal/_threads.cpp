@@ -243,8 +243,29 @@ class GILGuard
     }
     inline ~GILGuard()
     {
-        if (_acquired && !_mstate->is_finalizing() && PyGILState_Check())
-            PyGILState_Release(_gil_state);
+        if (!_acquired || _mstate->is_finalizing() || !PyGILState_Check())
+            return;
+
+#if PY_VERSION_HEX < 0x030D0000
+        // Work around CPython GH-119585, which was not fixed on 3.9-3.11.
+        // A cp312 wheel must also apply the workaround to the entire 3.12 ABI
+        // because a wheel built on 3.12.4+ can run on affected 3.12.0-3.12.3.
+        // Mirror the fixed CPython 3.12.4 release sequence by clearing the
+        // complete state, including its context, while gilstate_counter is
+        // still nonzero.
+        PyThreadState* tstate = PyThreadState_Get();
+        // An auto-created state has counter 1 here. PyGILState_Ensure raises a
+        // pre-existing state's initial counter from 1 to at least 2, so it must
+        // use the normal release path below instead of being deleted.
+        if (_gil_state == PyGILState_UNLOCKED && tstate->gilstate_counter == 1) {
+            PyThreadState_Clear(tstate);
+            --tstate->gilstate_counter;
+            PyThreadState_DeleteCurrent();
+            return;
+        }
+#endif
+
+        PyGILState_Release(_gil_state);
     }
 
     GILGuard(const GILGuard&) = delete;
@@ -312,13 +333,16 @@ class PyRef
     // destruction, resulting in a double-decrement (use-after-free).
     PyRef(const PyRef&) = delete;
     PyRef& operator=(const PyRef&) = delete;
-    inline ~PyRef()
+    inline ~PyRef() { reset(); }
+    inline void reset()
     {
+        PyObject* obj = _obj;
+        _obj = nullptr;
         // Avoid calling Py_DECREF during finalization as the thread state
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately.
-        if (_obj != nullptr && !_mstate->is_finalizing())
-            Py_DECREF(_obj);
+        if (obj != nullptr && !_mstate->is_finalizing())
+            Py_DECREF(obj);
     }
 
   private:
@@ -710,15 +734,15 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                 // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
                 // stopped_event->set(). This ensures that all Python VM interactions
                 // (Py_DECREF, PyGILState_Release) complete before the join() caller is
-                // unblocked. The inner scope also means ~PyRef may trigger
+                // unblocked. The inner scope also allows PyRef::reset() to trigger
                 // PeriodicThread_dealloc (if this thread held the last reference),
                 // which is safe because stopped_event is a captured shared_ptr
                 // independent of self's lifetime.
                 {
                     GILGuard _gil(state);
 
-                    // Move ref into this scope so ~PyRef (and thus Py_DECREF) fires
-                    // while the GIL is still held, before stopped_event->set().
+                    // Move ref into this scope so PyRef::reset() can release it while
+                    // the GIL is still held, before stopped_event->set().
                     PyRef _ref = std::move(ref);
 
                     // Retrieve the thread ID
@@ -815,9 +839,13 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                         unregister_periodic_thread_if_self(state->periodic_threads, self->ident, (PyObject*)self);
                     }
 
-                    // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
-                    // PyRef::~PyRef calls Py_DECREF(self). Both may interact with the
-                    // Python VM; they must complete before stopped_event->set() below.
+                    // Release the worker's Python reference before GILGuard
+                    // clears the thread state so values added by its deallocator
+                    // are included in that clear.
+                    _ref.reset();
+
+                    // Inner scope ends here. GILGuard::~GILGuard clears and deletes
+                    // the worker's thread state, then releases the GIL.
                 }
 
                 // All Python VM interactions are done. Signal that the thread has fully
@@ -1150,17 +1178,16 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // 2. The thread is always detached at creation, so destroying _thread
     //    (non-joinable std::thread) is a no-op regardless of which thread
     //    calls it.
-    // 3. After dealloc returns, the lambda only calls stopped_event->set()
-    //    via its captured shared_ptr — it never accesses self again.
+    // 3. After dealloc returns, the lambda only tears down its current thread
+    //    state and calls stopped_event->set() — it never accesses self again.
     // 4. GILGuard::~GILGuard (which runs after PyRef::~PyRef) only accesses
-    //    its own _mstate copy, not self.
+    //    its own _mstate copy and the current thread state, not self.
     //
     // Full cleanup is therefore correct in all cases;
 
-    // Unmap the PeriodicThread from periodic_threads, but only if the entry
-    // still belongs to self (see unregister_periodic_thread_if_self).
-    if (self->ident != NULL && self->_state != nullptr)
-        unregister_periodic_thread_if_self(self->_state->periodic_threads, self->ident, (PyObject*)self);
+    // The OS thread removes itself from periodic_threads at exit (see thread
+    // lambda below); a blind delete here by recycled ident would evict a live
+    // replacement worker and deadlock any fork child that joins it.
 
     PeriodicThread_clear(self);
 

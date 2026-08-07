@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    openfeature: the experimental OpenFeature provider now reports aggregated
+    server-side flag evaluations to Datadog (the EVP ``flagevaluation`` track),
+    lighting up server-side flag-evaluation observability. The existing
+    ``feature_flag.evaluations`` OpenTelemetry metric behavior is unchanged. The
+    new emission is gated by ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED`` (default
+    enabled).

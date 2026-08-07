@@ -1,10 +1,10 @@
 """Tests for ``iast_suppress_context``: suppressing IAST taint *source* generation.
 
 The context manager is used by the AppSec machinery to avoid creating throwaway tainted objects while
-analysing request data that never reaches the customer's business logic. It works by clearing the active
-IAST request context id (which gates source generation) and restoring it on exit, so it must:
+analysing request data that never reaches the customer's business logic. It works by setting a context-local
+source-suppression flag while preserving the active IAST request context id, so it must:
 - suppress ``taint_pyobject`` while active and restore behaviour afterwards,
-- restore the previous context id (not hard-reset),
+- preserve the current context id,
 - leave taint *propagation* (aspects) untouched,
 - be harmless when there is no active IAST request context.
 """
@@ -36,16 +36,26 @@ def test_taint_sources_suppressed_inside_context(iast_context_defaults):
     assert is_pyobject_tainted(_taint("restored_value"))
 
 
-def test_context_id_is_saved_and_restored(iast_context_defaults):
+def test_context_id_is_preserved(iast_context_defaults):
     context_id = _get_iast_context_id()
     assert context_id is not None
 
     with iast_suppress_context():
-        # The active context id is cleared while suppressed.
-        assert _get_iast_context_id() is None
+        assert _get_iast_context_id() == context_id
 
-    # The original context id is restored on exit.
     assert _get_iast_context_id() == context_id
+
+
+def test_nested_taint_source_suppression(iast_context_defaults):
+    with iast_suppress_context():
+        assert not is_pyobject_tainted(_taint("outer_suppressed_value"))
+
+        with iast_suppress_context():
+            assert not is_pyobject_tainted(_taint("inner_suppressed_value"))
+
+        assert not is_pyobject_tainted(_taint("outer_still_suppressed_value"))
+
+    assert is_pyobject_tainted(_taint("restored_after_nested_suppression"))
 
 
 def test_propagation_is_not_suppressed(iast_context_defaults):

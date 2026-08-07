@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: fixed an issue on Python 3.12+ where enabling coverage report upload
+    (``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED=true``) alongside Test Impact
+    Analysis caused per-test coverage data to be silently empty. The two features can now
+    be enabled together.

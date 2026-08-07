@@ -163,3 +163,26 @@ def test_log_waf_callback(caplog):
     assert caplog.records[0].levelname == "WARNING"
     assert caplog.records[0].msg.startswith("appsec::asm_context::call_waf_callback::not_set")
     ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", ddlogger.DAY)
+
+
+def test_log_waf_callback_rasp_out_of_context(caplog):
+    """RASP calls (rule_type set) out of context are benign: log at DEBUG, no warning, no error tag."""
+    from ddtrace import tracer
+    import ddtrace.internal.logger as ddlogger
+
+    ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", 0)
+    try:
+        with tracer.trace("test", service="test_service") as span:
+            with caplog.at_level(logging.DEBUG), override_global_config({"_asm_enabled": True}):
+                _asm_request_context.call_waf_callback(rule_type="lfi")
+    finally:
+        ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", ddlogger.DAY)
+
+    root_span = span._local_root or span
+    assert root_span.get_tag("_dd.appsec.error.type") is None
+    assert root_span.get_tag("_dd.appsec.error.message") is None
+
+    records = [r for r in caplog.records if r.msg.startswith("appsec::asm_context::call_waf_callback::not_set")]
+    assert len(records) == 1
+    assert records[0].levelname == "DEBUG"
+    assert not any(r.levelname == "WARNING" for r in caplog.records)

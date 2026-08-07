@@ -49,7 +49,7 @@ class LineCollector(ModuleCollector):
                 probes.append(
                     create_snapshot_line_probe(
                         probe_id=probe_id,
-                        source_file=o,
+                        source_file=str(o),
                         line=line,
                         rate=0.0,
                         limits=expl_config.limits,
@@ -57,7 +57,7 @@ class LineCollector(ModuleCollector):
                     if expl_config.capture
                     else create_log_line_probe(
                         probe_id=probe_id,
-                        source_file=o,
+                        source_file=str(o),
                         line=line,
                         rate=0.0,
                         template="",

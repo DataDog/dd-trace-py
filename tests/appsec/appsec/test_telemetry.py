@@ -18,6 +18,7 @@ from ddtrace.appsec._utils import _observator
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -402,7 +403,7 @@ def test_appsec_enabled_metric(
         if rc_enabled:
             enable_asm()
 
-        telemetry_writer._dispatch()
+        core.dispatch("telemetry.periodic")
 
         metrics_result = telemetry_writer._report_configurations()
         assert metrics_result == [

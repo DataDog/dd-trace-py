@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    openfeature: Adds experimental APM span enrichment for the Feature Flagging
+    and Experimentation (FFE) OpenFeature provider. When
+    ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED=true``, the
+    provider attaches feature-flag evaluation metadata (``ffe_flags_enc``,
+    ``ffe_subjects_enc``, and ``ffe_runtime_defaults``) to the root APM span so
+    traces and errors can be filtered by active flag variant. This is off by
+    default and, when disabled, adds no per-span overhead.

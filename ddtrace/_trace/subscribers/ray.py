@@ -47,6 +47,7 @@ from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.trace import tracer
 
@@ -64,7 +65,7 @@ class RayJobStartSubscriber(TracingSubscriber):
         event: RayJobEvent = ctx.event
         submission_id = event.submission_id
 
-        job_span = ctx.span
+        job_span = span_from_context(ctx)
         _set_dist_ai_metrics(job_span)
         _set_runtime_context_attributes(job_span, submission_id)
         start_long_running_job(job_span)
@@ -92,7 +93,7 @@ class RayJobStartSubscriber(TracingSubscriber):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RayJobEvent = ctx.event
-        job_span = ctx.span
+        job_span = span_from_context(ctx)
 
         # a simple if event.submit_failed does not work on event_field
         if event.submit_failed is True:
@@ -113,7 +114,7 @@ class RayExecutionSubscriber(TracingSubscriber):
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
-        span = ctx.span
+        span = span_from_context(ctx)
         _set_dist_ai_metrics(span)
         _set_runtime_context_attributes(span)
 
@@ -147,7 +148,7 @@ class RayExecutionSubscriber(TracingSubscriber):
         ctx: core.ExecutionContext,
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         exc_type, exc_val, exc_tb = exc_info
         if exc_type is not None and exc_val is not None:
@@ -164,7 +165,7 @@ class RayCoreAPITracingSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: RayCoreAPIEvent = ctx.event
-        span = ctx.span
+        span = span_from_context(ctx)
 
         _set_dist_ai_metrics(span)
         _set_runtime_context_attributes(span)
@@ -179,7 +180,7 @@ class RayCoreAPITracingSubscriber(TracingSubscriber):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RayCoreAPIEvent = ctx.event
-        span = ctx.span
+        span = span_from_context(ctx)
 
         exc_type, exc_val, exc_tb = exc_info
         if exc_type is not None and exc_val is not None:
@@ -200,7 +201,7 @@ class RaySubmissionSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: RaySubmissionEvent = ctx.event
-        span = ctx.span
+        span = span_from_context(ctx)
 
         _set_dist_ai_metrics(span)
         _set_runtime_context_attributes(span)
@@ -250,7 +251,7 @@ class RaySubmissionSubscriber(TracingSubscriber):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RaySubmissionEvent = ctx.event
-        span = ctx.span
+        span = span_from_context(ctx)
 
         status_tag = RAY_TASK_SUBMIT_STATUS if event.is_task_submission else RAY_ACTOR_METHOD_SUBMIT_STATUS
         span._set_attribute(status_tag, RAY_STATUS_ERROR if exc_info[1] is not None else RAY_STATUS_SUCCESS)

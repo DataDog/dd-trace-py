@@ -1,7 +1,9 @@
 import atexit
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import time
@@ -20,6 +22,7 @@ from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.env_tags import get_env_tags
@@ -36,6 +39,7 @@ from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -104,7 +108,11 @@ class SessionManager:
         self.collected_tests: set[TestRef] = set()
         self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None
-        self.itr_skipping_level = ITRSkippingLevel.TEST  # TODO: SUITE level not supported at the moment.
+        suite_mode_env = env.get("_DD_CIVISIBILITY_ITR_SUITE_MODE")
+        if suite_mode_env is not None:
+            self.itr_skipping_level = ITRSkippingLevel.SUITE if asbool(suite_mode_env) else ITRSkippingLevel.TEST
+        else:
+            self.itr_skipping_level = ITRSkippingLevel.TEST
 
         self.is_user_provided_service: bool
 
@@ -123,62 +131,102 @@ class SessionManager:
             self.env = self.connector_setup.default_env()
 
         self.api_client: TestOptDataProvider
+        # Set only when reads come from a manifest but coverage reports must still be uploaded over HTTP.
+        self.coverage_upload_client: t.Optional[TestOptDataProvider] = None
         if offline.manifest_enabled:
             if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
                 raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            log.debug(
+                "Test Optimization SessionManager using manifest data provider: pid=%s worker=%s dir=%s",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                offline.test_optimization_dir,
+            )
             self.api_client = CachedFileDataProvider(
                 test_optimization_dir=offline.test_optimization_dir,
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
+            # AIDEV-NOTE: Reads come from the manifest, but coverage reports still go over HTTP. This is the intended
+            # design, not a workaround: the intake merges the coverage reports of a session, so every process that ran
+            # tests is expected to upload its own (see TestOptPlugin.pytest_sessionfinish).
+            # CachedFileDataProvider cannot upload — manifest mode used to imply Bazel's payload-files mode, where
+            # there is no network, and that is exactly the assumption an xdist worker reusing its controller's cache
+            # breaks. Payload-files mode keeps no client: there, coverage is written to files and there is nowhere to
+            # upload to.
+            if not offline.payload_files_enabled:
+                self.coverage_upload_client = self._build_api_client()
         else:
-            self.api_client = APIClient(
-                service=self.service,
-                env=self.env,
-                env_tags=self.env_tags,
-                itr_skipping_level=self.itr_skipping_level,
-                configurations=self.platform_tags,
-                connector_setup=self.connector_setup,
-                telemetry_api=self.telemetry_api,
+            log.debug(
+                "Test Optimization SessionManager using online API data provider: pid=%s worker=%s manifest_env=%r",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE),
             )
+            self.api_client = self._build_api_client()
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
 
         self.show_settings()
 
-        self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+        # Fetch known tests, test management properties, and upload git data in parallel.
+        # These are independent network calls that can safely run concurrently:
+        # - BackendConnector is threading.local, so each thread gets its own connection.
+        # - configuration_errors writes use non-overlapping keys per method.
+        # In ATF-all-flaky mode only test management properties are needed: known tests and
+        # skippable items play no role, so those network calls are skipped. Git data is still
+        # uploaded, since it is required to populate git metadata regardless of ATF mode.
+        self.atf_all_flaky_tests: bool = asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false"))
 
-        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
-            tm_properties = self.api_client.get_test_management_properties(
-                statuses=("active", "quarantined", "disabled")
-            )
-            self.atf_all_flaky_tests: bool = True
-            self.test_properties: dict[TestRef, TestProperties] = tm_properties
+        # Snapshot the settings-derived flags read by the OTHER two threads before starting the
+        # concurrent fetches below: _upload_git_and_fetch_skippable() may replace self.settings
+        # (when require_git is enabled), and _fetch_known_tests/_fetch_test_management_properties
+        # must see a consistent, deterministic value rather than racing on when that replacement
+        # happens. This doesn't apply to the itr_enabled check below, which runs sequentially,
+        # in-thread, after the possible refetch — it is meant to observe the refetched settings.
+        known_tests_enabled = self.settings.known_tests_enabled and not self.atf_all_flaky_tests
+        test_management_enabled = self.settings.test_management.enabled
+
+        def _fetch_known_tests() -> set[TestRef]:
+            return self.api_client.get_known_tests() if known_tests_enabled else set()
+
+        def _fetch_test_management_properties() -> dict[TestRef, TestProperties]:
+            if self.atf_all_flaky_tests:
+                return self.api_client.get_test_management_properties(statuses=("active", "quarantined", "disabled"))
+            return self.api_client.get_test_management_properties() if test_management_enabled else {}
+
+        def _upload_git_and_fetch_skippable() -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+            self.upload_git_data()
+            if self.settings.require_git:
+                # Fetch settings again after uploading git data, as it may change ITR settings.
+                self.settings = self.api_client.get_settings()
+                self.override_settings_with_env_vars()
+            if not self.atf_all_flaky_tests and self.settings.itr_enabled:
+                return self.api_client.get_skippable_tests()
+            return set(), None
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            known_tests_future = executor.submit(_fetch_known_tests)
+            tm_properties_future = executor.submit(_fetch_test_management_properties)
+            skippable_future = executor.submit(_upload_git_and_fetch_skippable)
+
+            self.known_tests: set[TestRef] = known_tests_future.result()
+            self.test_properties: dict[TestRef, TestProperties] = tm_properties_future.result()
+            self.skippable_items, self.itr_correlation_id = skippable_future.result()
+
+        if self.atf_all_flaky_tests:
             log.info(
                 "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
-                len(tm_properties),
+                len(self.test_properties),
             )
-        else:
-            self.atf_all_flaky_tests = False
-            self.test_properties = (
-                self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-            )
-
-        self.upload_git_data()
-        if self.settings.itr_enabled:
-            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
-        else:
-            self.skippable_items = set()
-            self.itr_correlation_id = None
-        if self.settings.require_git:
-            # Fetch settings again after uploading git data, as it may change ITR settings.
-            self.settings = self.api_client.get_settings()
-            self.override_settings_with_env_vars()
 
         # Snapshot configuration errors before closing the client.
         self.configuration_errors = dict(self.api_client.configuration_errors)
 
         self.api_client.close()
+        if self.coverage_upload_client is not None:
+            # Reconnects on demand, like api_client does for coverage uploads at session end.
+            self.coverage_upload_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
@@ -205,6 +253,7 @@ class SessionManager:
             skipping_enabled=self.settings.skipping_enabled,
             skipping_level=self.itr_skipping_level,
         )
+        self.session.itr_correlation_id = self.itr_correlation_id
 
         # Propagate configuration errors to the session event and all child events.
         if self.configuration_errors:
@@ -227,10 +276,6 @@ class SessionManager:
                 "service.name": self.service,
             },
         )
-
-        if self.itr_correlation_id:
-            itr_event = "test" if self.itr_skipping_level == ITRSkippingLevel.TEST else "test_suite_end"
-            self.writer.add_metadata(itr_event, {"itr_correlation_id": self.itr_correlation_id})
 
         self.codeowners: t.Optional[Codeowners] = None
 
@@ -276,6 +321,17 @@ class SessionManager:
         self.coverage_writer.start()
         atexit.register(self.finish)
 
+    def _build_api_client(self) -> APIClient:
+        return APIClient(
+            service=self.service,
+            env=self.env,
+            env_tags=self.env_tags,
+            itr_skipping_level=self.itr_skipping_level,
+            configurations=self.platform_tags,
+            connector_setup=self.connector_setup,
+            telemetry_api=self.telemetry_api,
+        )
+
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
     ) -> bool:
@@ -283,6 +339,8 @@ class SessionManager:
         Upload a coverage report to Datadog CI Intake.
 
         This creates a temporary API client connection to upload the coverage report.
+
+        Under xdist every process that ran tests uploads its own partial report; the intake merges them per session.
 
         Args:
             coverage_report_bytes: The coverage report content (will be gzipped by the API client)
@@ -292,8 +350,9 @@ class SessionManager:
         Returns:
             True if upload succeeded, False otherwise
         """
+        client = self.coverage_upload_client or self.api_client
         try:
-            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            result = client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
             return result
 
         except Exception as e:
@@ -744,6 +803,38 @@ class SessionManager:
             return False
 
         return test_ref in self.skippable_items or test_ref.suite in self.skippable_items
+
+    def is_skippable_suite_path(self, collection_path: Path, root_path: t.Optional[Path] = None) -> bool:
+        """Return True if the entire suite (file) at collection_path is ITR-skippable.
+
+        Only meaningful in suite-skipping mode; always returns False in test-skipping mode since
+        skippable_items then contains TestRefs, not SuiteRefs.
+
+        ``root_path`` should be pytest's rootdir so that the module/suite derivation matches
+        ``item_to_test_ref`` (which works from nodeids, themselves relative to rootdir).  When
+        *None* we fall back to ``workspace_path`` for backwards-compatibility.
+        """
+        if not self.settings.skipping_enabled:
+            return False
+        if self.itr_skipping_level != ITRSkippingLevel.SUITE:
+            return False
+        base = root_path or self.workspace_path
+        try:
+            relative = collection_path.relative_to(base)
+        except ValueError:
+            return False
+        # Mirror the module/suite decomposition used by item_to_test_ref / nodeid_to_names:
+        # everything up to the last path component becomes the dot-separated module name,
+        # and the filename itself is the suite name.
+        module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+        suite_ref = SuiteRef(ModuleRef(module_name), relative.name)
+        if suite_ref not in self.skippable_items:
+            return False
+        # Do not skip suites that contain attempt-to-fix tests — those must run regardless of ITR.
+        for test_ref, props in self.test_properties.items():
+            if test_ref.suite == suite_ref and props.attempt_to_fix:
+                return False
+        return True
 
     def has_codeowners(self) -> bool:
         return self.codeowners is not None

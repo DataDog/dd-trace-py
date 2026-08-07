@@ -156,7 +156,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "flask",
+                  "_dd.svc_src": "subprocess",
                   "cmd.exec": "['dir', '-li', '/']",
                   "cmd.exit_code": "0",
                   "component": "subprocess"
@@ -174,7 +174,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "flask",
+                  "_dd.svc_src": "subprocess",
                   "cmd.exec": "['dir', '-li', '/']",
                   "cmd.exit_code": "0",
                   "component": "subprocess"

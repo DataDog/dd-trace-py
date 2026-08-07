@@ -9,6 +9,10 @@ from typing import Optional
 from typing import TypedDict
 
 from ddtrace import config
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
@@ -21,14 +25,12 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 logger = get_logger(__name__)
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EXPOSURE_ENDPOINT = "/api/v2/exposures"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
-EXPOSURE_SUBDOMAIN_NAME = "event-platform-intake"
+EXPOSURE_SUBDOMAIN_NAME = EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 
 # Buffer and payload limits
 BUFFER_LIMIT = 1000
-PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB
+PAYLOAD_SIZE_LIMIT = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 
 # Default configuration
 DEFAULT_INTERVAL = 1.0

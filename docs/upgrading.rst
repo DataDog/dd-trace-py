@@ -104,7 +104,7 @@ Upgrade to 4.0
 Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
-Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v3.0. Refer to the migration guide below for next steps::
+Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v4.0. Refer to the migration guide below for next steps::
 
     git grep -P -e "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL" \
     -e "DD_EXCEPTION_DEBUGGING_ENABLED" \
@@ -113,3 +113,29 @@ Use the following patterns to identify the deprecated environment variables in a
 
 Reference the [4.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0) to identify and update deprecated interfaces in ddtrace products. The major changes to the tracing
 interface include the removal of `Pin` and `Span.set_tag_str`. Python 3.8 support has also been dropped.
+
+Upgrade to 5.0
+**************
+
+AI Guard package
+^^^^^^^^^^^^^^^^
+
+The AI Guard public SDK has moved from ``ddtrace.appsec.ai_guard`` to the top-level
+``ddtrace.aiguard`` package. Importing from ``ddtrace.appsec.ai_guard`` is deprecated,
+emits a ``ddtrace.DDTraceDeprecationWarning``, and will be removed in 5.0.0. Update your
+imports accordingly::
+
+    git grep -e "ddtrace.appsec.ai_guard"
+
+    # for example, replace
+    from ddtrace.appsec.ai_guard import AIGuardClient
+    # with
+    from ddtrace.aiguard import AIGuardClient
+
+The Strands Agents classes are the exception: they are not re-exported from the top-level
+package and must be imported from the ``ddtrace.aiguard.integrations.strands`` submodule::
+
+    # replace
+    from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin, AIGuardStrandsHookProvider
+    # with
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin, AIGuardStrandsHookProvider

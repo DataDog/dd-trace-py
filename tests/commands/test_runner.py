@@ -210,10 +210,10 @@ class DdtraceRunTest(BaseTestCase):
             stderr=subprocess.PIPE,
         )
 
-        p.wait()
+        stdout, stderr = p.communicate()
         assert p.returncode == 0
-        assert p.stdout.read() == b""
-        assert b" 'debug': True" in p.stderr.read()
+        assert stdout == b""
+        assert b" 'debug': True" in stderr
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
@@ -246,19 +246,19 @@ def test_version():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 0
 
-    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
+    assert stdout == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
     p = subprocess.Popen(
         ["ddtrace-run", "--version"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 0
-    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
+    assert stdout == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
 
 def test_bad_executable():
@@ -267,9 +267,8 @@ def test_bad_executable():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    content, _ = p.communicate()
     assert p.returncode == 1
-    content = p.stdout.read()
     assert b"ddtrace-run: failed to bootstrap: args" in content
     assert b"'executable-does-not-exist'" in content
 
@@ -281,10 +280,9 @@ def test_executable_no_perms():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    out, _ = p.communicate()
     assert p.returncode == 1
 
-    out = p.stdout.read()
     assert out.startswith(("ddtrace-run: permission error while launching '%s'" % path).encode("utf-8"))
 
 
@@ -297,7 +295,7 @@ def test_return_code():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
-    p.wait()
+    p.communicate()
 
     assert p.returncode == 4
 
@@ -308,8 +306,7 @@ def test_info_no_configs():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    stdout = p.stdout.read()
+    stdout, _ = p.communicate()
     # checks most of the output but some pieces are removed due to the dynamic nature of the output
     expected_strings = [
         b"\x1b[1mTracer Configurations:\x1b[0m",
@@ -364,8 +361,7 @@ def test_info_w_configs():
             stderr=subprocess.PIPE,
         )
 
-    p.wait()
-    stdout = p.stdout.read()
+    stdout, _ = p.communicate()
     # checks most of the output but some pieces are removed due to the dynamic nature of the output
     expected_strings = [
         b"1mTracer Configurations:\x1b[0m",
@@ -399,9 +395,9 @@ def test_no_args():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 1
-    assert b"usage:" in p.stdout.read()
+    assert b"usage:" in stdout
 
 
 MODULES_TO_CHECK = ["asyncio"]

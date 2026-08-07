@@ -96,6 +96,188 @@ def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | N
     return di
 
 
+def test_filename_to_package_resolves_shared_intermediate_namespace(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end lookup must attribute each shared-namespace file correctly.
+
+    The regression that kept recurring: the directory scan stores deep keys
+    (google/cloud/storage / google/cloud/bigquery) but _root_module
+    only yields the fixed 2-level key google/cloud, so filename_to_package
+    resolved every google/cloud/... file to whichever dist was scanned
+    first. With longest-prefix matching, each file resolves to its own dist.
+    """
+    from ddtrace.internal import packages as _p
+
+    # Lay both dists under a common ``site-packages`` parent so the Bazel
+    # runfiles heuristic in _relative_to_known_root resolves the files.
+    sp = tmp_path / "runfiles" / "site-packages"
+    sp.mkdir(parents=True)
+    (sp / "google" / "cloud" / "storage").mkdir(parents=True)
+    (sp / "google" / "cloud" / "storage" / "__init__.py").write_text("")
+    (sp / "google" / "cloud" / "storage" / "blob.py").write_text("")
+    (sp / "google" / "cloud" / "bigquery").mkdir(parents=True)
+    (sp / "google" / "cloud" / "bigquery" / "__init__.py").write_text("")
+    (sp / "google" / "cloud" / "bigquery" / "client.py").write_text("")
+
+    mapping = {
+        "google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0"),
+        "google/cloud/bigquery": _p.Distribution(name="google-cloud-bigquery", version="2.0"),
+    }
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    _p.filename_to_package.cache_clear()
+
+    storage_pkg = _p.filename_to_package(sp / "google" / "cloud" / "storage" / "blob.py")
+    bigquery_pkg = _p.filename_to_package(sp / "google" / "cloud" / "bigquery" / "client.py")
+
+    assert storage_pkg is not None and storage_pkg.name == "google-cloud-storage"
+    assert bigquery_pkg is not None and bigquery_pkg.name == "google-cloud-bigquery"
+
+    _p.filename_to_package.cache_clear()
+
+
+def test_filename_to_package_does_not_attribute_source_roots_to_dependency(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep prefix matching must not leak dependency namespaces onto user code.
+
+    In Bazel a binary's own source/workspace roots are on sys.path too. A
+    user file <workspace>/google/cloud/storage/app.py shares the namespace
+    prefix of a google-cloud-storage dependency, but it is not under a
+    site-packages root, so it must resolve to user code.
+    """
+    from ddtrace.internal import packages as _p
+
+    workspace = tmp_path / "workspace"
+    (workspace / "google" / "cloud" / "storage").mkdir(parents=True)
+    (workspace / "google" / "cloud" / "storage" / "app.py").write_text("")
+
+    mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    # The workspace root is on sys.path, mirroring a Bazel py_binary.
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [workspace])
+    _p.filename_to_package.cache_clear()
+
+    pkg = _p.filename_to_package(workspace / "google" / "cloud" / "storage" / "app.py")
+
+    assert pkg is None
+
+    _p.filename_to_package.cache_clear()
+
+
+def test_filename_to_package_resolves_namespace_on_non_site_packages_install_root(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Vendored namespace deps on a non-site-packages root must still resolve.
+
+    A distribution installed with pip install --target=/app/vendor (or
+    vendored onto PYTHONPATH) lives on a sys.path root that is not named
+    site-packages. The mapping stores the deep key google/cloud/storage,
+    so the anchored longest-prefix lookup must recognize the target dir as an
+    install root -- it ships the *.dist-info -- and attribute the file to
+    the dependency rather than falling through to user code.
+    """
+    from ddtrace.internal import packages as _p
+
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    # The dist-info marks vendor as an install root (not a source root).
+    _write_dist_info(vendor, "google-cloud-storage", "1.0")
+    (vendor / "google" / "cloud" / "storage").mkdir(parents=True)
+    (vendor / "google" / "cloud" / "storage" / "blob.py").write_text("")
+
+    mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [vendor])
+    _p._is_install_root.cache_clear()
+    _p.filename_to_package.cache_clear()
+
+    pkg = _p.filename_to_package(vendor / "google" / "cloud" / "storage" / "blob.py")
+
+    assert pkg is not None and pkg.name == "google-cloud-storage"
+
+    _p._is_install_root.cache_clear()
+    _p.filename_to_package.cache_clear()
+
+
+def test_mapping_generates_deep_keys_for_shared_namespace_dists(
+    isolated_metadata_path: Path,
+    reset_packages_caches,
+) -> None:
+    """The generator must key shared-namespace dists on their deepest import
+    root, not a fixed 2-level prefix.
+
+    ``google-cloud-storage`` and ``google-cloud-bigquery`` both live under the
+    ``google/cloud`` PEP 420 namespace. Keying on ``google/cloud`` collapses
+    both onto whichever dist is scanned first, which is exactly what
+    filename_to_package's longest-prefix lookup exists to avoid. The mapping
+    must therefore contain ``google/cloud/storage`` and ``google/cloud/bigquery``
+    and must not contain the ambiguous ``google/cloud`` key.
+    """
+
+    def _write_namespace_dist(name: str, version: str, leaf: str, module: str) -> None:
+        di = _write_dist_info(isolated_metadata_path, name, version)
+        pkg_dir = isolated_metadata_path / "google" / "cloud" / leaf
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        # Namespace levels (google, google/cloud) intentionally lack __init__.py.
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / module).write_text("")
+        (di / "RECORD").write_text(f"google/cloud/{leaf}/__init__.py,,\ngoogle/cloud/{leaf}/{module},,\n")
+
+    _write_namespace_dist("google-cloud-storage", "1.0", "storage", "blob.py")
+    _write_namespace_dist("google-cloud-bigquery", "2.0", "bigquery", "client.py")
+
+    from ddtrace.internal.packages import _package_for_root_module_mapping
+
+    mapping = _package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert "google/cloud" not in mapping
+    assert mapping["google/cloud/storage"].name == "google-cloud-storage"
+    assert mapping["google/cloud/bigquery"].name == "google-cloud-bigquery"
+
+
+def test_mapping_keeps_module_filename_for_flat_namespace_dists(
+    isolated_metadata_path: Path,
+    reset_packages_caches,
+) -> None:
+    """Module files shipped directly under a shared PEP 420 namespace must keep
+    distinct keys.
+
+    Two dists can drop plain modules into the same namespace with no
+    __init__.py at any level (dist A ships acme/foo.py, dist B ships
+    acme/bar.py). Keying both on the bare ``acme`` prefix collapses them
+    onto whichever dist is scanned first; the key must therefore retain the
+    module file name so each module resolves to its own distribution.
+    """
+
+    def _write_flat_namespace_dist(name: str, version: str, module: str) -> None:
+        di = _write_dist_info(isolated_metadata_path, name, version)
+        acme = isolated_metadata_path / "acme"
+        acme.mkdir(exist_ok=True)
+        # acme is a namespace: no __init__.py, only sibling module files.
+        (acme / module).write_text("")
+        (di / "RECORD").write_text(f"acme/{module},,\n")
+
+    _write_flat_namespace_dist("acme-foo", "1.0", "foo.py")
+    _write_flat_namespace_dist("acme-bar", "2.0", "bar.py")
+
+    from ddtrace.internal.packages import _package_for_root_module_mapping
+
+    mapping = _package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert "acme" not in mapping
+    assert mapping["acme/foo.py"].name == "acme-foo"
+    assert mapping["acme/bar.py"].name == "acme-bar"
+
+
 def test_get_distributions_skips_bad_dist_warns_once_returns_partial_map(
     isolated_metadata_path: Path,
     reset_packages_caches,
@@ -167,3 +349,42 @@ def test_package_for_root_module_mapping_skips_bad_dist(
     assert mapping is not None
     assert "good_pkg" in mapping
     assert mapping["good_pkg"].name == "good-pkg"
+
+
+def test_filename_to_package_does_not_attribute_editable_source_root_to_dependency(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An editable checkout's own .egg-info must not license unrelated matches.
+
+    A legacy editable install (``pip install -e .`` / ``setup.py develop``)
+    drops the project's own ``<name>.egg-info`` in the source root, which is on
+    sys.path. That metadata belongs to the project, not to a third-party
+    namespace dependency, so a user file such as
+    ``<repo>/google/cloud/storage/app.py`` must still resolve to user code
+    (None) -- the install-root anchor only counts when the root ships the
+    matched distribution's own metadata.
+    """
+    from ddtrace.internal import packages as _p
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    # The repo carries only its own project metadata, not google-cloud-storage.
+    (repo / "myproject.egg-info").mkdir()
+    (repo / "myproject.egg-info" / "PKG-INFO").write_text("Name: myproject\nVersion: 1.0\n")
+    (repo / "google" / "cloud" / "storage").mkdir(parents=True)
+    (repo / "google" / "cloud" / "storage" / "app.py").write_text("")
+
+    mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [repo])
+    _p._is_install_root.cache_clear()
+    _p.filename_to_package.cache_clear()
+
+    pkg = _p.filename_to_package(repo / "google" / "cloud" / "storage" / "app.py")
+
+    assert pkg is None
+
+    _p._is_install_root.cache_clear()
+    _p.filename_to_package.cache_clear()
