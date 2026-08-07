@@ -3,6 +3,7 @@ import threading
 
 import gevent
 import gevent.pool
+import pytest
 
 
 from ddtrace.constants import ERROR_MSG
@@ -14,6 +15,121 @@ from ddtrace.contrib.internal.gevent.patch import unpatch
 from tests.utils import TracerTestCase
 
 from .utils import silence_errors
+
+
+@pytest.mark.subprocess()
+def test_native_thread_logging_hook_survives_gevent_monkey_reimport():
+    import importlib
+    import sys
+
+    import gevent
+    import gevent.monkey as first_monkey
+
+    import ddtrace  # noqa:F401
+
+    assert first_monkey._ddtrace_logging_wrapped
+
+    sys.modules.pop("gevent.monkey")
+    del gevent.monkey
+    second_monkey = importlib.import_module("gevent.monkey")
+
+    assert second_monkey is not first_monkey
+    assert second_monkey._ddtrace_logging_wrapped
+
+
+@pytest.mark.subprocess(timeout=10, parametrize={"_DD_TEST_GEVENT_PATCH_FIRST": ["0", "1"]})
+def test_native_thread_logging_does_not_deadlock_greenlets():
+    import _thread
+    import logging
+    import os
+    import time
+
+    raw_get_ident = _thread.get_ident
+    raw_monotonic = time.monotonic
+    raw_sleep = time.sleep
+    raw_start_new_thread = _thread.start_new_thread
+
+    from gevent import monkey
+
+    if os.getenv("_DD_TEST_GEVENT_PATCH_FIRST") == "0":
+        import ddtrace.internal.logger as dd_logger
+
+    monkey.patch_all()
+
+    if os.getenv("_DD_TEST_GEVENT_PATCH_FIRST") == "1":
+        import ddtrace.internal.logger as dd_logger
+
+    import ddtrace.internal.gevent_logging as gevent_logging
+
+    assert gevent_logging.gevent_threading_patched
+    assert type(gevent_logging._DEFERRED_LOG_STATE_LOCK) is type(monkey.get_original("_thread", "allocate_lock")())
+
+    import gevent
+
+    native_ident = [None]
+    native_done = [False]
+    native_emits = [0]
+    handled_native_records = [0]
+    stop = [False]
+    progress = {"greenlet": 0, "thread": 0}
+
+    class SlowHandler(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.devnull = os.open(os.devnull, os.O_WRONLY)
+
+        def emit(self, record):
+            os.write(self.devnull, (self.format(record) + "\n").encode())
+            if record.msg == "from the native thread":
+                handled_native_records[0] += 1
+            if raw_get_ident() == native_ident[0]:
+                native_emits[0] += 1
+                raw_sleep(0.002)
+
+    log = dd_logger.get_logger("ddtrace.test.gevent_logging")
+    handler = SlowHandler()
+    log.handlers = [handler]
+    log.propagate = False
+    log.setLevel(logging.DEBUG)
+
+    def native_thread_worker():
+        native_ident[0] = raw_get_ident()
+        while not stop[0]:
+            log.debug("from the native thread")
+            progress["thread"] += 1
+            raw_sleep(0.0002)
+        native_done[0] = True
+
+    def greenlet_worker(n):
+        while not stop[0]:
+            log.debug("from greenlet %d", n)
+            progress["greenlet"] += 1
+            gevent.sleep(0.001)
+
+    raw_start_new_thread(native_thread_worker, ())
+    deadline = raw_monotonic() + 2
+    while handled_native_records[0] == 0 and raw_monotonic() < deadline:
+        gevent.sleep(0.001)
+    assert handled_native_records[0] > 0
+
+    greenlets = [gevent.spawn(greenlet_worker, n) for n in range(4)]
+    deadline = raw_monotonic() + 2
+    while progress["greenlet"] <= 10 and raw_monotonic() < deadline:
+        gevent.sleep(0.001)
+    stop[0] = True
+    gevent.joinall(greenlets, timeout=2)
+    deadline = raw_monotonic() + 2
+    while not native_done[0] and raw_monotonic() < deadline:
+        raw_sleep(0.001)
+
+    assert progress["thread"] > 0
+    assert progress["greenlet"] > 10
+    assert native_emits[0] == 0
+    assert native_done[0]
+    log.handlers = []
+    handler.close()
+    os.close(handler.devnull)
+    del handler
 
 
 class TestGeventTracer(TracerTestCase):

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    logging: Fixes an issue where applications using gevent can deadlock when ddtrace background workers and
+    greenlets log concurrently.
