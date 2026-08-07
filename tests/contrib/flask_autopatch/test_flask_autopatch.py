@@ -3,7 +3,7 @@ import flask
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.utils.wrappers import iswrapped
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -30,12 +30,12 @@ class FlaskAutopatchTestCase(TracerTestCase):
         self.assertTrue(flask._datadog_patch)
 
         # Assert our instance of flask.app.Flask is patched
-        self.assertTrue(is_wrapted(self.app.add_url_rule))
-        self.assertTrue(is_wrapted(self.app.wsgi_app))
+        self.assertTrue(iswrapped(self.app.add_url_rule))
+        self.assertTrue(iswrapped(self.app.wsgi_app))
 
         # Assert the base module flask.app.Flask methods are patched
-        self.assertTrue(is_wrapted(flask.app.Flask.add_url_rule))
-        self.assertTrue(is_wrapted(flask.app.Flask.wsgi_app))
+        self.assertTrue(iswrapped(flask.app.Flask.add_url_rule))
+        self.assertTrue(iswrapped(flask.app.Flask.wsgi_app))
 
     def test_request(self):
         """

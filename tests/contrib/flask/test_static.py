@@ -21,7 +21,13 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(res.data, b"Hello Flask\n")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
+        # Flask <2.0's `send_static_file` calls `send_file` internally, and bytecode-wrapped
+        # `send_file` instruments that call too (unlike wrapt's attribute patch, which only
+        # takes effect for callers resolving `flask.send_file` after patch() runs) — +1 span.
+        expected_span_count = 11 - REMOVED_SPANS_2_2_0
+        if flask_version < (2, 0, 0):
+            expected_span_count += 1
+        self.assertEqual(len(spans), expected_span_count)
 
         req_span = self.find_span_by_name(spans, "flask.request")
         handler_span = self.find_span_by_name(spans, "static")
