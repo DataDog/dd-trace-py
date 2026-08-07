@@ -28,7 +28,7 @@ from ddtrace.internal.threads import Lock
 if sys.version_info < (3, 15):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
-log = get_logger(__name__)
+log = get_logger(__name__)  # type: ignore[unreachable]
 
 _E = sys.monitoring.events
 DISABLE = sys.monitoring.DISABLE
