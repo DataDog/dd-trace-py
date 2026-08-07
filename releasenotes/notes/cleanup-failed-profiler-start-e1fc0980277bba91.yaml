@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where failed profiler initialization can leave profiling work active in the application process.
