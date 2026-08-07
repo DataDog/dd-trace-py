@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Resolve a segmentation fault (SIGSEGV) that could occur when the
+    stack profiler registered a thread under gevent. Thread identities provided
+    by gevent's monkey-patched ``threading`` module are greenlet ids rather than
+    OS ``pthread_t`` values; passing them to ``pthread_getcpuclockid`` on Linux
+    dereferenced an invalid pointer. The per-thread CPU clock id is now derived
+    from the kernel thread id instead, and an invalid id is handled gracefully.
