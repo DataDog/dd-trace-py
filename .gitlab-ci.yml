@@ -424,6 +424,47 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+detect_layering_violations:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - pip install uv
+    - cd ..
+    # Keep copies of PR scripts (and their config) so they survive the git checkout of the base branch below
+    - cp dd-trace-py/scripts/import-analysis/layers.py layers.py
+    - cp dd-trace-py/scripts/import-analysis/layers.json layers.json
+    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
+    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-pr.json
+    - cat layers-pr.json
+    - |
+      cd dd-trace-py
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+      git checkout FETCH_HEAD
+      cd ..
+    # Analyse the base branch ddtrace using the PR version of layers.py/layers.json (has uv metadata)
+    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-base.json
+    - cat layers-base.json
+    - |
+      set +e
+      uv run --script layers.py compare layers-base.json layers-pr.json > layers_report.txt
+      COMPARE_EXIT=$?
+      set -e
+    - cat layers_report.txt
+    - ./post-pr-comment.sh "Dependency direction analysis" layers_report.txt
+    - exit $COMPARE_EXIT
+
 check_added_file_size:
   stage: tests
   needs: []
