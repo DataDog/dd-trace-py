@@ -1571,3 +1571,175 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+def _measure_live_churn_samples(mc: "memalloc.MemoryCollector", output_filename: str, n_iter: int, size: int) -> int:
+    """Churn ``n_iter`` MEM-domain allocations (allocate then immediately free each),
+    flush CPython free lists, then return the number of live heap-space samples still
+    attributed to ``_make_mem_domain_object``.
+
+    Every object is unreferenced and ``gc.collect()`` is called before measuring, so a
+    correct heap tracker must report ~0 live samples for the churned allocations. If
+    freed MEM-domain allocations are not untracked (the ai_gateway staging bug), they
+    linger as "ghost" entries and this count grows roughly linearly with ``n_iter``.
+    """
+    for _ in range(n_iter):
+        obj = _make_mem_domain_object(size)
+        # Force a real, non-trivial free through the MEM free hook rather than letting
+        # CPython reuse the same block: mutate then drop the last reference.
+        if isinstance(obj, bytearray):
+            obj[-1:] = b"\x00"
+        del obj
+    # Flush type-specific free lists so cached-but-dead objects don't masquerade as live.
+    gc.collect()
+    mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    return _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_churn_does_not_inflate_live_heap(tmp_path: Path) -> None:
+    """Regression guard for MEM-domain heap-live-size churn (ai_gateway context).
+
+    Enabling ``mem_domain_enabled=True`` was suspected of inflating heap-live-size
+    without bound via freed-but-not-untracked "ghost" entries. Local investigation
+    (see ``mem_domain_heap_live_size_bug.md``) could NOT reproduce that: the
+    MEM-domain free path untracks symmetrically, so ``track == untrack`` and the
+    cap is never approached. This test is therefore a **regression guard**, not a
+    bug-demonstrating (pre-fix-failing) test -- it passes on HEAD as well as with
+    any tracker changes, and would only start failing if a future change actually
+    broke MEM-domain untracking.
+
+    Invariant: after churning N MEM-domain allocations where every object is freed
+    (+ ``gc.collect()``), the live *sample count* attributed to the churn (an
+    RSS-independent proxy) must stay bounded and must NOT scale with N.
+    """
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_churn")
+    # 64 KiB sampling interval so 256 KiB churn objects are reliably sampled (~4 samples
+    # each while live); every one must disappear from the live set once freed.
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024, mem_domain_enabled=True)
+    size: int = 256 * 1024
+
+    with mc:
+        # Warm-up churn establishes a baseline for the steady-state live count.
+        live_baseline: int = _measure_live_churn_samples(mc, output_filename, n_iter=200, size=size)
+        # 5x the churn. A correct tracker untracks every freed allocation, so the live
+        # count stays flat; a leaking tracker accumulates ~5x more ghosts.
+        live_heavy: int = _measure_live_churn_samples(mc, output_filename, n_iter=1000, size=size)
+
+    # Absolute bound: all 1000 heavy-churn objects are freed, so almost none may remain
+    # live. Ghost accumulation would leave hundreds/thousands of sampled entries here.
+    assert live_heavy < 50, (
+        f"Live heap-space samples for freed MEM-domain churn did not drop: {live_heavy} "
+        f"entries remain live after freeing 1000 allocations + gc.collect() "
+        f"(baseline after 200 was {live_baseline}). This is the ghost-accumulation bug: "
+        f"freed MEM-domain allocations are not being untracked, so heap-live-size inflates."
+    )
+    # Scaling bound: 5x the work must not produce ~5x the live entries. Allow generous
+    # slack for sampling jitter and objects still resident in free lists.
+    assert live_heavy <= live_baseline + 25, (
+        f"Live heap-space samples scale with churn volume "
+        f"(baseline={live_baseline}, heavy={live_heavy}); freed MEM-domain allocations "
+        f"are accumulating as ghost entries in the heap tracker."
+    )
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_cap_saturation_does_not_inflate_live_heap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression for the ai_gateway phantom heap-live-size inflation at the cap.
+
+    ``allocated_memory`` is the running byte accumulator that also weights the next
+    sample. Pre-fix, once the live-sample map saturated the sampler dropped
+    candidates WITHOUT resetting it, so it kept summing every dropped allocation; the
+    first sample taken once a slot freed inherited that whole weight, exploding
+    ``heap-space`` while RSS stayed flat. The fix resets on a cap-drop.
+
+    To saturate cheaply we shrink the cap via ``_DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT``
+    instead of allocating 65,536+ objects, then churn to run the drop-at-cap path and
+    assert ``heap-space`` stays bounded by the real working set (not the churn
+    volume). Fails pre-fix, passes post-fix.
+    """
+    # Set before the collector starts; the tracker reads the cap once at construction.
+    max_sample_count: int = 512
+    monkeypatch.setenv("_DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT", str(max_sample_count))
+
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_cap_saturation")
+    sample_interval: int = 256  # small R so each ~1 KiB object is reliably sampled
+    obj_size: int = 1024
+    # More reliably-sampled objects than the (small) cap, so the map saturates.
+    n_held: int = 1_500
+    n_rounds: int = 20
+    pile_per_round: int = 2_000
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_interval, mem_domain_enabled=True)
+    held: list[object] = []
+    with mc:
+        # Phase 1: fill the working set to saturate the live-sample cap.
+        for _ in range(n_held):
+            held.append(_make_mem_domain_object(obj_size))
+        # Phase 2: each round piles dropped-allocation bytes while saturated (transient
+        # allocs are dropped at the cap; their frees open no slot), then frees one
+        # retained entry and replaces it. Pre-fix the replacement captures the whole
+        # piled-up weight; post-fix each cap-drop resets the accumulator.
+        for r in range(n_rounds):
+            for _ in range(pile_per_round):
+                tmp = _make_mem_domain_object(obj_size * 4)
+                del tmp
+            idx = r % n_held
+            held[idx] = None
+            held[idx] = _make_mem_domain_object(obj_size)
+        mc.snapshot()
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+    total_heap_space: int = sum(s.value[heap_space_idx] for s in profile.sample if s.value[heap_space_idx] > 0)
+
+    # Post-fix heap-space is ~cap * R, well under this bound; pre-fix it scales with
+    # the churn volume (hundreds of MiB) and blows past it by orders of magnitude.
+    real_working_set: int = n_held * obj_size
+    assert 0 < total_heap_space < 4 * real_working_set, (
+        f"heap-space {total_heap_space:,} B is not bounded by the real working set "
+        f"({real_working_set:,} B). At the live-sample cap the byte accumulator is "
+        f"leaking into sample weights -> phantom heap-live-size inflation."
+    )
+    del held
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_mem_overhead() -> None:
+    """Sanity-check MEM-domain hook overhead on PyMem_Malloc churn.
+
+    Not a stored perf gate; documents that enabling ``mem_domain_enabled`` on MEM
+    allocations stays within a modest multiple of OBJ-only tracking. See
+    ``mem_domain_ga_checklist.md`` for service-level perf gates.
+    """
+    import time
+
+    size = 4096
+    rounds = 5
+
+    def churn_mem_domain() -> None:
+        objs = [_make_mem_domain_object(size) for _ in range(200)]
+        del objs
+
+    def time_churn(mem_domain_enabled: bool) -> float:
+        # Run the *same* MEM-domain churn in both cases so the only difference is
+        # whether the MEM-domain hooks are installed. This isolates the overhead of
+        # enabling ``mem_domain_enabled`` rather than conflating it with a different
+        # workload.
+        t0 = time.perf_counter()
+        for _ in range(rounds):
+            with memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=mem_domain_enabled):
+                churn_mem_domain()
+        return time.perf_counter() - t0
+
+    obj_elapsed = time_churn(mem_domain_enabled=False)
+    mem_elapsed = time_churn(mem_domain_enabled=True)
+
+    # Generous ceiling: MEM hooks should not exceed 10× OBJ-only on this micro-bench.
+    assert mem_elapsed < 10 * max(obj_elapsed, 1e-9), (
+        f"MEM-domain churn took {mem_elapsed:.4f}s vs OBJ-only {obj_elapsed:.4f}s (>{10 * obj_elapsed:.4f}s ceiling)"
+    )

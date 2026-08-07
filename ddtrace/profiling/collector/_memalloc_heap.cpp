@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <random>
 #include <vector>
@@ -85,6 +86,24 @@ using HeapMapType = std::unordered_map<K, V>;
    formula if more testing shows us to be too inaccurate.
  */
 
+/* Live-sample map capacity, default TRACEBACK_ARRAY_MAX_COUNT. The internal,
+ * test-only env var _DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT overrides it (clamped to
+ * [1, TRACEBACK_ARRAY_MAX_COUNT]) so tests can saturate the cap cheaply. */
+static size_t
+heap_max_sample_count_from_env()
+{
+    const char* raw = std::getenv("_DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT");
+    if (raw == nullptr || raw[0] == '\0') {
+        return TRACEBACK_ARRAY_MAX_COUNT;
+    }
+    char* end = nullptr;
+    unsigned long long parsed = std::strtoull(raw, &end, 10);
+    if (end == raw || parsed == 0ULL || parsed > static_cast<unsigned long long>(TRACEBACK_ARRAY_MAX_COUNT)) {
+        return TRACEBACK_ARRAY_MAX_COUNT;
+    }
+    return static_cast<size_t>(parsed);
+}
+
 class heap_tracker_t
 {
   public:
@@ -134,8 +153,10 @@ class heap_tracker_t
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
-    /* This function is called from heap_tracker_t::postfork_child() as part of
-       the fork handler to reset the sampling state. */
+    /* Reset the byte accumulator and draw the next sampling target. Called after a
+       sample is taken, when a candidate sample is dropped at the cap (so the bytes
+       allocated while saturated are not carried into the next sample's weight), and
+       from heap_tracker_t::postfork_child() as part of the fork handler. */
     void reset_sampling_state_no_cpython();
 
     /* Heap profiler sampling interval */
@@ -155,9 +176,14 @@ class heap_tracker_t
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
-    /* Number of samples silently dropped because allocs_m hit the cap.
-     * Accumulated across the lifetime of this tracker instance and surfaced
-     * via ProfilerStats so the backend / user can detect data loss. */
+    /* Cap on allocs_m. Read once at construction from
+     * _DD_MEMALLOC_HEAP_MAX_SAMPLE_COUNT; defaults to TRACEBACK_ARRAY_MAX_COUNT. */
+    size_t max_sample_count;
+
+    /* Number of candidate samples dropped because allocs_m was at capacity.
+     * Surfaced via ProfilerStats (heap_tracker_cap_drops) so the backend / user can
+     * detect that the live set is saturated (heap-space under-reports past this
+     * point, since we can no longer track additional live allocations). */
     size_t cap_drops{ 0 };
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
@@ -227,6 +253,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
+  , max_sample_count(heap_max_sample_count_from_env())
 {
     // Pre-allocate pool capacity to avoid reallocations
     pool.reserve(POOL_CAPACITY);
@@ -257,10 +284,22 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    /* This cap bounds memory use but creates blind spots: once allocs_m is full,
-     * new allocations are not sampled. cap_drops tracks how often this happens
-     * so we can observe whether the limit is ever reached in practice. */
-    if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
+    /* At capacity: we cannot track another live allocation, so drop this
+     * candidate sample. Crucially, we must ALSO reset the sampling state here.
+     *
+     * `allocated_memory` doubles as the weight assigned to the next sample (it is
+     * the count of bytes allocated since the last sample). It is only reset when a
+     * sample is actually taken (add_sample) or dropped here. If we returned false
+     * WITHOUT resetting, `allocated_memory` would keep accumulating every
+     * allocation for the entire time the map stays saturated; the first sample
+     * taken once a slot frees up would then inherit that enormous accumulated
+     * weight. That is the phantom heap-live-size inflation: a handful of
+     * post-saturation samples each weighted with GiB/TiB of dropped-allocation
+     * bytes, decoupling heap-space from real memory (see
+     * mem_domain_heap_live_size_bug.md). Resetting bounds every sample's weight to
+     * ~one sampling interval, so at worst heap-space *under*-reports while
+     * saturated (a safe failure mode) instead of exploding. */
+    if (allocs_m.size() >= max_sample_count) {
         ++cap_drops;
         reset_sampling_state_no_cpython();
         return false;
