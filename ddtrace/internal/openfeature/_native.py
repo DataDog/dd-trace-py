@@ -11,6 +11,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
 
 
@@ -24,7 +25,10 @@ def process_ffe_configuration(config) -> bool:
     """
     Process FFE configuration and store as native Configuration object.
 
-    Converts a dict config to JSON bytes and creates a native Configuration.
+    Converts a dict config to JSON bytes and creates a native Configuration,
+    alongside the observeFullEvaluationData consent value read from the top
+    level of the UFC dict. The two are stored together as an atomic snapshot
+    so a downstream reader always sees a consistent (config, consent) pair.
 
     Args:
         config: Configuration dict in format {"flags": {...}} or wrapped format
@@ -36,10 +40,17 @@ def process_ffe_configuration(config) -> bool:
         source's ETag) must not treat a False result as success.
     """
     try:
+        # observeFullEvaluationData sits at the UFC ROOT (sibling of `environment`,
+        # NOT nested inside it). Any non-True value -- absent, False, None,
+        # wrong-typed -- fails closed to False. Confirmed placement matches the
+        # merged dd-source#22826.
+        raw_consent = config.get("observeFullEvaluationData") if isinstance(config, dict) else None
+        observe_full_evaluation_data: bool = raw_consent is True
+
         config_json = json.dumps(config)
         config_bytes = config_json.encode("utf-8")
         native_config = ffe.Configuration(config_bytes)
-        _set_ffe_config(native_config)
+        _set_ffe_config(_FfeSnapshot(config=native_config, observe_full_evaluation_data=observe_full_evaluation_data))
 
         # Notify providers that configuration was received
         # Import here to avoid circular dependency

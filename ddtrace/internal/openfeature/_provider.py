@@ -27,13 +27,14 @@ from openfeature.provider import ProviderStatus
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
-from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
@@ -281,8 +282,7 @@ class DataDogProvider(AbstractProvider):
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
-        config = _get_ffe_config()
-        if config is not None:
+        if _get_ffe_snapshot() is not None:
             logger.debug("FFE configuration already available, provider is READY")
             self._config_received.set()
             self._status = ProviderStatus.READY
@@ -444,10 +444,17 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
-        # AIDEV-NOTE: Stamp eval-time at provider entry so every OpenFeature exit path
-        # can feed the EVP flagevaluation hook first_evaluation/last_evaluation from
-        # evaluation time, not the later hook/flush time.
-        flag_metadata: dict[str, typing.Any] = {EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000)}
+        # AIDEV-NOTE: Stamp eval-time and consent at provider entry so every
+        # OpenFeature exit path carries them. Consent is snapshotted from the
+        # exact FFE snapshot this evaluation runs against -- never read from
+        # live config downstream (see docs/superpowers/specs/2026-08-06-
+        # pii-flagevaluations-hashing-design.md).
+        snapshot = _get_ffe_snapshot()
+        observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
+        flag_metadata: dict[str, typing.Any] = {
+            EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
+            METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
+        }
 
         # If provider is not active, return default value
         if not self._active:
@@ -459,8 +466,8 @@ class DataDogProvider(AbstractProvider):
             )
 
         try:
-            # Get the native Configuration object
-            config = _get_ffe_config()
+            # Use the snapshot's config so evaluation and consent stamp agree.
+            config = snapshot.config if snapshot is not None else None
 
             # Resolve flag using native implementation
             details = resolve_flag(

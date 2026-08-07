@@ -38,6 +38,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLAT
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -84,6 +85,12 @@ DRAIN_INTERVAL = 0.1
 
 # Flag metadata key where the provider stamps the evaluation timestamp (ms).
 EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
+
+# Flag metadata key where the provider stamps the environment consent value.
+# The evaluator snapshots observeFullEvaluationData from the UFC it evaluated
+# against, so nothing downstream reads live config. Unprefixed snake_case
+# because it is the cross-SDK contract key.
+METADATA_OBSERVE_FULL_EVALUATION_DATA = "observe_full_evaluation_data"
 
 # Type-tag bytes for the canonical context key encoding (mirrors Go's ctxTag* constants).
 _TAG_STR = b"s"
@@ -276,6 +283,7 @@ class _Entry:
         "targeting_key",
         "context_attrs",
         "error_message",
+        "observe_full_evaluation_data",
     )
 
     def __init__(
@@ -285,6 +293,7 @@ class _Entry:
         targeting_key: str,
         context_attrs: dict[str, typing.Any],
         error_message: str,
+        observe_full_evaluation_data: bool = False,
     ) -> None:
         self.count: int = 1
         self.first_evaluation: int = eval_time_ms
@@ -294,6 +303,9 @@ class _Entry:
         self.targeting_key: str = targeting_key
         self.context_attrs: dict[str, typing.Any] = context_attrs
         self.error_message: str = error_message
+        # Serialization branches on this value. Degraded-tier entries always
+        # store False here; consent is not a degraded key dimension.
+        self.observe_full_evaluation_data: bool = observe_full_evaluation_data
 
     def observe(self, eval_time_ms: int) -> None:
         """Update count and first/last bounds for a repeated evaluation."""
@@ -315,6 +327,7 @@ class _EvalEvent(typing.NamedTuple):
     runtime_default: bool
     error_message: str
     eval_time_ms: int
+    observe_full_evaluation_data: bool
 
 
 class _FlagEvaluationConnection(typing.Protocol):
@@ -415,6 +428,7 @@ class FlagEvaluationWriter(PeriodicService):
             runtime_default=event.runtime_default,
             error_message=event.error_message,
             eval_time_ms=event.eval_time_ms,
+            observe_full_evaluation_data=event.observe_full_evaluation_data,
         )
 
         try:
@@ -524,16 +538,25 @@ class FlagEvaluationWriter(PeriodicService):
             ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
-            if entry.targeting_key:
-                ev["targeting_key"] = entry.targeting_key
+            # Consent-on emits raw targeting_key + context; consent-off emits the
+            # hashed key and omits context entirely (absent, not null, not {}).
+            # Consent is read from the bucket snapshot -- never from live config.
+            if entry.observe_full_evaluation_data:
+                if entry.targeting_key:
+                    ev["targeting_key"] = entry.targeting_key
+                if entry.context_attrs:
+                    ev["context"] = {"evaluation": entry.context_attrs}
+            else:
+                hashed = hash_targeting_key(entry.targeting_key)
+                if hashed:
+                    ev["targeting_key"] = hashed
+                # No context field under any circumstances when consent is off.
             if variant:
                 ev["variant"] = {"key": variant}
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
                 ev["error"] = {"message": entry.error_message}
-            if entry.context_attrs:
-                ev["context"] = {"evaluation": entry.context_attrs}
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
@@ -618,8 +641,24 @@ class FlagEvaluationWriter(PeriodicService):
         Implements: full-tier → degraded-tier → drop-counted cascade.
         Canonical key computation happens here (off the hot path). Context was already
         flattened and pruned before enqueue.
+
+        Consent handling:
+        - The full-tier key carries observe_full_evaluation_data so mixed-consent
+          evaluations never merge and inherit one policy.
+        - When consent is off, context is dropped from both the entry and the key,
+          because the wire event carries no context on that path -- so keying on
+          discarded data would burn per-flag cardinality on the privacy-protected
+          path specifically (see concern:consent-off-bucket-keying).
+        - On fast-path merge, AND-fold consent into the entry: any single
+          consent-off observation forces the whole bucket onto the protected wire
+          path, even if a future refactor drops consent from the key.
         """
-        context_attrs = event.attrs or {}
+        # Enforce the consent-off invariant: no context on the wire → no context
+        # in the key, no context in the entry.
+        if event.observe_full_evaluation_data:
+            context_attrs = event.attrs or {}
+        else:
+            context_attrs = {}
 
         # Build the full-tier key tuple.
         ctx_key = canonical_context_key(context_attrs)
@@ -631,12 +670,20 @@ class FlagEvaluationWriter(PeriodicService):
             event.error_message,
             event.targeting_key,
             ctx_key,
+            event.observe_full_evaluation_data,
         )
 
         with self._lock:
             # Fast path: existing full-tier bucket.
             if full_key in self._full:
-                self._full[full_key].observe(event.eval_time_ms)
+                entry = self._full[full_key]
+                # Defense in depth: if the key ever stops carrying consent, one
+                # consent-off observation still forces the whole bucket onto the
+                # privacy-protected path.
+                entry.observe_full_evaluation_data = (
+                    entry.observe_full_evaluation_data and event.observe_full_evaluation_data
+                )
+                entry.observe(event.eval_time_ms)
                 return
 
             # Per-flag cap check.
@@ -660,6 +707,7 @@ class FlagEvaluationWriter(PeriodicService):
                 targeting_key=event.targeting_key,
                 context_attrs=_json_safe_context(context_attrs),
                 error_message=event.error_message,
+                observe_full_evaluation_data=event.observe_full_evaluation_data,
             )
             self._global_count += 1
 
