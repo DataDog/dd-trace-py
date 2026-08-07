@@ -25,7 +25,7 @@ variables:
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
-  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v129141868-cc857e9-ci-utils@sha256:70591264bcfe1abdc4451633eea31d46160510112bb823f9e658e20d94197876"
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v129724447-ccf4260-ci-utils@sha256:3ff0b19510872d740ee4bd3bddde9bb47567ccac7b6e4684bafb6b2bdaf62247"
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
