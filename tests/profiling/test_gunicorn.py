@@ -107,7 +107,7 @@ def _test_gunicorn(
 
     debug_print("Making request to gunicorn server")
     try:
-        # AIDEV-NOTE: The response intentionally waits for a CPU-heavy profiling workload. Synchronize on its
+        # The response intentionally waits for a CPU-heavy profiling workload. Synchronize on its
         # completion instead of imposing a wall-clock deadline that fails on slower CI workers.
         with urllib.request.urlopen("http://127.0.0.1:7644") as f:
             status_code = f.getcode()
