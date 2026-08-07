@@ -319,6 +319,21 @@ def test_format_map_aspect_side_effects():
     assert result_tainted == result
 
 
+def test_format_aspect_propagation_error_does_not_format_twice(mocker):
+    calls = 0
+
+    class Formattable:
+        def __format__(self, format_spec):
+            nonlocal calls
+            calls += 1
+            return "formatted"
+
+    mocker.patch.object(ddtrace_aspects, "_format_aspect", side_effect=RuntimeError("propagation failed"))
+
+    assert ddtrace_aspects.format_aspect(None, 1, "{}", Formattable()) == "formatted"
+    assert calls == 1
+
+
 def test_taint_pyobject():
     object_with_side_effects = MagicMethodsException(STRING_TO_TAINT)
 

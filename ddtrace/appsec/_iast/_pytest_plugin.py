@@ -3,7 +3,8 @@ import dataclasses
 import json
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast.reporter import Vulnerability
+from ddtrace.appsec._iast._report_types import EvidenceData
+from ddtrace.appsec._iast._report_types import LocationData
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -11,8 +12,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-@dataclasses.dataclass(unsafe_hash=True)
-class VulnerabilityFoundInTest(Vulnerability):
+@dataclasses.dataclass
+class VulnerabilityFoundInTest:
+    type: str
+    evidence: EvidenceData
+    location: LocationData
     test: str
 
 

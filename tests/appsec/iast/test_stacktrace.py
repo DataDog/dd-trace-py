@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import pytest
+
+from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._shared._stacktrace import get_info_frame
 
 
@@ -39,3 +42,13 @@ async def test_stacktrace_async_no_relevant_frame():
     assert line is None
     assert function is None
     assert class_ is None
+
+
+@pytest.mark.parametrize("body", ["stacktrace", b"stacktrace"])
+def test_asgi_finalize_response_checks_text_and_bytes(mocker, body):
+    mocker.patch("ddtrace.appsec._iast._handlers.is_iast_request_enabled", return_value=True)
+    check_stacktrace = mocker.patch("ddtrace.appsec._iast.taint_sinks.stacktrace_leak.iast_check_stacktrace_leak")
+
+    _on_asgi_finalize_response(body, None)
+
+    check_stacktrace.assert_called_once_with("stacktrace")

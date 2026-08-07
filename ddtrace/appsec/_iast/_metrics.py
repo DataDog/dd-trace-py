@@ -1,10 +1,13 @@
+from typing import Callable
+from typing import Optional
 from typing import Text
+from typing import TypeVar
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._deduplications import deduplicate
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -18,6 +21,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 log = get_logger(__name__)
 
 _IAST_SPAN_METRICS: dict[str, int] = {}
+R = TypeVar("R")
 
 
 def get_iast_metrics_report_lvl(*args, **kwargs):
@@ -29,20 +33,21 @@ def get_iast_metrics_report_lvl(*args, **kwargs):
     return report_lvl
 
 
-def metric_verbosity(lvl):
-    def wrapper(f):
+def metric_verbosity(lvl: int) -> Callable[[Callable[..., R]], Callable[..., Optional[R]]]:
+    def wrapper(f: Callable[..., R]) -> Callable[..., Optional[R]]:
         if lvl >= get_iast_metrics_report_lvl():
-            try:
-                return f
-            except Exception:
-                log.warning("iast::metrics::error::metric_verbosity", exc_info=True)
-        return lambda: None  # noqa: E731
+            return f
+
+        def disabled_metric(*args: object, **kwargs: object) -> None:
+            return None
+
+        return disabled_metric
 
     return wrapper
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
-@deduplication
+@deduplicate
 def _set_iast_error_metric(msg: Text, exc: Union[BaseException, tuple, None] = None) -> None:
     """This was originally implemented to analyze which services were triggering this issue, and we used that insight
     to refactor how IAST creates and destroys context. However, after that refactor, this information no longer

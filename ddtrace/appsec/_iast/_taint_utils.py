@@ -56,7 +56,7 @@ class _DeepTaintCommand:
 def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
     if initial_object.__class__ is wanted_object.__class__:
         return wanted_object
-    #### custom tailor actions
+    # custom tailor actions
     wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
     if wanted_type == ("builtins", "tuple"):
         return tuple(wanted_object)
@@ -234,9 +234,11 @@ class LazyTaintList:
         if _is_tainted_struct(other):
             other = other._obj
         self._obj += other
+        return self
 
     def __imul__(self, other):
         self._obj *= other
+        return self
 
     def __iter__(self):
         return (self[i] for i in range(len(self._obj)))
@@ -401,6 +403,7 @@ class LazyTaintDict:
         if _is_tainted_struct(other):
             other = other._obj
         self._obj |= other
+        return self
 
     def __iter__(self):
         return iter(self.keys())
@@ -436,7 +439,7 @@ class LazyTaintDict:
         return repr(self._obj)
 
     def __reversed__(self):
-        return reversed(self.keys())
+        return reversed(list(self.keys()))
 
     def __setitem__(self, key, value):
         self._obj[key] = value
@@ -521,10 +524,19 @@ if asm_config._iast_lazy_taint:
     # redefining taint_structure to use lazy object if required
 
     def taint_structure(main_obj, origin_key, origin_value, override_pyobject_tainted=False):  # noqa: F811
-        if isinstance(main_obj, abc.Mapping):
+        if isinstance(main_obj, IAST.TEXT_TYPES):
+            if override_pyobject_tainted or not is_pyobject_tainted(main_obj):
+                return taint_pyobject(
+                    pyobject=main_obj,
+                    source_name=origin_key,
+                    source_value=main_obj,
+                    source_origin=origin_value,
+                )
+        elif isinstance(main_obj, abc.Mapping):
             return LazyTaintDict(main_obj, (origin_key, origin_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
             return LazyTaintList(main_obj, (origin_key, origin_value), override_pyobject_tainted)
+        return main_obj
 
 
 def taint_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):

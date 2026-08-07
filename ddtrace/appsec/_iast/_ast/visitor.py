@@ -210,9 +210,7 @@ class AstVisitor(ast.NodeTransformer):
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
 
-        # This will be enabled when we find a module and function where we avoid doing
-        # replacements and enabled again on all the others
-        self.replacements_disabled_for_functiondef = False
+        self._function_scope: list[str] = []
 
         self.codetype = CODE_TYPE_FIRST_PARTY
         if "ast/tests/fixtures" in self.filename:
@@ -252,7 +250,7 @@ class AstVisitor(ast.NodeTransformer):
         if is_function:
             return call_node.func.id  # type: ignore[attr-defined]
         # If the call is to a method
-        elif type(call_node.func) == ast.Name:
+        elif isinstance(call_node.func, ast.Name):
             return call_node.func.id
 
         return call_node.func.attr  # type: ignore[attr-defined]
@@ -266,7 +264,7 @@ class AstVisitor(ast.NodeTransformer):
         excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
             "", tuple()
         )
-        return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
+        return "" in excluded_for_caller or any(name in excluded_for_caller for name in self._function_scope)
 
     def _is_string_format_with_literals(self, call_node: ast.Call) -> bool:
         return (
@@ -468,15 +466,13 @@ class AstVisitor(ast.NodeTransformer):
         # processed
         return self.generic_visit(module_node)
 
-    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
+    def _visit_function_def(self, def_node):
         """
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
         if f"{_PREFIX}dir" in def_node.name or f"{_PREFIX}set_dir_filter" in def_node.name:
-            return def_node
-
-        self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
+            return
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
             if def_node.args.vararg.annotation:
@@ -503,8 +499,19 @@ class AstVisitor(ast.NodeTransformer):
                 if hasattr(i, "annotation"):
                     _mark_avoid_convert_recursively(i.annotation)
 
-        self.generic_visit(def_node)
-        self._current_function_name = None
+        self._function_scope.append(def_node.name)
+        try:
+            self.generic_visit(def_node)
+        finally:
+            self._function_scope.pop()
+
+    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
+        self._visit_function_def(def_node)
+
+        return def_node
+
+    def visit_AsyncFunctionDef(self, def_node: ast.AsyncFunctionDef) -> Any:
+        self._visit_function_def(def_node)
 
         return def_node
 
@@ -515,12 +522,14 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(call_node)
         func_member = call_node.func
         call_modified = False
-        if self.replacements_disabled_for_functiondef:
+        if any(name in self.dont_patch_these_functionsdefs for name in self._function_scope):
             return call_node
 
         if isinstance(func_member, ast.Name) and func_member.id:
             # Normal function call with func=Name(...), just change the name
             func_name_node = func_member.id
+            if self._is_call_excluded(func_name_node):
+                return call_node
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
                 # Send 0 as flag_added_args value

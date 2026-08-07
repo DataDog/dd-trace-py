@@ -60,7 +60,8 @@ def _exec_iast_patched_module(module_watchdog, module):
             exec(compiled_code, module.__dict__)  # nosec B102
         except TypeError:
             iast_compiling_debug_log("INSTRUMENTED CODE. Unexpected exception", exc_info=True)
-            module_watchdog.loader.exec_module(module)
+            if module_watchdog.loader is not None:
+                module_watchdog.loader.exec_module(module)
     elif module_watchdog.loader is not None:
         try:
             iast_compiling_debug_log(f"DEFAULT CODE. executing {module}")

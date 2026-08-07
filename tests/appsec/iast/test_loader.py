@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+import types
 from unittest import mock
 
 import ddtrace.appsec._iast._loader
@@ -10,6 +11,21 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 ASPECTS_MODULE = "ddtrace.appsec._iast._taint_tracking.aspects"
+
+
+def test_patched_module_type_error_without_loader():
+    module = types.ModuleType("module_without_loader")
+    module_watchdog = mock.Mock(loader=None)
+
+    with (
+        mock.patch.object(ddtrace.appsec._iast._loader, "IS_IAST_ENABLED", True),
+        mock.patch.object(
+            ddtrace.appsec._iast._loader,
+            "astpatch_module",
+            return_value=("module_without_loader.py", "raise TypeError"),
+        ),
+    ):
+        ddtrace.appsec._iast._loader._exec_iast_patched_module(module_watchdog, module)
 
 
 def test_patching_error():

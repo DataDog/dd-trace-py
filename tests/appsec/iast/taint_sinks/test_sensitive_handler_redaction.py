@@ -173,6 +173,61 @@ class TestSensitiveSpanningTaintedBoundary:
         assert "password" not in full_text, "Sensitive content leaked across tainted boundary"
 
 
+class TestSourceIndexResolution:
+    def test_missing_taint_source_does_not_redact_last_source(self):
+        handler = SensitiveHandler()
+        missing_source = _make_source(name="missing", value="secret")
+        unrelated_source = _make_source(name="password", value="unrelated")
+
+        result = handler.to_redacted_json(
+            "secret",
+            [],
+            [{"start": 0, "end": 6, "source": missing_source}],
+            [unrelated_source],
+        )
+
+        assert unrelated_source.redacted is not True
+        assert all(part.get("source") != -1 for part in result["redacted_value_parts"])
+
+    def test_sensitive_overlap_uses_source_identity_not_range_position(self):
+        handler = SensitiveHandler()
+        unrelated_source = _make_source(name="unrelated", value="unrelated")
+        tainted_source = _make_source(name="input", value="cd")
+
+        handler.to_redacted_json(
+            "abcd",
+            [{"start": 0, "end": 4}],
+            [{"start": 2, "end": 4, "source": tainted_source}],
+            [unrelated_source, tainted_source],
+        )
+
+        assert unrelated_source.redacted is not True
+        assert tainted_source.redacted is True
+
+    def test_redacts_reused_source_after_reporter_clears_canonical_value(self):
+        handler = SensitiveHandler()
+        canonical_source = _make_source(name="password", value="first-secret")
+
+        handler.to_redacted_json(
+            "first-secret",
+            [],
+            [{"start": 0, "end": 12, "source": canonical_source}],
+            [canonical_source],
+        )
+        canonical_source.value = None
+
+        next_evidence_source = _make_source(name="password", value="first-secret")
+        result = handler.to_redacted_json(
+            "first-secret",
+            [],
+            [{"start": 0, "end": 12, "source": next_evidence_source}],
+            [canonical_source],
+        )
+
+        assert result["redacted_sources"] == [0]
+        assert result["redacted_value_parts"] == [{"redacted": True, "source": 0, "pattern": canonical_source.pattern}]
+
+
 class TestRemoveMethod:
     """Unit tests for SensitiveHandler._remove."""
 

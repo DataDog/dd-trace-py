@@ -467,7 +467,7 @@ def format_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
         except Exception as e:
             iast_propagation_error_log("format_aspect", e)
 
-    return candidate_text.format(*args, **kwargs)
+    return result
 
 
 def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
@@ -490,7 +490,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
 
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+        mapping_tuple = tuple(mapping.values())
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
             candidate_text,
             args + mapping_tuple,
@@ -510,8 +510,6 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
                     )
                     for key, value in mapping.items()
                 }
-                if isinstance(mapping, dict)
-                else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
         )
@@ -572,28 +570,22 @@ def format_value_aspect(
             return format(new_text, format_spec)
         return format(new_text)
 
-    if format_spec:
-        new_new_text = f"{new_text:{format_spec}}"  # type: ignore[str-bytes-safe]
-        try:
-            # Apply formatting
-            text_ranges = get_tainted_ranges(new_text)
-            if text_ranges:
-                try:
-                    new_ranges = list()
-                    for text_range in text_ranges:
-                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))  # type: ignore
-                    if new_ranges:
-                        taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
-                    return new_new_text
-                except ValueError:
-                    return new_new_text
+    formatted_text = format(new_text, format_spec or "")
+    try:
+        text_ranges = get_tainted_ranges(new_text)
+        if text_ranges:
+            if isinstance(new_text, bytes):
+                check_offset = ascii(new_text)[2:-1]
+            elif isinstance(new_text, bytearray):
+                check_offset = ascii(new_text)[12:-2]
             else:
-                return new_new_text
-        except Exception as e:
-            iast_propagation_error_log("format_value_aspect", e)
-            return new_new_text
-
-    return format(new_text)
+                check_offset = new_text
+            offset = formatted_text.index(check_offset)
+            new_ranges = [shift_taint_range(text_range, offset) for text_range in text_ranges]
+            taint_pyobject_with_ranges(formatted_text, tuple(new_ranges))
+    except Exception as e:
+        iast_propagation_error_log("format_value_aspect", e)
+    return formatted_text
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
@@ -1224,7 +1216,7 @@ def re_subn_aspect(
         # In this case, the first argument is the pattern
         # which we don't need to check for tainted ranges
         args = args[1:]
-    elif not isinstance(result, tuple) and not len(result) == 2:
+    if not isinstance(result, tuple) or len(result) != 2:
         return result
 
     new_string, number = result

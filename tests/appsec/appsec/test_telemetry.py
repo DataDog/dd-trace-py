@@ -10,6 +10,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
+from ddtrace.appsec._deduplications import deduplicate
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import enable_asm
@@ -34,6 +35,20 @@ config_asm = {"_asm_enabled": True}
 config_good_rules = {"_asm_static_rule_file": rules.RULES_GOOD_PATH, "_asm_enabled": True}
 invalid_rule_update = [("ASM_DD", "Datadog/0/ASM/rules", {"rules": {"test": "invalid"}})]
 invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', obtained 'map'"""
+
+
+def test_deduplication_suppressed_call_returns_none():
+    calls = []
+
+    @deduplicate
+    def record(value):
+        calls.append(value)
+
+    with override_global_config(dict(_asm_deduplication_enabled=True)):
+        assert record("duplicate") is None
+        assert record("duplicate") is None
+
+    assert calls == ["duplicate"]
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, expected_name=[]):

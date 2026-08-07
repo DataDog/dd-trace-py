@@ -74,8 +74,10 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
         else:
             if span:
                 req_span = span
-            else:
+            elif ctx is not None:
                 req_span = ctx.get_item("req_span")
+            else:
+                req_span = None
         if req_span is None:
             log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
             return

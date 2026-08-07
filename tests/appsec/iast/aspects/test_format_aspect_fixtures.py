@@ -290,3 +290,21 @@ def test_format_value_aspect_no_change_customspec():
     assert f"{c!r}" == mod.do_customspec_repr()
     assert f"{c!a}" == mod.do_customspec_ascii()
     assert f"{c!s:<20s}" == mod.do_customspec_formatspec()
+
+
+@pytest.mark.parametrize("value", [b"abc", bytearray(b"abc")])
+def test_format_value_aspect_preserves_bytes_taint(value, iast_context_defaults):
+    tainted = taint_pyobject(
+        value,
+        source_name="value",
+        source_value=value,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = ddtrace_aspects.format_value_aspect(tainted)
+
+    assert result == format(value)
+    ranges = get_tainted_ranges(result)
+    assert len(ranges) == 1
+    assert ranges[0].start == result.index("abc")
+    assert ranges[0].length == 3

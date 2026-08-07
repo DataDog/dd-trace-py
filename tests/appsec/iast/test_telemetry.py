@@ -7,6 +7,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._overhead_control_engine import oce
@@ -65,7 +66,16 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
 )
 def test_metric_verbosity(lvl, env_lvl, expected_result):
     with override_global_config(dict(_iast_telemetry_report_lvl=env_lvl)):
-        assert metric_verbosity(lvl)(lambda: 1)() == expected_result
+        assert metric_verbosity(lvl)(lambda value: value)(1) == expected_result
+
+
+def test_iast_error_forwards_exception(mocker):
+    error = ValueError("propagation failed")
+    set_error_metric = mocker.patch("ddtrace.appsec._iast._logs._set_iast_error_metric")
+
+    iast_error("propagation failure", exc=error)
+
+    set_error_metric.assert_called_once_with("iast::propagation failure", exc=error)
 
 
 @pytest.mark.parametrize(

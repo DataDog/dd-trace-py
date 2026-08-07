@@ -556,7 +556,7 @@ def _on_asgi_finalize_response(body, _):
     try:
         from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
-        content = body.decode("utf-8", errors="ignore")
+        content = body if isinstance(body, str) else body.decode("utf-8", errors="ignore")
         iast_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
