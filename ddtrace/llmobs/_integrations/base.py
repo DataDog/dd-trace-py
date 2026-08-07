@@ -99,10 +99,11 @@ class BaseLLMIntegration:
         return span
 
     def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
-        """Stamp the span kind (and name when available) at start so a parent agent is fully
-        resolvable before its children activate. Agent attribution reads both at child activation;
-        under LIFO nesting a finish-time write lands too late. Called from trace() and from
-        LlmTracingSubscriber.on_started.
+        """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
+
+        Called automatically by ``BaseLLMIntegration.trace()`` and ``LlmTracingSubscriber.on_started``.
+        Integrations should not call this directly; instead override ``_llmobs_span_kind`` and
+        ``_llmobs_agent_name_at_start``.
         """
         if span.span_type != SpanTypes.LLM:
             return
@@ -124,10 +125,12 @@ class BaseLLMIntegration:
         return None
 
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
-        """Return the kind to stamp at start, or None to leave it to _llmobs_set_tags at finish.
+        """Return the LLMObs span kind to stamp at creation, or None to skip start-time stamping.
 
-        Integrations that signal agent spans via a different kwarg should override this.
-        The finish-time write in _llmobs_set_tags still runs regardless.
+        Override in integrations that signal agent spans via a kwarg other than ``kind``
+        (e.g. ``operation="agent"``).  Must be determinable at ``trace()`` call time —
+        do NOT rely on data available only at span finish, because child spans resolve
+        agent attribution when they are activated.
         """
         return "agent" if kwargs.get("kind") == "agent" else None
 
