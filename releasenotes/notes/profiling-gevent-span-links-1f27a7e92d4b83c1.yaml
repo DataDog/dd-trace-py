@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes incorrect trace and endpoint attribution when multiple gevent greenlets
+    share one physical thread.
