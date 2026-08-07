@@ -352,7 +352,7 @@ def test_get_cached_backend_caches_result(monkeypatch):
     result2 = _utils._get_cached_backend()
     assert result2 == "nccl"
     # Clean up.
-    _distributed._cached_distributed_backend = None
+    _utils._cached_distributed_backend = None
 
 
 def test_get_cached_backend_returns_none_when_not_initialized(monkeypatch):
@@ -368,7 +368,7 @@ def test_get_cached_backend_returns_none_when_not_initialized(monkeypatch):
         lambda: False,
     )
     assert _utils._get_cached_backend() is None
-    _distributed._cached_distributed_backend = None
+    _utils._cached_distributed_backend = None
 
 
 def test_rank_span_carries_torch_invariants(monkeypatch):
