@@ -4805,6 +4805,7 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
     ):
         inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
         inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+        inst.env.setdefault("DD_TRACE_DEBUG", "1")
 
         if _is_protected_ci_branch():
             inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
