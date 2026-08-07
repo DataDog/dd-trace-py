@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook: run clang-tidy on the profiling native extension when a push
+# includes changes to its C/C++ sources or headers.
+#
+# Motivation: the "clang-tidy profiling" GitLab job runs with
+# `-warnings-as-errors='*'` and catches issues that plain clang-format cannot,
+# e.g. clang-analyzer-optin.performance.Padding (excessive struct padding). These
+# only surface in CI today, costing a full round-trip. Running the same analysis
+# locally before push catches them early. clang-tidy has no auto-fix for most of
+# these diagnostics, so this hook only *detects* — it does not modify files.
+#
+# It is gated on profiling native changes and is a no-op otherwise. Because the
+# analysis needs a full toolchain (clang-tidy 18+, cmake, jq) and a cached
+# compile_commands.json from a prior bootstrap it is skipped with a friendly note
+# when prerequisites are missing, unless strict mode is enabled. The hook never
+# pip-installs or builds into the active Python environment.
+#
+# Escape hatches:
+#   git push --no-verify                       # skip all pre-push hooks
+#   SKIP_CLANG_TIDY_PROFILING=1 git push       # skip just this check
+#   DDTRACE_PREPUSH_CLANG_TIDY_STRICT=1 git push  # fail (not skip) if toolchain missing
+
+set -euo pipefail
+
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+log() { printf "%b\n" "$@"; }
+
+if [[ "${SKIP_CLANG_TIDY_PROFILING:-0}" == "1" ]]; then
+    log "${YELLOW}clang-tidy profiling pre-push check skipped (SKIP_CLANG_TIDY_PROFILING=1).${NC}"
+    exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PROFILING_DIR="${REPO_ROOT}/ddtrace/internal/datadog/profiling"
+RUN_SCRIPT="${PROFILING_DIR}/run_clang_tidy.sh"
+COMPILE_COMMANDS="${PROFILING_DIR}/build/compile_commands.json"
+ZERO="0000000000000000000000000000000000000000"
+
+# Only C/C++ under the profiling tree matter for this analysis.
+PROFILING_CPP_RE='^ddtrace/internal/datadog/profiling/.*\.(c|cc|cpp|h|hpp)$'
+
+clang_tidy_major_version() {
+    if ! command -v clang-tidy >/dev/null 2>&1; then
+        return 1
+    fi
+    local major
+    major="$(clang-tidy --version 2>/dev/null | sed -nE 's/.*clang-tidy version ([0-9]+).*/\1/p' | head -1)"
+    [[ -n "${major}" ]] || return 1
+    printf '%s' "${major}"
+}
+
+have_clang_tidy_18_plus() {
+    local cmd major
+    for cmd in run-clang-tidy-20 run-clang-tidy-19 run-clang-tidy-18; do
+        if command -v "${cmd}" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    if command -v run-clang-tidy >/dev/null 2>&1; then
+        major="$(clang_tidy_major_version)" || return 1
+        [[ "${major}" -ge 18 ]]
+        return
+    fi
+    if command -v clang-tidy >/dev/null 2>&1; then
+        major="$(clang_tidy_major_version)" || return 1
+        [[ "${major}" -ge 18 ]]
+        return
+    fi
+    return 1
+}
+
+# Set when the push range cannot be determined; conservatively run clang-tidy.
+FORCE_CLANG_TIDY=0
+_changed_list="$(mktemp)"
+trap 'rm -f "${_changed_list}"' EXIT
+
+# Collect the set of files this push would add relative to origin/main. Reads the
+# standard pre-push stdin format: "<local_ref> <local_sha> <remote_ref> <remote_sha>".
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [[ "${local_sha}" == "${ZERO}" ]] && continue # branch deletion
+    if [[ "${remote_sha}" == "${ZERO}" ]]; then
+        # New branch on the remote: diff against the merge-base with main.
+        base="$(git merge-base "${local_sha}" origin/main 2>/dev/null || true)"
+        if [[ -z "${base}" ]]; then
+            # merge-base unavailable (e.g. origin/main not fetched): run clang-tidy
+            # rather than diff only the tip commit and miss earlier profiling edits.
+            FORCE_CLANG_TIDY=1
+            continue
+        fi
+    else
+        base="${remote_sha}"
+    fi
+    git diff --name-only "${base}" "${local_sha}" 2>/dev/null >> "${_changed_list}" || true
+done
+
+CHANGED_FILES="$(sort -u "${_changed_list}" 2>/dev/null || true)"
+rm -f "${_changed_list}"
+trap - EXIT
+if [[ "${FORCE_CLANG_TIDY}" != "1" ]] && ! printf '%s\n' "${CHANGED_FILES}" | grep -qE "${PROFILING_CPP_RE}"; then
+    exit 0 # no profiling native changes in this push
+fi
+
+log "${BLUE}Profiling native changes detected in this push — running clang-tidy...${NC}"
+
+# Verify prerequisites before attempting analysis.
+missing=()
+if ! have_clang_tidy_18_plus; then
+    missing+=("clang-tidy / run-clang-tidy (LLVM 18+, matching CI)")
+fi
+command -v cmake >/dev/null 2>&1 || missing+=("cmake")
+command -v jq >/dev/null 2>&1 || missing+=("jq")
+[[ -f "${RUN_SCRIPT}" ]] || missing+=("${RUN_SCRIPT}")
+[[ -f "${COMPILE_COMMANDS}" ]] || missing+=(
+    "profiling build/compile_commands.json (bootstrap once: bash ddtrace/internal/datadog/profiling/run_clang_tidy.sh)"
+)
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+    log "${YELLOW}clang-tidy profiling check skipped — missing:${NC}"
+    for m in "${missing[@]}"; do log "  ${YELLOW}•${NC} ${m}"; done
+    if [[ "${DDTRACE_PREPUSH_CLANG_TIDY_STRICT:-0}" == "1" ]]; then
+        log "${RED}Strict mode (DDTRACE_PREPUSH_CLANG_TIDY_STRICT=1): failing.${NC}"
+        exit 1
+    fi
+    log "${YELLOW}Install the toolchain (clang-tidy 18+, cmake, jq) and bootstrap compile_commands,${NC}"
+    log "${YELLOW}or rely on the CI 'clang-tidy profiling' job. Continuing push.${NC}"
+    exit 0
+fi
+
+# Analysis only — reuse cached compile_commands; do not pip-install or build in-place.
+if ! DDTRACE_CLANG_TIDY_SKIP_BUILD=1 bash "${RUN_SCRIPT}"; then
+    log ""
+    log "${RED}clang-tidy found issues in the profiling native code (see above).${NC}"
+    log "${YELLOW}This is the same analysis as the CI 'clang-tidy profiling' job.${NC}"
+    log "${YELLOW}Fix the reported diagnostics, or bypass with one of:${NC}"
+    log "  ${GREEN}SKIP_CLANG_TIDY_PROFILING=1 git push${NC}"
+    log "  ${GREEN}git push --no-verify${NC}"
+    exit 1
+fi
+
+log "${GREEN}clang-tidy profiling check passed.${NC}"
+exit 0
