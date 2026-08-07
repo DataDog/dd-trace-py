@@ -244,7 +244,7 @@ def test_collect_django_routes_joins_regex_children_like_join_route(_isolated_en
     from django.urls import include
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def users_view(request):
         return None
@@ -278,7 +278,7 @@ def test_collect_django_routes_handles_mixed_path_and_re_path(_isolated_endpoint
     from django.urls import path
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def a(request):
         return None
@@ -302,7 +302,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
     from django.views.decorators.csrf import csrf_exempt
     from django.views.decorators.http import require_http_methods
 
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     @csrf_exempt
     @require_http_methods(["GET", "POST", "OPTIONS"])
@@ -315,7 +315,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
 
 def test_collect_pattern_methods_undecorated_view_falls_back_to_wildcard(_django_ready):
     """A plain view with no method restriction and no http_method_names is tagged as '*'."""
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     def view(request):
         return None
