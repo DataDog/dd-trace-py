@@ -17,8 +17,10 @@
 #include "echion/vm.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <new>
 #include <pthread.h>
 #include <thread>
 #include <utility>
@@ -570,8 +572,13 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    static Sampler instance;
-    return instance;
+    // Native exit stops the detached sampling thread explicitly. Retain its state
+    // until process exit so a delayed thread can never observe destroyed members.
+    // Static storage keeps the object reachable without registering its destructor
+    // or leaking its allocation.
+    alignas(Sampler) static unsigned char storage[sizeof(Sampler)];
+    static Sampler* const instance = ::new (static_cast<void*>(storage)) Sampler();
+    return *instance;
 }
 
 void
@@ -706,6 +713,11 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
+
+    // The Python shutdown hook can be skipped by embedders such as uWSGI. Register
+    // native shutdown after ProfilerState initialization so the sampler stops
+    // before profiler resources are released.
+    std::atexit([]() { Sampler::get().stop(); });
 
     // ProfilerState::start registers
     // dd_wrapper's pthread_atfork handler before Sampler::start is called,
