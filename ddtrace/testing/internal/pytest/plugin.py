@@ -428,7 +428,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
