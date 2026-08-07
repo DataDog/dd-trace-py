@@ -435,6 +435,25 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_EMIT_JUDGE_TRACE:
+     type: Boolean
+     default: False
+
+     description: |
+         Process-wide default for emitting a **judge trace** from LLM-as-judge evaluators (e.g.
+         ``LLMJudge``). When enabled, each judge inference runs inside a standalone trace under the
+         ``datadog-evaluations`` service so its prompt, model, tokens, latency, and output are
+         observable, and the judge span's ids are recorded on the resulting eval metric so a score
+         can deep-link back to the judge trace.
+
+         This is the coarse enablement lever, so judge tracing can be turned on for a whole process
+         (e.g. an experiment run or an automated evaluation job) without editing each evaluator. An
+         explicit ``emit_judge_trace=`` passed to an individual evaluator always takes precedence
+         over this variable.
+
+     version_added:
+        v4.14.0:
+
 Trace Context propagation
 -------------------------
 

@@ -2332,6 +2332,13 @@
         "default": null
       }
     ],
+    "DD_LLMOBS_EMIT_JUDGE_TRACE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_LLMOBS_ENABLED": [
       {
         "implementation": "A",
