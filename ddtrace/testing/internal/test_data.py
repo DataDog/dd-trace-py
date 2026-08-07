@@ -13,6 +13,7 @@ from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.telemetry import EventType
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.telemetry import _TestRunProtocol
 from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
@@ -148,7 +149,7 @@ def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
     return TAG_TRUE if session.itr_skipping_enabled else "false"
 
 
-class TestRun(TestItem["Test", t.NoReturn]):
+class TestRun(TestItem["Test", t.NoReturn], _TestRunProtocol):
     __test__ = False
 
     def __init__(self, name: str, parent: Test) -> None:

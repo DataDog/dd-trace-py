@@ -15,13 +15,25 @@ from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
 
 
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.test_data import TestRun
-
-
 log = logging.getLogger(__name__)
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
+
+
+class _TestRunProtocol(t.Protocol):
+    """Protocol for TestRun, to avoid a circular import with test_data.py."""
+
+    test: t.Any
+
+    def is_benchmark(self) -> bool: ...
+
+    def is_retry(self) -> bool: ...
+
+    def is_rum(self) -> bool: ...
+
+    def get_browser_driver(self) -> t.Optional[str]: ...
+
+    def has_failed_all_retries(self) -> bool: ...
 
 
 class _BackendConnectorSetupProtocol(t.Protocol):
@@ -242,7 +254,7 @@ class TelemetryAPI:
 
     # Test creation/finish events.
 
-    def record_test_created(self, test_framework: str, test_run: TestRun) -> None:
+    def record_test_created(self, test_framework: str, test_run: _TestRunProtocol) -> None:
         tags = {
             "event_type": EventType.TEST.value,
             "test_framework": test_framework,
@@ -251,7 +263,7 @@ class TelemetryAPI:
         self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
-        self, test_framework: str, test_run: TestRun, ci_provider_name: t.Optional[str], is_auto_injected: bool
+        self, test_framework: str, test_run: _TestRunProtocol, ci_provider_name: t.Optional[str], is_auto_injected: bool
     ) -> None:
         tags = {
             "event_type": EventType.TEST.value,
