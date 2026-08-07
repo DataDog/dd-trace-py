@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
@@ -167,10 +168,12 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, tracer):
     ):
         oce.reconfigure()
         tracer.configure(iast_enabled=True)
-        # tracer.configure() sets _iast_enabled but does not register AppSecIastSpanProcessor
-        # in SpanProcessor.__processors__. Without this, on_span_start is never called and
-        # no IAST context is created, causing the test to fail non-deterministically depending
-        # on whether a previous test had already enabled the processor.
+        # Reset leaked request and processor state before starting a fresh request.
+        # Otherwise taint_pyobject can emit executed.source against a freed native slot,
+        # while request.tainted is missing when the span finishes.
+        _iast_finish_request()
+        initialize_native_state()
+        AppSecIastSpanProcessor.disable()
         AppSecIastSpanProcessor.enable()
         try:
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
