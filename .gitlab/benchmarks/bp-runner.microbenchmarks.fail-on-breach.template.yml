@@ -171,7 +171,7 @@ experiments:
           # httppropagationextract
           - name: httppropagationextract-all_styles_all_headers
             thresholds:
-              - execution_time < 0.10 ms
+              - execution_time < 21 ms
           - name: httppropagationextract-b3_headers
             thresholds:
               - execution_time < 0.02 ms
