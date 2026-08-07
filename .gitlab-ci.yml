@@ -24,6 +24,8 @@ variables:
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
+  # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v129724447-ccf4260-ci-utils@sha256:3ff0b19510872d740ee4bd3bddde9bb47567ccac7b6e4684bafb6b2bdaf62247"
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
@@ -338,7 +340,7 @@ codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  image: ${CI_UTILS_IMAGE}
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
@@ -366,9 +368,7 @@ codeowners:
             echo "Please remove duplicates from .github/CODEOWNERS."
             exit 1
         fi
-    - apt-get update && apt install ca-certificates git wget curl -y
-    - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
-    - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
     # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
@@ -379,7 +379,7 @@ codeowners:
     - |
       if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
+        xargs codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt

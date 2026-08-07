@@ -295,7 +295,7 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   id_tokens:
