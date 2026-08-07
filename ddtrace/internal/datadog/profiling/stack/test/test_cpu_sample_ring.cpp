@@ -66,7 +66,6 @@ TEST(CpuSampleRing, StartsEmpty)
     RawSample out{};
 
     EXPECT_EQ(ring.capacity(), 64u);
-    EXPECT_TRUE(ring.empty());
     EXPECT_FALSE(ring.pop_for_consumer(out));
 }
 
@@ -80,15 +79,13 @@ TEST(CpuSampleRing, ProducerReserveDoesNotPublish)
     ASSERT_NE(reserved, nullptr);
     *reserved = sample;
 
-    EXPECT_TRUE(ring.empty());
     EXPECT_FALSE(ring.pop_for_consumer(out));
 
     ring.publish_for_producer();
 
-    EXPECT_FALSE(ring.empty());
     ASSERT_TRUE(ring.pop_for_consumer(out));
     expect_sample_eq(out, sample);
-    EXPECT_TRUE(ring.empty());
+    EXPECT_FALSE(ring.pop_for_consumer(out));
 }
 
 TEST(CpuSampleRing, CapacityKeepsOneSlotOpenToDistinguishFullFromEmpty)
@@ -111,7 +108,6 @@ TEST(CpuSampleRing, CapacityKeepsOneSlotOpenToDistinguishFullFromEmpty)
     }
 
     RawSample out{};
-    EXPECT_TRUE(ring.empty());
     EXPECT_FALSE(ring.pop_for_consumer(out));
 }
 
@@ -147,7 +143,7 @@ TEST(CpuSampleRing, WraparoundPreservesFifoOrder)
         ASSERT_TRUE(ring.pop_for_consumer(out));
         expect_sample_eq(out, make_sample(expected_id));
     }
-    EXPECT_TRUE(ring.empty());
+    EXPECT_FALSE(ring.pop_for_consumer(out));
 }
 
 TEST(CpuSampleRing, ConcurrentProducerAndConsumerPreserveWholeFifoSamples)
@@ -175,5 +171,6 @@ TEST(CpuSampleRing, ConcurrentProducerAndConsumerPreserveWholeFifoSamples)
     }
 
     producer.join();
-    EXPECT_TRUE(ring.empty());
+    RawSample out{};
+    EXPECT_FALSE(ring.pop_for_consumer(out));
 }

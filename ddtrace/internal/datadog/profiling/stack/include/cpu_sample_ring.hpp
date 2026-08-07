@@ -105,12 +105,6 @@ class CpuSampleRing
         tail_.store(advance(tail), std::memory_order_release);
         return true;
     }
-
-    // This is a best-effort snapshot. It must not be used to coordinate work.
-    [[nodiscard]] bool empty() const noexcept
-    {
-        return tail_.load(std::memory_order_acquire) == head_.load(std::memory_order_acquire);
-    }
 };
 
 } // namespace CpuTimer

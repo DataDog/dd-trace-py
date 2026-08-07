@@ -1180,14 +1180,7 @@ void
 Engine::disable_for_fault_handler_swap()
 {
 #if DD_CPU_TIMER_SUPPORTED
-    std::lock_guard<std::mutex> lock(g_state.registry_lock);
-    if (!g_state.active.load(std::memory_order_acquire)) {
-        return;
-    }
-    g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
-    g_state.active.store(false, std::memory_order_release);
-    g_state.permanently_disabled.store(true, std::memory_order_release);
-    disable_all_timers_locked();
+    disable_all_timers_for_hijack();
 #endif
 }
 
