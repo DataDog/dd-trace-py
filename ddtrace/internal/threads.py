@@ -37,7 +37,7 @@ __all__ = [
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it.
 _forking = False
-_forking_lock = Lock()
+_forking_lock = forksafe.Lock()
 
 
 class BoundMethod(t.Protocol):
@@ -73,6 +73,7 @@ class PeriodicThread(_PeriodicThread):
 
     def start(self) -> None:
         with _forking_lock:
+            self._restart_cancelled = False
             # We cannot start a new thread while we are forking, because we are
             # trying to stop them all. In that case, we take note of the thread
             # and start it after the fork.
@@ -80,6 +81,21 @@ class PeriodicThread(_PeriodicThread):
                 super().start()
             else:
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
+
+    def _cancel_deferred_start(self) -> bool:
+        with _forking_lock:
+            return self._cancel_deferred_start_unlocked()
+
+    def _cancel_deferred_start_unlocked(self) -> bool:
+        retained_starts = [start for start in _threads_to_start_after_fork if start.__self__ is not self]
+        start_was_deferred = len(retained_starts) != len(_threads_to_start_after_fork)
+        _threads_to_start_after_fork[:] = retained_starts
+
+        # AIDEV-NOTE: A running worker still needs pre-fork stop/join, but its owner can
+        # prevent the completed fork protocol from restarting it.
+        self._restart_cancelled = True
+        _threads_to_restart_after_fork.discard(self)
+        return start_was_deferred
 
 
 # Set of running periodic threads that need to be restarted after a fork.
@@ -160,26 +176,27 @@ class ThreadRestartTimer(PeriodicThread):
 def _after_fork_child():
     global _forking
 
-    _forking = False
+    with _forking_lock:
+        _forking = False
 
-    # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here. _after_fork() (without force=True) respects
-    # __autorestart__: cleanup always runs, but the thread is only restarted
-    # when __autorestart__ is True. This is intentional in the child — threads
-    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
-    # forked workers.
-    for thread in _threads_to_restart_after_fork.copy():
-        log.debug("Restarting thread %s after fork in child", thread.name)
-        try:
-            thread._after_fork()
-        except Exception as e:
-            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
-    _threads_to_restart_after_fork.clear()
+        # Restart the threads immediately. It is unlikely that there will be another
+        # call to fork here. _after_fork() (without force=True) respects
+        # __autorestart__: cleanup always runs, but the thread is only restarted
+        # when __autorestart__ is True. This is intentional in the child — threads
+        # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
+        # forked workers.
+        for thread in _threads_to_restart_after_fork.copy():
+            log.debug("Restarting thread %s after fork in child", thread.name)
+            try:
+                thread._after_fork()
+            except Exception as e:
+                log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
+        _threads_to_restart_after_fork.clear()
 
-    for thread_start in _threads_to_start_after_fork.copy():
-        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
-        _safe_restart(thread_start, thread_start.__self__.name)
-    _threads_to_start_after_fork.clear()
+        for thread_start in _threads_to_start_after_fork.copy():
+            log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
+            _safe_restart(thread_start, thread_start.__self__.name)
+        _threads_to_start_after_fork.clear()
 
 
 @forksafe.register_after_parent
@@ -201,18 +218,24 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
-    # Take note of all the periodic threads that are running and will need to be
-    # restarted.
-    _threads_to_restart_after_fork.update(periodic_threads.values())
+        # AIDEV-NOTE: Native starts and restarts finish registration before the wrapper releases
+        # _forking_lock, so this snapshot includes every worker that can be running at fork time.
+        threads_to_stop = set(periodic_threads.values())
+        threads_to_stop.update(_threads_to_restart_after_fork)
+
+        _threads_to_restart_after_fork.update(
+            thread for thread in threads_to_stop if not getattr(thread, "_restart_cancelled", False)
+        )
+        threads_to_stop_snapshot = tuple(threads_to_stop)
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
     # more promptly.
-    for thread in _threads_to_restart_after_fork:
+    for thread in threads_to_stop_snapshot:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
-    for thread in _threads_to_restart_after_fork:
+    for thread in threads_to_stop_snapshot:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()

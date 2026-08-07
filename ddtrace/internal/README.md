@@ -300,6 +300,16 @@ the parent.
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
 
+A start requested while the fork protocol is in phase 1 is queued by the Python
+`PeriodicThread` wrapper instead of starting a native worker. The component that
+owns the thread can cancel a queued start or restart by calling
+`_cancel_deferred_start()`. Cancellation and after-fork processing are
+serialized: cancellation either removes the pending work, or waits for the
+native worker to be created so the owner can stop and join it. A canceled
+running worker remains in the pre-fork stop/join snapshot but is removed from
+the after-fork restart set. Before `fork()` the queue is shared; afterwards
+cancellation affects only the calling process's copy.
+
 **Phase 2 — after fork**
 
 Both the parent and the child call `_after_fork()` on every thread. In the
