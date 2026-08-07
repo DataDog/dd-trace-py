@@ -20,7 +20,7 @@ from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
+from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
