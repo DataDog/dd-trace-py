@@ -24,7 +24,8 @@ def _set_ffe_config(config):
     """Set the FFE configuration and notify registered providers."""
     global FFE_CONFIG
     FFE_CONFIG = config
-    _notify_providers_config_received()
+    if config is not None:
+        _notify_providers_config_received()
 
 
 def _register_provider(provider: Any) -> None:
