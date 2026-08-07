@@ -48,6 +48,8 @@ install() {
         hook_symlink="$hooks_dir/$hook_type"
         ln -sf $autohook_linktarget $hook_symlink
     done
+
+    "$repo_root/hooks/scripts/ensure-dd-hook-chain.sh"
 }
 
 
