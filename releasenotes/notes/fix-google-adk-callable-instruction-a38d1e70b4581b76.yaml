@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where traces fail to be sent in agentless mode with
+    ``TypeError: Object of type function is not JSON serializable`` when a Google ADK agent is
+    configured with a callable instruction provider instead of a static instruction string.
