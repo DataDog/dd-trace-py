@@ -90,6 +90,7 @@ components:
     - ddtrace/ext/schema.py
   openfeature:
     - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
