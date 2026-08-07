@@ -704,7 +704,7 @@ class DataDogProvider(AbstractProvider):
         self._exposure_cache.clear()
         logger.debug("Exposure cache cleared")
 
-        
+
 def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> None:
     """Apply a UFC payload delivered by the agentless source.
 

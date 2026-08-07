@@ -1,0 +1,66 @@
+Modified/created files by cycle
+================================
+
+Cycle 1 — ci_visibility api._base <-> api._session
+  M ddtrace/internal/ci_visibility/api/_base.py
+  M ddtrace/internal/ci_visibility/service_registry.py
+
+Cycle 2 — asgi.middleware <-> starlette.patch
+  M ddtrace/contrib/internal/asgi/middleware.py
+  M ddtrace/contrib/internal/starlette/patch.py
+
+Cycle 3 — openfeature._native <-> _provider
+  M ddtrace/internal/openfeature/_config.py
+  M ddtrace/internal/openfeature/_native.py
+  M ddtrace/internal/openfeature/_provider.py
+
+Cycle 4 — coverage.installer <-> multiprocessing_coverage
+  M ddtrace/internal/coverage/installer.py
+  M ddtrace/internal/coverage/multiprocessing_coverage.py
+
+Cycle 5 — testing.internal.http <-> telemetry
+  M ddtrace/testing/internal/telemetry.py
+
+Cycle 6 — testing.internal.retry_handlers <-> session_manager
+  M ddtrace/testing/internal/retry_handlers.py
+
+Cycle 7 — pytest._plugin_v2 <-> pytest.plugin
+  M ddtrace/contrib/internal/pytest/_plugin_v2.py
+  M ddtrace/contrib/internal/pytest/_utils.py
+  M ddtrace/contrib/internal/pytest/plugin.py
+
+Cycle 8 — aiguard._api_client <-> _redaction
+  M ddtrace/aiguard/_api_client.py
+  M ddtrace/aiguard/_redaction.py
+  ?? ddtrace/aiguard/_message_types.py (new)
+
+Cycle 9 — appsec._common_module_patches <-> _listeners
+  M ddtrace/appsec/_common_module_patches.py
+  M ddtrace/appsec/_listeners.py
+  M ddtrace/appsec/_remoteconfiguration.py
+
+Cycle 10 — testing.internal.pytest.bdd <-> pytest.plugin
+  M ddtrace/testing/internal/pytest/bdd.py
+  ?? ddtrace/testing/internal/pytest/_types.py (new)
+
+Cycle 11 — django.patch <-> django.response
+  (reverted — no changes)
+
+Cycle 12 — pytorch._distributed <-> _rank_root
+  M ddtrace/contrib/internal/pytorch/_distributed.py
+  M ddtrace/contrib/internal/pytorch/_rank_root.py
+  M ddtrace/contrib/internal/pytorch/_utils.py
+
+Cycle 13 — llmobs package-level cycle
+  (reverted — no changes)
+
+Cycle 14 — errortracking bytecode_injector/callbacks/collector/bytecode_reporting
+  M ddtrace/errortracking/_handled_exceptions/collector.py
+  M ddtrace/errortracking/product.py
+  M tests/errortracking/test_handled_exceptions.py
+
+Cycle 15 — ddtrace core (tracer/debug/runtime_metrics)
+  (ignored/reverted — no changes)
+
+Cycle 16 — appsec IAST asm_request_context
+  (reverted — no changes)
