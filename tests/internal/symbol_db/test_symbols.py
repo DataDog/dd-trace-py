@@ -351,9 +351,7 @@ def test_scope_context_upload_metadata():
         mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock,
         mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
     ):
-        # The native sender reports a rejection as a return value; None is an
-        # accepted payload.
-        sender_mock.return_value.send.return_value = None
+        sender_mock.return_value.send.return_value.accepted = True
 
         # First upload: batchNum starts at 1 and the attachment carries the
         # same upload metadata as the event envelope.

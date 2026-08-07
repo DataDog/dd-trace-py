@@ -417,6 +417,23 @@ class DebuggerTrackType:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
+class DebuggerResponse:
+    """A response from the debugger payload receiver"""
+
+    @property
+    def accepted(self) -> bool:
+        """Whether the intake took the payload."""
+        ...
+    @property
+    def status(self) -> Optional[int]:
+        """The response status, or ``None`` when the payload was accepted."""
+        ...
+    @property
+    def body(self) -> str:
+        """The response body. Empty unless the payload was rejected."""
+        ...
+    def __repr__(self) -> str: ...
+
 class DebuggerSenderError(Exception):
     """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
 
@@ -474,11 +491,9 @@ class DebuggerSender:
     def reset_endpoints(self) -> None:
         """Undo a downgrade, restoring the endpoints derived at construction."""
         ...
-    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> Optional[tuple[int, str]]:
+    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> DebuggerResponse:
         """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
 
-        :return: ``None`` when the payload was accepted, or ``(status, body)``
-            when the server rejected it with a >= 400 status.
         :raises DebuggerSenderError: if the request never completed (transport
             failure or timeout).
         """
@@ -520,12 +535,10 @@ class SymDBSender:
     def agentless(self) -> bool:
         """Whether payloads go straight to the intake rather than via the agent."""
         ...
-    def send(self, payload: bytes, content_type: str) -> Optional[tuple[int, str]]:
+    def send(self, payload: bytes, content_type: str) -> DebuggerResponse:
         """POST a SymDB payload verbatim, blocking on the response.
 
         :param content_type: the caller's multipart content type.
-        :return: ``None`` when the payload was accepted, or ``(status, body)``
-            when the server rejected it with a >= 400 status.
         :raises DebuggerSenderError: if the request never completed (transport
             failure or timeout).
         """

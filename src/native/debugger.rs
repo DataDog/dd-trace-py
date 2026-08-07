@@ -61,19 +61,78 @@ pub(crate) fn build_endpoint(
     Ok(endpoint)
 }
 
-/// Run `future` on the shared runtime with the GIL released, bounded by `timeout`,
-/// and map the outcome onto `Ok(None)` (accepted) / `Ok(Some((status, body)))`
-/// (rejected) / `Err`.
+/// A response from the debugger payload receiver.
 ///
-/// Rejections are returned rather than raised because they are the caller's
-/// decision to make: the signal uploader downgrades and retries on some statuses,
-/// where a transport failure has no endpoint to fall back to.
+/// libdatadog doesn't report the status code on success, but fine, it's not important to us.
+#[pyclass(name = "DebuggerResponse", frozen)]
+pub struct DebuggerResponsePy {
+    accepted: bool,
+    status: Option<u16>,
+    body: String,
+}
+
+impl DebuggerResponsePy {
+    fn new_accepted() -> Self {
+        Self {
+            accepted: true,
+            status: None,
+            body: String::new(),
+        }
+    }
+
+    fn new_rejected(status: u16, body: String) -> Self {
+        Self {
+            accepted: false,
+            status: Some(status),
+            body,
+        }
+    }
+}
+
+#[pymethods]
+impl DebuggerResponsePy {
+    /// Whether the intake took the payload.
+    #[getter]
+    fn accepted(&self) -> bool {
+        self.accepted
+    }
+
+    /// The response status, or `None` when the payload was accepted.
+    #[getter]
+    fn status(&self) -> Option<u16> {
+        self.status
+    }
+
+    /// The response body. Empty unless the payload was rejected.
+    #[getter]
+    fn body(&self) -> &str {
+        &self.body
+    }
+
+    fn __repr__(&self) -> String {
+        match self.status {
+            Some(status) => format!(
+                "DebuggerResponse(accepted=False, status={}, body_len={})",
+                status,
+                self.body.len()
+            ),
+            None => "DebuggerResponse(accepted=True)".to_string(),
+        }
+    }
+}
+
+/// Run `future` on the shared runtime with the GIL released, bounded by `timeout`,
+/// and turn the outcome into a [`DebuggerResponsePy`].
+///
+/// A rejection is a response, not an error: whether a status is worth retrying,
+/// downgrading for, or dropping is the caller's decision. Only a request that
+/// never produced a response at all — transport failure, timeout — raises.
 pub(crate) fn do_send<F>(
     py: Python<'_>,
     runtime: &Arc<ForkSafeRuntime>,
     timeout: Duration,
     future: F,
-) -> PyResult<Option<(u16, String)>>
+) -> PyResult<DebuggerResponsePy>
 where
     F: std::future::Future<Output = anyhow::Result<()>> + Send,
 {
@@ -88,9 +147,12 @@ where
     });
 
     match result {
-        Ok(Ok(())) => Ok(None),
+        Ok(Ok(())) => Ok(DebuggerResponsePy::new_accepted()),
         Ok(Err(e)) => match e.downcast_ref::<PayloadRejected>() {
-            Some(rejected) => Ok(Some((rejected.status, rejected.body.clone()))),
+            Some(rejected) => Ok(DebuggerResponsePy::new_rejected(
+                rejected.status,
+                rejected.body.clone(),
+            )),
             None => Err(DebuggerSenderError::new_err(format!("{e:#}"))),
         },
         // The io::Error only shows up if the shared runtime failed to rebuild a
@@ -223,7 +285,7 @@ impl DebuggerSenderPy {
     /// agents that do not proxy `/debugger/v2/input`.
     ///
     /// A no-op in agentless mode, where all three tracks already share one
-    /// intake path; returns whether anything changed.
+    /// receiver path; returns whether anything changed.
     fn downgrade_to_diagnostics(&self) -> bool {
         if self.agentless {
             return false;
@@ -256,15 +318,14 @@ impl DebuggerSenderPy {
     /// POST a JSON array of debugger payloads (`[{...},{...}]`) to `debugger_type`'s
     /// endpoint, blocking until the response arrives.
     ///
-    /// Returns `None` when the payload was accepted, or `(status, body)` when the
-    /// server rejected it with a >= 400 status. Raises `DebuggerSenderError` if
+    /// Returns the receiver's `DebuggerResponse`. Raises `DebuggerSenderError` if
     /// the request never completed.
     fn send(
         &self,
         py: Python<'_>,
         payload: PyBackedBytes,
         debugger_type: DebuggerTrackType,
-    ) -> PyResult<Option<(u16, String)>> {
+    ) -> PyResult<DebuggerResponsePy> {
         // Snapshot the config so the send does not hold the lock across I/O.
         let config = self.with_state(|state| state.config.clone());
         do_send(py, &self.runtime, self.timeout, async move {
@@ -284,6 +345,7 @@ impl DebuggerSenderPy {
 
 pub fn register_debugger(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DebuggerSenderPy>()?;
+    m.add_class::<DebuggerResponsePy>()?;
     DebuggerTrackType::register(m)?;
     m.add(
         "DebuggerSenderError",

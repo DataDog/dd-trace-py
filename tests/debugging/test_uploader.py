@@ -143,8 +143,8 @@ def test_downgrade_to_diagnostics_is_idempotent():
 def _make_sender(rejected=None, error=None, agentless=False, downgraded=False):
     """A stand-in for the native DebuggerSender.
 
-    ``rejected`` is the ``(status, body)`` tuple the send should report, ``error``
-    an exception it should raise instead.
+    ``rejected`` is the ``(status, body)`` the send should report as a rejection,
+    ``error`` an exception it should raise instead.
     """
     sender = MagicMock()
     sender.agentless = agentless
@@ -152,7 +152,15 @@ def _make_sender(rejected=None, error=None, agentless=False, downgraded=False):
     if error is not None:
         sender.send.side_effect = error
     else:
-        sender.send.return_value = rejected
+        response = MagicMock()
+        if rejected is None:
+            response.accepted = True
+            response.status = None
+            response.body = ""
+        else:
+            response.accepted = False
+            response.status, response.body = rejected
+        sender.send.return_value = response
     return sender
 
 

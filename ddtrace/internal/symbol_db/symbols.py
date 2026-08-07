@@ -671,17 +671,16 @@ class ScopeContext:
 
         log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
         try:
-            rejected = self._sender.send(body, headers["Content-Type"])
+            response = self._sender.send(body, headers["Content-Type"])
         except Exception:
             log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
         else:
-            if rejected is not None:
-                status, response_body = rejected
+            if not response.accepted:
                 log.error(
                     "[PID %d] SymDB: Bad response while uploading symbols: [%d] %r",
                     os.getpid(),
-                    status,
-                    response_body,
+                    response.status,
+                    response.body,
                 )
 
     def __bool__(self) -> bool:
