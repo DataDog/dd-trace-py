@@ -10,14 +10,11 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
+from ddtrace.testing.internal._protocols import TestRunProtocol
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
-
-
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.http import BackendConnectorSetup
-    from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
@@ -56,7 +53,7 @@ class GitTelemetry(str, Enum):
 class TelemetryAPI:
     _instance: t.Optional[TelemetryAPI] = None
 
-    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
 
@@ -235,7 +232,7 @@ class TelemetryAPI:
 
     # Test creation/finish events.
 
-    def record_test_created(self, test_framework: str, test_run: TestRun) -> None:
+    def record_test_created(self, test_framework: str, test_run: TestRunProtocol) -> None:
         tags = {
             "event_type": EventType.TEST.value,
             "test_framework": test_framework,
@@ -244,7 +241,7 @@ class TelemetryAPI:
         self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
-        self, test_framework: str, test_run: TestRun, ci_provider_name: t.Optional[str], is_auto_injected: bool
+        self, test_framework: str, test_run: TestRunProtocol, ci_provider_name: t.Optional[str], is_auto_injected: bool
     ) -> None:
         tags = {
             "event_type": EventType.TEST.value,
@@ -358,7 +355,7 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
     integration and dependency information on the next flush.
     """
 
-    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
         self._writer_supports_intercept = hasattr(self.writer, "_client")
