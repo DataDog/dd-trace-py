@@ -1291,6 +1291,44 @@ class TestLLMObsClaudeAgentSdk:
         assert all(s.parent_id is None for s in agent_spans)
         assert agent_spans[0].trace_id != agent_spans[1].trace_id
 
+    async def test_llmobs_query_custom_transport_does_not_filter_partials(
+        self, claude_agent_sdk, mock_internal_client_custom_transport_noise, claude_agent_sdk_llmobs
+    ):
+        """A caller-supplied transport is built independently of options, so we neither force
+        include_partial_messages nor filter the stream. Any status/partial events the transport
+        surfaces must reach the caller untouched — enabling ddtrace must not swallow them here.
+        """
+        from unittest.mock import MagicMock
+
+        messages = []
+        async for msg in claude_agent_sdk.query(prompt="What is 2+2?", transport=MagicMock()):
+            messages.append(msg)
+
+        # the status SystemMessage the transport emitted is NOT filtered out
+        assert any(type(m).__name__ == "SystemMessage" and getattr(m, "subtype", None) == "status" for m in messages)
+
+    async def test_llmobs_client_receive_without_query_filters_forced_partials(
+        self, mock_client_forced_partial_noise, claude_agent_sdk_llmobs
+    ):
+        """connect(prompt=...) then receive_response() never calls query(), so the stream is
+        untraced — but __init__ forced include_partial_messages on. We must still strip the events
+        we injected (StreamEvent, status SystemMessage) so the caller's stream is unchanged.
+        """
+        client = mock_client_forced_partial_noise
+        assert getattr(client, "_dd_forced_partial", False) is True
+
+        messages = [msg async for msg in client.receive_response()]
+        types = [type(m).__name__ for m in messages]
+
+        # the events we injected are stripped back out
+        assert "StreamEvent" not in types
+        assert not any(
+            t == "SystemMessage" and getattr(m, "subtype", None) == "status" for t, m in zip(types, messages)
+        )
+        # the caller's real content still comes through
+        assert "AssistantMessage" in types
+        assert "ResultMessage" in types
+
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from claude_agent_sdk usage to APM span."""

@@ -3,6 +3,7 @@ import sys
 import claude_agent_sdk
 
 from ddtrace import config
+from ddtrace.contrib.internal.claude_agent_sdk._streaming import filter_forced_partial_noise
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
@@ -52,12 +53,15 @@ def traced_query_async_generator(func, _instance, args, kwargs):
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     # Turn on partial streaming so the handler can read accurate per-turn output tokens
-    # from the message_delta events.
+    # from the message_delta events. A caller-supplied custom transport is constructed
+    # independently of these options, so forcing (and therefore filtering) the flag would
+    # only risk swallowing chunks that transport emits on its own — skip it there.
     forced_partial = False
-    options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
-    if forced_partial:
-        wrapped_kwargs = dict(wrapped_kwargs)
-        wrapped_kwargs["options"] = options
+    if wrapped_kwargs.get("transport") is None:
+        options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
+        if forced_partial:
+            wrapped_kwargs = dict(wrapped_kwargs)
+            wrapped_kwargs["options"] = options
 
     span = integration.trace(
         "claude_agent_sdk.query",
@@ -137,7 +141,13 @@ def traced_receive_messages(func, instance, args, kwargs):
         query_kwargs["_dd_before_context"] = before_context
 
     if span is None:
-        return func(*args, **kwargs)
+        resp = func(*args, **kwargs)
+        # connect(prompt=...) followed by receive_response() has no traced query() span, but we
+        # may still have forced partial streaming on at init. Strip the events we injected so
+        # enabling ddtrace never changes the caller's stream, even on this untraced path.
+        if getattr(instance, "_dd_forced_partial", False):
+            return filter_forced_partial_noise(resp)
+        return resp
 
     try:
         resp = func(*args, **kwargs)

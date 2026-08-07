@@ -562,3 +562,56 @@ MOCK_CLIENT_RAW_MESSAGES = [
         },
     },
 ]
+
+
+# Same as MOCK_CLIENT_RAW_MESSAGES but interleaved with the partial-streaming events we inject
+# when we force include_partial_messages on at init: a StreamEvent and a status SystemMessage.
+# Used to exercise the untraced connect(prompt=...) -> receive_response() path, where there is no
+# query() span/handler to filter, so filter_forced_partial_noise must strip these back out.
+MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE = [
+    EXPECTED_SYSTEM_MESSAGE_DATA,
+    {
+        "type": "stream_event",
+        "uuid": "test-uuid",
+        "session_id": "test-session-id",
+        "event": {"type": "message_start", "message": {"id": "msg_01ClientNoiseAaaaaaaaaaa", "usage": {}}},
+    },
+    {
+        "type": "system",
+        "subtype": "status",
+        "status": "requesting",
+        "session_id": "test-session-id",
+    },
+    {
+        "type": "assistant",
+        "message": {"content": [{"type": "text", "text": "4"}], "model": MOCK_MODEL},
+    },
+    {
+        "type": "result",
+        "subtype": "success",
+        "stop_reason": "end_turn",
+        "duration_ms": 100,
+        "duration_api_ms": 90,
+        "is_error": False,
+        "num_turns": 1,
+        "session_id": "test-session-id",
+        "usage": {
+            "input_tokens": 3,
+            "cache_creation_input_tokens": 12742,
+            "cache_read_input_tokens": 1854,
+            "output_tokens": 5,
+        },
+    },
+]
+
+
+# A standalone query() response carrying a status SystemMessage the caller's custom transport
+# would surface on its own. When a custom transport is supplied we must NOT force partial
+# streaming (the transport is built independently of options), so we must NOT filter — this
+# status message must reach the caller untouched.
+MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_RESULT_MESSAGE,
+]

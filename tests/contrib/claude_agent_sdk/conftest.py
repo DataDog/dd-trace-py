@@ -13,6 +13,8 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SE
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
+from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE
+from tests.contrib.claude_agent_sdk.utils import MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
@@ -181,6 +183,12 @@ def mock_internal_client_assistant_message_error_text(claude_agent_sdk):
 
 
 @pytest.fixture
+def mock_internal_client_custom_transport_noise(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE):
+        yield
+
+
+@pytest.fixture
 def mock_internal_client_error(claude_agent_sdk):
     async def mock_process_query_error(self, prompt, options, transport=None):
         raise ValueError("Connection failed")
@@ -207,6 +215,31 @@ def mock_client(claude_agent_sdk):
     client._query = mock_query
 
     # mock transport that handles writing messages
+    mock_transport = MagicMock()
+    mock_transport.write = AsyncMock(return_value=None)
+    client._transport = mock_transport
+
+    return client
+
+
+@pytest.fixture
+def mock_client_forced_partial_noise(claude_agent_sdk):
+    """A client whose receive stream carries the partial-streaming events we inject at init.
+
+    Mirrors connect(prompt=...) followed by receive_response(): no query() call is made, so the
+    stream is untraced, but __init__ forced include_partial_messages on (_dd_forced_partial=True).
+    """
+
+    async def mock_receive_messages():
+        for msg in MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE:
+            yield msg
+
+    client = claude_agent_sdk.ClaudeSDKClient()
+
+    mock_query = MagicMock()
+    mock_query.receive_messages = mock_receive_messages
+    client._query = mock_query
+
     mock_transport = MagicMock()
     mock_transport.write = AsyncMock(return_value=None)
     client._transport = mock_transport

@@ -91,6 +91,32 @@ def wrap_prompt_if_async_iterable(args, kwargs):
     return args, kwargs, None
 
 
+def _is_partial_stream_noise(chunk) -> bool:
+    """Whether a chunk is one of the events we inject by forcing include_partial_messages.
+
+    The ``StreamEvent`` partials and the per-turn ``SystemMessage`` status pings only appear
+    because we set ``include_partial_messages``; the caller never asked for them.
+    """
+    chunk_type = type(chunk).__name__
+    return chunk_type == "StreamEvent" or (
+        chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status"
+    )
+
+
+async def filter_forced_partial_noise(resp):
+    """Strip the events we injected from an otherwise untraced receive stream.
+
+    The ``connect(prompt=...)`` shortcut dispatches its prompt without a ``query()`` call, so
+    that stream has no span/handler to trace or filter it. When we forced partial streaming on
+    such a client, we still must not surface the extra events — enabling ddtrace should never
+    change the caller's message stream. This is a passthrough that drops only those events.
+    """
+    async for chunk in resp:
+        if _is_partial_stream_noise(chunk):
+            continue
+        yield chunk
+
+
 def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None, filter_partial=False):
     return make_traced_stream(
         resp,
@@ -144,10 +170,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         never reach the caller, and storing the status message in ``self.chunks`` would
         corrupt agent-span output (it flows through ``_extract_output_data``).
         """
-        return self._filter_partial and (
-            chunk_type == "StreamEvent"
-            or (chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status")
-        )
+        return self._filter_partial and _is_partial_stream_noise(chunk)
 
     def _capture_partial_usage(self, chunk) -> None:
         """Record per-turn token usage from a StreamEvent's raw Anthropic event.

@@ -69,7 +69,7 @@ def force_include_partial_messages(options: Any, in_place: bool = False) -> tupl
 _PARTIAL_INPUT_USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 
 
-def extract_partial_message_usage(event: Any) -> Optional[tuple[Optional[str], dict]]:
+def extract_partial_message_usage(event: Any) -> Optional[tuple[Optional[str], dict[str, int]]]:
     """Pull a (message_id, usage) signal out of a raw Anthropic stream event.
 
     ``message_start`` carries the turn's ``message.id`` and the input-side usage
