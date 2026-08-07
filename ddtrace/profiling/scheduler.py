@@ -6,6 +6,8 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
+from ddtrace.internal import service
+from ddtrace.internal import threads as internal_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
@@ -37,6 +39,29 @@ class Scheduler(periodic.PeriodicService):
         super(Scheduler, self)._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
+
+    def _rollback_start(self) -> None:
+        with self._service_lock:
+            if self._worker is not None:
+                # AIDEV-NOTE: The fork lock makes cancellation and native-worker classification atomic with restart.
+                with internal_threads._forking_lock:
+                    if self._worker._cancel_deferred_start_unlocked():
+                        self._worker = None
+                    else:
+                        try:
+                            self._stop_service()
+                        except RuntimeError as error:
+                            if str(error) != "Thread not started":
+                                raise
+                            try:
+                                self._worker.join(0)
+                            except RuntimeError as join_error:
+                                if str(join_error) != "Periodic thread not started":
+                                    raise
+                                self._worker = None
+                            else:
+                                self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
 
     def flush(self) -> None:
         """Flush events from recorder to exporters."""

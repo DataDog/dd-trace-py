@@ -52,6 +52,11 @@ class Collector(service.Service):
     def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         super().__init__(*args, **kwargs)
 
+    def _rollback_start(self) -> None:
+        with self._service_lock:
+            self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
+
     @staticmethod
     def snapshot() -> None:
         """Take a snapshot of collected data, to be exported."""
