@@ -95,7 +95,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            bool include_separator,
                            size_t context_id);
 
-PyObject*
+py::object
 api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
                                        const TaintRangeRefs& ranges_orig,
                                        PyTextType py_str_type);

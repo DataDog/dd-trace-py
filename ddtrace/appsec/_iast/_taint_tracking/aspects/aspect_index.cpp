@@ -8,14 +8,13 @@
  * @param idx
  * @param ranges
  * @param tx_taint_map
- * @return PyObject*
  */
-PyObject*
-index_aspect(PyObject* result_o,
-             const PyObject* candidate_text,
-             PyObject* idx,
-             const TaintRangeRefs& ranges,
-             const TaintedObjectMapTypePtr& tx_map)
+static void
+index_aspect_owned(py::object& result_o,
+                   const PyObject* candidate_text,
+                   PyObject* idx,
+                   const TaintRangeRefs& ranges,
+                   const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs ranges_to_set;
 
@@ -31,31 +30,43 @@ index_aspect(PyObject* result_o,
 
     } else if (PyReMatch_Check(candidate_text)) { // For re.Match objects, taint the whole output
         try {
-            const size_t& len_result_o{ get_pyobject_size(result_o) };
+            const size_t& len_result_o{ get_pyobject_size(result_o.ptr()) };
             const auto& current_range = ranges.at(0);
             ranges_to_set.emplace_back(
               safe_allocate_taint_range(0l, len_result_o, current_range->source, current_range->secure_marks));
         } catch (const std::out_of_range& ex) {
-            if (nullptr == result_o) {
+            if (!result_o) {
                 throw py::index_error();
             }
             // No ranges found, return original object
-            return result_o;
+            return;
         }
     } else {
         // Other stuff
-        return result_o;
+        return;
     }
 
-    const auto& res_new_id = new_pyobject_id(result_o);
-    Py_DecRef(result_o);
-
-    if (ranges_to_set.empty()) {
-        return res_new_id;
+    py::object res_new_id = new_pyobject_id_owned(result_o);
+    if (!res_new_id) {
+        throw py::error_already_set();
     }
-    set_ranges(res_new_id, ranges_to_set, tx_map);
 
-    return res_new_id;
+    if (!ranges_to_set.empty()) {
+        set_ranges(res_new_id.ptr(), ranges_to_set, tx_map);
+    }
+    result_o = std::move(res_new_id);
+}
+
+PyObject*
+index_aspect(PyObject* result_o,
+             const PyObject* candidate_text,
+             PyObject* idx,
+             const TaintRangeRefs& ranges,
+             const TaintedObjectMapTypePtr& tx_map)
+{
+    py::object owned_result = py::reinterpret_steal<py::object>(result_o);
+    index_aspect_owned(owned_result, candidate_text, idx, ranges, tx_map);
+    return owned_result.release().ptr();
 }
 
 PyObject*
@@ -73,39 +84,42 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
-    const auto result_o = PyObject_GetItem(candidate_text, idx);
-    if (result_o == nullptr) {
+    py::object result_o = py::reinterpret_steal<py::object>(PyObject_GetItem(candidate_text, idx));
+    if (!result_o) {
         return nullptr;
     }
 
-    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
+    if (!taint_engine_context || !initializer) {
+        return result_o.release().ptr();
+    }
 
-    TRY_CATCH_ASPECT("index_aspect", return result_o, , {
+    TRY_CATCH_ASPECT("index_aspect", return result_o.release().ptr(), , {
         const auto tx_map = safe_get_tainted_object_map(candidate_text);
         // The subscript already succeeded, so a taint-lookup error is ours to clear: returning
         // result_o with one set surfaces as SystemError in the application. Checked after each
         // lookup that can raise, before the exits that hand result_o back.
         if (PyErr_Occurred()) {
             iast_taint_log_error(take_pyerr_as_string());
-            return result_o;
+            return result_o.release().ptr();
         }
         if (tx_map == nullptr or tx_map->empty()) {
-            return result_o;
+            return result_o.release().ptr();
         }
 
         auto [ranges, ranges_error] = get_ranges(candidate_text, tx_map);
         if (PyErr_Occurred()) {
             iast_taint_log_error(take_pyerr_as_string());
-            return result_o;
+            return result_o.release().ptr();
         }
         if (ranges_error or ranges.empty()) {
-            return result_o;
+            return result_o.release().ptr();
         }
 
         if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {
-            return result_o;
+            return result_o.release().ptr();
         }
 
-        return index_aspect(result_o, candidate_text, idx, ranges, tx_map);
+        index_aspect_owned(result_o, candidate_text, idx, ranges, tx_map);
+        return result_o.release().ptr();
     });
 }
