@@ -31,7 +31,9 @@ tests/telemetry                     @DataDog/apm-python
 # Guild
 # Root level config files
 conftest.py                         @DataDog/python-guild
+docker-compose.base.yml             @DataDog/python-guild
 docker-compose.gpu.yml              @DataDog/python-guild
+docker-compose.podman.yml           @DataDog/python-guild
 docker-compose.yml                  @DataDog/python-guild
 repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
