@@ -92,9 +92,6 @@ safe_import(const char* module_name, const char* symbol_name)
         return py::none();
     }
 
-    const string final_name =
-      symbol_name == nullptr ? string(module_name) : string(module_name) + "." + string(symbol_name);
-
     PythonErrorGuard error_guard;
 
     py::object ret;

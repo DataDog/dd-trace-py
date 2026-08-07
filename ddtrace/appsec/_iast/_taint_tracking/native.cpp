@@ -178,10 +178,10 @@ reset_native_state_after_fork()
     // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
         taint_engine_context->clear_tainted_object_map();
-        (void)taint_engine_context.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_context = taint_engine_context.release();
     }
     if (initializer) {
-        (void)initializer.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_initializer = initializer.release();
     }
 
     // Step 2: Recreate fresh instances

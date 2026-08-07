@@ -373,7 +373,7 @@ get_list_from_env(const char* env_var_name, size_t* count)
                     return NULL;
                 }
                 for (char* p = dup; *p; p++) {
-                    *p = tolower(*p);
+                    *p = (char)tolower((unsigned char)*p);
                 }
                 modules_list[count_tmp++] = dup;
                 token = strtok(NULL, ",");
@@ -441,7 +441,7 @@ init_globals(void)
             return -1;
         }
         for (char* p = dup; *p; p++) {
-            *p = tolower(*p);
+            *p = (char)tolower((unsigned char)*p);
         }
         new_builtins_denylist[i] = dup;
     }
@@ -462,7 +462,7 @@ init_globals(void)
                 return -1;
             }
             for (char* p = dup; *p; p++) {
-                *p = tolower(*p);
+                *p = (char)tolower((unsigned char)*p);
             }
             new_builtins_denylist[static_stdlib_denylist_count + i] = dup;
         }
@@ -499,7 +499,7 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     for (const char* p = module_name; *p; p++) {
-        if (!isalnum(*p) && *p != '.' && *p != '_') {
+        if (!isalnum((unsigned char)*p) && *p != '.' && *p != '_') {
             PyErr_SetString(PyExc_ValueError, "Invalid characters in module name");
             return NULL;
         }
@@ -510,7 +510,7 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
     strncpy(lower_module, module_name, sizeof(lower_module) - 1);
     lower_module[sizeof(lower_module) - 1] = '\0';
     for (size_t i = 0; i < strlen(lower_module); i++) {
-        lower_module[i] = tolower(lower_module[i]);
+        lower_module[i] = (char)tolower((unsigned char)lower_module[i]);
     }
     size_t l = strlen(lower_module);
     if (l < sizeof(lower_module) - 1) {
@@ -658,7 +658,7 @@ py_set_packages_distributions(PyObject* Py_UNUSED(self), PyObject* args)
             }
             // Convert to lowercase.
             for (char* p = dup; *p; p++) {
-                *p = tolower(*p);
+                *p = (char)tolower((unsigned char)*p);
             }
             new_cached_packages[i] = dup;
         }
