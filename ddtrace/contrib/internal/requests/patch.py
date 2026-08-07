@@ -9,6 +9,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 
+from .connection import _wrap_adapter_send
 from .connection import _wrap_send
 from .session import TracedSession
 
@@ -27,6 +28,8 @@ config._add(
 # always patch our `TracedSession` when imported
 _w(TracedSession, "send", _wrap_send)
 Pin(_config=config.requests).onto(TracedSession)
+# always wrapped, like TracedSession.send above; a no-op unless urllib3 tracing is enabled
+_w(requests.adapters.HTTPAdapter, "send", _wrap_adapter_send)
 
 
 def get_version() -> str:
