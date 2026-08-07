@@ -9,6 +9,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TextIO
+from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
@@ -58,9 +59,8 @@ from .writer_client import WriterClientBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.internal.http import HTTPConnection  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -213,7 +213,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional["ConnectionType"] = None
+        self._conn: Optional["HTTPConnection"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -244,6 +244,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if client and hasattr(client, "_intake_url"):
             return client._intake_url
         return self.intake_url
+
+    def _intake_base_path(self, client=None) -> str:
+        intake_url = self._intake_url(client)
+        if not isinstance(intake_url, str):
+            return ""
+        parsed = _urlparse(intake_url)
+        if parsed.scheme not in ("http", "https"):
+            # For unix:// URLs the path component is the socket location, not an HTTP path prefix.
+            return ""
+        return parsed.path.rstrip("/")
 
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
@@ -302,12 +312,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     final_headers,
                     _human_size(len(data)),
                 )
-                self._conn.request(
-                    self.HTTP_METHOD,
-                    client.ENDPOINT,
-                    data,
-                    final_headers,
-                )
+                intake_base_path = self._intake_base_path(client)
+                endpoint = intake_base_path + "/" + client.ENDPOINT.lstrip("/") if intake_base_path else client.ENDPOINT
+                self._conn.request(self.HTTP_METHOD, endpoint, data, final_headers)
                 resp = self._conn.getresponse()
                 t = sw.elapsed()
                 if t >= self.interval:

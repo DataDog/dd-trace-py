@@ -46,11 +46,11 @@ from ddtrace.internal.ci_visibility.utils import fibonacci_backoff_with_jitter_o
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
@@ -297,7 +297,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers = self._get_final_headers()
         url = combine_url_path(self._base_url, endpoint)
 
-        conn: t.Optional[ConnectionType] = None
+        conn: t.Optional[HTTPConnection] = None
         try:
             parsed_url = verify_url(url)
             url_path = parsed_url.path

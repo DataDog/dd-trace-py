@@ -1,22 +1,23 @@
-import httpretty
+from unittest import mock
+
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.http import HTTPResponse
+from ddtrace.internal.http import NativeHTTPConnection
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import parse_form_multipart
 
 
-parameters = ["http"]
-# httpretty doesn't work with https/http.client/Python 3.14 and there is no apparent replacement
-if PYTHON_VERSION_INFO < (3, 14):
-    parameters.append("https")
-
-
-@pytest.mark.parametrize("scheme", parameters)
+@pytest.mark.parametrize("scheme", ["http", "https"])
 def test_connector(scheme):
-    with httpretty.enabled():
-        httpretty.register_uri(httpretty.GET, "%s://localhost:8181/api/test" % scheme, body='{"hello": "world"}')
+    # The native Rust HTTP client bypasses Python's socket module, so
+    # httpretty-style socket-level mocking doesn't work. Mock at the
+    # NativeHTTPConnection level instead.
+    mock_resp = mock.Mock(spec=HTTPResponse)
+    mock_resp.status = 200
+    mock_resp.read.return_value = b'{"hello": "world"}'
 
+    with mock.patch.object(NativeHTTPConnection, "getresponse", return_value=mock_resp):
         connect = connector("%s://localhost:8181" % scheme)
         with connect() as conn:
             conn.request("GET", "/api/test")

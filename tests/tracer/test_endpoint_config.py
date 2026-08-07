@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 
-from http.client import HTTPResponse
-from io import BytesIO
 import logging
 from unittest import mock
 
 from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.http import HTTPResponse
 from ddtrace.internal.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
+
+
+def _make_response(status, reason, body):
+    response = mock.Mock(spec=HTTPResponse)
+    response.status = status
+    response.reason = reason
+    response.read.return_value = body
+    return response
 
 
 def mock_getresponse_enabled_after_4_retries(self):
@@ -16,72 +23,25 @@ def mock_getresponse_enabled_after_4_retries(self):
 
     mock_getresponse_enabled_after_4_retries.call_count += 1
 
-    response = mock.Mock(spec=HTTPResponse)
-    response.chunked = False
     if mock_getresponse_enabled_after_4_retries.call_count < 4:
-        response.read.return_value = b"{}"
-        response.status = 500
-        response.reason = "KO"
-    else:
-        response.read.return_value = b'{"dd_product_enabled": true}'
-        response.status = 200
-        response.reason = "OK"
-    response.fp = BytesIO(response.read.return_value)
-    response.length = len(response.fp.getvalue())
-    response.msg = {"Content-Length": response.length}
-    return response
+        return _make_response(500, "KO", b"{}")
+    return _make_response(200, "OK", b'{"dd_product_enabled": true}')
 
 
 def mock_getresponse_enabled(self):
-    response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_product_enabled": true}'
-    response.status = 200
-    response.reason = "OK"
-    response.chunked = False
-    response.fp = BytesIO(response.read.return_value)
-    response.length = len(response.fp.getvalue())
-    response.msg = {"Content-Length": response.length}
-    return response
+    return _make_response(200, "OK", b'{"dd_product_enabled": true}')
 
 
 def mock_getresponse_403(self):
-    response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_product_enabled": true}'
-    response.status = 403
-    response.reason = "KO"
-    response.chunked = False
-    response.fp = BytesIO(response.read.return_value)
-    response.length = len(response.fp.getvalue())
-    response.msg = {"Content-Length": response.length}
-    return response
+    return _make_response(403, "KO", b'{"dd_product_enabled": true}')
 
 
 def mock_getresponse_500(self):
-    response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_product_enabled": true}'
-    response.status = 500
-    response.reason = "KO"
-    response.chunked = False
-    response.fp = BytesIO(response.read.return_value)
-    response.length = len(response.fp.getvalue())
-    response.msg = {"Content-Length": response.length}
-    return response
+    return _make_response(500, "KO", b'{"dd_product_enabled": true}')
 
 
 def mock_getresponse_malformed(self):
-    response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b"{"
-    response.status = 200
-    response.reason = "OK"
-    response.chunked = False
-    response.fp = BytesIO(response.read.return_value)
-    response.length = len(response.fp.getvalue())
-    response.msg = {"Content-Length": response.length}
-    return response
-
-
-def mock_pass(self, *args, **kwargs):
-    pass
+    return _make_response(200, "OK", b"{")
 
 
 def test_unset_config_endpoint(caplog):
@@ -95,8 +55,6 @@ def test_set_config_endpoint_enabled(caplog):
     with (
         caplog.at_level(logging.DEBUG, logger="ddtrace"),
         override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}),
-        mock.patch.object(HTTPConnection, "connect", new=mock_pass),
-        mock.patch.object(HTTPConnection, "send", new=mock_pass),
         mock.patch.object(HTTPConnection, "getresponse", new=mock_getresponse_enabled),
     ):
         assert fetch_config_from_endpoint() == {"dd_product_enabled": True}
@@ -109,8 +67,6 @@ def test_set_config_endpoint_500(caplog):
     with (
         caplog.at_level(logging.DEBUG, logger="ddtrace"),
         override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}),
-        mock.patch.object(HTTPConnection, "connect", new=mock_pass),
-        mock.patch.object(HTTPConnection, "send", new=mock_pass),
         mock.patch.object(HTTPConnection, "getresponse", new=mock_getresponse_500),
     ):
         assert fetch_config_from_endpoint() == {}
@@ -123,8 +79,6 @@ def test_set_config_endpoint_403(caplog):
     with (
         caplog.at_level(logging.DEBUG, logger="ddtrace"),
         override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}),
-        mock.patch.object(HTTPConnection, "connect", new=mock_pass),
-        mock.patch.object(HTTPConnection, "send", new=mock_pass),
         mock.patch.object(HTTPConnection, "getresponse", new=mock_getresponse_403),
     ):
         assert fetch_config_from_endpoint() == {}
@@ -137,8 +91,6 @@ def test_set_config_endpoint_malformed(caplog):
     with (
         caplog.at_level(logging.DEBUG, logger="ddtrace"),
         override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}),
-        mock.patch.object(HTTPConnection, "connect", new=mock_pass),
-        mock.patch.object(HTTPConnection, "send", new=mock_pass),
         mock.patch.object(HTTPConnection, "getresponse", new=mock_getresponse_malformed),
     ):
         assert fetch_config_from_endpoint() == {}
@@ -152,9 +104,6 @@ def test_set_config_endpoint_connection_refused(caplog):
 
     if caplog.text:
         assert "Failed to fetch configuration from endpoint" in caplog.text
-        assert any(
-            message in caplog.text for message in ("Connection refused", "Address family not supported by protocol")
-        ), "None of the expected connection error log messages were found"
 
 
 def test_set_config_endpoint_timeout_error(caplog):
@@ -168,17 +117,12 @@ def test_set_config_endpoint_timeout_error(caplog):
     if caplog.text:
         assert "Configuration endpoint not set. Skipping fetching configuration." not in caplog.text
         assert "Failed to fetch configuration from endpoint" in caplog.text
-        assert any(
-            message in caplog.text for message in ("Connection refused", "Address family not supported by protocol")
-        ), "None of the expected connection error log messages were found"
 
 
 def test_set_config_endpoint_retries(caplog):
     with (
         caplog.at_level(logging.DEBUG, logger="ddtrace"),
         override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}),
-        mock.patch.object(HTTPConnection, "connect", new=mock_pass),
-        mock.patch.object(HTTPConnection, "send", new=mock_pass),
         mock.patch.object(HTTPConnection, "getresponse", new=mock_getresponse_enabled_after_4_retries),
         mock.patch("ddtrace.internal.settings.endpoint_config._get_retries", return_value=5),
     ):
