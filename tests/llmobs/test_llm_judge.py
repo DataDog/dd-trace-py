@@ -330,6 +330,63 @@ class TestLLMJudgePublish:
         payload = mock_publish.call_args.args[0]
         assert payload["applications"][0]["application_name"] == "test-agent-service"
 
+    @pytest.mark.parametrize("sampling_percentage", [0.1, 10, 100.0])
+    def test_publish_sends_sampling_percentage(self, sampling_percentage, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="quality_eval",
+        )
+
+        llmobs.publish_evaluator(
+            judge,
+            agent_service="test-agent-service",
+            sampling_percentage=sampling_percentage,
+        )
+
+        app_payload = mock_publish.call_args.args[0]["applications"][0]
+        assert app_payload["sampling_percentage"] == float(sampling_percentage)
+        assert app_payload["enabled"] is False
+
+    def test_publish_omits_sampling_percentage_by_default(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="quality_eval",
+        )
+
+        llmobs.publish_evaluator(judge, agent_service="test-agent-service")
+
+        app_payload = mock_publish.call_args.args[0]["applications"][0]
+        assert "sampling_percentage" not in app_payload
+
+    @pytest.mark.parametrize("sampling_percentage", [True, "10", 0, -1, 100.1])
+    def test_publish_rejects_invalid_sampling_percentage(self, sampling_percentage, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="quality_eval",
+        )
+
+        expected_error = TypeError if isinstance(sampling_percentage, (bool, str)) else ValueError
+        with pytest.raises(expected_error, match="sampling_percentage"):
+            llmobs.publish_evaluator(
+                judge,
+                agent_service="test-agent-service",
+                sampling_percentage=sampling_percentage,
+            )
+
+        mock_publish.assert_not_called()
+
     def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch, llmobs):
         mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
