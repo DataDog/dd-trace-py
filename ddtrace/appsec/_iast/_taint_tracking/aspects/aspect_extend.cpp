@@ -31,32 +31,30 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
     if (not ctx_map or ctx_map->empty()) {
-        auto method_name = PyUnicode_FromString("extend");
-        if (method_name == nullptr) {
+        py::object method_name = py::reinterpret_steal<py::object>(PyUnicode_FromString("extend"));
+        if (!method_name) {
             return nullptr;
         }
-        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        Py_DecRef(method_name);
-        if (extend_result == nullptr) {
+        py::object extend_result = py::reinterpret_steal<py::object>(
+          PyObject_CallMethodObjArgs(candidate_text, method_name.ptr(), to_add, nullptr));
+        if (!extend_result) {
             return nullptr;
         }
-        Py_DECREF(extend_result);
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
         auto to_result = safe_allocate_tainted_object_copy(to_candidate);
         const auto& to_toadd = get_tainted_object(to_add, ctx_map);
 
         // Ensure no returns are done before this method call
-        auto method_name = PyUnicode_FromString("extend");
-        if (method_name == nullptr) {
+        py::object method_name = py::reinterpret_steal<py::object>(PyUnicode_FromString("extend"));
+        if (!method_name) {
             return nullptr;
         }
-        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        Py_DecRef(method_name);
-        if (extend_result == nullptr) {
+        py::object extend_result = py::reinterpret_steal<py::object>(
+          PyObject_CallMethodObjArgs(candidate_text, method_name.ptr(), to_add, nullptr));
+        if (!extend_result) {
             return nullptr;
         }
-        Py_DECREF(extend_result);
 
         if (to_result == nullptr) {
             Py_RETURN_NONE;

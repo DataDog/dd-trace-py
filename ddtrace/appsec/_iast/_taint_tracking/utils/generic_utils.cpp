@@ -111,26 +111,7 @@ safe_import(const char* module_name, const char* symbol_name)
 }
 
 bool
-is_pointer_this_builtin(PyObject* orig_function, const char* builtin_name)
+is_pointer_builtin_str(PyObject* orig_function)
 {
-    if (!orig_function) {
-        return false;
-    }
-
-    static PyObject* builtin = nullptr;
-    if (builtin == nullptr) {
-        PyObject* builtins = PyImport_ImportModule("builtins");
-        if (!builtins) {
-            return false;
-        }
-
-        builtin = PyObject_GetAttrString(builtins, builtin_name);
-        Py_DECREF(builtins);
-
-        if (!builtin) {
-            return false;
-        }
-    }
-
-    return orig_function == builtin;
+    return orig_function == reinterpret_cast<PyObject*>(&PyUnicode_Type);
 }

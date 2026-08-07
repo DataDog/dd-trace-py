@@ -405,13 +405,11 @@ get_internal_hash(PyObject* obj)
 
     if (PyReMatch_Check(obj)) {
         // Use the match.string for hashing
-        PyObject* string_obj = PyObject_GetAttrString(obj, "string");
-        if (string_obj == nullptr) {
+        py::object string_obj = py::reinterpret_steal<py::object>(PyObject_GetAttrString(obj, "string"));
+        if (!string_obj) {
             return PyObject_Hash(obj);
         }
-        const auto hash = PyObject_Hash(string_obj);
-        Py_DECREF(string_obj);
-        return hash;
+        return PyObject_Hash(string_obj.ptr());
     }
 
     return PyObject_Hash(obj);

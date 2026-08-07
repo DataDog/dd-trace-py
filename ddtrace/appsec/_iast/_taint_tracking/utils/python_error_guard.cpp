@@ -24,24 +24,27 @@ format_traceback(PyObject* ptraceback, PyObject* exc_type, PyObject* exc_value)
 }
 
 PythonErrorGuard::PythonErrorGuard()
-  : ptype(nullptr)
-  , pvalue(nullptr)
-  , ptraceback(nullptr)
-  , had_exception(false)
+  : had_exception(false)
 {
     py::gil_scoped_acquire acquire;
 
-    PyErr_Fetch(&ptype, &pvalue, &ptraceback);
-    had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
+    PyObject* raw_type = nullptr;
+    PyObject* raw_value = nullptr;
+    PyObject* raw_traceback = nullptr;
+    PyErr_Fetch(&raw_type, &raw_value, &raw_traceback);
+    had_exception = (raw_type != nullptr || raw_value != nullptr || raw_traceback != nullptr);
     if (had_exception) {
-        PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
+        PyErr_NormalizeException(&raw_type, &raw_value, &raw_traceback);
     }
+    ptype = py::reinterpret_steal<py::object>(raw_type);
+    pvalue = py::reinterpret_steal<py::object>(raw_value);
+    ptraceback = py::reinterpret_steal<py::object>(raw_traceback);
     PyErr_Clear();
 }
 
 PythonErrorGuard::~PythonErrorGuard()
 {
-    restore_or_decref();
+    restore();
 }
 
 py::str
@@ -51,7 +54,7 @@ PythonErrorGuard::error_as_pystr() const
         return {};
     }
 
-    PyObject* pyo = PyObject_Str(pvalue);
+    PyObject* pyo = PyObject_Str(pvalue.ptr());
     if (pyo == nullptr) {
         return {};
     }
@@ -70,17 +73,17 @@ PythonErrorGuard::error_as_stdstring() const
 py::str
 PythonErrorGuard::traceback_as_pystr() const
 {
-    if (not had_exception or ptraceback == nullptr) {
+    if (not had_exception or !ptraceback) {
         return {};
     }
 
-    return format_traceback(ptraceback, ptype, pvalue);
+    return format_traceback(ptraceback.ptr(), ptype.ptr(), pvalue.ptr());
 }
 
 std::string
 PythonErrorGuard::traceback_as_stdstring() const
 {
-    if (not had_exception or ptraceback == nullptr) {
+    if (not had_exception or !ptraceback) {
         return {};
     }
 
@@ -88,23 +91,18 @@ PythonErrorGuard::traceback_as_stdstring() const
 }
 
 void
-PythonErrorGuard::restore_or_decref()
+PythonErrorGuard::restore()
 {
     if (ptype || pvalue || ptraceback) {
         py::gil_scoped_acquire acquire;
 
         if (had_exception) {
             // Restore the fetched Python error
-            PyErr_Restore(ptype, pvalue, ptraceback);
+            PyErr_Restore(ptype.release().ptr(), pvalue.release().ptr(), ptraceback.release().ptr());
         } else {
-            // No exception was present; safely decrement reference counts
-            Py_XDECREF(ptype);
-            Py_XDECREF(pvalue);
-            Py_XDECREF(ptraceback);
+            ptype = {};
+            pvalue = {};
+            ptraceback = {};
         }
-
-        ptype = nullptr;
-        pvalue = nullptr;
-        ptraceback = nullptr;
     }
 }
