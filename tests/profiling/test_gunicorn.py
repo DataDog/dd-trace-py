@@ -107,7 +107,9 @@ def _test_gunicorn(
 
     debug_print("Making request to gunicorn server")
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+        # The response intentionally waits for a CPU-heavy profiling workload. Synchronize on its
+        # completion instead of imposing a wall-clock deadline that fails on slower CI workers.
+        with urllib.request.urlopen("http://127.0.0.1:7644") as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()
