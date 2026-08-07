@@ -177,7 +177,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
     def _write(self, payload: bytes, debugger_type: DebuggerTrackType) -> None:
         try:
-            rejected = self._sender.send(payload, debugger_type)
+            response = self._sender.send(payload, debugger_type)
         except Exception:
             # The request never completed (transport failure or timeout). Drop the
             # batch: unlike a rejection, there is no endpoint to fall back to.
@@ -185,10 +185,14 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             meter.increment("error")
             return
 
-        if rejected is not None:
-            status, body = rejected
-            log.error("Failed to upload payload to the %s track: [%d] %r", debugger_type, status, body)
-            meter.increment("upload.error", tags={"status": str(status)})
+        if not response.accepted:
+            log.error(
+                "Failed to upload payload to the %s track: [%d] %r",
+                debugger_type,
+                response.status,
+                response.body,
+            )
+            meter.increment("upload.error", tags={"status": str(response.status)})
             msg = "Failed to upload payload"
             raise SignalUploaderError(msg)
 

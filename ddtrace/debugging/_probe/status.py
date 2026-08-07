@@ -68,16 +68,15 @@ class ProbeStatusLogger:
     def _write_payload(self, body: bytes) -> None:
         try:
             log.debug("Sending probe status payload: %r", body)
-            rejected = self._sender.send(body, DebuggerTrackType.Diagnostics)
+            response = self._sender.send(body, DebuggerTrackType.Diagnostics)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
             return
 
-        if rejected is not None:
-            status, response_body = rejected
-            log.error("Failed to upload payload: [%d] %r", status, response_body)
-            meter.increment("upload.error", tags={"status": str(status)})
+        if not response.accepted:
+            log.error("Failed to upload payload: [%d] %r", response.status, response.body)
+            meter.increment("upload.error", tags={"status": str(response.status)})
             return
 
         meter.increment("upload.success")

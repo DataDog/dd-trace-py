@@ -13,7 +13,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedBytes;
 
-use crate::debugger::{build_endpoint, do_send};
+use crate::debugger::{build_endpoint, do_send, DebuggerResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
 
 // The endpoint plumbing lives in `debugger` rather than here because SymDB uploads
@@ -79,15 +79,14 @@ impl SymDBSenderPy {
     /// POST a SymDB payload verbatim, blocking until the response arrives.
     /// `content_type` is the caller's multipart content type.
     ///
-    /// Returns `None` when the payload was accepted, or `(status, body)` when the
-    /// server rejected it with a >= 400 status. Raises `DebuggerSenderError` if
+    /// Returns the receiver's `DebuggerResponse`. Raises `DebuggerSenderError` if
     /// the request never completed.
     fn send(
         &self,
         py: Python<'_>,
         payload: PyBackedBytes,
         content_type: &str,
-    ) -> PyResult<Option<(u16, String)>> {
+    ) -> PyResult<DebuggerResponsePy> {
         do_send(py, &self.runtime, self.timeout, async move {
             sender::send_symdb(&payload, content_type, &self.config, &self.tags).await
         })
