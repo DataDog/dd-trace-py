@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 import contextlib
+import datetime
+import functools
 import json
 import random
 import string
 import threading
 from unittest import TestCase
+import uuid
 
 from hypothesis import given
 from hypothesis import settings
@@ -274,6 +277,92 @@ class TestEncoders(TestCase):
                 }
             ]
         }
+
+    def test_encode_traces_json_agentless_unserializable_meta_struct(self):
+        # A meta_struct value that json.dumps cannot handle natively (e.g. a Pydantic model
+        # recorded by LLM Observability) must not fail the whole payload.
+        class FakePydanticV2:
+            def model_dump(self, mode=None):
+                return {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"}
+
+        class FakePydanticV1:
+            __fields__ = {"category": None}
+
+            def dict(self):
+                return {"category": "HARM_CATEGORY_HARASSMENT"}
+
+        class Unstringable:
+            def __str__(self):
+                raise ValueError("nope")
+
+        span = Span(name="span1", trace_id=1, span_id=2)
+        span._set_struct_tag(
+            "_llmobs",
+            {
+                "metadata": {
+                    "safety_settings": [FakePydanticV2(), FakePydanticV1()],
+                    "opaque": Unstringable(),
+                }
+            },
+        )
+        encoder = AgentlessTraceJSONEncoder(1 << 12, 1 << 12)
+        encoder.put([span])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        assert n_traces == 1
+
+        data = json.loads(payload_bytes.decode("utf-8"))
+        metadata = data["traces"][0]["spans"][0]["meta_struct"]["_llmobs"]["metadata"]
+        assert metadata["safety_settings"] == [
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HARASSMENT"},
+        ]
+        assert metadata["opaque"] == "Can not serialize [Unstringable] object"
+
+    def test_encode_traces_json_agentless_unserializable_meta_struct_str_fallback(self):
+        # Values with no Pydantic dump fall back to str(). These are the types seen in the
+        # field: a UUID thread id carried by a LangGraph RunnableConfig, and a partial from
+        # a callback manager. The Pydantic cases above do not exercise this branch.
+        span = Span(name="span1", trace_id=1, span_id=2)
+        span._set_struct_tag(
+            "_llmobs",
+            {
+                "metadata": {
+                    "thread_id": uuid.UUID("11111111-2222-3333-4444-555555555555"),
+                    "callback": functools.partial(len, []),
+                    "when": datetime.datetime(2026, 8, 7, 14, 0),
+                }
+            },
+        )
+        encoder = AgentlessTraceJSONEncoder(1 << 12, 1 << 12)
+        encoder.put([span])
+        [(payload_bytes, _)] = encoder.encode()
+
+        metadata = json.loads(payload_bytes.decode("utf-8"))["traces"][0]["spans"][0]["meta_struct"]["_llmobs"][
+            "metadata"
+        ]
+        assert metadata["thread_id"] == "11111111-2222-3333-4444-555555555555"
+        assert metadata["when"] == "2026-08-07 14:00:00"
+        assert "functools.partial" in metadata["callback"]
+
+    def test_encode_traces_json_agentless_unserializable_meta_struct_keeps_other_spans(self):
+        # The point of the fallback: one unserializable value must not drop the spans
+        # encoded alongside it, since put() serializes a whole trace in a single dumps().
+        bad = Span(name="bad", trace_id=1, span_id=2)
+        bad._set_struct_tag("_llmobs", {"metadata": {"thread_id": uuid.uuid4()}})
+        good = Span(name="good", trace_id=1, span_id=3)
+        good._set_struct_tag("_llmobs", {"metadata": {"plain": "value"}})
+
+        encoder = AgentlessTraceJSONEncoder(1 << 12, 1 << 12)
+        encoder.put([bad, good])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        assert n_traces == 1
+
+        spans = json.loads(payload_bytes.decode("utf-8"))["traces"][0]["spans"]
+        assert {s["name"] for s in spans} == {"bad", "good"}
 
 
 def test_encode_meta_struct():
