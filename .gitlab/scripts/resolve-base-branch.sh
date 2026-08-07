@@ -18,6 +18,8 @@
 # Falls back to "main" whenever the branch can't be determined (e.g. no open
 # PR for the ref, or the GitHub lookup fails), rather than erroring out.
 #
+# Merge-queue runs use devflow's `mq-working-branch-<target>-<sha>` naming.
+#
 # Requires `git`, `curl` and `jq`. For the feature/PR-branch fallback it
 # queries the GitHub REST API directly (rather than shelling out to the `gh`
 # CLI, which isn't installed in every image this script runs in) against
@@ -57,9 +59,9 @@ elif [[ "${REF}" =~ ^[0-9]+\.[0-9]+$ ]]; then
   log "Ref is itself a release branch; comparing against itself"
   BASE_BRANCH="${REF}"
 
-elif [[ "${REF}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
+elif [[ "${REF}" =~ ^mq-working-branch-(.+)-[0-9a-f]{7,40}$ ]]; then
   BASE_BRANCH="${BASH_REMATCH[1]}"
-  log "Ref is a GitHub merge-queue branch; extracted target branch '${BASE_BRANCH}'"
+  log "Ref is a devflow merge-queue working branch; extracted target branch '${BASE_BRANCH}'"
 
 else
   GITHUB_REPO="${GH_REPO:-DataDog/dd-trace-py}"
