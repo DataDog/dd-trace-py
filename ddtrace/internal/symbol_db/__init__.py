@@ -13,14 +13,14 @@ def bootstrap() -> None:
         # Start the RCM subscriber to determine if and when to upload symbols.
         from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
 
-        remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebuggerSymbolDb, _rc_callback)
-        remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebuggerSymbolDb)
+        remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebuggingSymbolDb, _rc_callback)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
 
 
 def restart() -> None:
     from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
 
-    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebuggerSymbolDb, _rc_callback)
-    remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebuggerSymbolDb)
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebuggingSymbolDb, _rc_callback)
+    remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
