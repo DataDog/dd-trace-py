@@ -64,7 +64,6 @@ suites:
       - '@remoteconfig'
     retry: 2
   iast_aggregated_leak_testing:
-    itr_enabled: false
     venvs_per_job: 1
     paths:
       - '@appsec_iast'
@@ -324,7 +323,6 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
   appsec_threats_tornado_no_iast:
-    itr_test_skipping_enabled: true
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -339,7 +337,6 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
   appsec_threats_tornado_iast:
-    itr_test_skipping_enabled: true
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -387,7 +384,6 @@ suites:
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     skip: true  # TODO: No environment available
   sca:
-    itr_test_skipping_enabled: true
     paths:
       - '@bootstrap'
       - '@core'
