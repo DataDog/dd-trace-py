@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Adds the optional ``sampling_percentage`` argument to
+    ``LLMObs.publish_evaluator()`` to configure the percentage of matching spans evaluated by a published evaluator.

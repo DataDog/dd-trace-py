@@ -1138,6 +1138,7 @@ class LLMObs(Service):
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
         agent_service: Optional[str] = None,
+        sampling_percentage: Optional[float] = None,
     ) -> dict[str, str]:
         """
         Publish a custom evaluator configuration.
@@ -1147,6 +1148,8 @@ class LLMObs(Service):
         :param str eval_name: The name to use for the published evaluator. Defaults to the evaluator name.
         :param dict variable_mapping: A mapping from evaluator variables to span fields.
         :param str agent_service: The agent service for this evaluator. Required if ``ml_app`` is not provided.
+        :param float sampling_percentage: The percentage of matching spans to evaluate. Must be greater than 0 and
+                                          at most 100. If omitted, Datadog applies its default sampling percentage.
         :returns: A dictionary containing the evaluator configuration UI URL.
         """
         if not cls._instance or not cls._instance.enabled:
@@ -1157,7 +1160,10 @@ class LLMObs(Service):
             raise ValueError("`agent_service` must be provided as a non-empty string.")
         ml_app = resolved_agent_service.strip()
         evaluation_payload = evaluator._build_publish_payload(
-            ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
+            ml_app=ml_app,
+            eval_name=eval_name,
+            variable_mapping=variable_mapping,
+            sampling_percentage=sampling_percentage,
         )
 
         cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)

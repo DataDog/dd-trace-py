@@ -357,6 +357,7 @@ class BaseEvaluator(ABC):
         ml_app: str,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
+        sampling_percentage: Optional[float] = None,
     ) -> dict[str, Any]:
         raise NotImplementedError("This evaluator does not support publishing.")
 

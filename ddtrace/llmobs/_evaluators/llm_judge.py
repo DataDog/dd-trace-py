@@ -710,6 +710,7 @@ class LLMJudge(BaseEvaluator):
         ml_app: str,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
+        sampling_percentage: Optional[float] = None,
     ) -> dict[str, Any]:
         if not isinstance(ml_app, str) or not ml_app.strip():
             raise ValueError("ml_app must be a non-empty string")
@@ -762,6 +763,12 @@ class LLMJudge(BaseEvaluator):
             "model_provider": integration_provider,
             "byop_config": byop_config,
         }
+        if sampling_percentage is not None:
+            if isinstance(sampling_percentage, bool) or not isinstance(sampling_percentage, (int, float)):
+                raise TypeError("sampling_percentage must be a number")
+            if not 0 < sampling_percentage <= 100:
+                raise ValueError("sampling_percentage must be greater than 0 and at most 100")
+            app_payload["sampling_percentage"] = float(sampling_percentage)
         model_name = self._model.strip() if isinstance(self._model, str) else ""
         if model_name:
             app_payload["model_name"] = model_name
