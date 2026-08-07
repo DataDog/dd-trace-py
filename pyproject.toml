@@ -76,6 +76,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
+"profiling-rc-poc" = "ddtrace.internal.profiling_product"
 "llmobs" = "ddtrace.llmobs._product"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
