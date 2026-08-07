@@ -16,6 +16,7 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
+from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
@@ -25,6 +26,7 @@ from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _human_size
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
@@ -589,6 +591,61 @@ def test_compute_intake_url_unknown_site_uses_browser_intake_fallback(site, expe
     assert result == expected
     mock_log.warning.assert_called_once()
     assert site in mock_log.warning.call_args[0][1]
+
+
+def _agentless_writer():
+    # sync_mode=True so _write_with_client does not start the periodic background thread (which could
+    # otherwise flush to the real public intake URL, causing network side effects and flakiness).
+    return AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        sync_mode=True,
+    )
+
+
+class TestWriterTelemetry:
+    """AgentlessTraceWriter reports internal span telemetry via record_trace_writer_metric."""
+
+    def test_records_spans_enqueued(self):
+        writer = _agentless_writer()
+        spans = [Span(name="span1"), Span(name="span2")]
+        with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+            writer._write_with_client(writer._clients[0], spans=spans)
+        mock_metric.assert_called_once_with("spans_enqueued_for_serialization", 2, None)
+
+    def test_records_spans_dropped_on_buffer_full(self):
+        writer = _agentless_writer()
+        spans = [Span(name="span1"), Span(name="span2")]
+        with mock.patch.object(writer._clients[0].encoder, "put", side_effect=BufferFull(1024)):
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._write_with_client(writer._clients[0], spans=spans)
+        mock_metric.assert_called_once_with("spans_dropped", 2, (("reason", "overfull_buffer"),))
+
+    def test_records_spans_dropped_after_retries_exhausted(self):
+        writer = _agentless_writer()
+        with mock.patch.object(writer, "_send_payload_with_backoff", side_effect=OSError("boom")):
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._flush_single_payload(b"payload", 3, client=writer._clients[0], n_spans=9)
+        mock_metric.assert_called_once_with("spans_dropped", 9, (("reason", "api_error"),))
+
+    def test_records_trace_api_metrics(self):
+        writer = _agentless_writer()
+        response = mock.Mock(spec=Response, status=202, reason="Accepted")
+        with mock.patch.object(writer, "_put", return_value=response):
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._send_payload(b"payload", 5, client=writer._clients[0])
+        mock_metric.assert_any_call("trace_api.requests", 1, None)
+        mock_metric.assert_any_call("trace_api.responses", 1, (("status_code", "202"),))
+
+    def test_civisibility_writer_does_not_record_tracer_telemetry(self):
+        """CIVisibility records its own CIVISIBILITY telemetry, so it must not emit tracer metrics."""
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            writer = CIVisibilityWriter("http://localhost:9126")
+        response = mock.Mock(spec=Response, status=500, reason="Internal Server Error")
+        with mock.patch.object(writer, "_put", return_value=response):
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._send_payload(b"payload", 5, client=writer._clients[0])
+        mock_metric.assert_not_called()
 
 
 def test_humansize():

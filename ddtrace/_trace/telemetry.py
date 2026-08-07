@@ -4,6 +4,18 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
+def record_trace_writer_metric(name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None) -> None:
+    """Record a TRACERS-namespace count metric emitted by the trace writer pipeline.
+
+    Used for span/trace_api metrics such as ``spans_enqueued_for_serialization``, ``spans_dropped``
+    (tagged with a ``reason``) and ``trace_api.requests``/``responses``/``errors``. Non-positive
+    counts are ignored so callers can pass raw span counts without guarding.
+    """
+    if count <= 0:
+        return
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
+
+
 def record_span_pointer_calculation(context: str, span_pointer_count: int) -> None:
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,

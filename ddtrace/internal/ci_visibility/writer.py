@@ -123,6 +123,9 @@ class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "POST"
     STATSD_NAMESPACE = "civisibility.writer"
+    # CI Visibility uploads reuse the HTTPWriter pipeline but are not trace writers, so they must not
+    # emit tracer instrumentation telemetry (spans_enqueued/spans_dropped/trace_api.*).
+    _records_trace_telemetry = False
 
     def __init__(
         self,
