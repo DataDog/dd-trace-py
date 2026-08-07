@@ -128,12 +128,15 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
-# Opt-in build of the native heap-gotter cdylib (Phase 1: allocation-only native
-# heap profiling via GOT rewriting, driven at runtime by the FH eBPF profiler).
-# Off by default so mainline wheels are not pinned to a moving libdatadog `main`
-# SHA and normal builds don't pay the extra cargo fetch/compile. The staging A/B
-# harness sets this to bake the artifact into its custom wheels; runtime install
-# is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
+# Opt-in build of the native heap-gotter cdylib: allocation + live/retained-heap
+# native heap profiling via GOT rewriting, driven at runtime by the FH eBPF
+# profiler. When set, the cdylib is built with the `live-heap` cargo feature (a
+# Cargo default), so it emits both the `ddheap:alloc` and `ddheap:free` USDTs and
+# the FH profiler can reconcile frees against allocations for a retained-heap
+# view. Off by default so mainline wheels are not pinned to a moving libdatadog
+# `main` SHA and normal builds don't pay the extra cargo fetch/compile. The
+# staging A/B harness sets this to bake the artifact into its custom wheels;
+# runtime install is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
 # Keep the staged cdylib unstripped when building with the upstream test-support
 # feature (hook-hit counter for e2e / integration tests).
@@ -1069,6 +1072,9 @@ class CustomBuildExt(build_ext):
         if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
             cargo_cmd.extend(["--features", "test-support"])
         cargo_cmd.extend(DD_CARGO_ARGS)
+        # `live-heap` is a default cargo feature (see Cargo.toml), so the built
+        # cdylib always emits both the `ddheap:alloc` and `ddheap:free` USDTs
+        # (verifiable via `readelf -n`) and stamps per-allocation retain flags.
         proc: subprocess.CompletedProcess[str] = subprocess.run(
             cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
         )

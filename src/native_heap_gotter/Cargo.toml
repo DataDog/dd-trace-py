@@ -14,10 +14,12 @@
 #     over the upstream crate's pure-Rust API, so the Python ctypes activator
 #     links against fixed, unmangled symbol names and gets a plain `bool`.
 #
-# Phase 1 is allocation-only: the `live-heap` cargo feature of the gotter is
-# intentionally NOT enabled, so the free-path USDT (`ddheap:free`) and its
-# per-free overhead stay compiled out. Enabling live-heap later just adds the
-# `live-heap` feature on the `libdd-profiling-heap-gotter` dependency below.
+# Native heap profiling is alloc + live/retained heap in one artifact: `live-heap`
+# is a DEFAULT cargo feature (see the [features] block), so any gotter build
+# (DD_PROFILING_NATIVE_HEAP_BUILD=1) emits both the `ddheap:alloc` and
+# `ddheap:free` USDTs, letting the FH eBPF profiler reconcile frees against
+# allocations for a retained-heap view. The free-path USDT + per-allocation
+# retain flagging come from forwarding to `libdd-profiling-heap-gotter/live-heap`.
 [package]
 name = "ddtrace-heap-gotter"
 version = "0.1.0"
@@ -38,13 +40,25 @@ debug = "line-tables-only"
 codegen-units = 1
 
 [features]
+default = ["live-heap"]
 # Forwards to the upstream crate's test-support surface so integration tests can
 # assert the patched GOT hooks actually ran (hit counter) without needing a
 # live eBPF uprobe attach. Never enabled for shipped wheels.
 test-support = ["libdd-profiling-heap-gotter/test-support"]
 
+# AIDEV-NOTE: `live-heap` is a *build-time* feature (not a runtime knob) and is a
+# DEFAULT feature, so every gotter build includes it. It forwards to
+# libdd-profiling-heap-gotter/live-heap -> libdd-profiling-heap-sampler/live-heap,
+# whose build.rs turns the CARGO_FEATURE_LIVE_HEAP cargo feature into the C define
+# DD_HEAP_LIVE_TRACKING=1. That define makes (a) dd_probe_free emit the
+# `ddheap:free` USDT (otherwise the note is absent from .note.stapsdt) and (b) the
+# alloc side stamp the per-allocation retain flag so the free side can reconcile
+# it. The `free` GOT hook itself is always interposed upstream. Because the
+# `ddheap:free` ELF note is a property of the compiled artifact, live-heap is a
+# build-time property and cannot be flipped by the Python activator at runtime.
+live-heap = ["libdd-profiling-heap-gotter/live-heap"]
+
 [dependencies]
 # Pinned to the published crates.io release (Phase 1.5 migration off the
 # libdatadog `main` git pin). `default-features = false` keeps the
-# allocation-only surface: `live-heap` stays opt-in and off for Phase 1.
-libdd-profiling-heap-gotter = { version = "1.0.0", default-features = false }
+libdd-profiling-heap-gotter = { version = "1.0.0", default-features = false, features = ["live-heap"] }
