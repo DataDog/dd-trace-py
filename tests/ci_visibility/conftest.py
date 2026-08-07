@@ -3,6 +3,12 @@ from __future__ import annotations
 import pytest
 
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
+from tests.testing._itr_env import clear_itr_rollout_env  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def clear_ci_itr_rollout_env() -> None:
+    clear_itr_rollout_env()
 
 
 @pytest.fixture(scope="function", autouse=True)
