@@ -81,6 +81,12 @@ failure_msg: str = ""
 # Stays False when the cdylib is absent or was built allocation-only.
 _live_heap_available: bool = False
 
+# Whether the loaded cdylib exports the test-only hook-hit counter symbol
+# (``ddog_heap_gotter_test_hook_hits``). Only true for a ``test-support``
+# build (never a shipped wheel). Lets deterministic CI tests prove the patched
+# GOT actually ran without a live eBPF attach; see ``test_hook_hits`` below.
+_test_hook_available: bool = False
+
 _lib: ctypes.CDLL | None = None  # kept alive for process lifetime; never dlclose'd
 
 
@@ -134,6 +140,20 @@ try:
     except AttributeError:
         _live_heap_available = False
 
+    # Bind the test-only hook-hit counter defensively: it exists ONLY on a
+    # `test-support` build (never a shipped wheel). A missing symbol simply
+    # leaves the counter reported as unavailable rather than failing the load.
+    try:
+        _lib.ddog_heap_gotter_test_hook_hits.argtypes = []
+        _lib.ddog_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+        _lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
+        _lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
+        _lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
+        _lib.ddtrace_heap_gotter_test_free_probe.restype = None
+        _test_hook_available = True
+    except AttributeError:
+        _test_hook_available = False
+
 except Exception as e:
     failure_msg = str(e)
     _lib = None
@@ -162,6 +182,7 @@ def is_installed() -> bool:
     except Exception:
         return False
 
+
 def live_heap_enabled() -> bool:
     """Return whether the loaded cdylib was built with live-heap tracking.
 
@@ -173,3 +194,53 @@ def live_heap_enabled() -> bool:
     """
     return _live_heap_available
 
+
+def test_hook_hits() -> int | None:
+    """Test-only: number of times the patched GOT hooks have run in this process.
+
+    Returns the process-global ``gotter_malloc``/``gotter_free`` hit counter,
+    which increments on every intercepted raw (glibc) ``malloc``/``free`` — it is
+    NOT sampling-gated — so a deterministic single-process test can prove the
+    native gotter actually captured the raw-domain allocations that the
+    in-process ``_memalloc`` sampler dropped under the ownership partition,
+    without needing a live eBPF/Full-Host attach.
+
+    Returns ``None`` when the counter is unavailable: on a non-Linux platform,
+    when the cdylib is absent, or (the common CI case) when the shipped cdylib
+    was NOT built with the ``test-support`` cargo feature. Tests must treat
+    ``None`` as "skip: no test-support gotter build".
+    """
+    if not is_available or _lib is None or not _test_hook_available:
+        return None
+    try:
+        return int(_lib.ddog_heap_gotter_test_hook_hits())
+    except Exception:
+        return None
+
+
+def test_malloc_probe(size: int) -> int | None:
+    """Test-only: allocate via malloc through the gotter cdylib's PLT/GOT.
+
+    Unlike ``ctypes.CDLL(None).malloc``, which resolves libc with ``dlsym`` and
+    bypasses patched GOT entries, this routes through the same relocation the
+    interposer patches, so hook-hit counters advance when install succeeded.
+
+    Returns the raw pointer as an integer, or ``None`` when unavailable.
+    """
+    if not is_available or _lib is None or not _test_hook_available:
+        return None
+    try:
+        ptr = _lib.ddtrace_heap_gotter_test_malloc_probe(size)
+        return int(ptr) if ptr else 0
+    except Exception:
+        return None
+
+
+def test_free_probe(ptr: int) -> None:
+    """Test-only: free a pointer from :func:`test_malloc_probe`."""
+    if not is_available or _lib is None or not _test_hook_available or not ptr:
+        return
+    try:
+        _lib.ddtrace_heap_gotter_test_free_probe(ptr)
+    except Exception:
+        return

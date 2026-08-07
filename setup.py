@@ -138,8 +138,13 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 # staging A/B harness sets this to bake the artifact into its custom wheels;
 # runtime install is separately gated by DD_PROFILING_NATIVE_HEAP_ENABLED.
 BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
-# Keep the staged cdylib unstripped when building with the upstream test-support
-# feature (hook-hit counter for e2e / integration tests).
+# Opt-in: also compile the gotter cdylib with the `test-support` cargo feature so
+# it exports `ddtrace_heap_gotter_test_hook_hits()` (a process-global hook-hit
+# counter). This lets a deterministic, cluster-independent CI test prove the
+# producer-side ownership handoff (the native gotter actually captures the raw
+# glibc-malloc tail the in-process sampler drops) without a live eBPF attach.
+# Never set for shipped wheels — it is strictly a test build knob and only has
+# any effect when BUILD_NATIVE_HEAP_GOTTER is also on.
 BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
     "1",
     "yes",
@@ -857,6 +862,66 @@ SHARED_DEPS: list[SharedDep] = [
 ]
 
 
+def _verify_test_support_heap_gotter(library_path: Path) -> None:
+    """Fail the build if a test-support gotter cdylib does not increment HOOK_HITS.
+
+    Runs in a child process so GOT patching during verification cannot leak into
+    the setuptools/pip build interpreter.
+    """
+    verify_script = f"""
+import ctypes
+import os
+import sys
+
+DDOG_VOID_RESULT_OK = 0
+
+
+class _DdogVecU8(ctypes.Structure):
+    _fields_ = [
+        ("ptr", ctypes.c_void_p),
+        ("len", ctypes.c_size_t),
+        ("capacity", ctypes.c_size_t),
+    ]
+
+
+class _DdogError(ctypes.Structure):
+    _fields_ = [("message", _DdogVecU8)]
+
+
+class _DdogVoidResult(ctypes.Structure):
+    _fields_ = [
+        ("tag", ctypes.c_uint32),
+        ("err", _DdogError),
+    ]
+
+
+path = {str(library_path)!r}
+lib = ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL | getattr(os, "RTLD_NOW", 0))
+lib.ddog_heap_gotter_install.argtypes = []
+lib.ddog_heap_gotter_install.restype = _DdogVoidResult
+lib.ddog_heap_gotter_test_hook_hits.argtypes = []
+lib.ddog_heap_gotter_test_hook_hits.restype = ctypes.c_uint64
+lib.ddtrace_heap_gotter_test_malloc_probe.argtypes = [ctypes.c_size_t]
+lib.ddtrace_heap_gotter_test_malloc_probe.restype = ctypes.c_void_p
+lib.ddtrace_heap_gotter_test_free_probe.argtypes = [ctypes.c_void_p]
+lib.ddtrace_heap_gotter_test_free_probe.restype = None
+
+install_result = lib.ddog_heap_gotter_install()
+if install_result.tag != DDOG_VOID_RESULT_OK:
+    raise SystemExit("test-support gotter install() failed during build verification")
+before = int(lib.ddog_heap_gotter_test_hook_hits())
+ptr = lib.ddtrace_heap_gotter_test_malloc_probe(64)
+after = int(lib.ddog_heap_gotter_test_hook_hits())
+if not ptr or after <= before:
+    raise SystemExit(
+        "test-support gotter HOOK_HITS did not advance after malloc probe "
+        f"(before={{before}}, after={{after}})"
+    )
+lib.ddtrace_heap_gotter_test_free_probe(ptr)
+"""
+    subprocess.run([sys.executable, "-c", verify_script], check=True)
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
@@ -1069,14 +1134,35 @@ class CustomBuildExt(build_ext):
             # render to stderr in human form.
             "--message-format=json-render-diagnostics",
         ]
-        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
-            cargo_cmd.extend(["--features", "test-support"])
-        cargo_cmd.extend(DD_CARGO_ARGS)
         # `live-heap` is a default cargo feature (see Cargo.toml), so the built
         # cdylib always emits both the `ddheap:alloc` and `ddheap:free` USDTs
         # (verifiable via `readelf -n`) and stamps per-allocation retain flags.
+        #
+        # Test builds may also opt into `test-support`, which forwards to the
+        # upstream crate and exports `ddtrace_heap_gotter_test_hook_hits()` so a
+        # deterministic single-process test can prove the patched GOT actually
+        # ran. This is additive (default features stay on) and is never enabled
+        # for shipped wheels.
+        cargo_env: dict[str, str] = dict(os.environ)
+        test_support_target: Path = NATIVE_HEAP_GOTTER_CRATE / "target-test-support"
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            cargo_cmd += ["--features", "test-support"]
+            # Isolate the test-support artifact from the default gotter target dir.
+            # CI may reuse a cached non-test-support cdylib (sccache/cargo) that
+            # exports test_hook_hits() but whose gotter_malloc never increments
+            # HOOK_HITS, yielding hook-hit delta 0 in the ownership-handoff E2E.
+            if test_support_target.exists():
+                shutil.rmtree(test_support_target)
+            cargo_env["CARGO_TARGET_DIR"] = str(test_support_target)
+            cargo_env["CARGO_INCREMENTAL"] = "0"
+            cargo_env["RUSTC_WRAPPER"] = ""
+            cargo_env.pop("DD_SCCACHE_PATH", None)
+            # DD_CARGO_ARGS may pass --target-dir, which overrides CARGO_TARGET_DIR.
+            cargo_cmd += [arg for arg in DD_CARGO_ARGS if not arg.startswith("--target-dir")]
+        else:
+            cargo_cmd += DD_CARGO_ARGS
         proc: subprocess.CompletedProcess[str] = subprocess.run(
-            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
+            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True, env=cargo_env
         )
 
         # Locate the produced cdylib from cargo's own artifact output rather than
@@ -1131,6 +1217,9 @@ class CustomBuildExt(build_ext):
                     "wheel will ship the unstripped artifact",
                     flush=True,
                 )
+
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT and CURRENT_OS == "Linux":
+            _verify_test_support_heap_gotter(gotter_library)
 
     def _clean_stale_heap_gotter(self) -> None:
         """Remove any previously staged heap-gotter artifacts so a default wheel

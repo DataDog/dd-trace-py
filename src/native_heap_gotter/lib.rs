@@ -83,3 +83,24 @@ pub extern "C" fn ddtrace_heap_gotter_live_heap_enabled() -> bool {
 pub extern "C" fn ddtrace_heap_gotter_test_hook_hits() -> u64 {
     libdd_profiling_heap_gotter::test_hook_hits()
 }
+
+/// Test-only: allocate via ``malloc`` through this cdylib's PLT/GOT entry.
+///
+/// ``ctypes.CDLL(None).malloc`` resolves the libc symbol with ``dlsym`` and
+/// bypasses patched GOT slots, so it cannot prove the interposer ran. Calling
+/// ``malloc`` from inside the gotter cdylib exercises the same relocation the
+/// production hooks patch.
+#[cfg(feature = "test-support")]
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_test_malloc_probe(size: usize) -> *mut std::ffi::c_void {
+    // SAFETY: libc malloc ABI; forwarded through this object's PLT after install.
+    unsafe { libc::malloc(size) }
+}
+
+/// Test-only: free a pointer allocated by [`ddtrace_heap_gotter_test_malloc_probe`].
+#[cfg(feature = "test-support")]
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_test_free_probe(ptr: *mut std::ffi::c_void) {
+    // SAFETY: libc free ABI; forwarded through this object's PLT after install.
+    unsafe { libc::free(ptr) }
+}

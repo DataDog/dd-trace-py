@@ -377,31 +377,86 @@ class _ProfilerInstance(service.Service):
             }
         )
 
+    def _arm_native_heap(self) -> bool:
+        """Arm native (C/C++) heap allocation profiling, if requested and available.
+
+        Installs process-global GOT overrides so Datadog's ``ddheap`` USDT probe
+        sites fire on sampled allocations; the Full Host eBPF profiler collects
+        them out-of-band. Installation is permanent and idempotent, so re-running
+        it after a fork restart is a harmless no-op.
+
+        Returns ``True`` only when the GOT overrides were *actually* installed
+        (``heap_gotter.install()`` returned ``True``), ``False`` otherwise.
+        """
+        if not profiling_config.native_heap.enabled:
+            return False
+
+        from ddtrace.internal.datadog.profiling import heap_gotter
+
+        try:
+            if heap_gotter.install():
+                # live-heap (ddheap:free + retain flagging) is a build-time
+                # property of the cdylib, not a runtime toggle; report which
+                # mode was actually armed for observability.
+                mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                LOG.debug("Native heap profiling armed (GOT overrides installed, %s)", mode)
+                return True
+            LOG.debug("Native heap profiling requested but GOT overrides were not installed")
+        except Exception:
+            LOG.debug("Failed to arm native heap profiling", exc_info=True)
+        return False
+
     def _start_service(self) -> None:
         """Start the profiler."""
-        # Arm native (C/C++) heap allocation profiling, if requested and
-        # available. This installs process-global GOT overrides so Datadog's
-        # ddheap USDT probe sites fire on sampled allocations; the OpenTelemetry
-        # eBPF profiler or Datadog Host Profiler collects them out-of-band. This
-        # only runs when the Python profiler is started (``DD_PROFILING_ENABLED``),
-        # so native heap is an additive profiling feature rather than a standalone
-        # toggle. Installation is permanent and idempotent: after ``fork()`` the
-        # child inherits the patched GOT, and a post-fork ``_start_service()`` call
-        # (e.g. uWSGI workers) is a harmless no-op.
-        if profiling_config.native_heap.enabled:
-            from ddtrace.internal.datadog.profiling import heap_gotter
+        native_heap_armed: bool = self._arm_native_heap()
 
-            try:
-                if heap_gotter.install():
-                    # live-heap (ddheap:free + retain flagging) is a build-time
-                    # property of the cdylib, not a runtime toggle; report which
-                    # mode was actually armed for observability.
-                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
-                    LOG.debug("Native heap profiling armed (GOT overrides installed, %s)", mode)
-                else:
-                    LOG.debug("Native heap profiling requested but GOT overrides were not installed")
-            except Exception:
-                LOG.debug("Failed to arm native heap profiling", exc_info=True)
+        # Native-heap de-duplication (Phase 2 ownership partition): a process
+        # must have exactly ONE producer per allocator domain, otherwise the same
+        # allocation can be counted by two independent Poisson samplers.
+        #
+        # The partition is by allocator ownership and is already structural:
+        #   * The USDT gotter hooks glibc ``malloc``/``calloc``/``realloc`` and so
+        #     owns native / raw ``malloc`` — direct C-ext/numpy allocations,
+        #     ``PyMem_RawMalloc`` (RAW domain) and pymalloc arena refills.
+        #   * The in-process ``_memalloc`` collector hooks ONLY the pymalloc-managed
+        #     OBJ (and, opt-in, MEM) domains at the ``PyObject_Malloc`` /
+        #     ``PyMem_Malloc`` entry points. It never intercepts the RAW domain or
+        #     raw glibc ``malloc``, so it does not sample what the gotter owns.
+        #
+        # Because the domains are disjoint, arming the gotter does NOT require
+        # disabling the in-process collector: doing so would throw away the
+        # Python-managed (pymalloc OBJ/MEM) heap profile — which the gotter never
+        # produces — and is the regression we explicitly avoid here. We keep the
+        # in-process managed-heap sampler running regardless of arming.
+        #
+        # The one residual overlap is the large-object tail of OBJ/MEM that
+        # pymalloc delegates down to glibc ``malloc`` (requests larger than
+        # pymalloc's small-request threshold): those DO hit glibc malloc, so the
+        # gotter already samples them. When armed, we close that overlap at the
+        # producer by telling the in-process sampler to skip those large requests
+        # (see memalloc.set_native_heap_partition), leaving it to sample only the
+        # pool-served small tail. This is set before the collectors start so it is
+        # in effect for the memory collector's whole lifetime. Fail-safe: when the
+        # gotter did not arm, the partition is off and the in-process sampler keeps
+        # sampling all sizes (no behavior change).
+        memalloc.set_native_heap_partition(native_heap_armed)
+        # One-shot, unambiguous startup line reporting the arming/partition
+        # decision so it can be verified from pod logs without DEBUG. Emitted
+        # exactly once as the profiler starts (never per-sample). When
+        # armed=false the size split is inactive and the in-process sampler
+        # keeps sampling all sizes; the threshold is still reported as the
+        # configured value for clarity.
+        LOG.info(
+            "native heap ownership partition: armed=%s size_threshold_bytes=%d domains=OBJ|MEM",
+            native_heap_armed,
+            512,
+        )
+        if native_heap_armed:
+            LOG.debug(
+                "Native heap profiling armed; in-process managed-heap (pymalloc OBJ/MEM) sampling "
+                "continues for pool-served allocations (<= 512 bytes), while the gotter owns the "
+                "native/raw glibc malloc domain including the large-object managed tail"
+            )
 
         collectors = []
         for col in self._collectors:

@@ -30,6 +30,21 @@ from ddtrace.profiling import collector
 LOG = logging.getLogger(__name__)
 
 
+def set_native_heap_partition(enabled: bool) -> None:
+    """Toggle the native-heap ownership partition in the C heap sampler.
+
+    When enabled, the in-process heap sampler skips OBJ/MEM allocations larger
+    than pymalloc's small-request threshold (512 bytes) — pymalloc delegates
+    those to glibc malloc, where the native-heap gotter already samples them.
+    Fail-closed no-op when the native extension is unavailable.
+    """
+    if _memalloc is not None:
+        try:
+            _memalloc.set_native_heap_partition(enabled)
+        except Exception:
+            LOG.debug("Failed to set native heap partition on memalloc", exc_info=True)
+
+
 class MemoryCollector:
     """Memory allocation collector."""
 

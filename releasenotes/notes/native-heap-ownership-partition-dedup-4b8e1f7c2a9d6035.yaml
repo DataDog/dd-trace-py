@@ -1,0 +1,14 @@
+features:
+  - |
+    profiling: The experimental native (C/C++) heap profiler
+    (``DD_PROFILING_NATIVE_HEAP_ENABLED=true``) and the in-process memory (heap)
+    profiler now partition allocations by allocator ownership, so enabling native
+    heap profiling no longer double-counts memory or disables Python-managed heap
+    profiling. When native heap profiling is armed, the in-process profiler stops
+    sampling large allocations (larger than CPython's 512-byte pymalloc
+    small-request threshold), which are delegated to the system allocator and
+    already captured by the native heap profiler, and keeps sampling the smaller
+    pymalloc pool-served allocations that the native profiler never sees. If the
+    native heap probes fail to arm, the in-process profiler keeps sampling all
+    allocation sizes, so heap profiling is never silently lost. This has no effect
+    when ``DD_PROFILING_NATIVE_HEAP_ENABLED`` is disabled (the default).

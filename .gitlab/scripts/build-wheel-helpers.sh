@@ -156,6 +156,7 @@ PY
     # that trip auditwheel's iter_versions parser. Exclude it from repair —
     # same rationale as skipping it in extract_debug_symbols above.
     auditwheel repair -w "${TMP_WHEEL_DIR}" \
+      --exclude 'liblibdd_profiling_heap_gotter_ffi*.so' \
       --exclude 'libdd_heap_gotter*.so' \
       "${BUILT_WHEEL_FILE}"
   else
