@@ -1,0 +1,1015 @@
+{
+  "comment": [
+    "Cross-tracer corpus for AI Guard sensitive data redaction, kept language-neutral on purpose.",
+    "Fields: redaction_replacements null means the service omitted the field; expected_messages 'SAME'",
+    "means the identical list object must come back"
+  ],
+  "cases": [
+    {
+      "id": "noop/replacements-absent",
+      "description": "No redaction_replacements at all: the common response, nothing is redacted.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant. Contact ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": null,
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "noop/replacements-empty",
+      "description": "Present but empty: absence and emptiness are the same signal.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "noop/all-entries-invalid",
+      "description": "Every entry is unusable, so nothing is copied and the original list comes back.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content"},
+        {"replacement": "orphan"}
+      ],
+      "expected_messages": "SAME"
+    },
+
+    {
+      "id": "apply/content/system-message",
+      "description": "A system prompt is redactable like any other role.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant. Contact ops@acme.io"},
+        {"role": "user", "content": "hello"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "You are a helpful assistant. Contact <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant. Contact <REDACTED>"},
+        {"role": "user", "content": "hello"}
+      ]
+    },
+    {
+      "id": "apply/content/user-message",
+      "description": "The RFC baseline example: one sensitive value in one user message.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/content/middle-message",
+      "description": "A message in the middle of the conversation, neither first nor last.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My email is paco@gmail.com"},
+        {"role": "assistant", "content": "Noted."}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].content", "replacement": "My email is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My email is <REDACTED>"},
+        {"role": "assistant", "content": "Noted."}
+      ]
+    },
+    {
+      "id": "apply/content/assistant-response",
+      "description": "Output redaction: the model's own answer leaked a value.",
+      "messages": [
+        {"role": "user", "content": "what is my account number?"},
+        {"role": "assistant", "content": "Your account is 000123456789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].content", "replacement": "Your account is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "what is my account number?"},
+        {"role": "assistant", "content": "Your account is <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/content/tool-result",
+      "description": "A tool result message carrying data fetched from a backend.",
+      "messages": [
+        {"role": "user", "content": "check my balance"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "lookup", "arguments": "{\"who\":\"me\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "Account 000123456789, balance 42"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[2].content", "replacement": "Account <REDACTED>, balance 42"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "check my balance"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "lookup", "arguments": "{\"who\":\"me\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "Account <REDACTED>, balance 42"}
+      ]
+    },
+    {
+      "id": "apply/content/last-message",
+      "description": "The last message of a longer conversation.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+        {"role": "user", "content": "my passport is X1234567"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[3].content", "replacement": "my passport is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+        {"role": "user", "content": "my passport is <REDACTED>"}
+      ]
+    },
+
+    {
+      "id": "apply/placeholder/angle-brackets",
+      "description": "The default <REDACTED> placeholder.",
+      "messages": [
+        {"role": "user", "content": "card 4111111111111111"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "card <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "card <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/placeholder/category-specific",
+      "description": "Two categories, two different placeholders, chosen service-side and copied verbatim.",
+      "messages": [
+        {"role": "user", "content": "SSN 123-45-6789 email paco@gmail.com"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "SSN <US_SSN> email <EMAIL_ADDRESS>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "SSN <US_SSN> email <EMAIL_ADDRESS>"}
+      ]
+    },
+    {
+      "id": "apply/placeholder/stars",
+      "description": "A **** placeholder configured by the customer.",
+      "messages": [
+        {"role": "user", "content": "my pin is 1234"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "my pin is ****"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "my pin is ****"}
+      ]
+    },
+    {
+      "id": "apply/placeholder/empty-string-removes-everything",
+      "description": "An empty replacement is valid: it is the remove strategy, not a missing value.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": ""}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": ""}
+      ]
+    },
+    {
+      "id": "apply/no-placeholder/value-dropped-inline",
+      "description": "No placeholder at all: the sensitive span is simply removed from the string.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789 thanks"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is  thanks"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "My SSN is  thanks"}
+      ]
+    },
+    {
+      "id": "apply/no-placeholder/partial-hash",
+      "description": "Partial-hash strategy: the tail is preserved, no placeholder token is used.",
+      "messages": [
+        {"role": "user", "content": "card 4111111111111111"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "card ************1111"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "card ************1111"}
+      ]
+    },
+    {
+      "id": "apply/no-placeholder/full-hash",
+      "description": "Hash strategy: the replacement is an opaque digest, still copied verbatim.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is 5e884898da280471"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "My SSN is 5e884898da280471"}
+      ]
+    },
+
+    {
+      "id": "apply/shape/longer-replacement",
+      "description": "The replacement is longer than the original: there is no offset to drift.",
+      "messages": [
+        {"role": "user", "content": "ssn 1"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "ssn <A-VERY-LONG-REDACTION-PLACEHOLDER>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "ssn <A-VERY-LONG-REDACTION-PLACEHOLDER>"}
+      ]
+    },
+    {
+      "id": "apply/shape/shorter-replacement",
+      "description": "The replacement is shorter than the original.",
+      "messages": [
+        {"role": "user", "content": "my social security number is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "x"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "x"}
+      ]
+    },
+    {
+      "id": "apply/shape/identical-replacement",
+      "description": "The replacement equals the original: still a write, still counted as applied.",
+      "messages": [
+        {"role": "user", "content": "nothing sensitive here"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "nothing sensitive here"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "nothing sensitive here"}
+      ]
+    },
+    {
+      "id": "apply/shape/astral-plane",
+      "description": "Emoji and astral-plane characters are copied character for character, no offset math.",
+      "messages": [
+        {"role": "user", "content": "🙂 ssn 123-45-6789 𝔘 ok"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "🙂 ssn <REDACTED> 𝔘 ok"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "🙂 ssn <REDACTED> 𝔘 ok"}
+      ]
+    },
+    {
+      "id": "apply/shape/replacement-looks-like-a-path",
+      "description": "A replacement that looks like a location path is data, never re-parsed.",
+      "messages": [
+        {"role": "user", "content": "secret"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "messages[0].content[1].text"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "messages[0].content[1].text"}
+      ]
+    },
+    {
+      "id": "apply/shape/multiline",
+      "description": "Newlines and quotes survive the copy unchanged.",
+      "messages": [
+        {"role": "user", "content": "line1\nssn 123-45-6789\n\"quoted\""}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "line1\nssn <REDACTED>\n\"quoted\""}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "line1\nssn <REDACTED>\n\"quoted\""}
+      ]
+    },
+    {
+      "id": "apply/path/leading-zero-index",
+      "description": "The grammar accepts leading zeros, so messages[01] resolves to index 1.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[01].content", "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is <REDACTED>"}
+      ]
+    },
+
+    {
+      "id": "apply/content-part/first-part-text",
+      "description": "Multimodal message: only the text part is redacted, the image is left alone.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "here is my card 4111111111111111"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[0].text", "replacement": "here is my card <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "here is my card <REDACTED>"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/content-part/text-after-image",
+      "description": "The text part sits at index 1, behind an image part.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}},
+          {"type": "input_text", "text": "my email is paco@gmail.com"}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[1].text", "replacement": "my email is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": [
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}},
+          {"type": "input_text", "text": "my email is <REDACTED>"}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/content-part/both-text-parts",
+      "description": "Two text parts of the same message, two entries, one write each.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "ssn 123-45-6789"},
+          {"type": "input_text", "text": "email paco@gmail.com"}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[0].text", "replacement": "ssn <REDACTED>"},
+        {"path": "messages[0].content[1].text", "replacement": "email <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "ssn <REDACTED>"},
+          {"type": "input_text", "text": "email <REDACTED>"}
+        ]}
+      ]
+    },
+
+    {
+      "id": "apply/tool-calls/arguments-first-call",
+      "description": "Tool call arguments are a JSON string; the redacted value is still valid JSON.",
+      "messages": [
+        {"role": "user", "content": "send my details"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"john@acme.io\",\"ssn\":\"123-45-6789\"}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].tool_calls[0].function.arguments", "replacement": "{\"to\":\"john@acme.io\",\"ssn\":\"<REDACTED>\"}"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "send my details"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"john@acme.io\",\"ssn\":\"<REDACTED>\"}"}}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/tool-calls/arguments-second-call",
+      "description": "The second tool call of the same assistant message.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "noop", "arguments": "{}"}},
+          {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"000123456789\"}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[1].function.arguments", "replacement": "{\"account\":\"<REDACTED>\"}"}
+      ],
+      "expected_messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "noop", "arguments": "{}"}},
+          {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"<REDACTED>\"}"}}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/tool-calls/both-calls",
+      "description": "Both tool calls redacted in the same response.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"john@acme.io\"}"}},
+          {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"000123456789\"}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[0].function.arguments", "replacement": "{\"to\":\"<REDACTED>\"}"},
+        {"path": "messages[0].tool_calls[1].function.arguments", "replacement": "{\"account\":\"<REDACTED>\"}"}
+      ],
+      "expected_messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"<REDACTED>\"}"}},
+          {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"<REDACTED>\"}"}}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/tool-calls/nested-json-arguments",
+      "description": "Nested JSON in the arguments string, structure preserved by the service.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"user\":{\"iban\":\"DE89370400440532013000\"},\"amount\":10}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[0].function.arguments", "replacement": "{\"user\":{\"iban\":\"<REDACTED>\"},\"amount\":10}"}
+      ],
+      "expected_messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"user\":{\"iban\":\"<REDACTED>\"},\"amount\":10}"}}
+        ]}
+      ]
+    },
+    {
+      "id": "apply/tool-calls/emptied-arguments",
+      "description": "The whole argument payload is replaced by an empty JSON object.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"ssn\":\"123-45-6789\"}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[0].function.arguments", "replacement": "{}"}
+      ],
+      "expected_messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{}"}}
+        ]}
+      ]
+    },
+
+    {
+      "id": "apply/multi/two-messages",
+      "description": "Two different messages redacted in one response.",
+      "messages": [
+        {"role": "system", "content": "escalate to ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "escalate to <REDACTED>"},
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "escalate to <REDACTED>"},
+        {"role": "user", "content": "My SSN is <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/multi/all-three-target-kinds",
+      "description": "Plain content, a content-part text and tool arguments in a single response.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card 4111111111111111"}
+        ]},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"iban\":\"DE89370400440532013000\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "paid from 000123456789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[0].text", "replacement": "card <REDACTED>"},
+        {"path": "messages[1].tool_calls[0].function.arguments", "replacement": "{\"iban\":\"<REDACTED>\"}"},
+        {"path": "messages[2].content", "replacement": "paid from <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card <REDACTED>"}
+        ]},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"iban\":\"<REDACTED>\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "paid from <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/multi/several-spans-one-string",
+      "description": "Several sensitive spans in one string arrive already merged into a single replacement.",
+      "messages": [
+        {"role": "user", "content": "SSN 123-45-6789 email paco@gmail.com card 4111111111111111"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "SSN <REDACTED> email <REDACTED> card <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "SSN <REDACTED> email <REDACTED> card <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/multi/duplicate-identical-entries",
+      "description": "The same path twice with the same value: applied once, not a conflict.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[0].content", "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "My SSN is <REDACTED>"}
+      ]
+    },
+
+    {
+      "id": "skip/path/index-out-of-range",
+      "description": "A message index past the end of the list.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[99].content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/unknown-field",
+      "description": "A field that does not exist on a message.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].foo", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/content-is-a-list",
+      "description": "The path resolves to a list of content parts, not a string.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card 4111111111111111"}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/index-into-a-string",
+      "description": "Indexing a plain string content must not resolve to one of its characters.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[0]", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/content-part-out-of-range",
+      "description": "A content part index past the end of the list.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card 4111111111111111"}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[9].text", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/tool-call-out-of-range",
+      "description": "A tool call index past the end of the list.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "noop", "arguments": "{}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[9].function.arguments", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/target-is-a-message",
+      "description": "The path stops at a whole message object.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0]", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/target-is-the-array",
+      "description": "The path stops at the messages array itself.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/image-locator",
+      "description": "Image and file locators are out of scope and can never be overwritten.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "look"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[1].image_url.url", "replacement": "https://example.com/<REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/role",
+      "description": "Structural fields are not redactable: overwriting a role would corrupt the conversation.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].role", "replacement": "system"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/tool-function-name",
+      "description": "A tool name is structural, only its arguments are redactable.",
+      "messages": [
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "send_email", "arguments": "{}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_calls[0].function.name", "replacement": "<REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/tool-call-id",
+      "description": "Tool call ids correlate calls with results and must survive redaction.",
+      "messages": [
+        {"role": "tool", "tool_call_id": "call_1", "content": "ok"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].tool_call_id", "replacement": "<REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/malformed-segment-hyphen",
+      "description": "A hyphen is not part of the segment grammar.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].con-tent", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/negative-index",
+      "description": "Negative indices are not part of the grammar, no Python-style wrap-around.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[-1].content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/trailing-space",
+      "description": "A segment must match the grammar in full, trailing whitespace included.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content ", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/trailing-dot",
+      "description": "A trailing dot produces an empty final segment.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content.", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/not-rooted-at-messages",
+      "description": "Paths are rooted at the evaluated messages array; anything else resolves to nothing.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "foo[0].content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/bare-terminal",
+      "description": "A single redactable segment with no message to anchor it.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/path/missing-message-index",
+      "description": "The messages segment carries no index, so it resolves to the list.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages.content", "replacement": "X"}
+      ],
+      "expected_messages": "SAME"
+    },
+
+    {
+      "id": "skip/entry/no-path",
+      "description": "An entry without a path cannot be located.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/null-path",
+      "description": "An explicit null path.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": null, "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/empty-path",
+      "description": "An empty path string.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "", "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/path-not-a-string",
+      "description": "A numeric path.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": 0, "replacement": "My SSN is <REDACTED>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/no-replacement",
+      "description": "A located path with nothing to write.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/null-replacement",
+      "description": "An explicit null replacement is a missing value, unlike an empty string.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": null}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/replacement-not-a-string",
+      "description": "A numeric replacement would break serialization downstream.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": 42}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/replacement-is-an-object",
+      "description": "A structured replacement is not a redacted string.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": {"value": "X"}}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/entry-is-a-string",
+      "description": "An entry that is not an object at all.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": ["messages[0].content"],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/entry/entry-is-null",
+      "description": "A null entry in the array.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [null],
+      "expected_messages": "SAME"
+    },
+
+    {
+      "id": "skip/payload/is-an-object",
+      "description": "redaction_replacements must be an array; an object is never iterated blindly.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": {"path": "messages[0].content", "replacement": "X"},
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/payload/is-a-string",
+      "description": "A bare string payload would otherwise iterate character by character.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": "messages[0].content",
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/payload/is-a-number",
+      "description": "A non-iterable payload.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": 42,
+      "expected_messages": "SAME"
+    },
+
+    {
+      "id": "skip/conflict/two-different-values",
+      "description": "Two replacements for one path: the tracer skips rather than guessing.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is <A>"},
+        {"path": "messages[0].content", "replacement": "My SSN is <B>"}
+      ],
+      "expected_messages": "SAME"
+    },
+    {
+      "id": "skip/conflict/sticky",
+      "description": "A third entry restating the first value must not resurrect a conflicting path.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is <A>"},
+        {"path": "messages[0].content", "replacement": "My SSN is <B>"},
+        {"path": "messages[0].content", "replacement": "My SSN is <A>"}
+      ],
+      "expected_messages": "SAME"
+    },
+
+    {
+      "id": "mixed/applied-and-path-failure",
+      "description": "Partial application: a good path is written, a bad one is skipped.",
+      "messages": [
+        {"role": "system", "content": "escalate to ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "escalate to <REDACTED>"},
+        {"path": "messages[7].content", "replacement": "never written"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "escalate to <REDACTED>"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ]
+    },
+    {
+      "id": "mixed/applied-and-conflict",
+      "description": "One clean path applied while a contradictory one is skipped.",
+      "messages": [
+        {"role": "system", "content": "escalate to ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "escalate to <REDACTED>"},
+        {"path": "messages[1].content", "replacement": "My SSN is <A>"},
+        {"path": "messages[1].content", "replacement": "My SSN is <B>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "escalate to <REDACTED>"},
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ]
+    },
+    {
+      "id": "mixed/applied-and-missing-replacement",
+      "description": "A malformed entry does not stop the well-formed ones.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"},
+        {"role": "assistant", "content": "noted"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[1].content"}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "noted"}
+      ]
+    },
+    {
+      "id": "mixed/every-outcome-at-once",
+      "description": "Applied, conflicting, unresolvable and malformed entries in a single response.",
+      "messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card 4111111111111111"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"ssn\":\"123-45-6789\"}"}}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content[0].text", "replacement": "card <REDACTED>"},
+        {"path": "messages[1].tool_calls[0].function.arguments", "replacement": "{\"ssn\":\"<REDACTED>\"}"},
+        {"path": "messages[0].content[1].image_url.url", "replacement": "never written"},
+        {"path": "messages[0].content", "replacement": "<A>"},
+        {"path": "messages[0].content", "replacement": "<B>"},
+        {"path": "messages[1].content", "replacement": null}
+      ],
+      "expected_messages": [
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card <REDACTED>"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"ssn\":\"<REDACTED>\"}"}}
+        ]}
+      ]
+    }
+  ]
+}

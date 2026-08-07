@@ -31,7 +31,9 @@ tests/telemetry                     @DataDog/apm-python
 # Guild
 # Root level config files
 conftest.py                         @DataDog/python-guild
+docker-compose.base.yml             @DataDog/python-guild
 docker-compose.gpu.yml              @DataDog/python-guild
+docker-compose.podman.yml           @DataDog/python-guild
 docker-compose.yml                  @DataDog/python-guild
 repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
@@ -152,6 +154,7 @@ ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
+ddtrace/internal/settings/aiguard.py         @DataDog/asm-python
 ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
 # tests files
