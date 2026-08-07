@@ -276,6 +276,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
+                disable = False
     return _DISABLE if disable else None
 
 

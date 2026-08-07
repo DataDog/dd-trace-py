@@ -38,6 +38,21 @@ class UnwindHandler(monitoring.MonitoringEventHandler):
         self.unwinds.append((code, exception))
 
 
+class LineHandler(monitoring.MonitoringEventHandler):
+    def __init__(self, disable: bool = False) -> None:
+        self._disable = disable
+        self.lines: list[int] = []
+
+    def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+        self.lines.append(line_number)
+        return _DISABLE if self._disable else None
+
+
+class RaisingLineHandler(monitoring.MonitoringEventHandler):
+    def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+        raise RuntimeError("line handler exploded")
+
+
 class StartAndUnwindHandler(monitoring.MonitoringEventHandler):
     def __init__(self) -> None:
         self.started: bool = False
@@ -170,3 +185,46 @@ def test_mixed_local_events(
 
     assert handler.started, "on_py_start did not fire"
     assert handler.unwound, "on_py_unwind did not fire"
+
+
+def test_on_py_line_disables_when_all_handlers_return_disable(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """DISABLE is forwarded to CPython when every LINE handler for the code returns it."""
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, LineHandler(disable=True))
+
+    result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
+    assert result is _DISABLE
+
+
+def test_on_py_line_continues_when_any_handler_declines_disable(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """LINE events continue if any registered handler returns something other than DISABLE."""
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, LineHandler(disable=True))
+    registered(fn.__code__, LineHandler(disable=False))
+
+    result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
+    assert result is not _DISABLE
+
+
+def test_on_py_line_does_not_disable_when_handler_raises(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A LINE handler that raises must not be treated as a vote to disable."""
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, RaisingLineHandler())
+
+    result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
+    assert result is not _DISABLE
