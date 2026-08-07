@@ -722,7 +722,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id);
+                renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id, nullptr);
             });
 
             task_stack_info->stack.render(echion);
@@ -734,7 +734,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(task_name, greenlet_stack->on_cpu, greenlet_stack->task_id);
+                renderer.render_task_begin(task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, nullptr);
             });
 
             auto& stack = greenlet_stack->stack;

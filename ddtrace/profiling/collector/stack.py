@@ -94,6 +94,7 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", stack.unlink_finished_span)
+                stack.enable_span_linking()
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", stack.unlink_finished_span)
@@ -124,6 +125,7 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", stack.unlink_finished_span)
+        stack.disable_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
