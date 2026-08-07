@@ -1,4 +1,6 @@
 #include "ddup_interface.hpp"
+#include "profiler_state.hpp"
+#include "sample.hpp"
 #include "test_utils.hpp"
 #include <gtest/gtest.h>
 
@@ -8,11 +10,9 @@
 #include <thread>
 #include <vector>
 
-// Test for race condition between threads using ProfilesDictionary and cleanup
-// The scenario:
-// 1. Multiple threads are actively calling intern_string/push_frame
-// 2. Main thread calls ddup_cleanup which releases the ProfilesDictionary
-// 3. Worker threads may still be mid-operation when dictionary is freed -> SEGFAULT
+// Regression coverage for profiler cleanup overlapping sample collection.
+// Producers can start building samples before cleanup and reach process-global
+// profiler resources afterward.
 
 struct SamplerArg
 {
@@ -58,8 +58,8 @@ join_pthread_samplers(std::vector<pthread_t>& handles)
 // - Python atexit calls profiler.stop() which increments seq_num but doesn't join
 // - C++ atexit calls ddup_cleanup() while sampling thread is still running
 //
-// IMPORTANT: After ddup_cleanup(), the threads will likely crash when they
-// try to use the freed ProfilesDictionary. This is the race we're testing.
+// Without process-lifetime resources, threads can crash after ddup_cleanup()
+// when they reach the dropped profile or dictionary.
 void
 cleanup_while_sampling(unsigned int num_threads, unsigned int run_time_ms, unsigned int sleep_time_ns)
 {
@@ -161,11 +161,6 @@ proper_shutdown(unsigned int num_threads, unsigned int run_time_ms, unsigned int
     std::exit(0);
 }
 
-// Tests using death tests to detect crashes/segfaults
-// Note: The "cleanup while sampling" tests may crash due to the race condition.
-// If they pass (exit 0), the race didn't manifest in that run.
-// If they crash, we've demonstrated the bug.
-
 // Control tests - these should always pass
 TEST(CleanupRaceDeathTest, ProperShutdown4Threads)
 {
@@ -175,6 +170,24 @@ TEST(CleanupRaceDeathTest, ProperShutdown4Threads)
 TEST(CleanupRaceDeathTest, ProperShutdown16Threads)
 {
     EXPECT_EXIT(proper_shutdown(16, 50, 1000), ::testing::ExitedWithCode(0), ".*");
+}
+
+void
+profiler_resources_survive_cleanup()
+{
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    auto* sample = ddup_start_sample();
+    ddup_push_walltime(sample, 1, 1);
+    ddup_cleanup();
+
+    const bool profile_alive = sample->flush_sample();
+    ddup_drop_sample(sample);
+    std::exit(profile_alive && Datadog::ProfilerState::get().get_profiles_dictionary().has_value() ? 0 : 1);
+}
+
+TEST(CleanupRaceDeathTest, ProfilerResourcesSurviveCleanup)
+{
+    EXPECT_EXIT(profiler_resources_survive_cleanup(), ::testing::ExitedWithCode(0), ".*");
 }
 
 // // Race condition tests - may crash if race manifests
