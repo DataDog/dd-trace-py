@@ -240,22 +240,10 @@ Datadog::ProfilerStats::add_wall_sample_capture_cpu_time_us(size_t cpu_time_us)
     wall_sample_capture_cpu_time_us += cpu_time_us;
 }
 
-size_t
-Datadog::ProfilerStats::get_wall_sample_capture_cpu_time_us() const
-{
-    return wall_sample_capture_cpu_time_us;
-}
-
 void
 Datadog::ProfilerStats::add_cpu_timer_drain_cpu_time_us(size_t cpu_time_us)
 {
     cpu_timer_drain_cpu_time_us += cpu_time_us;
-}
-
-size_t
-Datadog::ProfilerStats::get_cpu_timer_drain_cpu_time_us() const
-{
-    return cpu_timer_drain_cpu_time_us;
 }
 
 std::string

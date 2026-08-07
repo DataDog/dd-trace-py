@@ -114,10 +114,7 @@ class ProfilerStats
     size_t get_sample_capture_cpu_time_us() const;
 
     void add_wall_sample_capture_cpu_time_us(size_t cpu_time_us);
-    size_t get_wall_sample_capture_cpu_time_us() const;
-
     void add_cpu_timer_drain_cpu_time_us(size_t cpu_time_us);
-    size_t get_cpu_timer_drain_cpu_time_us() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
