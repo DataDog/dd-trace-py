@@ -18,7 +18,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "579b7f34d7b1f5982a7003bcd65a5e0b14cd1b61"
+  SYSTEM_TESTS_REF: "4be985b2a08121eb586d8e37e03e89e2407ba2a2"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -669,6 +669,12 @@ configure_system_tests:
 
 system_tests:
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
+
+# The reliability environment installs commit-scoped wheels from the CI index.
+deploy_to_reliability_env:
+  needs:
+    - job: "upload all"
+      artifacts: false
 
 # Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
 # stage-based ordering and waits for all prior stages before publishing.
