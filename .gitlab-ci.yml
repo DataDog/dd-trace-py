@@ -670,6 +670,12 @@ configure_system_tests:
 system_tests:
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
+# The reliability environment installs commit-scoped wheels from the CI index.
+deploy_to_reliability_env:
+  needs:
+    - job: "upload all"
+      artifacts: false
+
 # Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
