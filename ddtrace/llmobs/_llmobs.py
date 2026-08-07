@@ -2770,7 +2770,6 @@ class LLMObs(Service):
         evaluated_ml_app: Optional[str] = None,
         eval_scope: str = "span",
         emit_error_metric: bool = True,
-        _decorator: bool = False,
     ) -> Union[Span, EvaluationContext]:
         """
         Open a judge trace for an external (SDK-run) evaluator.
@@ -2805,16 +2804,13 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
             return cls._instance._start_span(
-                "workflow", name="custom_evaluator.%s" % name, agent_service=EVALUATIONS_ML_APP, _decorator=_decorator
+                "workflow", name="custom_evaluator.%s" % name, agent_service=EVALUATIONS_ML_APP
             )
 
         # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
         if not name or "." in name:
             raise ValueError("name must be a non-empty string that does not contain a '.'.")
-        # NOTE: eval_scope="session" is intentionally unsupported. submit_evaluation() can only join a
-        # score on a span (or span_with_tag_value), not a session, so a session-scoped judge trace
-        # could never be linked to its score — a half-feature. Add "session" here only once
-        # submit_evaluation() supports session joins.
+        # "session" scope is unsupported: submit_evaluation() can't join a score to a session.
         if eval_scope not in ("span", "trace"):
             raise ValueError("eval_scope must be one of 'span' or 'trace'.")
         scope_tags: dict[str, str] = {}
@@ -2842,8 +2838,7 @@ class LLMObs(Service):
             "workflow",
             name="custom_evaluator.%s" % name,
             agent_service=EVALUATIONS_ML_APP,
-            _decorator=_decorator,
-            _detach=not _decorator,
+            _detach=True,
         )
         tags = {
             "source": EVALUATIONS_ML_APP,
@@ -2857,10 +2852,6 @@ class LLMObs(Service):
         # Health "Evaluated" column shows the name instead of the raw span id — matching managed evals.
         metadata = {EVALUATED_SPAN_NAME_METADATA_KEY: evaluated_span_name} if evaluated_span_name else None
         cls.annotate(span=span, tags=tags, metadata=metadata)
-
-        # The decorator path manages its own (non-detached) span; return it bare.
-        if _decorator:
-            return span
 
         # Auto-emit a failed eval metric when emit_error_metric is on (opt-out disables it).
         on_error = None

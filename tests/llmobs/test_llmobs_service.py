@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -734,6 +735,219 @@ def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
     assert get_llmobs_tags(judge)["ml_app"] == EVALUATIONS_ML_APP
     assert get_llmobs_tags(tool_span)["ml_app"] == EVALUATIONS_ML_APP
     assert get_llmobs_tags(llm_span)["ml_app"] == EVALUATIONS_ML_APP
+
+
+@pytest.mark.parametrize("outer_kind", ["agent", "workflow", "task"])
+def test_evaluation_restores_context_so_later_spans_reattach(llmobs, outer_kind):
+    # The core detach+restore contract: evaluation() swaps the LLMObs context provider to a detached
+    # root for the judge block, then restores the caller's context on exit. So a span opened AFTER the
+    # judge block must nest back under the outer trace (parent = outer span), NOT under the judge trace.
+    outer = getattr(llmobs, outer_kind)
+    with outer(name="outer") as outer_span:
+        with llmobs.tool(name="pre_eval_step") as pre_step:  # anchors the outer trace before the eval
+            pass
+        with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(outer_span)) as judge:
+            assert llmobs._instance._current_span() is judge  # judge is active within its own block
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
+                pass
+        assert llmobs._instance._current_span() is outer_span  # caller's context restored on exit
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    # The judge is a standalone trace: its own trace id, root parent.
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(outer_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    # The judge's own child nested UNDER the judge trace (not the outer trace).
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    # Spans before and after the eval stay in the OUTER trace...
+    assert get_llmobs_trace_id(pre_step) == get_llmobs_trace_id(outer_span)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(outer_span)
+    # ...and the post-eval span is parented under the outer span, NOT the judge (context restored).
+    assert get_llmobs_parent_id(post_step) == str(outer_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    assert get_llmobs_trace_id(post_step) != get_llmobs_trace_id(judge)
+    # Every span id is distinct.
+    assert len({outer_span.span_id, judge.span_id, judge_child.span_id, pre_step.span_id, post_step.span_id}) == 5
+
+
+async def test_evaluation_restores_context_across_await(llmobs):
+    # Same reattach contract, but the judge block awaits (yields to the event loop) and is entered via
+    # `async with` (__aenter__/__aexit__). The restore must still land in the caller's context so a
+    # span opened after the await-ing judge block reattaches to the agent trace.
+    with llmobs.agent(name="qa_agent") as agent_span:
+        async with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(agent_span)) as judge:
+            assert llmobs._instance._current_span() is judge
+            await asyncio.sleep(0)  # force a yield to the event loop inside the judge block
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
+                pass
+        assert llmobs._instance._current_span() is agent_span  # restored after the async block
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(post_step) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    assert len({agent_span.span_id, judge.span_id, judge_child.span_id, post_step.span_id}) == 4
+
+
+async def test_evaluation_concurrent_async_tasks_are_isolated(llmobs):
+    # Two judges running concurrently in separate asyncio tasks must be independent solo traces.
+    # ContextVars are copied per-task, so one task's detach (activate(None)) can't bleed into the other
+    # even though they interleave at the await point.
+    async def run_judge(name, evaluated):
+        async with llmobs.evaluation(name=name, evaluated_span=evaluated) as judge:
+            await asyncio.sleep(0)  # yield so the two tasks interleave while both judge blocks are open
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                pass
+        return judge, child
+
+    (j1, c1), (j2, c2) = await asyncio.gather(
+        run_judge("rel1", {"span_id": "1", "trace_id": "2"}),
+        run_judge("rel2", {"span_id": "3", "trace_id": "4"}),
+    )
+    # Independent solo traces, each a root.
+    assert get_llmobs_trace_id(j1) != get_llmobs_trace_id(j2)
+    assert get_llmobs_parent_id(j1) == "undefined"
+    assert get_llmobs_parent_id(j2) == "undefined"
+    # Each child nested under its OWN judge — no cross-task bleed.
+    assert get_llmobs_parent_id(c1) == str(j1.span_id)
+    assert get_llmobs_parent_id(c2) == str(j2.span_id)
+    assert get_llmobs_trace_id(c1) == get_llmobs_trace_id(j1)
+    assert get_llmobs_trace_id(c2) == get_llmobs_trace_id(j2)
+    assert get_llmobs_trace_id(c1) != get_llmobs_trace_id(j2)
+    assert len({j1.span_id, j2.span_id, c1.span_id, c2.span_id}) == 4
+
+
+async def test_original_trace_child_ignores_concurrently_open_judge(llmobs):
+    # The precise worry: the LLMObs context lives in a *module-level* ContextVar (_DD_LLMOBS_CONTEXTVAR),
+    # so it LOOKS global. It is not shared — each asyncio task gets its own copy. This holds a judge OPEN
+    # (mid-flight) in a separate task while the ORIGINAL task creates a child of its agent span, and
+    # asserts the child nests under the agent. The concurrently-active judge in the other task's context
+    # must not capture it. If the ContextVar were a plain global, the child would land under the judge.
+    judge_open = asyncio.Event()
+    let_judge_finish = asyncio.Event()
+    holder = {}
+
+    async def run_judge(evaluated):
+        async with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+            holder["judge"] = judge
+            judge_open.set()  # judge is now open & active in ITS task's context
+            await let_judge_finish.wait()  # stay open while the original task makes its child
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as jchild:
+                pass
+            holder["judge_child"] = jchild
+
+    with llmobs.agent(name="qa_agent") as agent_span:
+        judge_task = asyncio.create_task(run_judge(llmobs.export_span(agent_span)))
+        await judge_open.wait()  # judge is confirmed open/active before we touch the agent's child
+        # The original task's view is unaffected by the other task's activate(None)/activate(judge).
+        assert llmobs._instance._current_span() is agent_span
+        with llmobs.tool(name="child_of_agent") as child:
+            pass
+        let_judge_finish.set()
+        await judge_task
+
+    judge, judge_child = holder["judge"], holder["judge_child"]
+    # The agent's child stayed in the AGENT trace, parented under the agent — despite the judge being
+    # open concurrently in another task.
+    assert get_llmobs_trace_id(child) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(child) == str(agent_span.span_id)
+    assert get_llmobs_trace_id(child) != get_llmobs_trace_id(judge)
+    assert get_llmobs_parent_id(child) != str(judge.span_id)
+    # The judge is still its own solo trace with its own nested child.
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    assert len({agent_span.span_id, child.span_id, judge.span_id, judge_child.span_id}) == 4
+
+
+def test_evaluation_in_worker_thread_does_not_disturb_main_trace(llmobs):
+    # A judge opened in a worker thread runs in a fresh (empty) LLMObs context — it does not see the
+    # main thread's active agent, and its detach never touches the main thread's context. So after the
+    # thread joins, the main thread's agent is still active and later spans reattach under it.
+    results = {}
+
+    def run_judge(evaluated):
+        try:
+            assert llmobs._instance._current_span() is None  # new thread starts with an empty context
+            with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+                assert llmobs._instance._current_span() is judge
+                with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                    pass
+            assert llmobs._instance._current_span() is None  # restored to the thread's empty context
+            results["judge"], results["child"] = judge, child
+        except BaseException as e:  # surface in-thread assertion failures to the test thread
+            results["exc"] = e
+
+    with llmobs.agent(name="qa_agent") as agent_span:
+        with llmobs.tool(name="pre_eval_step") as pre_step:
+            pass
+        assert llmobs._instance._current_span() is agent_span
+        t = threading.Thread(target=run_judge, args=(llmobs.export_span(agent_span),))
+        t.start()
+        t.join()
+        assert llmobs._instance._current_span() is agent_span  # worker thread did not disturb main
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    if "exc" in results:
+        raise results["exc"]
+    judge, child = results["judge"], results["child"]
+    # Judge is a solo trace (built in the worker thread), root parent.
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(child) == str(judge.span_id)
+    assert get_llmobs_trace_id(child) == get_llmobs_trace_id(judge)
+    # Main-thread spans stay in the agent trace; post-eval parented under the agent, not the judge.
+    assert get_llmobs_trace_id(pre_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(post_step) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    assert len({agent_span.span_id, judge.span_id, child.span_id, pre_step.span_id, post_step.span_id}) == 5
+
+
+def test_evaluation_concurrent_threads_are_isolated(llmobs):
+    # Two judges opened in two threads AT THE SAME TIME (held open together by a barrier) must be
+    # independent solo traces. Thread-local ContextVars mean one thread's detach can't bleed into the
+    # other's, even while both judge blocks are simultaneously open.
+    barrier = threading.Barrier(2)
+    results = {}
+
+    def run_judge(key, evaluated):
+        try:
+            with llmobs.evaluation(name=key, evaluated_span=evaluated) as judge:
+                barrier.wait(timeout=5)  # both threads are inside their judge block at once here
+                with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                    pass
+            results[key] = (judge, child)
+        except BaseException as e:
+            results[key] = e
+
+    t1 = threading.Thread(target=run_judge, args=("rel1", {"span_id": "1", "trace_id": "2"}))
+    t2 = threading.Thread(target=run_judge, args=("rel2", {"span_id": "3", "trace_id": "4"}))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    for key in ("rel1", "rel2"):
+        assert not isinstance(results[key], BaseException), results[key]
+    (j1, c1), (j2, c2) = results["rel1"], results["rel2"]
+    assert get_llmobs_trace_id(j1) != get_llmobs_trace_id(j2)
+    assert get_llmobs_parent_id(j1) == "undefined"
+    assert get_llmobs_parent_id(j2) == "undefined"
+    # Each child nested under its OWN judge despite both judges being open concurrently.
+    assert get_llmobs_parent_id(c1) == str(j1.span_id)
+    assert get_llmobs_parent_id(c2) == str(j2.span_id)
+    assert get_llmobs_trace_id(c1) == get_llmobs_trace_id(j1)
+    assert get_llmobs_trace_id(c2) == get_llmobs_trace_id(j2)
+    assert get_llmobs_trace_id(c1) != get_llmobs_trace_id(j2)
+    assert len({j1.span_id, j2.span_id, c1.span_id, c2.span_id}) == 4
 
 
 @pytest.mark.parametrize(
