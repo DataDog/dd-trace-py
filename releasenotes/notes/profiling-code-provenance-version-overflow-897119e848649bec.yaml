@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: Fixes an issue where aggregated profiles become unavailable when an installed package has an oversized numeric version.

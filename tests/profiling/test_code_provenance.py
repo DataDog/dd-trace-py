@@ -144,6 +144,25 @@ class TestCodeProvenance:
         assert native[0]["kind"] == "library"
         assert native[0]["paths"] == ["<native>"]
 
+    def test_oversized_library_version_is_omitted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.datadog.profiling import code_provenance
+        from ddtrace.internal.packages import Distribution
+
+        monkeypatch.setattr(
+            code_provenance,
+            "_package_for_root_module_mapping",
+            lambda: {"inference_service/rpc_pb2.py": Distribution(name="inference-service", version="202503311822")},
+        )
+
+        libraries = code_provenance.CodeProvenance().to_dict()["v1"]
+        library = next(library for library in libraries if library["name"] == "inference-service")
+
+        # The RFC requires `version` to be a string. An empty version preserves
+        # that schema while avoiding a numeric component that legacy backends
+        # cannot parse as a signed 32-bit integer.
+        assert library["version"] == ""
+        assert is_valid_json(json.dumps({"v1": [library]}))
+
     @pytest.mark.subprocess(
         env=dict(DD_MAIN_PACKAGE="ddtrace"),
     )

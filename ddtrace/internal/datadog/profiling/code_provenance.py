@@ -15,6 +15,26 @@ from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.settings import env
 
 
+_MAX_BACKEND_VERSION = 2**31 - 1
+
+
+def _backend_compatible_version(version: str) -> str:
+    """Return an RFC-compatible version that older backends can parse."""
+    if version.isascii() and version.isdecimal():
+        try:
+            if int(version) > _MAX_BACKEND_VERSION:
+                # The code-provenance RFC requires `version` to be a string,
+                # and an empty string is already used for the synthetic native
+                # library. Do not truncate an oversized version, because that
+                # would report an inaccurate dependency version.
+                return ""
+        except ValueError:
+            # Python rejects decimal strings that exceed its integer conversion
+            # limit. Such a value also cannot be represented by the backend.
+            return ""
+    return version
+
+
 class Library:
     def __init__(
         self,
@@ -25,7 +45,7 @@ class Library:
     ) -> None:
         self.kind = kind
         self.name = name
-        self.version = version
+        self.version = _backend_compatible_version(version)
         self.paths = paths
 
     def to_dict(self) -> dict[str, t.Any]:
