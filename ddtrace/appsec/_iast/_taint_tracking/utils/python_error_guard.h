@@ -27,10 +27,10 @@ class PythonErrorGuard
     /**
      * @brief Destructor.
      *
-     * Restores the fetched Python error if one was present, or decrements
-     * reference counts of fetched error objects if no error was present.
+     * Restores the fetched Python error if one was present. Otherwise the
+     * owned handles release any fetched objects normally.
      */
-    ~PythonErrorGuard();
+    ~PythonErrorGuard() noexcept;
 
     // Delete copy constructor and copy assignment operator
     PythonErrorGuard(const PythonErrorGuard&) = delete;
@@ -46,10 +46,10 @@ class PythonErrorGuard
     [[nodiscard]] std::string traceback_as_stdstring() const;
 
   private:
-    PyObject* ptype;
-    PyObject* pvalue;
-    PyObject* ptraceback;
+    py::object ptype;
+    py::object pvalue;
+    py::object ptraceback;
     bool had_exception;
 
-    void restore_or_decref();
+    void restore() noexcept;
 };

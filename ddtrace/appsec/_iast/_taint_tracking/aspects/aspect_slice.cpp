@@ -118,7 +118,7 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* candidate_text = args[0];
     PyObject* start = args[1];
     PyObject* stop = args[2];
-    PyObject* step = nullptr;
+    PyObject* step = Py_None;
     if (nargs == 4)
         step = args[3];
 

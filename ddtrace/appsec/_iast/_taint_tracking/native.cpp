@@ -178,13 +178,25 @@ reset_native_state_after_fork()
     // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
         taint_engine_context->clear_tainted_object_map();
-        (void)taint_engine_context.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_context = taint_engine_context.release();
     }
     if (initializer) {
-        (void)initializer.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_initializer = initializer.release();
     }
 
     // Step 2: Recreate fresh instances
+    initialize_native_state();
+}
+
+static void
+reset_native_state()
+{
+    if (taint_engine_context) {
+        taint_engine_context->clear_all_request_context_slots();
+        taint_engine_context.reset();
+    }
+    initializer.reset();
+    TaintEngineContext::set_shutting_down(false);
     initialize_native_state();
 }
 
@@ -237,10 +249,8 @@ PYBIND11_MODULE(_native, m)
 
     // Export fork-safety functions
     m.def("reset_native_state",
-          &reset_native_state_after_fork,
-          "Reset native IAST state after fork. "
-          "This recreates all global C++ singletons with fresh state, "
-          "clearing any inherited PyObject pointers or corrupted memory from parent process.");
+          &reset_native_state,
+          "Reset native IAST state by cleaning up and recreating the global singletons.");
 
     m.def("initialize_native_state",
           &initialize_native_state,
@@ -263,9 +273,15 @@ PYBIND11_MODULE(_native, m)
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
     // classes inheriting from it.
-    PyObject* hm_aspects = PyModule_Create(&aspects);
+    py::module_ hm_aspects = py::reinterpret_steal<py::module_>(PyModule_Create(&aspects));
+    if (!hm_aspects) {
+        throw py::error_already_set();
+    }
     m.add_object("aspects", hm_aspects);
 
-    PyObject* hm_ops = PyModule_Create(&ops);
+    py::module_ hm_ops = py::reinterpret_steal<py::module_>(PyModule_Create(&ops));
+    if (!hm_ops) {
+        throw py::error_already_set();
+    }
     m.add_object("ops", hm_ops);
 }

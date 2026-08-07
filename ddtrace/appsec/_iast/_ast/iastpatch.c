@@ -332,12 +332,14 @@ static char**
 get_list_from_env(const char* env_var_name, size_t* count)
 {
     const char* env_value = getenv(env_var_name);
-    static char** modules_list = NULL;
+    char** modules_list = NULL;
     size_t count_tmp = 0;
     if (env_value && env_value[0] != '\0') {
         char* env_copy = strdup(env_value);
-        if (!env_copy)
+        if (!env_copy) {
+            PyErr_NoMemory();
             return NULL;
+        }
         char* token = strtok(env_copy, ",");
         while (token) {
             count_tmp++;
@@ -354,7 +356,7 @@ get_list_from_env(const char* env_var_name, size_t* count)
             env_copy = strdup(env_value);
             if (!env_copy) {
                 free(modules_list);
-                modules_list = NULL;
+                PyErr_NoMemory();
                 return NULL;
             }
             count_tmp = 0;
@@ -366,12 +368,12 @@ get_list_from_env(const char* env_var_name, size_t* count)
                         free(modules_list[j]);
                     }
                     free(modules_list);
-                    modules_list = NULL;
                     free(env_copy);
+                    PyErr_NoMemory();
                     return NULL;
                 }
                 for (char* p = dup; *p; p++) {
-                    *p = tolower(*p);
+                    *p = (char)tolower((unsigned char)*p);
                 }
                 modules_list[count_tmp++] = dup;
                 token = strtok(NULL, ",");
@@ -422,30 +424,26 @@ init_globals(void)
         return -1;
     }
     builtin_count = (size_t)builtin_count_s;
-    builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
+    size_t new_builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
-    builtins_denylist = (char**)malloc(builtins_denylist_count * sizeof(char*));
-    if (!builtins_denylist) {
+    char** new_builtins_denylist = (char**)calloc(new_builtins_denylist_count, sizeof(char*));
+    if (!new_builtins_denylist) {
         PyErr_NoMemory();
         return -1;
     }
-    /* Initialize all entries to NULL so str_in_list never reads garbage */
-    memset(builtins_denylist, 0, builtins_denylist_count * sizeof(char*));
 
     /* Copy static stdlib names */
     for (i = 0; i < static_stdlib_denylist_count; i++) {
         char* dup = strdup(static_stdlib_denylist[i]);
         if (!dup) {
             PyErr_NoMemory();
-            free_list(builtins_denylist, builtins_denylist_count);
-            builtins_denylist = NULL;
-            builtins_denylist_count = 0;
+            free_list(new_builtins_denylist, new_builtins_denylist_count);
             return -1;
         }
         for (char* p = dup; *p; p++) {
-            *p = tolower(*p);
+            *p = (char)tolower((unsigned char)*p);
         }
-        builtins_denylist[i] = dup;
+        new_builtins_denylist[i] = dup;
     }
 
     /* Copy built-in module names */
@@ -453,24 +451,26 @@ init_globals(void)
         PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
         if (item && PyUnicode_Check(item)) {
             const char* s = PyUnicode_AsUTF8(item);
-            if (s) {
-                char* dup = strdup(s);
-                if (!dup) {
-                    PyErr_NoMemory();
-                    free_list(builtins_denylist, builtins_denylist_count);
-                    builtins_denylist = NULL;
-                    builtins_denylist_count = 0;
-                    return -1;
-                }
-                for (char* p = dup; *p; p++) {
-                    *p = tolower(*p);
-                }
-                builtins_denylist[static_stdlib_denylist_count + i] = dup;
+            if (!s) {
+                free_list(new_builtins_denylist, new_builtins_denylist_count);
+                return -1;
             }
-            /* NULL entries left as NULL (from memset above) when s is NULL */
+            char* dup = strdup(s);
+            if (!dup) {
+                PyErr_NoMemory();
+                free_list(new_builtins_denylist, new_builtins_denylist_count);
+                return -1;
+            }
+            for (char* p = dup; *p; p++) {
+                *p = (char)tolower((unsigned char)*p);
+            }
+            new_builtins_denylist[static_stdlib_denylist_count + i] = dup;
         }
     }
 
+    free_list(builtins_denylist, builtins_denylist_count);
+    builtins_denylist = new_builtins_denylist;
+    builtins_denylist_count = new_builtins_denylist_count;
     return 0; // Success
 }
 
@@ -499,7 +499,7 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     for (const char* p = module_name; *p; p++) {
-        if (!isalnum(*p) && *p != '.' && *p != '_') {
+        if (!isalnum((unsigned char)*p) && *p != '.' && *p != '_') {
             PyErr_SetString(PyExc_ValueError, "Invalid characters in module name");
             return NULL;
         }
@@ -510,7 +510,7 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
     strncpy(lower_module, module_name, sizeof(lower_module) - 1);
     lower_module[sizeof(lower_module) - 1] = '\0';
     for (size_t i = 0; i < strlen(lower_module); i++) {
-        lower_module[i] = tolower(lower_module[i]);
+        lower_module[i] = (char)tolower((unsigned char)lower_module[i]);
     }
     size_t l = strlen(lower_module);
     if (l < sizeof(lower_module) - 1) {
@@ -555,22 +555,27 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 int
 build_list_from_env(const char* env_var_name)
 {
-    size_t count = 0;
-    char** result_list = get_list_from_env(env_var_name, &count);
-    if (result_list == NULL) {
-        return 0;
-    }
-
+    char*** destination;
+    size_t* destination_count;
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        user_allowlist = result_list;
-        user_allowlist_count = count;
+        destination = &user_allowlist;
+        destination_count = &user_allowlist_count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        user_denylist = result_list;
-        user_denylist_count = count;
+        destination = &user_denylist;
+        destination_count = &user_denylist_count;
     } else {
-        free_list(result_list, count);
         return -1;
     }
+
+    size_t count = 0;
+    char** result_list = get_list_from_env(env_var_name, &count);
+    if (result_list == NULL && PyErr_Occurred()) {
+        return -1;
+    }
+
+    free_list(*destination, *destination_count);
+    *destination = result_list;
+    *destination_count = count;
 
     return 0;
 }
@@ -583,10 +588,13 @@ py_build_list_from_env(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
     int result = build_list_from_env(env_var_name);
-    if (result >= 0) {
-        Py_RETURN_TRUE;
+    if (result < 0) {
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+        Py_RETURN_FALSE;
     }
-    Py_RETURN_FALSE;
+    Py_RETURN_TRUE;
 }
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */
@@ -619,57 +627,47 @@ py_set_packages_distributions(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
 
-    // Clear any existing cached packages when setting new packages
-    if (cached_packages != NULL) {
-        free_list(cached_packages, cached_packages_count);
-        cached_packages = NULL;
-        cached_packages_count = 0;
-    }
-
     // Convert the set to a fast sequence (e.g., list or tuple).
     PyObject* fast = PySequence_Fast(packages_set, "expected a sequence");
     if (!fast)
         return NULL;
 
     Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-    cached_packages = (char**)malloc(n * sizeof(char*));
-    if (!cached_packages) {
+    char** new_cached_packages = n > 0 ? (char**)calloc((size_t)n, sizeof(char*)) : NULL;
+    if (n > 0 && !new_cached_packages) {
+        PyErr_NoMemory();
         Py_DECREF(fast);
         return NULL;
     }
-    cached_packages_count = (size_t)n;
 
     for (Py_ssize_t i = 0; i < n; i++) {
         PyObject* item = PySequence_Fast_GET_ITEM(fast, i); // Borrowed reference.
-        if (!PyUnicode_Check(item)) {
-            cached_packages[i] = NULL;
-        } else {
+        if (PyUnicode_Check(item)) {
             const char* s = PyUnicode_AsUTF8(item);
-            if (s) {
-                char* dup = strdup(s);
-                if (dup) {
-                    // Convert to lowercase.
-                    for (char* p = dup; *p; p++) {
-                        *p = tolower(*p);
-                    }
-                    cached_packages[i] = dup;
-                } else {
-                    cached_packages[i] = NULL;
-                }
-            } else {
-                cached_packages[i] = NULL;
+            if (!s) {
+                free_list(new_cached_packages, (size_t)n);
+                Py_DECREF(fast);
+                return NULL;
             }
+            char* dup = strdup(s);
+            if (!dup) {
+                PyErr_NoMemory();
+                free_list(new_cached_packages, (size_t)n);
+                Py_DECREF(fast);
+                return NULL;
+            }
+            // Convert to lowercase.
+            for (char* p = dup; *p; p++) {
+                *p = (char)tolower((unsigned char)*p);
+            }
+            new_cached_packages[i] = dup;
         }
     }
     Py_DECREF(fast);
 
-    // Print all cached_packages for debugging
-    // printf("cached_packages (count: %zu):\n", cached_packages_count);
-    // for (size_t i = 0; i < cached_packages_count; i++) {
-    //    if (cached_packages[i]) {
-    //         printf("  [%zu]: %s\n", i, cached_packages[i]);
-    //    }
-    //}
+    free_list(cached_packages, cached_packages_count);
+    cached_packages = new_cached_packages;
+    cached_packages_count = (size_t)n;
 
     Py_RETURN_NONE;
 }
@@ -708,14 +706,16 @@ PyInit_iastpatch(void)
         return NULL;
 
     /* --- Exporting enum values to Python --- */
-    PyModule_AddIntConstant(m, "DENIED_USER_DENYLIST", DENIED_USER_DENYLIST);
-    PyModule_AddIntConstant(m, "DENIED_STATIC_DENYLIST", DENIED_STATIC_DENYLIST);
-    PyModule_AddIntConstant(m, "DENIED_BUILTINS_DENYLIST", DENIED_BUILTINS_DENYLIST);
-    PyModule_AddIntConstant(m, "DENIED_NOT_FOUND", DENIED_NOT_FOUND);
-
-    PyModule_AddIntConstant(m, "ALLOWED_USER_ALLOWLIST", ALLOWED_USER_ALLOWLIST);
-    PyModule_AddIntConstant(m, "ALLOWED_STATIC_ALLOWLIST", ALLOWED_STATIC_ALLOWLIST);
-    PyModule_AddIntConstant(m, "ALLOWED_FIRST_PARTY_ALLOWLIST", ALLOWED_FIRST_PARTY_ALLOWLIST);
+    if (PyModule_AddIntConstant(m, "DENIED_USER_DENYLIST", DENIED_USER_DENYLIST) < 0 ||
+        PyModule_AddIntConstant(m, "DENIED_STATIC_DENYLIST", DENIED_STATIC_DENYLIST) < 0 ||
+        PyModule_AddIntConstant(m, "DENIED_BUILTINS_DENYLIST", DENIED_BUILTINS_DENYLIST) < 0 ||
+        PyModule_AddIntConstant(m, "DENIED_NOT_FOUND", DENIED_NOT_FOUND) < 0 ||
+        PyModule_AddIntConstant(m, "ALLOWED_USER_ALLOWLIST", ALLOWED_USER_ALLOWLIST) < 0 ||
+        PyModule_AddIntConstant(m, "ALLOWED_STATIC_ALLOWLIST", ALLOWED_STATIC_ALLOWLIST) < 0 ||
+        PyModule_AddIntConstant(m, "ALLOWED_FIRST_PARTY_ALLOWLIST", ALLOWED_FIRST_PARTY_ALLOWLIST) < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
 
     return m;
 }
