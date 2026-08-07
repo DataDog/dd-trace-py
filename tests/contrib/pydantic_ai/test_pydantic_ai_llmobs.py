@@ -1,6 +1,4 @@
 import json
-from typing import Literal
-from typing import Optional
 
 import mock
 from pydantic import BaseModel
@@ -11,7 +9,6 @@ from typing_extensions import TypedDict
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
-from tests.contrib.pydantic_ai.utils import MANIFEST_VERSION
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_agent_metadata
@@ -546,6 +543,13 @@ def _without_hashes(node):
     return node
 
 
+class ABSENT:
+    """Marks keys a case asserts are missing. An empty expected dict asserts nothing at all."""
+
+    def __init__(self, *keys):
+        self.keys = keys
+
+
 def _assert_contains(manifest, expected, path=""):
     """Assert every grouping and field in expected matches, ignoring anything not mentioned.
 
@@ -578,9 +582,10 @@ MANIFEST_LEAK_CASES = [
                 "temperature": 0.5,
                 "extra_headers": {"Authorization": "Bearer sk-leak-canary"},
                 "extra_body": {"credential": "sk-leak-canary-2"},
+                "openai_user": "end-user-4711",
             }
         ),
-        ["sk-leak-canary", "Authorization", "extra_headers", "extra_body"],
+        ["sk-leak-canary", "Authorization", "extra_headers", "extra_body", "end-user-4711"],
         {"model_settings": {"temperature": 0.5}},
         None,
         id="transport_params_never_ship",
@@ -654,36 +659,28 @@ MANIFEST_FIELD_CASES = [
     ),
     pytest.param(
         # A provider-prefixed key is not on the allowlist, so it drops rather than being promoted.
-        lambda: dict(model_settings={"openai_reasoning_effort": "high"}),
-        {},
+        lambda: dict(model_settings={"openai_reasoning_effort": "high", "temperature": 0.5}),
+        {"model_settings": {"temperature": 0.5}},
         None,
         id="provider_prefixed_param_drops",
     ),
     pytest.param(
         lambda: dict(history_processors=[_redact_history]),
-        {"memory_policies": [{"name": "_redact_history", "content": {"source_hash": mock.ANY}}]},
+        {"memory_policies": ["_redact_history"]},
         None,
         id="history_processors_land_in_memory_policies",
     ),
     pytest.param(
         lambda: dict(toolsets=[_tenant_toolset]),
-        {"capabilities": [{"name": "_tenant_toolset", "type": "custom", "content": {"dynamic": True}}]},
+        {"capabilities": [{"name": "_tenant_toolset", "type": "custom"}]},
         (0, 4, 4),
         id="dynamic_toolset_is_a_custom_capability",
     ),
     pytest.param(
         lambda: dict(builtin_tools=[_builtin_web_search()]),
-        {
-            "capabilities": [
-                {
-                    "name": mock.ANY,
-                    "type": "builtin",
-                    "content": {"config": {"max_uses": 3, "search_context_size": "high"}},
-                }
-            ]
-        },
+        {"capabilities": [{"name": mock.ANY, "type": "builtin"}]},
         None,
-        id="builtin_tool_config_is_captured",
+        id="builtin_tool_is_a_capability",
     ),
     pytest.param(
         lambda: dict(tool_timeout=12.5, max_concurrency=4),
@@ -705,7 +702,7 @@ MANIFEST_FIELD_CASES = [
     ),
     pytest.param(
         lambda: dict(model=_test_model(), output_type=[_escalate]),
-        {},
+        ABSENT("handoffs", "data_contracts"),
         None,
         id="output_function_does_not_become_a_handoff",
     ),
@@ -745,10 +742,8 @@ class TestPydanticAIAgentManifest:
     # invention, and both are caught by test_shape_is_one_flat_document rather than by review.
     SCHEMA_KEYS = frozenset(
         {
-            "manifest_version",
             "framework",
             "name",
-            "description",
             "metadata",
             "model",
             "model_settings",
@@ -784,7 +779,11 @@ class TestPydanticAIAgentManifest:
 
         _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", **make_kwargs())
 
-        _assert_contains(manifest, expected)
+        if isinstance(expected, ABSENT):
+            for key in expected.keys:
+                assert key not in manifest, "manifest should not contain {}".format(key)
+        else:
+            _assert_contains(manifest, expected)
 
     @pytest.mark.parametrize("make_kwargs,forbidden,expected,min_version", MANIFEST_LEAK_CASES)
     async def test_secrets_never_ship_cases(
@@ -824,7 +823,6 @@ class TestPydanticAIAgentManifest:
             model_settings={"temperature": 0.5, "logit_bias": {50256: -100}, "timeout": 30.0},
         )
 
-        assert manifest["manifest_version"] == MANIFEST_VERSION
         unknown = set(manifest) - self.SCHEMA_KEYS
         assert not unknown, "manifest emits keys outside the shared schema: {}".format(sorted(unknown))
         # No key is a dotted path: the flat schema has no prefixed names to parse apart.
@@ -842,8 +840,7 @@ class TestPydanticAIAgentManifest:
     async def test_field_mapping(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """The whole document for a configured agent, compared exactly.
 
-        An exact comparison is what catches a field quietly moving or gaining a wrapper. Hashes are
-        stripped because they are asserted on their own in test_function_source_is_hashed_never_emitted.
+        An exact comparison is what catches a field quietly moving or gaining a wrapper.
         """
 
         class Deps:
@@ -869,42 +866,16 @@ class TestPydanticAIAgentManifest:
         )
 
         actual = _without_hashes(manifest)
-        assert actual["manifest_version"] == MANIFEST_VERSION
         assert actual["framework"] == "PydanticAI"
         assert actual["name"] == "support_orchestrator"
         assert actual["instructions"] == "You orchestrate specialists."
         assert actual["system_prompts"] == ["Cite sources."]
         assert actual["model_settings"] == {"temperature": 0.2, "max_tokens": 1024}
         assert actual["tools"] == expected_calculate_square_tool()
-        assert actual["data_contracts"] == {"output": {"name": "Resolution", "schema": mock.ANY}}
+        assert actual["data_contracts"] == {"output": {"name": "Resolution"}}
         assert actual["agent_settings"]["end_strategy"] == "exhaustive"
         assert actual["agent_settings"]["deps_type"] == "Deps"
         assert agent.model_settings["max_tokens"] == 1024, "the caller's own dict was mutated"
-
-    async def test_secrets_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A provider passthrough carrying a credential must not reach the manifest.
-
-        Reproduced on origin/main before this change: extra_headers was copied verbatim, so an
-        Authorization header was submitted with the span. The manifest lands under metadata._dd, which
-        a customer's own span processor never sees, so they cannot scrub it themselves.
-        """
-        _, manifest = await self._run(
-            pydantic_ai,
-            test_spans,
-            name="test_agent",
-            model_settings={
-                "temperature": 0.2,
-                "extra_headers": {"Authorization": "Bearer sk-canary-header"},
-                "extra_body": {"signed": "sk-canary-body"},
-                "openai_user": "end-user-4711",
-            },
-        )
-
-        blob = safe_json(manifest)
-        for canary in ("sk-canary-header", "sk-canary-body", "end-user-4711", "Authorization"):
-            assert canary not in blob, "{} reached the manifest".format(canary)
-        # The tuning param alongside them still ships, so the filter is selective, not a blanket drop.
-        assert manifest["model_settings"] == {"temperature": 0.2}
 
     async def test_model_settings_is_an_allowlist(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A key the allowlist does not name drops, even though nothing denies it by name.
@@ -1022,17 +993,16 @@ class TestPydanticAIAgentManifest:
 
         tool_names = [tool["name"] for tool in manifest["tools"]]
         assert sorted(tool_names) == sorted(set(tool_names))
-        capability_names = [c["name"] for c in manifest["capabilities"] if c["type"] == "tool"]
-        assert sorted(capability_names) == sorted(set(capability_names))
-        assert sorted(capability_names) == sorted(tool_names)
+        assert "capabilities" not in manifest, "a function tool is reported once, under tools"
 
     async def test_capabilities_are_typed(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """Every capability carries a name and a type from the closed set."""
-        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", tools=[calculate_square_tool])
+        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", toolsets=[_tenant_toolset])
 
+        assert manifest["capabilities"]
         for capability in manifest["capabilities"]:
             assert capability["name"]
-            assert capability["type"] in {"tool", "mcp", "builtin", "custom", "tool_preparation"}
+            assert capability["type"] in {"mcp", "builtin", "custom", "tool_preparation"}
 
     async def test_extra_instructions_carry_type_name_and_hash(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A dynamic resolver ships as {type, name, content}, not as a boolean.
@@ -1056,12 +1026,8 @@ class TestPydanticAIAgentManifest:
         assert entries[0]["content"]["source_hash"]
         assert entries[0]["content"]["reevaluated"] is True
 
-    async def test_function_source_is_hashed_never_emitted(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A callable becomes {name, source_hash}. Its body never reaches the wire.
-
-        A function body can hold a literal secret, so hashing is what makes a change detectable without
-        shipping the code that changed.
-        """
+    async def test_function_source_never_reaches_the_wire(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A callable is recorded by name. A function body can hold a literal secret."""
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
 
         @agent.output_validator
@@ -1075,15 +1041,10 @@ class TestPydanticAIAgentManifest:
         blob = safe_json(manifest)
         assert "SENTINEL_SOURCE_MUST_NOT_SHIP" not in blob
         assert "def reject_ungrounded" not in blob
-        guardrail = manifest["guardrails"][0]
-        assert guardrail["name"] == "reject_ungrounded"
-        assert len(guardrail["content"]["source_hash"]) == 64
+        assert manifest["guardrails"] == ["reject_ungrounded"]
 
     async def test_data_contracts_carry_the_output_type(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The declared output type lands under data_contracts.output as {name, schema}.
-
-        pydantic-ai declares no input schema, so only the output half is ever populated.
-        """
+        """The declared output type lands under data_contracts.output by name."""
 
         class Resolution(BaseModel):
             answer: str
@@ -1093,10 +1054,7 @@ class TestPydanticAIAgentManifest:
             pydantic_ai, test_spans, name="test_agent", output_type=Resolution, model=_test_model()
         )
 
-        output = manifest["data_contracts"]["output"]
-        assert output["name"] == "Resolution"
-        assert output["schema"]["properties"].keys() == {"answer", "confidence"}
-        assert "input" not in manifest["data_contracts"]
+        assert manifest["data_contracts"] == {"output": {"name": "Resolution"}}
 
     async def test_agent_settings_carry_the_loop_knobs(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """retries is the output-validation budget and tool_retries the per-tool one.
@@ -1156,19 +1114,6 @@ class TestPydanticAIAgentManifest:
 
         assert manifest["model"] == expected
 
-    async def test_non_string_description_never_ships(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """description takes whatever the caller passed, so a non-string would ship as a repr.
-
-        The same guard system_prompts and metadata already have; description was the one that lacked it.
-        """
-        agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
-        object.__setattr__(agent, "_description", _UnserializableSentinel())
-        await agent.run("Hello, world!")
-        manifest = _manifest_of(test_spans.pop_traces()[0][0])
-
-        assert "description" not in manifest
-        assert "object at 0x" not in safe_json(manifest)
-
     async def test_non_string_system_prompts_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """pydantic-ai does not validate system_prompt, so a non-string would ship as a repr.
 
@@ -1200,6 +1145,7 @@ class TestPydanticAIAgentManifest:
         )
 
         json.dumps(manifest)
+        assert manifest["model_settings"]["logit_bias"] == {"50256": -100}, "an int key is coerced to str"
 
     async def test_non_finite_floats_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """NaN and Infinity are valid Python floats and invalid JSON.
@@ -1217,12 +1163,10 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest, allow_nan=False)
         assert manifest["model_settings"] == {"top_p": 0.9}
 
-    def test_mcp_servers_are_filtered_named_and_scrubbed(self, pydantic_ai):
+    def test_mcp_servers_are_named_but_never_addressed(self, pydantic_ai):
         """MCP capture, which no other test reaches: the mcp extra is in none of the riot venvs.
 
-        Stubbing the class lookup rather than the extra keeps the real filtering, naming and URL
-        scrubbing under test. A stdio server has no url, so it must be named without one: its command
-        and args can carry secrets.
+        No URI is emitted at all, so a server address cannot carry a credential onto the wire.
         """
         from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
@@ -1243,12 +1187,10 @@ class TestPydanticAIAgentManifest:
         integration = PydanticAIIntegration(integration_config=mock.Mock())
 
         with mock.patch.object(PydanticAIIntegration, "_mcp_server_classes", staticmethod(lambda: (FakeMCPServer,))):
-            servers = integration._get_mcp_servers(agent)
+            names = integration._mcp_server_names(agent)
 
-        assert servers == [
-            {"name": "billing", "uri": "https://mcp.example.com:8443"},
-            {"name": "FakeMCPServer"},
-        ], "the non-MCP toolset is filtered out, credentials and path are scrubbed, a urlless server keeps only a name"
+        assert names == ["billing", "FakeMCPServer"], "the non-MCP toolset is filtered out"
+        assert "sk-secret" not in safe_json(names)
 
     async def test_non_string_agent_name_falls_back_to_the_placeholder(
         self, pydantic_ai, pydantic_ai_llmobs, test_spans
@@ -1299,14 +1241,11 @@ class TestPydanticAIAgentManifest:
         assert "sk-not-a-real-key" not in safe_json(manifest)
         assert "description" not in manifest["tools"][0]
 
-    async def test_non_string_tool_parameter_key_cannot_drop_the_payload(
-        self, pydantic_ai, pydantic_ai_llmobs, test_spans
-    ):
-        """A non-str parameter key is coerced rather than left to break the encoder.
+    async def test_non_string_tool_parameter_key_is_coerced(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A non-str parameter key is coerced rather than left for the encoder.
 
-        Tool.from_schema takes a caller-supplied json_schema, so a non-str key reaches the manifest.
-        The encoder sorts keys, comparing an int to a str raises, and it then returns None, which
-        drops the whole batched payload rather than this one span.
+        Tool.from_schema takes a caller json_schema, so a non-str key reaches the manifest. The span
+        sanitizer stringifies keys before encoding, so this is defence in depth rather than a fix.
         """
 
         def mytool(**kwargs) -> str:
@@ -1355,60 +1294,6 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest)
         assert manifest["name"] == "test_agent"
 
-    async def test_generic_output_type_keeps_the_contract(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A parameterized generic has no __name__, so a naive read raises and costs the contract.
-
-        The schema assertion is the point: a truthiness check on name passed while the schema was
-        silently dropped, so a field change inside Row could not move the recorded contract.
-        """
-
-        class Row(BaseModel):
-            value: int
-
-        _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", output_type=list[Row], model=_test_model()
-        )
-
-        output = manifest["data_contracts"]["output"]
-        assert output["name"]
-        assert output["schema"], "a container output must still carry the member model's schema"
-        # Row's own field has to be reachable, whether inlined or behind the adapter's $ref/$defs.
-        assert "value" in json.dumps(output["schema"])
-
-    async def test_nested_generic_output_type_keeps_the_schema(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A model nested two levels deep still counts, so the depth cap cannot silently exclude it."""
-
-        class Row(BaseModel):
-            value: int
-
-        _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", output_type=dict[str, list[Row]], model=_test_model()
-        )
-
-        output = manifest["data_contracts"]["output"]
-        assert output["schema"], "a nested container output must still carry the member model's schema"
-        assert "value" in json.dumps(output["schema"])
-
-    async def test_output_schema_keeps_json_nulls(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A null inside a declared schema is data, not absence, so it round-trips verbatim.
-
-        An enum of ["a", "b", null] previously lost the whole list, recording the field as
-        unconstrained, which is a stable wrong contract rather than a missing one.
-        """
-
-        class Choice(BaseModel):
-            choice: Literal["a", "b", None]
-            maybe: Optional[str] = None
-
-        _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", output_type=Choice, model=_test_model()
-        )
-
-        schema = manifest["data_contracts"]["output"]["schema"]
-        assert schema == Choice.model_json_schema(), "the declared schema must round-trip unchanged"
-        assert schema["properties"]["choice"]["enum"] == ["a", "b", None]
-        assert schema["properties"]["maybe"]["default"] is None
-
     async def test_callable_metadata_emits_no_metadata(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A metadata resolver is not captured, and is never called to find out what it returns.
 
@@ -1450,16 +1335,7 @@ class TestPydanticAIAgentManifest:
         )
 
         prep = [cap for cap in manifest["capabilities"] if cap.get("type") == "tool_preparation"]
-        assert len(prep) == 1
-        assert prep[0]["name"] == "drop_destructive"
-        assert prep[0]["content"]["source_hash"]
-
-    async def test_scalar_output_type_carries_no_schema(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """Widening the gate must not start emitting a schema for a plain str output."""
-
-        _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", output_type=str, model=_test_model())
-
-        assert "schema" not in manifest["data_contracts"]["output"]
+        assert prep == [{"name": "drop_destructive", "type": "tool_preparation"}]
 
     async def test_section_failure_is_isolated(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """One section raising costs that section only, not the whole manifest.
@@ -1475,64 +1351,3 @@ class TestPydanticAIAgentManifest:
         assert "model_settings" not in manifest
         assert manifest["name"] == "test_agent"
         assert manifest["instructions"] == "Stay terse."
-
-
-@pytest.mark.parametrize(
-    "raw,expected",
-    [
-        # Credentials, path and query are all dropped; only the authority survives.
-        ("https://user:sk-secret@mcp.example.com:8443/path?token=abc", "https://mcp.example.com:8443"),
-        ("http://mcp.internal/sse", "http://mcp.internal"),
-        # A scheme-less host:port still resolves, and defaults to https rather than to nothing.
-        ("mcp.example.com:9000", "https://mcp.example.com:9000"),
-        # An IPv6 literal is re-bracketed so the rebuilt authority stays parseable.
-        ("http://[2001:db8::1]:8080/x", "http://[2001:db8::1]:8080"),
-        # A non-HTTP scheme is not a scrubbable MCP URL, which is what keeps a stdio command out of
-        # the manifest even if one ever reaches this helper.
-        ("file:///usr/local/bin/secret-tool", None),
-        ("stdio://run?key=sk-secret", None),
-        # Single-slash forms have no "//" for urlsplit to find an authority in, so they take the
-        # scheme-less host:port branch. Without a scheme check there they were rebuilt into an https
-        # URL that never existed: "stdio:/usr/bin/srv" became "https://stdio".
-        ("file:/usr/local/bin/secret-tool", None),
-        ("stdio:/usr/local/bin/srv --api-key sk-secret", None),
-        ("mailto:someone@example.com", None),
-        # A stdio command line is not a URL. Its first token was previously rebuilt into a host, and
-        # an "@" in a package name made the rest of the command read as userinfo.
-        ("npx -y @modelcontextprotocol/server-filesystem /home/me", None),
-        ("", None),
-        (None, None),
-        # No host means nothing worth emitting.
-        ("https://", None),
-        # A token containing "/" ends the authority early, so urlsplit reports the token itself as the
-        # host. Emitting that would leak a credential fragment, so the whole value drops.
-        ("https://TOKEN_abc123/@mcp.internal.corp/sse", None),
-        ("https://abc123/@mcp.internal.corp/sse", None),
-        # Not a host at all: a delimiter-free string must not be echoed back as one.
-        ("\\\\host\\share", None),
-        # urlsplit itself raises here, not just its hostname property: this netloc NFKC-normalizes
-        # into a delimiter. A raise would have cost the whole capability grouping.
-        ("https://mcp.corp：8080/sse", None),
-        # A bad port is the other urlsplit raise.
-        ("https://mcp.example.com:notaport/sse", None),
-        # An @ that genuinely is userinfo parses correctly and the credential is stripped.
-        ("https://user:pw@mcp.example.com/sse", "https://mcp.example.com"),
-    ],
-)
-def test_redact_mcp_uri(raw, expected):
-    """An allowlist: only scheme, host and port survive, so a new URL component drops by default.
-
-    Runs on every venv, unlike the toolset-level test, because it needs no MCP install.
-    """
-    from ddtrace.llmobs._integrations.pydantic_ai import _redact_mcp_uri
-
-    assert _redact_mcp_uri(raw) == expected
-
-
-def test_redact_mcp_uri_drops_userinfo_that_looks_like_a_host():
-    """A credential in the userinfo must never be mistaken for the host it precedes."""
-    from ddtrace.llmobs._integrations.pydantic_ai import _redact_mcp_uri
-
-    scrubbed = _redact_mcp_uri("https://sk-secret:sk-secret@real-host.example.com/x")
-    assert scrubbed == "https://real-host.example.com"
-    assert "sk-secret" not in scrubbed

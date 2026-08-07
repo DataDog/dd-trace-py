@@ -4,18 +4,15 @@ import inspect
 from typing import Any
 from typing import Optional
 from typing import Sequence
-from typing import get_args
 from typing import get_origin
-import urllib.parse
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._integrations.agent_manifest import MANIFEST_VERSION
+from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import put_field
-from ddtrace.llmobs._integrations.agent_manifest import wire_schema
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -34,148 +31,27 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-vertex": "google",
 }
 
-# The display name the integration has always emitted. Kept so the shared schema migration does not
-# also silently re-key every existing consumer's framework filter.
 FRAMEWORK_NAME = "PydanticAI"
-
-_HTTP_MCP_SCHEMES = frozenset({"http", "https"})
-# Legal hostname characters, plus ":" for IPv6. An IDN host drops, which is the safe direction.
-_HOSTNAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-:")
-# How far into a declared generic to look for a model. dict[str, list[Row]] is 2, and a caller can
-# nest further, but an output contract that deep is not worth an unbounded walk on every agent span.
-_MAX_OUTPUT_TYPE_DEPTH = 4
-
-# AIDEV-NOTE: an ALLOWLIST, not a denylist. Provider passthroughs on model_settings carry credentials
-# (extra_headers shipped a live Bearer token on origin/main) and providers keep adding them, so a
-# denylist is an open set. Mirrors langgraph's ALLOWED_MODEL_SETTINGS_KEYS. Widening it is a
-# security decision.
-_ALLOWED_MODEL_SETTINGS_KEYS = frozenset(
-    {
-        "frequency_penalty",
-        "logit_bias",
-        "logprobs",
-        "max_tokens",
-        "parallel_tool_calls",
-        "presence_penalty",
-        "seed",
-        "stop_sequences",
-        "temperature",
-        "timeout",
-        "tool_choice",
-        "top_k",
-        "top_logprobs",
-        "top_p",
-    }
-)
+_OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
 
 
 def _is_flat_scalar_value(value: Any) -> bool:
     """True for a JSON scalar, a flat list of scalars, or a flat mapping of scalars.
 
-    The allowlist protects the key; this protects the value. logit_bias and tool_choice accept a
-    caller-supplied mapping, which is an unbounded blob and the same shape the transport passthroughs
-    use to carry credentials. A nested structure drops rather than shipping whatever it holds.
+    The allowlist protects the key, this protects the value: a nested blob is the shape a credential
+    travels in.
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return True
     if isinstance(value, (list, tuple)):
         return all(item is None or isinstance(item, (str, int, float, bool)) for item in value)
     if isinstance(value, dict):
-        # Numeric values only. The one allowlisted mapping is logit_bias, which is token id to bias,
-        # so a string value there is already invalid and is the last way to smuggle one through.
+        # Numeric only: logit_bias is token id to bias, so a string there is already invalid.
         return all(
             isinstance(key, (str, int)) and isinstance(item, (int, float)) and not isinstance(item, bool)
             for key, item in value.items()
         )
     return False
-
-
-# Builtin-tool config fields allowed onto the wire, so a newly added secret-bearing field drops by
-# default rather than by name. A url is emitted separately and scrubbed; tokens and headers never are.
-_BUILTIN_TOOL_CONFIG_FIELDS = frozenset(
-    {
-        "allowed_domains",
-        "allowed_tools",
-        "aspect_ratio",
-        "background",
-        "blocked_domains",
-        "description",
-        "enable_citations",
-        "input_fidelity",
-        "max_content_tokens",
-        "max_uses",
-        "moderation",
-        "output_compression",
-        "output_format",
-        "partial_images",
-        "quality",
-        "search_context_size",
-        "size",
-    }
-)
-
-
-def _redact_mcp_uri(raw: Any) -> Optional[str]:
-    """Scrub an HTTP MCP URL down to scheme://host with an optional port.
-
-    An allowlist, so a new secret-bearing URL component drops by default rather than by name.
-    """
-    if not raw:
-        return None
-    text = str(raw).strip()
-    if not text or any(character.isspace() for character in text):
-        # Whitespace means this is not a URL. A stdio server's command line lands here, and its first
-        # token would otherwise be rebuilt into a host that was never one.
-        return None
-    try:
-        parsed = urllib.parse.urlsplit(text)
-        scheme = parsed.scheme.lower()
-        if not parsed.netloc and "//" not in text:
-            # A scheme-less host:port parses with the host AS the scheme, so re-parse with a leading //
-            # to let urlsplit find it. Only when what follows the colon is a port, though: otherwise
-            # this is a non-HTTP URI such as stdio:/usr/bin/srv, and rebuilding it would assert an
-            # https MCP server that does not exist.
-            _, _, after_colon = text.partition(":")
-            if scheme and not after_colon.isdigit():
-                return None
-            parsed = urllib.parse.urlsplit("//" + text)
-        elif scheme and scheme not in _HTTP_MCP_SCHEMES:
-            return None
-        host = parsed.hostname
-        port = parsed.port
-        username = parsed.username
-    except ValueError:
-        # urlsplit itself raises, not only .hostname/.port: an NFKC-normalizing netloc, a bad port.
-        return None
-    if not host:
-        return None
-    # AIDEV-NOTE: urlsplit ends the authority at the first "/", so a credential containing "/" parses
-    # as the host. Drop when an "@" precedes the path without userinfo, or the host is not hostname-like.
-    if username is None and "@" in text.split("?")[0].split("#")[0]:
-        return None
-    if not set(host).issubset(_HOSTNAME_CHARS):
-        return None
-    if ":" in host:  # IPv6 literal, re-bracket so the rebuilt authority stays parseable
-        host = "[{}]".format(host)
-    if port is not None:
-        host = "{}:{}".format(host, port)
-    scheme = parsed.scheme.lower() if parsed.scheme and parsed.scheme.lower() in _HTTP_MCP_SCHEMES else "https"
-    return "{}://{}".format(scheme, host)
-
-
-@functools.lru_cache(maxsize=1)
-def _output_marker_classes() -> tuple[type, ...]:
-    """Output-marker classes present in this pydantic-ai. A marker absent from the version is skipped."""
-    try:
-        from pydantic_ai import output as _output
-    except Exception:  # noqa: BLE001 - pydantic_ai.output does not exist on very old versions
-        return ()
-    classes: list[type] = []
-    for name in ("ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"):
-        cls = getattr(_output, name, None)
-        if isinstance(cls, type):
-            classes.append(cls)
-    return tuple(classes)
 
 
 def _iter_agent_tools(agent: Any):
@@ -188,9 +64,7 @@ def _iter_agent_tools(agent: Any):
     else:
         function_toolset = getattr(agent, "_function_toolset", None)
         user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", None) or []
-        # Only a FunctionToolset exposes a {name: tool} dict. A custom toolset's .tools may be something
-        # else entirely, and is captured as a custom capability instead, so gate on the class and on
-        # dict-ness before reading.
+        # Only a FunctionToolset exposes a {name: tool} dict; others are captured as custom.
         fn_cls = PydanticAIIntegration._function_toolset_cls()
         toolsets = [t for t in user_toolsets if fn_cls is None or isinstance(t, fn_cls)]
         if function_toolset is not None:
@@ -242,11 +116,10 @@ def _type_name(candidate: Any) -> str:
 
 
 def _collect_instructions(agent: Any) -> tuple[list[str], list[tuple[Any, bool]]]:
-    """Gather (static_texts, dynamic_resolvers) from an agent's instructions, across versions.
+    """Gather (static_texts, dynamic_resolvers) from an agent's instructions.
 
-    Version drift: _instructions is a str below 1.63.0 and a mixed list from 1.63.0 on, and dynamic
-    resolvers live in _instructions_functions below 1.63.0 but inline in the list after. Read both and
-    de-dupe by id. Instructions are rebuilt on every request, so a resolver here is always reevaluated.
+    _instructions is a str below 1.63.0 and a mixed list after, with resolvers in
+    _instructions_functions below and inline after, so read both and de-dupe by id.
     """
     static_texts: list[str] = []
     dynamic: list[tuple[Any, bool]] = []
@@ -362,9 +235,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             input_value=user_prompt,
             output_value=result,
         )
-        # Manifest last. Each grouping is failure-isolated, but the annotate call above is not, so
-        # setting name, input and output first means a manifest problem degrades to a span with no
-        # manifest rather than a span with nothing on it.
+        # Manifest last: the annotate above is not failure-isolated, so a manifest problem must
+        # not cost the span's name, input and output.
         self._tag_agent_manifest(span, kwargs, agent_instance)
 
     @staticmethod
@@ -408,8 +280,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
-        # str-only for the same reason the manifest guards it: pydantic-ai accepts a non-str
-        # description, and the span encoder falls back to repr, which can disclose the object.
+        # str-only: the encoder reprs what it cannot encode, which can disclose the object.
         if not isinstance(tool_description, str):
             tool_description = ""
 
@@ -449,9 +320,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         declared configuration is read, so the manifest is identical run to run, and a field
         pydantic-ai does not expose is omitted rather than invented.
         """
-        manifest: dict[str, Any] = {"manifest_version": MANIFEST_VERSION}
-        # The name is a literal, not section.__name__: reading an attribute off the section inside the
-        # handler can itself raise, and a second exception there escapes and costs the whole manifest.
+        manifest: dict[str, Any] = {}
         for name, section in (
             ("labels", self._manifest_labels),
             ("instructions", self._manifest_instructions),
@@ -469,27 +338,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return manifest
 
     def _manifest_labels(self, agent: Any) -> dict[str, Any]:
-        """Labels that name the agent rather than describing its behaviour.
-
-        These are builder groupings for failure isolation, not schema sections. The manifest is one
-        flat document, so no grouping name reaches the wire.
-        """
+        """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
         fields: dict[str, Any] = {"framework": FRAMEWORK_NAME}
-        # AIDEV-NOTE: the placeholder is deliberate, per review: a consumer needs something to display
-        # for an unnamed agent, and the span name already falls back to the same literal. The cost is
-        # that two distinct unnamed agents share a name here, so name must not be treated as identity
-        # for versioning. pydantic-ai may also infer a name from the caller's frame, which we cannot
-        # detect, so an absent name is not proof the caller left it unset.
+        # AIDEV-NOTE: placeholder per review, matching the span name fallback. Two unnamed agents
+        # therefore share it, so name is not an identity.
         agent_name = getattr(agent, "name", None)
         put_field(fields, "name", agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent")
-        # _description is absent across the whole supported range (0.8.1 to 1.63.0) and present by
-        # 2.24.0, so on every version CI exercises this key never appears.
-        description = getattr(agent, "_description", None)
-        put_field(fields, "description", description if isinstance(description, str) else None)
         metadata = getattr(agent, "_metadata", None)
-        # metadata accepts a callable from 1.39.0 on, resolved per run. Not captured: it is caller
-        # labels rather than behaviour, and nothing downstream versions on it, so a resolver's
-        # identity would buy nothing. Recording it needs a key the shared schema does not define.
+        # metadata may be a callable from 1.39.0 on. Only a static dict is captured; the resolver
+        # is never invoked.
         put_field(fields, "metadata", wire_value(metadata) if isinstance(metadata, dict) else None)
         return fields
 
@@ -502,9 +359,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         fields: dict[str, Any] = {}
         static_texts, dynamic_instructions = _collect_instructions(agent)
-        # Newline join to match how pydantic-ai renders a multi-entry instructions list.
         put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
-        # pydantic-ai does not validate these; a non-string would ship as a repr with a memory address.
+        # Not validated upstream; a non-string would ship as a repr.
         prompts = [p for p in (getattr(agent, "_system_prompts", None) or ()) if isinstance(p, str)]
         put_field(fields, "system_prompts", prompts)
         extra: list[dict[str, Any]] = []
@@ -530,9 +386,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         model = getattr(agent, "model", None)
         if isinstance(model, str):
-            # With defer_model_check the declared value stays a string like "openai:gpt-4o". Split on
-            # the FIRST colon: a bedrock or azure model name contains its own, and rpartition would
-            # report "bedrock:anthropic.claude-v1:0" as the model "0".
+            # First colon, not last: rpartition reads "bedrock:anthropic.claude-v1:0" as "0".
             _, _, declared_name = model.partition(":")
             put_field(fields, "model", declared_name or model)
         elif model:
@@ -542,77 +396,59 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if isinstance(settings, dict):
             allowed: dict[str, Any] = {}
             for key, value in settings.items():
-                if key not in _ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
+                if key not in ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
                     continue
-                # Through put_field, not a direct assignment: wire_value returns None for a value
-                # it cannot encode, such as NaN, and a direct assignment would ship that as an
-                # explicit null. Absence has to keep meaning "not configured".
+                # Via put_field: wire_value returns None for what it cannot encode, and a direct
+                # assignment would ship that as an explicit null.
                 put_field(allowed, key, wire_value(value))
             put_field(fields, "model_settings", allowed)
         return fields
 
     def _manifest_capabilities(self, agent: Any) -> dict[str, Any]:
-        """Function tools stay on their own key for backward compatibility, and also appear in the
-        typed capabilities list alongside the powers that are not plain functions.
-        """
+        """Function tools, plus the powers that are not plain functions, by name."""
         fields: dict[str, Any] = {}
-        tools = self._get_agent_tools(agent)
-        put_field(fields, "tools", tools)
-        # AIDEV-NOTE: a prepare hook rewrites or removes tool definitions on every step, so the list
-        # above is what was declared, NOT what the model was shown. Recording the hook makes a change
-        # to it move the manifest; it does NOT make the tool list correct. An agent that gates a
-        # destructive tool behind prepare_tools still lists that tool here. Correcting the list needs
-        # the resolved per-run toolset, which is separate work.
+        put_field(fields, "tools", self._get_agent_tools(agent))
         prepared = [
             fn
             for fn in (getattr(agent, "_prepare_tools", None), getattr(agent, "_prepare_output_tools", None))
             if callable(fn)
         ]
-        capabilities: list[dict[str, Any]] = [self._as_capability(entry, "tool") for entry in tools]
-        for kind, entries in (
-            ("mcp", self._get_mcp_servers(agent)),
-            ("builtin", self._get_builtin_tools(agent)),
-            ("custom", self._get_toolsets(agent)),
-            ("tool_preparation", self._describe_functions(prepared)),
+        capabilities: list[dict[str, Any]] = []
+        for kind, names in (
+            ("mcp", self._mcp_server_names(agent)),
+            ("builtin", self._builtin_tool_names(agent)),
+            ("custom", self._toolset_names(agent)),
+            ("tool_preparation", [_callable_name(fn) for fn in prepared]),
         ):
-            capabilities.extend(self._as_capability(entry, kind) for entry in entries)
+            capabilities.extend({"name": name, "type": kind} for name in names if name)
         put_field(fields, "capabilities", capabilities)
         return fields
 
     def _manifest_data_contracts(self, agent: Any) -> dict[str, Any]:
-        """The typed edges. pydantic-ai declares an output type but no input schema, so only output."""
-        output = self._get_agent_output_type(agent)
-        contract: dict[str, Any] = {}
-        put_field(contract, "name", output.get("name"))
-        put_field(contract, "schema", wire_schema(output.get("schema")))
-        return {"data_contracts": {"output": contract}} if contract else {}
+        """The declared output type by name. pydantic-ai declares no input schema."""
+        name = self._output_type_name(agent)
+        return {"data_contracts": {"output": {"name": name}}} if name else {}
 
     def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
-        """The message-history pipeline, order preserved.
-
-        [trim, summarize] is not the same policy as [summarize, trim]. history_processors is gone
-        from 2.x, so the key drops out on its own.
-        """
+        """The message-history pipeline, order preserved: [trim, summarize] is not [summarize, trim]."""
         fields: dict[str, Any] = {}
-        processors = getattr(agent, "history_processors", None) or []
-        history = _dedupe_by_id([fn for fn in processors if callable(fn)])
-        put_field(fields, "memory_policies", [self._as_named_content(d) for d in self._describe_functions(history)])
+        processors = _dedupe_by_id([fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)])
+        put_field(fields, "memory_policies", [_callable_name(fn) for fn in processors])
         return fields
 
     def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
-        """Output validators, order preserved for the same reason as the history pipeline."""
+        """Output validators by name, matching the shape the other integrations already emit."""
         fields: dict[str, Any] = {}
         validators = getattr(agent, "_output_validators", None) or []
         fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
-        checks = self._describe_functions([fn for fn in fns if callable(fn)])
-        put_field(fields, "guardrails", [self._as_named_content(d) for d in checks])
+        put_field(fields, "guardrails", [_callable_name(fn) for fn in fns if callable(fn)])
         return fields
 
     def _manifest_agent_settings(self, agent: Any) -> dict[str, Any]:
-        """Knobs that govern the loop across calls, as opposed to model params which tune one call.
+        """Loop-level knobs, as opposed to model params.
 
-        retries is the output-validation budget, tool_retries the per-tool one. Separate in pydantic-ai,
-        so Agent(retries=3, output_retries=2) is retries 2 with tool_retries 3, not one number.
+        retries is the output-validation budget and tool_retries the per-tool one, so
+        Agent(retries=3, output_retries=2) reports retries 2 with tool_retries 3.
         """
         settings: dict[str, Any] = {}
         # 1.107.1 renamed _max_result_retries to _max_output_retries, so fall back to the successor.
@@ -638,21 +474,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             put_field(settings, "deps_type", deps_type.__name__)
         return {"agent_settings": settings} if settings else {}
 
-    @staticmethod
-    def _as_capability(entry: dict[str, Any], kind: str) -> dict[str, Any]:
-        """Reshape an extractor entry into the shared {name, type, description?, content?} shape."""
-        capability: dict[str, Any] = {"name": entry.get("name", ""), "type": kind}
-        put_field(capability, "description", entry.get("description"))
-        put_field(capability, "content", {k: v for k, v in entry.items() if k not in ("name", "description")})
-        return capability
-
-    @staticmethod
-    def _as_named_content(described: dict[str, Any]) -> dict[str, Any]:
-        """Reshape a {name, source_hash?} descriptor into the shared {name, content?} entry shape."""
-        entry: dict[str, Any] = {"name": described.get("name", "")}
-        put_field(entry, "content", {k: v for k, v in described.items() if k != "name"})
-        return entry
-
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """Function tools as {name, description?, parameters?}, each exactly once.
 
@@ -662,9 +483,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tools: list[dict[str, Any]] = []
         for tool_name, tool_instance, _fn in _iter_agent_tools(agent):
             entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
-            # AIDEV-NOTE: str-only, because Tool(fn, description=<object>) is accepted by pydantic-ai
-            # and nothing downstream coerces it. safe_json falls back to repr for a value it cannot
-            # encode, so an object here is printed onto the wire, and a repr can carry credentials.
+            # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
+            # what it cannot encode, which can carry credentials.
             description = getattr(tool_instance, "description", None)
             put_field(entry, "description", description if isinstance(description, str) else None)
             put_field(entry, "parameters", self._tool_parameters(tool_instance))
@@ -685,9 +505,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             return {}
         parameters: dict[str, dict[str, Any]] = {}
         for param, schema in properties.items():
-            # AIDEV-NOTE: keys coerced to str. Tool.from_schema takes a caller-supplied json_schema, so
-            # a non-str key reaches here, and safe_json sorts keys: comparing an int to a str raises and
-            # the encoder returns None, dropping the whole batched payload rather than this one span.
+            # Keys coerced: Tool.from_schema takes a caller json_schema, so a non-str key reaches
+            # here. The span sanitizer stringifies keys too, so this is belt and braces.
             param_dict: dict[str, Any] = {}
             if isinstance(schema, dict):
                 put_field(param_dict, "type", wire_value(schema.get("type")))
@@ -698,11 +517,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _describe_functions(fns: list[Any]) -> list[dict[str, Any]]:
-        """Describe each function as {name, source_hash?}, the shared descriptor shape.
+        """Describe each function as {name, source_hash?}.
 
-        AIDEV-NOTE: hash the source instead of shipping it, so a change is detectable without leaking
-        code or the secrets a body can hold. signature and doc are dropped for the same reason. The hash
-        covers the decorator and indentation, so it is a change signal, not a semantic fingerprint.
+        AIDEV-NOTE: hash rather than ship the source, which can hold secrets. The hash covers the
+        decorator and indentation, so it is a change signal, not a semantic fingerprint.
         """
         described: list[dict[str, Any]] = []
         for fn in fns:
@@ -717,113 +535,39 @@ class PydanticAIIntegration(BaseLLMIntegration):
             described.append(entry)
         return described
 
-    def _get_builtin_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """Provider-side builtin tools as {name, config?}, with per-tool config allowlisted.
+    def _builtin_tool_names(self, agent: Any) -> list[str]:
+        """Provider-side builtin tools by name. _builtin_tools is gone from 2.x, so the key drops."""
+        tools = getattr(agent, "_builtin_tools", None) or []
+        return [getattr(tool, "kind", None) or type(tool).__name__ for tool in tools]
 
-        Source is agent._builtin_tools, readable up to 1.63.0. At 1.107.1 the parameter is accepted but
-        no longer retained, and at 2.x it is gone entirely, so the field drops out on its own.
-        """
-        entries: list[dict[str, Any]] = []
-        for tool in getattr(agent, "_builtin_tools", None) or []:
-            name = getattr(tool, "kind", None) or type(tool).__name__
-            if not name:
-                continue
-            entry: dict[str, Any] = {"name": name}
-            config: dict[str, Any] = {}
-            for field in sorted(_BUILTIN_TOOL_CONFIG_FIELDS):
-                put_field(config, field, wire_value(getattr(tool, field, None)))
-            put_field(config, "uri", _redact_mcp_uri(getattr(tool, "url", None)))
-            put_field(entry, "config", config)
-            entries.append(entry)
-        return entries
-
-    def _get_toolsets(self, agent: Any) -> list[dict[str, Any]]:
-        """Toolsets that are neither function tools nor MCP servers, so none is silently dropped.
-
-        A dynamic toolset is a caller factory re-resolved per run or per step, so only the factory's
-        identity is static. What it returns is per-invocation and is not a property of the agent.
-        """
+    def _toolset_names(self, agent: Any) -> list[str]:
+        """Toolsets that are neither function tools nor MCP servers, so none is silently dropped."""
         mcp_classes = self._mcp_server_classes()
         fn_cls = self._function_toolset_cls()
-        entries: list[dict[str, Any]] = []
+        names: list[str] = []
         for toolset in getattr(agent, "_user_toolsets", None) or []:
-            if mcp_classes and isinstance(toolset, mcp_classes):
+            if (mcp_classes and isinstance(toolset, mcp_classes)) or (fn_cls and isinstance(toolset, fn_cls)):
                 continue
-            if fn_cls is not None and isinstance(toolset, fn_cls):
-                continue
-            entries.append({"name": self._toolset_name(toolset)})
+            names.append(self._toolset_name(toolset))
         for toolset in getattr(agent, "_dynamic_toolsets", None) or []:
             fn = getattr(toolset, "toolset_func", None)
-            described = self._describe_functions([fn])[0] if callable(fn) else {"name": self._toolset_name(toolset)}
-            described["dynamic"] = True
-            entries.append(described)
-        return entries
+            names.append(_callable_name(fn) if callable(fn) else self._toolset_name(toolset))
+        return names
 
-    def _get_agent_output_type(self, agent: Any) -> dict[str, Any]:
-        """The output contract as {name, schema?}. An output function is not a declared type, so it is skipped.
-
-        A union such as [Fruit, Vehicle] is captured in full, so changing any alternative is reflected.
-        """
+    def _output_type_name(self, agent: Any) -> str:
+        """The declared output type by name. An output function is not a declared type."""
         if not hasattr(agent, "output_type"):
-            return {}
+            return ""
         candidates = [c for c in self._unwrap_output_markers(agent.output_type) if not self._is_output_function(c)]
-        if not candidates:
-            return {}
-        output_type: dict[str, Any] = {"name": " | ".join(_type_name(c) for c in candidates)}
-        # A container such as list[Row] is not itself a model, so testing the candidate alone drops the
-        # schema and leaves the contract as a bare name. pydantic-ai validates the container all the
-        # same, so a field change inside Row has to move the schema.
-        if any(self._references_pydantic_model(c) for c in candidates):
-            schema = self._output_schema(candidates)
-            if schema is not None:
-                output_type["schema"] = schema
-        return output_type
-
-    def _references_pydantic_model(self, candidate: Any, depth: int = 0) -> bool:
-        """True if candidate is a pydantic model or parameterizes one, such as list[Row]."""
-        if self._is_pydantic_model(candidate):
-            return True
-        if depth >= _MAX_OUTPUT_TYPE_DEPTH:
-            return False
-        return any(self._references_pydantic_model(arg, depth + 1) for arg in get_args(candidate))
+        return " | ".join(_type_name(c) for c in candidates)
 
     @staticmethod
-    def _output_schema(candidates: list[Any]) -> Optional[dict[str, Any]]:
-        """JSON schema for one pydantic model or a union of several, or None on generation failure.
-
-        A single model must use model_json_schema, which inlines properties; the TypeAdapter union form
-        wraps members in $ref and $defs, so it is reserved for a real multi-member union.
-        """
-        try:
-            from pydantic import TypeAdapter
-
-            if len(candidates) == 1:
-                candidate = candidates[0]
-                # Duck-typed rather than issubclass(BaseModel): a bare model carries the method and a
-                # parameterized generic does not, which is exactly the split, and it keeps the narrowing
-                # honest for the type checker.
-                model_json_schema = getattr(candidate, "model_json_schema", None)
-                if callable(model_json_schema):
-                    schema: dict[str, Any] = model_json_schema()
-                else:
-                    # A parameterized generic has no model_json_schema, so the adapter is the only way
-                    # to reach the member model's fields. It emits $ref plus $defs, which is fine here:
-                    # the container is the contract, so the indirection is the shape.
-                    schema = TypeAdapter(candidate).json_schema()
-            else:
-                from typing import Union
-
-                schema = TypeAdapter(Union[tuple(candidates)]).json_schema()
-        except Exception:  # noqa: BLE001 - schema and union generation can raise on exotic models
-            return None
-        return schema
-
-    @staticmethod
+    @functools.lru_cache(maxsize=1)
     def _mcp_server_classes() -> tuple[type, ...]:
-        """Every MCP class this pydantic-ai defines, for isinstance filtering. Empty when MCP is absent.
+        """Every MCP class this pydantic-ai defines, for isinstance filtering.
 
-        Every present name is matched, not the first found: at 1.107.x MCPServer and MCPToolset both
-        exist as unrelated AbstractToolset subclasses, so matching one filed the other as a plain toolset.
+        All present names, not the first found: at 1.107.x MCPServer and MCPToolset are unrelated
+        subclasses and matching one files the other as a plain toolset.
         """
         try:
             import pydantic_ai.mcp as mcp_module
@@ -837,6 +581,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return tuple(classes)
 
     @staticmethod
+    @functools.lru_cache(maxsize=1)
     def _function_toolset_cls() -> Optional[type]:
         """FunctionToolset for isinstance filtering, or None, in which case nothing is filtered out."""
         try:
@@ -850,8 +595,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset or MCP server name: the id the user set, else the class name.
 
-        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), leaking the very
-        connection config _redact_mcp_uri exists to strip. True on every supported version.
+        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), leaking the
+        connection config _redact_mcp_uri exists to strip.
         """
         try:
             toolset_id = getattr(toolset, "id", None)
@@ -860,65 +605,34 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # Require a real string: an id can be any object on a custom toolset.
         return toolset_id if isinstance(toolset_id, str) and toolset_id else type(toolset).__name__
 
-    def _get_mcp_servers(self, agent: Any) -> list[dict[str, Any]]:
-        """MCP servers as {name, uri?}. Only an HTTP url is emitted, and only scrubbed.
-
-        A stdio server has no url, so nothing is emitted for it: its command and args can carry secrets.
-        On 2.x the transport moved inside a client object, so the uri is absent rather than dug out.
-        """
-        servers: list[dict[str, Any]] = []
+    def _mcp_server_names(self, agent: Any) -> list[str]:
+        """MCP servers by name. No URI: a server address can carry credentials in any component."""
         mcp_classes = self._mcp_server_classes()
         if not mcp_classes:
-            return servers
-        for toolset in getattr(agent, "_user_toolsets", None) or []:
-            if not isinstance(toolset, mcp_classes):
-                continue
-            entry: dict[str, Any] = {"name": self._toolset_name(toolset)}
-            put_field(entry, "uri", _redact_mcp_uri(getattr(toolset, "url", None)))
-            servers.append(entry)
-        return servers
+            return []
+        toolsets = getattr(agent, "_user_toolsets", None) or []
+        return [self._toolset_name(t) for t in toolsets if isinstance(t, mcp_classes)]
 
-    # The wrapped target lives under a different attr per marker class, so read all three.
-    _OUTPUT_MARKER_ATTRS = ("output", "outputs", "output_function")
+    @staticmethod
+    def _unwrap_output_markers(output_type: Any) -> list[Any]:
+        """Candidate output types, with any ToolOutput-style wrapper replaced by what it wraps.
 
-    @classmethod
-    def _marker_target(cls, item: Any) -> tuple[Any, Any]:
-        """Return (marker, inner) if item is an output marker, else (None, item).
-
-        The isinstance gate is load-bearing: the wrapper attr names are not exclusive to marker classes,
-        so a plain dataclass, NamedTuple or Enum used as an output_type could carry a same-named member.
+        Matched by class name rather than isinstance: the wrapper attrs are not exclusive to markers,
+        so a dataclass with an "output" field would otherwise be unwrapped into its own member.
         """
-        if not isinstance(item, _output_marker_classes()):
-            return None, item
-        for attr in cls._OUTPUT_MARKER_ATTRS:
-            inner = getattr(item, attr, None)
-            if inner is not None:
-                return item, inner
-        return None, item
-
-    @classmethod
-    def _unwrap_output_markers(cls, output_type: Any) -> list[Any]:
-        """Flatten agent.output_type into candidate types: unwrap markers and expand unions."""
         candidates: list[Any] = []
         for item in output_type if isinstance(output_type, (list, tuple)) else [output_type]:
-            _, inner = cls._marker_target(item)
+            inner = item
+            if type(item).__name__ in _OUTPUT_MARKERS:
+                inner = next(
+                    (v for a in ("output", "outputs", "output_function") if (v := getattr(item, a, None))), item
+                )
             candidates.extend(inner if isinstance(inner, (list, tuple)) else [inner])
         return candidates
 
     @staticmethod
-    def _is_pydantic_model(candidate: Any) -> bool:
-        """True if candidate is a pydantic.BaseModel subclass, which means it yields a JSON schema."""
-        from pydantic import BaseModel
-
-        return isinstance(candidate, type) and issubclass(candidate, BaseModel)
-
-    @staticmethod
     def _is_output_function(candidate: Any) -> bool:
-        """Callable but not a class.
-
-        A parameterized generic such as list[Fruit] is callable and is not an instance of type, so
-        without the get_origin check it reads as a function and the real output contract is lost.
-        """
+        """Callable but not a class. The get_origin check keeps list[Fruit] from reading as one."""
         if get_origin(candidate) is not None:
             return False
         return callable(candidate) and not isinstance(candidate, type)

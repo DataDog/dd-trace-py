@@ -5,9 +5,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import put_field
-from ddtrace.llmobs._integrations.agent_manifest import wire_document
-from ddtrace.llmobs._integrations.agent_manifest import wire_schema
-from ddtrace.llmobs._integrations.agent_manifest import wire_text
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
@@ -728,23 +725,3 @@ class TestAgentManifestPrimitives:
             current["n"] = {}
             current = current["n"]
         wire_value(deep)
-
-    def test_wire_text_drops_anything_that_is_not_a_string(self):
-        class Leaky:
-            def __repr__(self):
-                return "Leaky(token=sk-not-a-real-key)"
-
-        assert wire_text("hello") == "hello"
-        assert wire_text("") == ""
-        assert wire_text(Leaky()) is None
-        assert wire_text(7) is None
-
-    def test_wire_document_keeps_null_as_data(self):
-        """A null inside a declared schema is an assertion the caller made, not an absent field."""
-        schema = {"enum": ["a", "b", None], "default": None}
-        assert wire_document(schema) == schema
-
-    def test_wire_schema_drops_the_key_when_the_document_cannot_encode(self):
-        assert wire_schema({"ok": 1, "bad": float("inf")}) == {"ok": 1}
-        assert wire_schema({"enum": ["a", float("nan")]}) == {}, "an unencodable list costs its key"
-        assert wire_schema(object()) is None, "an unencodable document drops the field entirely"

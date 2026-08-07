@@ -1,43 +1,9 @@
 ---
-security:
-  - |
-    LLM Observability: The ``pydantic_ai`` integration no longer captures provider passthrough
-    parameters from an agent's ``model_settings``, which may contain an API key, an authorization
-    token, or an end-user identifier. Only known inference parameters are captured.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration no longer captures an agent ``name`` or a tool
-    ``description`` that is not a string. Such a value was previously written to the span as its
-    ``repr``, which may disclose the contents of the object.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration no longer reports a URI for an MCP server that
-    is not addressed over HTTP. A stdio server's command, and other non-HTTP URIs, were previously
-    rebuilt into an ``https`` address that the agent never used.
-fixes:
-  - |
-    LLM Observability: The ``pydantic_ai`` integration no longer reports empty or null values for agent
-    configuration that was not set.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration now reports the model for agents created with
-    ``defer_model_check=True``, which previously omitted it.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration now reports the output schema for agents whose
-    ``output_type`` is a container such as ``list[Model]``, which previously reported only the type name.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration now preserves JSON nulls inside a reported
-    output schema. A nullable enum or a field defaulting to null previously lost that part of the
-    schema, which understated the declared contract.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration now coerces tool parameter names to strings.
-    A tool declared through ``Tool.from_schema`` with a non-string parameter name previously made the
-    span payload fail to encode, which discarded every span batched with it.
-  - |
-    LLM Observability: The ``pydantic_ai`` integration now reports ``prepare_tools`` and
-    ``prepare_output_tools`` hooks as capabilities, so a change to a hook is reflected in the agent
-    manifest. The reported tool list remains the declared one, which a hook may alter at run time.
 upgrade:
   - |
     LLM Observability: The ``pydantic_ai`` integration now reports agent configuration using the shared
     agent manifest schema. ``framework``, ``name``, ``model``, ``model_settings``, ``instructions``,
-    ``system_prompts`` and ``tools`` keep their names and meaning. New keys are ``manifest_version``,
-    ``description``, ``metadata``, ``extra_instructions``, ``capabilities``, ``data_contracts``,
-    ``memory_policies``, ``guardrails`` and ``agent_settings``.
+    ``system_prompts`` and ``tools`` keep their names and meaning, and agents created with
+    ``defer_model_check=True`` now report a model where they previously did not. New keys are
+    ``metadata``, ``extra_instructions``, ``capabilities``, ``data_contracts``, ``memory_policies``,
+    ``guardrails`` and ``agent_settings``.
