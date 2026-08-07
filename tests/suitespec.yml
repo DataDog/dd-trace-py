@@ -2,6 +2,8 @@
 components:
   $harness:
     - docker/*
+    - docker-compose.base.yml
+    - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
     - .riot/requirements/*
