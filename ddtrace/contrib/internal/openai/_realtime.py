@@ -35,6 +35,8 @@ Known limitations (deferred by design):
 """
 
 import importlib
+import threading
+import time
 from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
@@ -162,6 +164,22 @@ class _ResponseTurn:
         self.tool_results: list[ToolResult] = []
 
 
+class _PendingToolSpan:
+    """A tool-kind child span opened for a single function/MCP call, awaiting its result.
+
+    The span is parented under the emitting turn's span and started at the wall-clock moment the
+    call was first observed, so its duration reflects real tool-execution latency. ``arguments`` is
+    the parsed call input (backfilled from ``function_call_arguments.done`` or the item on
+    ``response.done`` when the earlier events didn't carry it).
+    """
+
+    def __init__(self, span: Any, turn: "_ResponseTurn", name: str) -> None:
+        self.span = span
+        self.turn = turn
+        self.name = name
+        self.arguments: Any = None
+
+
 class _RealtimeState:
     """Drives per-turn LLMObs spans (grouped by session_id) off the realtime event stream."""
 
@@ -169,6 +187,11 @@ class _RealtimeState:
         self._integration = integration
         self._client = client
         self._model = model
+        # All state below is shared between the two entry points, which run on different threads in
+        # the common sync-connection pattern (recv() looping on a background thread while send() runs
+        # on the main thread). Every mutation funnels through on_client_event / on_server_event /
+        # finish_session, so a single lock held across each of those serializes all access.
+        self._lock = threading.Lock()
         # Per-connection id used to group every turn span into one conversation in the UI.
         self._session_id = uuid.uuid4().hex
         self._session_config: dict[str, Any] = {}
@@ -185,6 +208,9 @@ class _RealtimeState:
         self._input_transcripts: dict[str, str] = {}
         # call_id -> function name, so a later function_call_output can be labeled with its tool name.
         self._tool_call_names: dict[str, str] = {}
+        # call_id -> open tool-kind child span, from when the call is first observed until its result
+        # lands (function_call_output for client calls, inline output for server MCP calls).
+        self._pending_tool_spans: dict[str, _PendingToolSpan] = {}
         # Turns whose response is done but whose input transcription hasn't arrived yet.
         self._awaiting: list[Any] = []
         self._closed = False
@@ -193,65 +219,67 @@ class _RealtimeState:
 
     def on_client_event(self, event: Any) -> None:
         try:
-            event_type = _event_type(event)
-            if event_type == "session.update":
-                self._update_session_config(_get_attr(event, "session", None))
-            elif event_type == "input_audio_buffer.append":
-                audio = _get_attr(event, "audio", None)
-                if audio:
-                    self._pending_input.audio.append(audio)
-            elif event_type == "input_audio_buffer.clear":
-                # Discarded input audio must not be attributed to the next response.
-                self._pending_input.audio.clear()
-            elif event_type == "conversation.item.create":
-                self._absorb_input_item(_get_attr(event, "item", None))
+            with self._lock:
+                event_type = _event_type(event)
+                if event_type == "session.update":
+                    self._update_session_config(_get_attr(event, "session", None))
+                elif event_type == "input_audio_buffer.append":
+                    audio = _get_attr(event, "audio", None)
+                    if audio:
+                        self._pending_input.audio.append(audio)
+                elif event_type == "input_audio_buffer.clear":
+                    # Discarded input audio must not be attributed to the next response.
+                    self._pending_input.audio.clear()
+                elif event_type == "conversation.item.create":
+                    self._absorb_input_item(_get_attr(event, "item", None))
         except Exception:
             log.debug("error handling realtime client event", exc_info=True)
 
     def on_server_event(self, event: Any) -> None:
         try:
-            event_type = _event_type(event)
-            if event_type in ("session.created", "session.updated"):
-                self._update_session_config(_get_attr(event, "session", None))
-                return
-            if event_type == "input_audio_buffer.committed":
-                self._pending_input.item_id = _get_attr(event, "item_id", None)
-                return
-            if event_type == "input_audio_buffer.cleared":
-                self._pending_input.audio.clear()
-                return
-            if event_type == "conversation.item.input_audio_transcription.completed":
-                item_id = _get_attr(event, "item_id", None)
-                transcript = str(_get_attr(event, "transcript", "") or "")
-                if item_id is not None:
-                    self._input_transcripts[item_id] = transcript
-                if self._pending_input.item_id == item_id and not self._pending_input.transcript:
-                    self._pending_input.transcript = transcript
-                # A finished turn may have been waiting on exactly this transcript — finalize it now.
-                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
-                    turn.input.transcript = turn.input.transcript or transcript
-                    self._awaiting.remove(turn)
-                    self._finalize_turn(turn)
-                return
-            if event_type == "conversation.item.input_audio_transcription.failed":
-                # Transcription won't arrive for this item; finalize any turn waiting on it so its
-                # span doesn't hang (would otherwise wait until the next turn or close).
-                item_id = _get_attr(event, "item_id", None)
-                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
-                    self._awaiting.remove(turn)
-                    self._finalize_turn(turn)
-                return
-            if event_type == "response.created":
-                response = _get_attr(event, "response", None)
-                self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None))
-                return
-            if event_type == "response.done":
-                response = _get_attr(event, "response", None)
-                self._finish_response(
-                    _get_attr(response, "id", None) or _get_attr(event, "response_id", None), response
-                )
-                return
-            self._handle_response_delta(event, event_type)
+            with self._lock:
+                event_type = _event_type(event)
+                if event_type in ("session.created", "session.updated"):
+                    self._update_session_config(_get_attr(event, "session", None))
+                    return
+                if event_type == "input_audio_buffer.committed":
+                    self._pending_input.item_id = _get_attr(event, "item_id", None)
+                    return
+                if event_type == "input_audio_buffer.cleared":
+                    self._pending_input.audio.clear()
+                    return
+                if event_type == "conversation.item.input_audio_transcription.completed":
+                    item_id = _get_attr(event, "item_id", None)
+                    transcript = str(_get_attr(event, "transcript", "") or "")
+                    if item_id is not None:
+                        self._input_transcripts[item_id] = transcript
+                    if self._pending_input.item_id == item_id and not self._pending_input.transcript:
+                        self._pending_input.transcript = transcript
+                    # A finished turn may have been waiting on exactly this transcript — finalize now.
+                    for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
+                        turn.input.transcript = turn.input.transcript or transcript
+                        self._awaiting.remove(turn)
+                        self._finalize_turn(turn)
+                    return
+                if event_type == "conversation.item.input_audio_transcription.failed":
+                    # Transcription won't arrive for this item; finalize any turn waiting on it so its
+                    # span doesn't hang (would otherwise wait until the next turn or close).
+                    item_id = _get_attr(event, "item_id", None)
+                    for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
+                        self._awaiting.remove(turn)
+                        self._finalize_turn(turn)
+                    return
+                if event_type == "response.created":
+                    response = _get_attr(event, "response", None)
+                    self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None))
+                    return
+                if event_type == "response.done":
+                    response = _get_attr(event, "response", None)
+                    self._finish_response(
+                        _get_attr(response, "id", None) or _get_attr(event, "response_id", None), response
+                    )
+                    return
+                self._handle_response_delta(event, event_type)
         except Exception:
             log.debug("error handling realtime server event", exc_info=True)
 
@@ -259,6 +287,21 @@ class _RealtimeState:
         normalized = _normalize_response_event_type(event_type)
         turn = self._responses.get(_get_attr(event, "response_id", None))
         if turn is None:
+            return
+        # Tool-call lifecycle: open a tool span when the call is first seen, capture its arguments.
+        if event_type == "response.output_item.added":
+            self._maybe_start_tool_span(turn, _get_attr(event, "item", None))
+            return
+        if event_type == "response.function_call_arguments.delta":
+            # First delta is a fallback start signal when output_item.added wasn't observed.
+            self._ensure_tool_span(turn, str(_get_attr(event, "call_id", "") or ""), "")
+            return
+        if event_type == "response.function_call_arguments.done":
+            call_id = str(_get_attr(event, "call_id", "") or "")
+            pending = self._ensure_tool_span(turn, call_id, "")
+            args = _get_attr(event, "arguments", None)
+            if pending is not None and args is not None:
+                pending.arguments = safe_load_json(str(args))
             return
         if normalized == "response.audio.delta":
             delta = _get_attr(event, "delta", None)
@@ -272,6 +315,80 @@ class _RealtimeState:
             turn.text += str(_get_attr(event, "delta", "") or "")
         elif normalized == "response.text.done":
             turn.text = str(_get_attr(event, "text", turn.text) or "")
+
+    # -- tool span lifecycle ------------------------------------------------
+
+    def _maybe_start_tool_span(self, turn: "_ResponseTurn", item: Any) -> None:
+        """Open a tool span for a function_call/mcp_call output item as soon as it's observed."""
+        if item is None:
+            return
+        item_type = _get_attr(item, "type", None)
+        if item_type not in ("function_call", "mcp_call"):
+            return
+        call_id = str(_get_attr(item, "call_id", "") or _get_attr(item, "id", "") or "")
+        name = str(_get_attr(item, "name", "") or "")
+        pending = self._ensure_tool_span(turn, call_id, name)
+        if pending is not None and pending.arguments is None:
+            args = _get_attr(item, "arguments", None)
+            if args:
+                pending.arguments = safe_load_json(str(args))
+
+    def _ensure_tool_span(
+        self, turn: "_ResponseTurn", call_id: str, name: str, start_ns: Optional[int] = None
+    ) -> Optional["_PendingToolSpan"]:
+        """Return the open tool span for ``call_id``, creating it (parented under the turn) if new.
+
+        The span's start time is the wall-clock moment the call was first observed so its duration
+        measures real tool-execution latency; a lazily-created span (its start event was never seen)
+        falls back to the turn span's start.
+        """
+        if not call_id or turn is None or turn.span is None:
+            return None
+        pending = self._pending_tool_spans.get(call_id)
+        if pending is not None:
+            if name and not pending.name:
+                pending.name = name
+            return pending
+        try:
+            # Parent under the emitting turn's span (APM child_of) and back-date to when the call was
+            # observed. The turn span may finish (at response.done) before this tool span does — that
+            # is expected; the child simply finishes afterward.
+            tool_span = self._integration.trace(
+                "createRealtimeToolCall",
+                submit_to_llmobs=True,
+                instance=SimpleNamespace(_client=self._client),
+                activate=False,
+                parent_context=turn.span,
+            )
+            tool_span.start_ns = int(start_ns if start_ns is not None else time.time_ns())
+        except Exception:
+            log.debug("error starting realtime tool span", exc_info=True)
+            return None
+        pending = _PendingToolSpan(tool_span, turn, name)
+        self._pending_tool_spans[call_id] = pending
+        return pending
+
+    def _finish_tool_span(self, call_id: str, result: Any, error: Any = None) -> None:
+        """Finalize and finish the tool span for ``call_id`` with its result/error."""
+        pending = self._pending_tool_spans.pop(call_id, None)
+        if pending is None or pending.span is None:
+            return
+        try:
+            output = result if result is not None else error
+            self._integration._llmobs_set_tags_from_realtime_tool(
+                pending.span,
+                pending.turn.span,
+                name=pending.name,
+                call_id=call_id,
+                arguments=pending.arguments,
+                result=output,
+                session_id=self._session_id,
+                error=result is None and error is not None,
+            )
+        except Exception:
+            log.debug("error tagging realtime tool span", exc_info=True)
+        finally:
+            pending.span.finish()
 
     # -- span lifecycle -----------------------------------------------------
 
@@ -306,12 +423,43 @@ class _RealtimeState:
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
         turn.tool_calls, turn.tool_results = _extract_response_tools(response)
-        # Remember each function call's name so the function_call_output the app returns later can be
-        # labeled with it (the output event itself only carries the call_id).
+        # Backfill each call's name/arguments onto its open tool span (earlier events may not have
+        # carried them), then handle the two result paths. Client function_call spans stay open until
+        # the app returns a function_call_output; server MCP calls carry their result (or error)
+        # inline here. Keep MCP output and error apart so a failed call marks its span errored.
+        mcp_io = {
+            str(_get_attr(item, "id", "") or ""): (_get_attr(item, "output", None), _get_attr(item, "error", None))
+            for item in (_get_attr(response, "output", None) or [])
+            if _get_attr(item, "type", "") == "mcp_call"
+        }
         for tool_call in turn.tool_calls:
             call_id = tool_call.get("tool_id")
-            if call_id and tool_call.get("type") == "function":
-                self._tool_call_names[call_id] = tool_call.get("name", "")
+            if not call_id:
+                continue
+            name = tool_call.get("name", "")
+            call_type = tool_call.get("type")
+            # Ensure a span exists even if the streaming start events (output_item.added /
+            # function_call_arguments.*) were never observed — some transports deliver only
+            # response.done. A newly-created span back-dates to the turn's start; an existing one
+            # (opened during streaming) keeps its earlier start. The MCP span is finished inline
+            # below; a function span stays open until its function_call_output.
+            self._ensure_tool_span(turn, call_id, name, start_ns=turn.span.start_ns if turn.span else None)
+            pending = self._pending_tool_spans.get(call_id)
+            if pending is not None:
+                if not pending.name and name:
+                    pending.name = name
+                if pending.arguments is None:
+                    pending.arguments = tool_call.get("arguments")
+            if call_type == "function":
+                # Label the eventual function_call_output with this call's tool name.
+                self._tool_call_names[call_id] = name
+            elif call_type == "mcp_call":
+                output, mcp_error = mcp_io.get(call_id, (None, None))
+                self._finish_tool_span(
+                    call_id,
+                    str(output) if output is not None else None,
+                    error=str(mcp_error) if mcp_error is not None else None,
+                )
         if not turn.input.transcript and turn.input.item_id is not None:
             turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
         # Hold the span open for a late input transcription ONLY when transcription is actually
@@ -328,19 +476,25 @@ class _RealtimeState:
         self._awaiting = []
 
     def finish_session(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
-        # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
-        self._flush_awaiting()
-        for turn in list(self._responses.values()):
-            if not turn.input.transcript and turn.input.item_id is not None:
-                turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
-            self._finalize_turn(turn)
-        self._responses.clear()
-        self._input_transcripts.clear()
-        self._tool_call_names.clear()
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
+            # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
+            self._flush_awaiting()
+            for turn in list(self._responses.values()):
+                if not turn.input.transcript and turn.input.item_id is not None:
+                    turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
+                self._finalize_turn(turn)
+            # Finish any tool spans whose result never arrived (client call still in flight at close)
+            # so none leak — submitted with whatever arguments we captured and an empty result.
+            for call_id in list(self._pending_tool_spans):
+                self._finish_tool_span(call_id, "")
+            self._responses.clear()
+            self._input_transcripts.clear()
+            self._tool_call_names.clear()
+            self._pending_tool_spans.clear()
 
     # -- tagging helpers ----------------------------------------------------
 
@@ -498,6 +652,9 @@ class _RealtimeState:
             if name:
                 result["name"] = name
             self._pending_input.tool_results.append(result)
+            # This is the real tool-execution result for the open function_call span: finish it now,
+            # giving the child span a duration that spans the actual tool call.
+            self._finish_tool_span(call_id, str(output) if output is not None else "")
             return
         # Only user items contribute to the input turn; skip assistant/system items.
         role = _get_attr(item, "role", None)
