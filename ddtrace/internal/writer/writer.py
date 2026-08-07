@@ -46,7 +46,7 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
-from ..utils.formats import parse_tags_str
+from ..utils.formats import get_test_session_token
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -674,12 +674,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
 
 
 def _resolve_test_session_token(token: Optional[str]) -> Optional[str]:
-    if token is not None:
-        return token
-    additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-    if additional_header_str is not None:
-        return parse_tags_str(additional_header_str).get("X-Datadog-Test-Session-Token")
-    return None
+    return token if token is not None else get_test_session_token()
 
 
 def _build_base_exporter_builder(
@@ -865,15 +860,33 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._client_side_stats_obfuscation:
             builder.enable_client_side_stats_obfuscation()
 
-        # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
-        if config._telemetry_enabled and sys.platform.startswith("linux"):
-            heartbeat_ms = int(
-                config._telemetry_heartbeat_interval * 1000
-            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-            builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        shared_worker = None
+        if config._telemetry_enabled:
+            # Have a single telemetry client / lifecycle - by sharing it with trace exporter.
+            # The telemetry client is guaranteed to be ready by the time this is called.
+            shared_worker = telemetry_writer._get_shared_worker()
+            # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
+            if shared_worker is None and sys.platform.startswith("linux"):
+                heartbeat_ms = int(
+                    config._telemetry_heartbeat_interval * 1000
+                )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
+                builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime())
+        exporter = builder.build(get_native_runtime())
+        if shared_worker is not None:
+            exporter.set_telemetry_handle(shared_worker)
+            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
+        return exporter
+
+    def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
+        """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
+        try:
+            self._exporter.set_telemetry_handle(worker)
+        except Exception:
+            log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """

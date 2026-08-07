@@ -119,7 +119,6 @@ def _find_all_cve_metadata(events, dep_name, cve_id):
 
 _SCA_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
 }
 
@@ -145,7 +144,9 @@ class TestSCAFlaskTelemetry:
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
         all_deps = _collect_all_deps(events)
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) > 0, (
             f"Expected dependencies with metadata key when SCA enabled. "
             f"Got {len(all_deps)} total deps, none with metadata key. "
@@ -160,7 +161,6 @@ class TestSCAFlaskTelemetry:
             token=iast_test_token,
             port=8051,
             env={
-                "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
                 "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
             },
         ) as context:
@@ -171,7 +171,9 @@ class TestSCAFlaskTelemetry:
 
         events = _get_dependency_events(iast_test_token)
         all_deps = _collect_all_deps(events)
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) == 0, (
             f"Expected no dependencies with metadata key when SCA disabled. "
             f"Got {len(deps_with_metadata_key)} deps with metadata. "
@@ -361,7 +363,6 @@ class TestSCAFlaskTelemetry:
 
 _SCA_EXTENDED_HEARTBEAT_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
     # Force the extended-heartbeat payload to fire on every heartbeat tick so we
     # can inspect it within the test's lifetime instead of waiting 24h.
@@ -494,7 +495,9 @@ class TestSCAFlaskExtendedHeartbeat:
             f"Expected dependencies in app-extended-heartbeat with SCA enabled, got none. Events: {events[:1]}"
         )
 
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) > 0, (
             f"Expected SCA-tracked deps to carry the 'metadata' key in extended heartbeat. Sample deps: {all_deps[:3]}"
         )

@@ -352,7 +352,9 @@ def iast_weak_hash_vulnerability():
     _weak_hash_vulnerability()
     from ddtrace.internal import telemetry
 
-    list_metrics_logs = list(telemetry.telemetry_writer._logs)
+    # ``_logs`` is an in-process capture installed by the telemetry_writer test fixture; the real
+    # native-backed writer has no such buffer, so fall back to empty when it is absent.
+    list_metrics_logs = list(getattr(telemetry.telemetry_writer, "_logs", []))
     return str(list_metrics_logs)
 
 
