@@ -12,15 +12,14 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
 
 
-class SpanWithTagValue(TypedDict):
-    tag_key: str
-    tag_value: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
 
 
 class Document(TypedDict, total=False):
@@ -170,6 +169,17 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+
+
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that identifies a versioned agent.
+        version: str - user tag for the version of the agent.
+
+    Set as an `agent_version` tag on the agent span only, never on its children.
+    """
+
+    version: str
 
 
 class _MetaIO(TypedDict, total=False):

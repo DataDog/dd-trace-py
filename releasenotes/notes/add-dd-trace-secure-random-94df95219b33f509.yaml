@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracing: Trace and span IDs are now generated more safely in AWS Lambda MicroVM environments,
+    reducing the risk of duplicate IDs. No configuration is required. #18017

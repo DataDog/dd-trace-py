@@ -34,6 +34,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -41,6 +42,10 @@ from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
+from ddtrace.testing.internal.pytest.xdist import XdistManifest
+from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -66,6 +71,7 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
@@ -85,6 +91,7 @@ except TypeError:
 _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
     "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
 )
+_STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
 
 
 if t.TYPE_CHECKING:
@@ -97,12 +104,14 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    XDIST_MANIFEST_STASH_KEY = pytest.StashKey[XdistManifest]()
     _HAS_STASH = True
 except AttributeError:
     # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
     # Do not check pytest.Config.stash at class level: on supported pytest versions, stash is an instance attribute.
     _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+    XDIST_MANIFEST_STASH_KEY = "xdist_manifest_key"
 
 
 def _stash_set(config, key, value):
@@ -276,7 +285,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -326,6 +335,8 @@ class TestOptPlugin:
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
+        self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
@@ -339,6 +350,7 @@ class TestOptPlugin:
 
         self.manager = session_manager
         self.session = self.manager.session
+        self.xdist_manifest: t.Optional[XdistManifest] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -417,7 +429,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
@@ -427,6 +441,20 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
+        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
+        # for a session, so the partial uploads add up to full coverage.
+        #
+        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
+        # owns coverage.py:
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
+        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
+        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
+        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
+        #     all the real data.
+        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
+        # Uploading once from the controller would only save bandwidth, and would first require implementing the
+        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
@@ -478,6 +506,11 @@ class TestOptPlugin:
             self._logs_writer = None
 
         self.manager.finish()
+
+        if self.xdist_manifest is not None:
+            # All workers have finished, so the generated manifest cache is no longer needed.
+            cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
+            self.xdist_manifest = None
 
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
@@ -541,6 +574,10 @@ class TestOptPlugin:
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        async_flush_events = _get_async_flush_events(len(session.items))
+        self.manager.writer.set_async_flush_events(async_flush_events)
+        self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
@@ -1057,8 +1094,34 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        self.reports_by_nodeid[item.nodeid][call.when] = report
-        self.excinfo_by_report[report] = call.excinfo
+
+        if self._store_passing_reports:
+            # Opt-out for the outcome aggregation optimization. This keeps the previous behavior: retain every pytest
+            # phase report and derive the final Datadog outcome later in _get_test_outcome(). It is slower because the
+            # common pass path stores a report object and exception-info entry for every setup/call/teardown phase, but
+            # it is useful as a private safety valve if a third-party plugin relies on report storage in an unexpected
+            # way.
+            self.reports_by_nodeid[item.nodeid][call.when] = report
+            self.excinfo_by_report[report] = call.excinfo
+        elif (
+            report.passed
+            and not getattr(report, "wasxfail", None)
+            and call.when == TestPhase.CALL
+            and item.nodeid in self.outcomes_by_nodeid
+        ):
+            # Fast path: a normal passing report carries no status metadata we need to preserve, so we do not store it.
+            # The implicit outcome is PASS when _get_test_outcome() finds no aggregate outcome for the item.
+            #
+            # The one important exception is external retry plugins (for example pytest-flaky or pytest-rerunfailures):
+            # they may emit a failed call report followed by a passing call report for the same pytest item. Since the
+            # later pass is no longer stored and cannot overwrite the earlier failure in reports_by_nodeid, clear the
+            # aggregate failure here. A later teardown failure, if any, will still be recorded by the non-passing path.
+            self.outcomes_by_nodeid.pop(item.nodeid, None)
+        elif not report.passed or getattr(report, "wasxfail", None):
+            # Non-passing and xfail/xpass reports carry status, error, skip, or xfail metadata. Aggregate just that
+            # final outcome data instead of retaining all phase reports. This keeps the frequent PASS path allocation
+            # free while preserving the information needed to tag the Datadog test run.
+            self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
@@ -1078,40 +1141,56 @@ class TestOptPlugin:
 
         return None
 
+    def _update_test_outcome(
+        self,
+        nodeid: str,
+        report: pytest.TestReport,
+        excinfo: t.Optional[pytest.ExceptionInfo[t.Any]],
+    ) -> None:
+        status, tags = self.outcomes_by_nodeid.get(nodeid, (TestStatus.PASS, {}))
+
+        if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
+            tags[TestTag.XFAIL_REASON] = str(wasxfail)
+            tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
+        # Preserve a failure once recorded. A later teardown failure may still override a skip, matching pytest's
+        # session outcome semantics for fixture finalizer errors.
+        if status == TestStatus.FAIL:
+            self.outcomes_by_nodeid[nodeid] = (status, tags)
+            return
+
+        if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif report.skipped:
+            status = TestStatus.SKIP
+            reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+            tags[TestTag.SKIP_REASON] = reason
+
+        self.outcomes_by_nodeid[nodeid] = (status, tags)
+
     def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
-
-        This methods consumes the test reports and exception information for the specified test, and removes them from
-        the dictionaries.
         """
-        status = TestStatus.PASS
-        tags = {}
+        if outcome := self.outcomes_by_nodeid.pop(nodeid, None):
+            return outcome
 
+        # Compatibility fallback for callers/tests that still populate the old report dictionaries directly.
+        status = TestStatus.PASS
+        tags: dict[str, str] = {}
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
-
-            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
-                tags[TestTag.XFAIL_REASON] = str(wasxfail)
-                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
-
-            excinfo = self.excinfo_by_report.pop(report, None)
-
-            if report.failed:
-                status = TestStatus.FAIL
-                tags.update(_get_exception_tags(excinfo))
+            self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
+            status, tags = self.outcomes_by_nodeid[nodeid]
+            if status == TestStatus.FAIL:
                 break
 
-            if report.skipped:
-                status = TestStatus.SKIP
-                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
-                tags[TestTag.SKIP_REASON] = reason
-                break
-
+        self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
@@ -1491,6 +1570,9 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
+    # An inherited manifest env var only applies to this process if our own controller generated it.
+    resolve_inherited_manifest_env()
+
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
         test_command=_get_test_command(early_config),
@@ -1504,6 +1586,9 @@ def pytest_load_initial_conftests(
         log.error("%s", e)
         yield
         return
+
+    # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
+    _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
@@ -1522,7 +1607,7 @@ def pytest_load_initial_conftests(
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path)
+    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -1585,6 +1670,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     try:
         plugin = plugin_class(session_manager=session_manager)
+        plugin.xdist_manifest = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return

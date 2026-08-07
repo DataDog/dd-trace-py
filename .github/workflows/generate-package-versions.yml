@@ -117,6 +117,7 @@ jobs:
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
           branch: "upgrade-latest-${{ env.VENV_NAME }}-version"
           commit-message: "Update package version"
           delete-branch: true

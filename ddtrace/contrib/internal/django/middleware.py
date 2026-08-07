@@ -14,6 +14,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped
@@ -156,7 +157,7 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
                 request=request,
             ) as ctx:
                 # Don't flag the span as errored on routine ASGI cancellation (#17728).
-                ctx.span._ignore_exception(asyncio.CancelledError)
+                span_from_context(ctx)._ignore_exception(asyncio.CancelledError)
                 return await middleware(*args, **kwargs)
 
         return traced_async_middleware_func
@@ -205,7 +206,7 @@ def _make_async_traced_middleware_hook(mw_path: str, hook: str) -> Any:
             request=request,
         ) as ctx:
             # Don't flag the span as errored on routine ASGI cancellation (#17728).
-            ctx.span._ignore_exception(asyncio.CancelledError)
+            span_from_context(ctx)._ignore_exception(asyncio.CancelledError)
             return await func(*args, **kwargs)
 
     return wrapper

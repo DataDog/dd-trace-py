@@ -4,6 +4,17 @@
 
 namespace py = pybind11;
 
+static PyObject*
+new_reference(PyObject* object)
+{
+#if PY_VERSION_HEX >= 0x030A0000
+    return Py_NewRef(object);
+#else
+    Py_INCREF(object);
+    return object;
+#endif
+}
+
 void
 TaintRange::reset()
 {
@@ -142,7 +153,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
     if (!taint_engine_context) {
         // Return the original object unchanged if context is not initialized
         if (nargs >= 1) {
-            return args[0];
+            return new_reference(args[0]);
         }
         PyErr_SetString(PyExc_RuntimeError, "IAST not initialized");
         return nullptr;
@@ -150,7 +161,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
 
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
-    PyObject* pyobject_n = nullptr;
+    py::object pyobject_n;
 
     if (nargs == 6) {
         PyObject* tainted_object = args[0];
@@ -158,10 +169,10 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         size_t context_id = PyLong_AsSize_t(ctx_obj);
         const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
-            return tainted_object;
+            return new_reference(tainted_object);
         }
 
-        pyobject_n = new_pyobject_id(tainted_object);
+        pyobject_n = py::reinterpret_steal<py::object>(new_pyobject_id(tainted_object));
         PyObject* len_pyobject_py = args[1];
 
         const long len_pyobject = PyLong_AsLong(len_pyobject_py);
@@ -171,7 +182,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
                 const auto source = Source(source_name, source_value, source_origin);
                 const auto range = safe_allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
-                result = set_ranges(pyobject_n, ranges, tx_map);
+                result = set_ranges(pyobject_n.ptr(), ranges, tx_map);
                 if (not result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
@@ -187,7 +198,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         return nullptr;
     }
 
-    return pyobject_n;
+    return pyobject_n.release().ptr();
 }
 
 std::pair<TaintRangeRefs, bool>

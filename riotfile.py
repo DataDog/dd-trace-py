@@ -214,7 +214,7 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto --dist=worksteal {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
@@ -360,7 +360,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -396,7 +396,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -441,6 +441,12 @@ venv = Venv(
                     pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-uwsgi",
+                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
+                    pkgs={"uwsgi": latest},
                 ),
             ],
         ),
@@ -594,7 +600,7 @@ venv = Venv(
                 # method does not emit a DDTraceDeprecationWarning per test.
                 "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
             },
-            command="pytest -v -n auto {cmdargs} tests/wrapping/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/wrapping/",
             pys=select_pys(),
             pkgs={
                 "pytest-xdist": latest,
@@ -607,7 +613,7 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto {cmdargs} tests/internal/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -825,7 +831,7 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest -n auto {cmdargs} tests/contrib/logging",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -1089,7 +1095,7 @@ venv = Venv(
         ),
         Venv(
             name="django:djangorestframework",
-            command="pytest -n 8 {cmdargs} tests/contrib/djangorestframework",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
@@ -1549,7 +1555,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest -n 8 {cmdargs} tests/contrib/pynamodb",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -1920,7 +1926,7 @@ venv = Venv(
         Venv(
             name="pytest",
             command=(
-                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
+                "pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/"
                 " --ignore=tests/contrib/pytest/snapshot/"
             ),
             pkgs={
@@ -2014,7 +2020,7 @@ venv = Venv(
         ),
         Venv(
             name="testing",
-            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -2312,7 +2318,7 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3223,7 +3229,7 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/google_adk",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": latest,
@@ -3331,7 +3337,7 @@ venv = Venv(
         ),
         Venv(
             name="molten",
-            command="pytest -n 8 {cmdargs} tests/contrib/molten",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],
@@ -3363,7 +3369,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
@@ -3540,7 +3546,7 @@ venv = Venv(
         Venv(
             name="ci_visibility",
             command=(
-                "pytest --ddtrace -n auto {cmdargs} tests/ci_visibility"
+                "pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility"
                 " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
             ),
             pkgs={
@@ -3594,7 +3600,7 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} tests/llmobs",
+                    command="pytest -n auto --dist=worksteal {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
@@ -3624,7 +3630,7 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
                         "pytest-xdist": latest,

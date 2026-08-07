@@ -28,11 +28,13 @@ from ddtrace.internal.threads import Lock
 if sys.version_info < (3, 15):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
-log = get_logger(__name__)
+# mypy's configured python_version is below 3.15, so it considers everything
+# past the guard above unreachable; that's expected here since the module
+# raises ImportError before this point on unsupported versions.
+log = get_logger(__name__)  # type: ignore[unreachable]
 
 _E = sys.monitoring.events
-DISABLE = sys.monitoring.DISABLE
-_DISABLE = DISABLE
+_DISABLE = sys.monitoring.DISABLE
 
 # On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
 # set_local_events alongside PY_START/PY_RETURN/LINE.
@@ -42,9 +44,9 @@ _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 #   0 DEBUGGER_ID, 1 COVERAGE_ID, 2 PROFILER_ID, 3 handled exceptions, 5 OPTIMIZER_ID.
 # Slot 4 is today's exception-profiler slot; the 3.15 stack migrates that
 # collector onto this multiplexer. Never claim 0/1/2/3/5 or a slot owned by
-# another tool name.
+# another tool name. Fall back to 3 if 4 is claimed by another tool.
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
-_CANDIDATE_TOOL_IDS = (4,)
+_CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
@@ -279,6 +281,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
+                disable = False
     return _DISABLE if disable else None
 
 

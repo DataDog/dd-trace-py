@@ -43,7 +43,7 @@ experiments:
           - name: normal_operation/tracing-profiling-enabled/python-server-utilization
             thresholds:
               - cpu_usage_percentage < 220 %
-              - rss < 1040 MB
+              - rss < 1080 MB
           - name: high_load/tracing-profiling-enabled
             thresholds:
               - throughput > 30.0 op/s

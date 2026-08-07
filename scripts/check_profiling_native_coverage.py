@@ -56,6 +56,7 @@ NATIVE_EXTENSIONS: frozenset[str] = frozenset(
         ".rs",  # Rust
         ".toml",  # Cargo.toml, .cargo/config.toml
         ".lock",  # Cargo.lock
+        ".txt",  # linker scripts and native build configuration
     }
 )
 NATIVE_EXACT_NAMES: frozenset[str] = frozenset({"CMakeLists.txt"})
