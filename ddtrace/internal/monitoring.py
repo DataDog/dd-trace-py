@@ -209,22 +209,6 @@ def _setup() -> int:
 # ---------------------------------------------------------------------------
 
 
-def _dispatch_start(code: CodeType, instruction_offset: int, entry: _Entry) -> None:
-    entry.handler.on_py_start(code, instruction_offset)
-
-
-def _dispatch_return(code: CodeType, instruction_offset: int, retval: object, entry: _Entry) -> None:
-    entry.handler.on_py_return(code, instruction_offset, retval)
-
-
-def _dispatch_unwind(code: CodeType, instruction_offset: int, exception: BaseException, entry: _Entry) -> None:
-    entry.handler.on_py_unwind(code, instruction_offset, exception)
-
-
-def _dispatch_line(code: CodeType, line_number: int, entry: _Entry) -> Optional[object]:
-    return entry.handler.on_py_line(code, line_number)
-
-
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
@@ -232,7 +216,7 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
             try:
-                _dispatch_start(code, instruction_offset, e)
+                e.handler.on_py_start(code, instruction_offset)
             except Exception:
                 log.warning("monitoring PY_START handler failed", exc_info=True)
     return None
@@ -245,7 +229,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
             try:
-                _dispatch_return(code, instruction_offset, retval, e)
+                e.handler.on_py_return(code, instruction_offset, retval)
             except Exception:
                 log.warning("monitoring PY_RETURN handler failed", exc_info=True)
     return None
@@ -258,7 +242,7 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
             try:
-                _dispatch_unwind(code, instruction_offset, exception, e)
+                e.handler.on_py_unwind(code, instruction_offset, exception)
             except Exception:
                 log.warning("monitoring PY_UNWIND handler failed", exc_info=True)
     return None
@@ -272,7 +256,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     for e in handlers.snapshot:
         if e.events & _E.LINE:
             try:
-                if _dispatch_line(code, line_number, e) is not _DISABLE:
+                if e.handler.on_py_line(code, line_number) is not _DISABLE:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
