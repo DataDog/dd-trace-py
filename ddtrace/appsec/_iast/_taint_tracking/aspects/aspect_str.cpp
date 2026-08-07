@@ -109,7 +109,7 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
       get_args(args, nargs, kwnames);
 
     // This is a flag that the function was not the original
-    if (flag_added_args == -1 or not is_pointer_this_builtin(orig_function, "str")) {
+    if (flag_added_args == -1 or not is_pointer_builtin_str(orig_function)) {
         return call_original_function(orig_function, nargs, flag_added_args, args, kwnames);
     }
 
