@@ -477,9 +477,10 @@ impl TelemetryWorkerPy {
         response_body_type: Option<Vec<String>>,
         response_code: Option<Vec<u32>>,
     ) -> PyResult<()> {
+        // ``method`` and ``path`` are Option in libdatadog, but the backend always expects string.
         let endpoint = data::Endpoint {
-            method: parse_method(&method),
-            path: if path.is_empty() { None } else { Some(path) },
+            method: Some(parse_method(&method)),
+            path: Some(path),
             operation_name: operation_name.unwrap_or_default(),
             resource_name: resource_name.unwrap_or_default(),
             request_body_type,
@@ -497,9 +498,9 @@ impl TelemetryWorkerPy {
 
 /// Best-effort HTTP method mapping for `app-endpoints`. Unknown methods map to
 /// `Other` ("*").
-fn parse_method(method: &str) -> Option<data::Method> {
+fn parse_method(method: &str) -> data::Method {
     use data::Method::*;
-    Some(match method.to_ascii_uppercase().as_str() {
+    match method.to_ascii_uppercase().as_str() {
         "GET" => Get,
         "POST" => Post,
         "PUT" => Put,
@@ -509,9 +510,8 @@ fn parse_method(method: &str) -> Option<data::Method> {
         "OPTIONS" => Options,
         "TRACE" => Trace,
         "CONNECT" => Connect,
-        "" => return None,
         _ => Other,
-    })
+    }
 }
 
 impl TelemetryWorkerPy {

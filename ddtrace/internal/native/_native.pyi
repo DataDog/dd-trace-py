@@ -1107,11 +1107,11 @@ class RemoteConfigProduct:
     ApmTracing: "RemoteConfigProduct"
     Asm: "RemoteConfigProduct"
     AsmData: "RemoteConfigProduct"
-    AsmDD: "RemoteConfigProduct"
+    AsmDd: "RemoteConfigProduct"
     AsmFeatures: "RemoteConfigProduct"
     FfeFlags: "RemoteConfigProduct"
-    LiveDebugger: "RemoteConfigProduct"
-    LiveDebuggerSymbolDb: "RemoteConfigProduct"
+    LiveDebugging: "RemoteConfigProduct"
+    LiveDebuggingSymbolDb: "RemoteConfigProduct"
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
