@@ -2,6 +2,10 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import put_field
+from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part
@@ -672,3 +676,52 @@ class TestOpenAIConstructToolCallFromStreamedChunk:
             stored, tool_call_chunk=SimpleNamespace(index=0, id=None, type=None, function=later, custom=None)
         )
         assert stored[0]["function"]["arguments"] == '{"city": "NYC"}'
+
+
+class TestAgentManifestPrimitives:
+    """The coercion every integration's manifest needs on the way out.
+
+    These exist because an unencodable value does not fail politely: the span encoder reprs it, and a
+    bare NaN or Infinity token is not valid JSON. Spans ship batched, so one bad value discards every
+    span batched with it.
+    """
+
+    def test_put_field_drops_what_means_not_configured(self):
+        fields = {}
+        for name, value in (("a", None), ("b", ""), ("c", []), ("d", {}), ("e", ()), ("f", set())):
+            put_field(fields, name, value)
+        assert fields == {}
+
+    def test_put_field_keeps_false_and_zero(self):
+        """Filtering on truthiness instead is what loses a configured temperature=0."""
+        fields = {}
+        put_field(fields, "temperature", 0)
+        put_field(fields, "parallel_tool_calls", False)
+        assert fields == {"temperature": 0, "parallel_tool_calls": False}
+
+    def test_is_number_rejects_bool_and_non_finite(self):
+        assert is_number(0) and is_number(1.5) and is_number(-3)
+        assert not is_number(True), "bool is an int subclass and would pass as a count"
+        assert not is_number(float("nan"))
+        assert not is_number(float("inf"))
+        assert not is_number(float("-inf"))
+        assert not is_number("1") and not is_number(None)
+        assert is_number(10**400), "a huge int is finite, and converting it to float to check would raise"
+
+    def test_wire_value_drops_non_finite_and_unencodable(self):
+        assert wire_value(float("nan")) is None
+        assert wire_value(float("inf")) is None
+        assert wire_value(object()) is None
+        assert wire_value({"good": 1, "bad": object()}) == {"good": 1}
+        assert wire_value([1, object()]) is None, "one unencodable element costs the list"
+
+    def test_wire_value_coerces_keys_and_terminates(self):
+        assert wire_value({1: "a"}) == {"1": "a"}
+        cyclic = {"k": 1}
+        cyclic["self"] = cyclic
+        assert wire_value(cyclic) == {"k": 1}
+        deep = current = {}
+        for _ in range(MAX_WIRE_DEPTH + 10):
+            current["n"] = {}
+            current = current["n"]
+        wire_value(deep)

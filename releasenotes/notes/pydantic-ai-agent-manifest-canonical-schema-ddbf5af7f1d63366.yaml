@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now reports agent configuration using the shared
+    agent manifest schema. ``framework``, ``name``, ``model``, ``model_settings``, ``instructions``,
+    ``system_prompts`` and ``tools`` keep their names and meaning, and agents created with
+    ``defer_model_check=True`` now report a model where they previously did not. New keys are
+    ``metadata``, ``extra_instructions``, ``capabilities``, ``data_contracts``, ``memory_policies``,
+    ``guardrails`` and ``agent_settings``.

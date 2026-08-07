@@ -1,17 +1,29 @@
+import functools
+import types
 from typing import Any
 from typing import Optional
 from typing import Sequence
+from typing import Union
+from typing import get_args
+from typing import get_origin
 
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import put_field
+from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
-from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
+
+
+log = get_logger(__name__)
 
 
 # in some cases, PydanticAI uses a different provider name than what we expect
@@ -19,6 +31,122 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-gla": "google",
     "google-vertex": "google",
 }
+
+FRAMEWORK_NAME = "PydanticAI"
+_OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
+
+
+def _is_flat_scalar_value(value: Any) -> bool:
+    """True for a JSON scalar, a flat list of scalars, or a flat mapping of scalars.
+
+    The allowlist protects the key, this protects the value: a nested blob is the shape a credential
+    travels in.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(item is None or isinstance(item, (str, int, float, bool)) for item in value)
+    if isinstance(value, dict):
+        # Numeric only: logit_bias is token id to bias, so a string there is already invalid.
+        return all(
+            isinstance(key, (str, int)) and isinstance(item, (int, float)) and not isinstance(item, bool)
+            for key, item in value.items()
+        )
+    return False
+
+
+def _iter_agent_tools(agent: Any):
+    """Yield (name, tool) for the agent's function tools, de-duped first-wins, across versions."""
+    seen: set[str] = set()
+    tool_dicts: list[dict[str, Any]] = []
+    function_tools = getattr(agent, "_function_tools", None)
+    if function_tools:
+        tool_dicts.append(function_tools)
+    else:
+        function_toolset = getattr(agent, "_function_toolset", None)
+        user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", None) or []
+        # Only a FunctionToolset exposes a {name: tool} dict; others are captured as custom.
+        fn_cls = PydanticAIIntegration._function_toolset_cls()
+        toolsets = [t for t in user_toolsets if fn_cls is None or isinstance(t, fn_cls)]
+        if function_toolset is not None:
+            toolsets.append(function_toolset)
+        for toolset in toolsets:
+            tools = getattr(toolset, "tools", None)
+            if isinstance(tools, dict):
+                tool_dicts.append(tools)
+    for tools in tool_dicts:
+        for name, tool in tools.items():
+            if name in seen:
+                continue
+            seen.add(name)
+            yield name, tool
+
+
+def _callable_name(fn: Any) -> str:
+    """Best recoverable name for a callable, never a fabricated constant.
+
+    Two distinct unnamed callables have to stay distinguishable in the manifest.
+    """
+    return getattr(fn, "__name__", None) or getattr(getattr(fn, "func", None), "__name__", None) or type(fn).__name__
+
+
+def _type_name(candidate: Any) -> str:
+    """Readable name for an output-type candidate, including a parameterized generic like list[Fruit].
+
+    Assembled from the type's parts rather than str(), which qualifies every argument with its
+    defining module: the same agent would otherwise report list[__main__.Fruit] run as a script and
+    list[app.models.Fruit] imported.
+    """
+    if candidate is type(None):
+        return "None"
+    origin, args = get_origin(candidate), get_args(candidate)
+    if origin is None or not args:
+        return getattr(candidate, "__name__", None) or str(candidate)
+    names = [_type_name(arg) for arg in args]
+    if origin is Union or origin is getattr(types, "UnionType", None):
+        return " | ".join(names)
+    return "{}[{}]".format(getattr(origin, "__name__", None) or str(origin), ", ".join(names))
+
+
+def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
+    """Gather (static_texts, dynamic_resolvers) from an agent's instructions.
+
+    _instructions is a str below 1.63.0 and a mixed list after, so a resolver sits in
+    _instructions_functions below and inline in _instructions after. The two are populated
+    exclusively, never both, so reading each in turn cannot double-count.
+    """
+    static_texts: list[str] = []
+    dynamic: list[Any] = []
+    instructions = getattr(agent, "_instructions", None)
+    if isinstance(instructions, (list, tuple)):
+        for entry in instructions:
+            if isinstance(entry, str):
+                static_texts.append(entry)
+            elif callable(entry):
+                dynamic.append(entry)
+    elif isinstance(instructions, str):
+        static_texts.append(instructions)
+    elif callable(instructions):
+        dynamic.append(instructions)
+    for runner in getattr(agent, "_instructions_functions", None) or []:
+        fn = getattr(runner, "function", runner)
+        if callable(fn):
+            dynamic.append(fn)
+    return static_texts, dynamic
+
+
+def _collect_dynamic_system_prompts(agent: Any) -> list[tuple[Any, bool]]:
+    """Gather (fn, reevaluated) dynamic system-prompt resolvers, present on every supported version.
+
+    Static prompts ship verbatim in agent._system_prompts, read directly by the builder, so only the
+    resolver wrappers are collected here. A runner marked dynamic re-runs on each step.
+    """
+    dynamic: list[tuple[Any, bool]] = []
+    for runner in getattr(agent, "_system_prompt_functions", None) or []:
+        fn = getattr(runner, "function", runner)
+        if callable(fn):
+            dynamic.append((fn, bool(getattr(runner, "dynamic", False))))
+    return dynamic
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
@@ -78,7 +206,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
-        self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
         # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
         # without setting user_prompt, we fall back to extracting the last user message from
@@ -102,6 +229,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
             input_value=user_prompt,
             output_value=result,
         )
+        # Manifest last: the annotate above is not failure-isolated, so a manifest problem must
+        # not cost the span's name, input and output.
+        self._tag_agent_manifest(span, kwargs, agent_instance)
 
     @staticmethod
     def _extract_user_prompt_from_message_history(kwargs: dict[str, Any]) -> Optional[str]:
@@ -144,6 +274,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
+        # str-only: the encoder reprs what it cannot encode, which can disclose the object.
+        if not isinstance(tool_description, str):
+            tool_description = ""
 
         output_val = None
         if not span.error:
@@ -172,71 +305,309 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
+        _annotate_llmobs_span_data(span, agent_manifest=self._build_agent_manifest(agent))
 
+    def _build_agent_manifest(self, agent: Any) -> dict[str, Any]:
+        """Build the shared agent manifest from a pydantic-ai Agent.
+
+        Sections are built independently so a framework change inside one cannot blank the rest. Only
+        declared configuration is read, so the manifest is identical run to run, and a field
+        pydantic-ai does not expose is omitted rather than invented.
+        """
         manifest: dict[str, Any] = {}
-        manifest["framework"] = "PydanticAI"
-        manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
-        model = getattr(agent, "model", None)
-        if model:
-            model_name, _ = self._get_model_and_provider(model)
-            if model_name:
-                manifest["model"] = model_name
-        if hasattr(agent, "model_settings"):
-            manifest["model_settings"] = load_data_value(agent.model_settings)
-        if hasattr(agent, "_instructions"):
-            instructions = agent._instructions
-            if isinstance(instructions, list):
-                instructions = (
-                    " ".join(instructions) if instructions and all(isinstance(i, str) for i in instructions) else None
-                )
-            manifest["instructions"] = instructions
-        if hasattr(agent, "_system_prompts"):
-            manifest["system_prompts"] = agent._system_prompts
-        manifest["tools"] = self._get_agent_tools(agent)
+        for name, section in (
+            ("labels", self._manifest_labels),
+            ("instructions", self._manifest_instructions),
+            ("model", self._manifest_model),
+            ("capabilities", self._manifest_capabilities),
+            ("data_contracts", self._manifest_data_contracts),
+            ("memory_policies", self._manifest_memory_policies),
+            ("guardrails", self._manifest_guardrails),
+            ("agent_settings", self._manifest_agent_settings),
+        ):
+            try:
+                manifest.update(section(agent))
+            except Exception:
+                log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
+        return manifest
 
-        _annotate_llmobs_span_data(span, agent_manifest=manifest)
+    def _manifest_labels(self, agent: Any) -> dict[str, Any]:
+        """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
+        fields: dict[str, Any] = {"framework": FRAMEWORK_NAME}
+        # AIDEV-NOTE: placeholder per review, matching the span name fallback. Two unnamed agents
+        # therefore share it, so name is not an identity.
+        agent_name = getattr(agent, "name", None)
+        put_field(fields, "name", agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent")
+        metadata = getattr(agent, "_metadata", None)
+        # metadata may be a callable from 1.39.0 on. Only a static dict is captured; the resolver
+        # is never invoked.
+        put_field(fields, "metadata", wire_value(metadata) if isinstance(metadata, dict) else None)
+        return fields
+
+    def _manifest_instructions(self, agent: Any) -> dict[str, Any]:
+        """What the agent is told: static text, static system prompts, and dynamic resolvers.
+
+        instructions is a plain string, so a consumer never has to branch on its type. A resolver's
+        text is only known at run time, so it lands in extra_instructions by name.
+        """
+        fields: dict[str, Any] = {}
+        static_texts, dynamic_instructions = _collect_instructions(agent)
+        put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
+        # Not validated upstream; a non-string would ship as a repr.
+        prompts = [p for p in (getattr(agent, "_system_prompts", None) or ()) if isinstance(p, str)]
+        put_field(fields, "system_prompts", prompts)
+        extra: list[dict[str, Any]] = []
+        for kind, resolvers in (
+            ("dynamic_instructions", [(fn, True) for fn in dynamic_instructions]),
+            ("dynamic_system_prompt", _collect_dynamic_system_prompts(agent)),
+        ):
+            for fn, reevaluated in resolvers:
+                extra.append({"type": kind, "name": _callable_name(fn), "reevaluated": reevaluated})
+        put_field(fields, "extra_instructions", extra)
+        return fields
+
+    def _manifest_model(self, agent: Any) -> dict[str, Any]:
+        """The model and the inference params the user set.
+
+        model_settings is filtered through an allowlist rather than copied. agent.model_settings is the
+        caller's own dict and routinely carries provider passthroughs that hold credentials.
+        """
+        fields: dict[str, Any] = {}
+        model = getattr(agent, "model", None)
+        if isinstance(model, str):
+            # First colon, not last: rpartition reads "bedrock:anthropic.claude-v1:0" as "0".
+            _, _, declared_name = model.partition(":")
+            put_field(fields, "model", declared_name or model)
+        elif model:
+            model_name, _ = self._get_model_and_provider(model)
+            put_field(fields, "model", model_name)
+        settings = getattr(agent, "model_settings", None)
+        if isinstance(settings, dict):
+            allowed: dict[str, Any] = {}
+            for key, value in settings.items():
+                if key not in ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
+                    continue
+                # Via put_field: wire_value returns None for what it cannot encode, and a direct
+                # assignment would ship that as an explicit null.
+                put_field(allowed, key, wire_value(value))
+            put_field(fields, "model_settings", allowed)
+        return fields
+
+    def _manifest_capabilities(self, agent: Any) -> dict[str, Any]:
+        """Function tools, plus the powers that are not plain functions, by name."""
+        fields: dict[str, Any] = {}
+        put_field(fields, "tools", self._get_agent_tools(agent))
+        prepared = [
+            fn
+            for fn in (getattr(agent, "_prepare_tools", None), getattr(agent, "_prepare_output_tools", None))
+            if callable(fn)
+        ]
+        capabilities: list[dict[str, Any]] = []
+        for kind, names in (
+            ("mcp", self._mcp_server_names(agent)),
+            ("builtin", self._builtin_tool_names(agent)),
+            ("custom", self._toolset_names(agent)),
+            ("tool_preparation", [_callable_name(fn) for fn in prepared]),
+        ):
+            capabilities.extend({"name": name, "type": kind} for name in names if name)
+        put_field(fields, "capabilities", capabilities)
+        return fields
+
+    def _manifest_data_contracts(self, agent: Any) -> dict[str, Any]:
+        """The declared output type by name. pydantic-ai declares no input schema."""
+        name = self._output_type_name(agent)
+        return {"data_contracts": {"output": {"name": name}}} if name else {}
+
+    def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
+        """The message-history pipeline, order preserved: [trim, summarize] is not [summarize, trim].
+
+        A repeat is kept for the same reason order is: [trim, trim] runs trim twice.
+        """
+        fields: dict[str, Any] = {}
+        processors = [fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)]
+        put_field(fields, "memory_policies", [_callable_name(fn) for fn in processors])
+        return fields
+
+    def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
+        """Output validators by name, matching the shape the other integrations already emit."""
+        fields: dict[str, Any] = {}
+        validators = getattr(agent, "_output_validators", None) or []
+        fns = [getattr(v, "function", v) for v in validators]
+        put_field(fields, "guardrails", [_callable_name(fn) for fn in fns if callable(fn)])
+        return fields
+
+    def _manifest_agent_settings(self, agent: Any) -> dict[str, Any]:
+        """Loop-level knobs, as opposed to model params.
+
+        retries is the output-validation budget and tool_retries the per-tool one, so
+        Agent(retries=3, output_retries=2) reports retries 2 with tool_retries 3.
+        """
+        settings: dict[str, Any] = {}
+        # 1.107.1 renamed _max_result_retries to _max_output_retries, so fall back to the successor.
+        retries = getattr(agent, "_max_result_retries", None)
+        if not is_number(retries):
+            retries = getattr(agent, "_max_output_retries", None)
+        for name, value in (
+            ("retries", retries),
+            ("tool_retries", getattr(agent, "_max_tool_retries", None)),
+            ("tool_timeout", getattr(agent, "_tool_timeout", None)),
+            # The parameter is not retained; it is normalized into a limiter at construction, and that
+            # limiter is None when unset, which keeps "unset" distinct from a real value.
+            ("max_concurrency", getattr(getattr(agent, "_concurrency_limiter", None), "max_running", None)),
+        ):
+            if is_number(value):
+                settings[name] = value
+        end_strategy = getattr(agent, "end_strategy", None)
+        if isinstance(end_strategy, str):
+            put_field(settings, "end_strategy", end_strategy)
+        deps_type = getattr(agent, "_deps_type", None)
+        # Omit the "no deps" default, NoneType below 2.x and object from 2.x on, so it is not noise.
+        if isinstance(deps_type, type) and deps_type not in (type(None), object):
+            put_field(settings, "deps_type", deps_type.__name__)
+        return {"agent_settings": settings} if settings else {}
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
-        """
-        Extract tools from the agent and format them to be used in the agent manifest.
+        """Function tools as {name, description?, parameters?}, each exactly once.
 
-        For pydantic-ai < 0.4.4, tools are stored in the agent's _function_tools attribute.
-        For pydantic-ai >= 0.4.4, tools are stored in the agent's _function_toolset (tools) and
-        _user_toolsets (user-defined toolsets) attributes.
+        For pydantic-ai below 0.4.4 tools live on the agent's _function_tools. From 0.4.4 on they live
+        on _function_toolset and on any user-supplied FunctionToolset in _user_toolsets.
         """
-        tools: dict[str, Any] = {}
-        if hasattr(agent, "_function_tools"):
-            tools = getattr(agent, "_function_tools", {}) or {}
-        elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
-            user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", []) or []
-            function_toolset = getattr(agent, "_function_toolset", None)
-            combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
-            for toolset in combined_toolsets:
-                tools.update(getattr(toolset, "tools", {}) or {})
+        tools: list[dict[str, Any]] = []
+        for tool_name, tool_instance in _iter_agent_tools(agent):
+            entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
+            # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
+            # what it cannot encode, which can carry credentials.
+            description = getattr(tool_instance, "description", None)
+            put_field(entry, "description", description if isinstance(description, str) else None)
+            put_field(entry, "parameters", self._tool_parameters(tool_instance))
+            tools.append(entry)
+        return tools
 
-        if not tools:
+    @staticmethod
+    def _tool_parameters(tool_instance: Any) -> dict[str, dict[str, Any]]:
+        """Extract {param: {type?, required?}} from a tool's function_schema.json_schema."""
+        function_schema = getattr(tool_instance, "function_schema", {})
+        json_schema = getattr(function_schema, "json_schema", {})
+        if not isinstance(json_schema, dict):
+            return {}
+        required = json_schema.get("required")
+        required_params = {str(param) for param in required} if isinstance(required, (list, tuple, set)) else set()
+        properties = json_schema.get("properties")
+        if not isinstance(properties, dict):
+            return {}
+        parameters: dict[str, dict[str, Any]] = {}
+        for param, schema in properties.items():
+            # Keys coerced: Tool.from_schema takes a caller json_schema, so a non-str key reaches
+            # here. The span sanitizer stringifies keys too, so this is belt and braces.
+            param_dict: dict[str, Any] = {}
+            if isinstance(schema, dict):
+                put_field(param_dict, "type", wire_value(schema.get("type")))
+            if str(param) in required_params:
+                param_dict["required"] = True
+            parameters[str(param)] = param_dict
+        return parameters
+
+    def _builtin_tool_names(self, agent: Any) -> list[str]:
+        """Provider-side builtin tools by name. _builtin_tools is gone from 2.x, so the key drops."""
+        tools = getattr(agent, "_builtin_tools", None) or []
+        return [getattr(tool, "kind", None) or type(tool).__name__ for tool in tools]
+
+    def _toolset_names(self, agent: Any) -> list[str]:
+        """Toolsets that are neither function tools nor MCP servers, so none is silently dropped."""
+        mcp_classes = self._mcp_server_classes()
+        fn_cls = self._function_toolset_cls()
+        names: list[str] = []
+        for toolset in getattr(agent, "_user_toolsets", None) or []:
+            if (mcp_classes and isinstance(toolset, mcp_classes)) or (fn_cls and isinstance(toolset, fn_cls)):
+                continue
+            names.append(self._toolset_name(toolset))
+        for toolset in getattr(agent, "_dynamic_toolsets", None) or []:
+            fn = getattr(toolset, "toolset_func", None)
+            names.append(_callable_name(fn) if callable(fn) else self._toolset_name(toolset))
+        return names
+
+    def _output_type_name(self, agent: Any) -> str:
+        """The declared output type by name. An output function is not a declared type."""
+        if not hasattr(agent, "output_type"):
+            return ""
+        candidates = [c for c in self._unwrap_output_markers(agent.output_type) if not self._is_output_function(c)]
+        return " | ".join(_type_name(c) for c in candidates)
+
+    @staticmethod
+    @functools.lru_cache(maxsize=1)
+    def _mcp_server_classes() -> tuple[type, ...]:
+        """Every MCP class this pydantic-ai defines, for isinstance filtering.
+
+        All present names, not the first found: at 1.107.x MCPServer and MCPToolset are unrelated
+        subclasses and matching one files the other as a plain toolset.
+        """
+        try:
+            import pydantic_ai.mcp as mcp_module
+        except Exception:  # noqa: BLE001 - the optional mcp extra may not be installed
+            return ()
+        classes: list[type] = []
+        for name in ("MCPServer", "MCPToolset"):
+            candidate = getattr(mcp_module, name, None)
+            if isinstance(candidate, type):
+                classes.append(candidate)
+        return tuple(classes)
+
+    @staticmethod
+    @functools.lru_cache(maxsize=1)
+    def _function_toolset_cls() -> Optional[type]:
+        """FunctionToolset for isinstance filtering, or None, in which case nothing is filtered out."""
+        try:
+            from pydantic_ai.toolsets import FunctionToolset
+        except Exception:  # noqa: BLE001 - the toolset module layout varies by version
+            return None
+        fn_cls: type = FunctionToolset
+        return fn_cls
+
+    @staticmethod
+    def _toolset_name(toolset: Any) -> str:
+        """Toolset or MCP server name: the id the user set, else the class name.
+
+        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), leaking the
+        connection config _redact_mcp_uri exists to strip.
+        """
+        try:
+            toolset_id = getattr(toolset, "id", None)
+        except Exception:  # noqa: BLE001 - id is a property on some toolsets and may raise
+            toolset_id = None
+        # Require a real string: an id can be any object on a custom toolset.
+        return toolset_id if isinstance(toolset_id, str) and toolset_id else type(toolset).__name__
+
+    def _mcp_server_names(self, agent: Any) -> list[str]:
+        """MCP servers by name. No URI: a server address can carry credentials in any component."""
+        mcp_classes = self._mcp_server_classes()
+        if not mcp_classes:
             return []
+        toolsets = getattr(agent, "_user_toolsets", None) or []
+        return [self._toolset_name(t) for t in toolsets if isinstance(t, mcp_classes)]
 
-        formatted_tools = []
-        for tool_name, tool_instance in tools.items():
-            tool_dict: dict[str, Any] = {}
-            tool_dict["name"] = tool_name
-            if hasattr(tool_instance, "description"):
-                tool_dict["description"] = tool_instance.description
-            function_schema = getattr(tool_instance, "function_schema", {})
-            json_schema = getattr(function_schema, "json_schema", {})
-            required_params = {param: True for param in json_schema.get("required", [])}
-            parameters: dict[str, dict[str, Any]] = {}
-            for param, schema in json_schema.get("properties", {}).items():
-                param_dict: dict[str, Any] = {}
-                if "type" in schema:
-                    param_dict["type"] = schema["type"]
-                if param in required_params:
-                    param_dict["required"] = True
-                parameters[param] = param_dict
-            tool_dict["parameters"] = parameters
-            formatted_tools.append(tool_dict)
-        return formatted_tools
+    @staticmethod
+    def _unwrap_output_markers(output_type: Any) -> list[Any]:
+        """Candidate output types, with any ToolOutput-style wrapper replaced by what it wraps.
+
+        Matched by class name rather than isinstance: the wrapper attrs are not exclusive to markers,
+        so a dataclass with an "output" field would otherwise be unwrapped into its own member.
+        """
+        candidates: list[Any] = []
+        for item in output_type if isinstance(output_type, (list, tuple)) else [output_type]:
+            inner = item
+            if type(item).__name__ in _OUTPUT_MARKERS:
+                inner = next(
+                    (v for a in ("output", "outputs", "output_function") if (v := getattr(item, a, None))), item
+                )
+            candidates.extend(inner if isinstance(inner, (list, tuple)) else [inner])
+        return candidates
+
+    @staticmethod
+    def _is_output_function(candidate: Any) -> bool:
+        """Callable but not a class. The get_origin check keeps list[Fruit] from reading as one."""
+        if get_origin(candidate) is not None:
+            return False
+        return callable(candidate) and not isinstance(candidate, type)
 
     def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":
