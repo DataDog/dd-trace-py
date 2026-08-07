@@ -4,6 +4,8 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
+from typing_extensions import NotRequired
+
 
 JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
 ExperimentConfigType = dict[str, JSONType]
@@ -12,6 +14,9 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
+    # The span's display name, carried so LLMObs.evaluation() can surface it as
+    # evaluated_span_name on the judge trace. Optional for backward compatibility.
+    name: NotRequired[str]
 
 
 class _FeedbackSubmitterOptional(TypedDict, total=False):

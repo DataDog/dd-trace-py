@@ -38,6 +38,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     reasoning: str
     eval_scope: str
     metadata: dict[str, Any]
+    status: str
+    error: Optional[dict[str, str]]
 
 
 @dataclass
@@ -71,6 +73,8 @@ def _build_evaluation_metric_event(
     resolve_agent_service: Callable[[Optional[str], Optional[str]], Optional[str]],
     submission_error_cls: type[Exception],
     telemetry_context: _SubmissionTelemetryContext,
+    status: Optional[str] = None,
+    error: Any = None,
 ) -> LLMObsEvaluationMetricEvent:
     join_on = telemetry_context.join_on
     has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
@@ -92,7 +96,8 @@ def _build_evaluation_metric_event(
                 "`span` must be a dictionary containing both span_id and trace_id keys. "
                 "LLMObs.export_span() can be used to generate this dictionary from a given span."
             )
-        join_on["span"] = span
+        # Keep the join key to span_id/trace_id only — export_span() may carry extra keys (e.g. name).
+        join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
     elif span_with_tag_value is not None:
         if (
             not isinstance(span_with_tag_value, dict)
@@ -132,18 +137,35 @@ def _build_evaluation_metric_event(
         telemetry_context.error = "invalid_metric_type"
         raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
 
-    if metric_type == "categorical" and not isinstance(value, str):
-        telemetry_context.error = "invalid_metric_value"
-        raise TypeError("value must be a string for a categorical metric.")
-    if metric_type == "score" and not isinstance(value, (int, float)):
-        telemetry_context.error = "invalid_metric_value"
-        raise TypeError("value must be an integer or float for a score metric.")
-    if metric_type == "boolean" and not isinstance(value, bool):
-        telemetry_context.error = "invalid_metric_value"
-        raise TypeError("value must be a boolean for a boolean metric.")
-    if metric_type == "json" and not isinstance(value, dict):
-        telemetry_context.error = "invalid_metric_value"
-        raise TypeError("value must be a dict for a json metric.")
+    # A WARN/ERROR evaluation is a skipped/failed run: it carries a structured `error` and no typed
+    # value. Validate that, default the status from an `error` payload, then skip the value-type
+    # checks + value emission for it.
+    is_error = status in ("ERROR", "WARN") or error is not None
+    if error is not None and not isinstance(error, dict):
+        telemetry_context.error = "invalid_error"
+        raise TypeError("`error` must be a dict with optional string 'type'/'message'/'stack' keys.")
+    if status is not None and status not in ("OK", "WARN", "ERROR"):
+        telemetry_context.error = "invalid_status"
+        raise ValueError("status must be one of 'OK', 'WARN', or 'ERROR'.")
+    if error is not None and status is None:
+        status = "ERROR"
+    if status in ("ERROR", "WARN") and error is None:
+        telemetry_context.error = "missing_error_for_status"
+        raise ValueError("`error` is required when status is 'ERROR' or 'WARN'.")
+
+    if not is_error:
+        if metric_type == "categorical" and not isinstance(value, str):
+            telemetry_context.error = "invalid_metric_value"
+            raise TypeError("value must be a string for a categorical metric.")
+        if metric_type == "score" and not isinstance(value, (int, float)):
+            telemetry_context.error = "invalid_metric_value"
+            raise TypeError("value must be an integer or float for a score metric.")
+        if metric_type == "boolean" and not isinstance(value, bool):
+            telemetry_context.error = "invalid_metric_value"
+            raise TypeError("value must be a boolean for a boolean metric.")
+        if metric_type == "json" and not isinstance(value, dict):
+            telemetry_context.error = "invalid_metric_value"
+            raise TypeError("value must be a dict for a json metric.")
 
     if tags is not None and not isinstance(tags, dict):
         raise submission_error_cls("tags must be a dictionary of string key-value pairs.")
@@ -173,11 +195,16 @@ def _build_evaluation_metric_event(
         "label": str(label),
         "metric_type": metric_type,
         "timestamp_ms": timestamp_ms,
-        "{}_value".format(metric_type): value,  # type: ignore
         "ml_app": ml_app,
         "tags": ["{}:{}".format(key, tag_value) for key, tag_value in evaluation_tags.items()],
         "eval_scope": eval_scope,
     }
+    if not is_error:
+        evaluation_metric["{}_value".format(metric_type)] = value  # type: ignore
+    if status is not None:
+        evaluation_metric["status"] = status
+    if error is not None:
+        evaluation_metric["error"] = error
 
     if assessment:
         if not isinstance(assessment, str) or assessment not in (

@@ -186,6 +186,24 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 
+# Judge Span Constants
+EVALUATIONS_ML_APP = "datadog-evaluations"
+EVAL_NAME_TAG = "eval_name"
+EVALUATED_ML_APP_TAG = "evaluated_ml_app"
+EVALUATED_SPAN_ID_TAG = "evaluated_span_id"
+EVALUATED_TRACE_ID_TAG = "evaluated_trace_id"
+EVALUATED_SESSION_ID_TAG = "evaluated_session_id"
+EVAL_SOURCE_TYPE_TAG = "eval_source_type"
+# meta.metadata key (NOT a tag — tags are lowercased) carrying the evaluated span's display name,
+# case-preserved. Matches managed judge spans and the eval Health page's "Evaluated" column read.
+EVALUATED_SPAN_NAME_METADATA_KEY = "evaluated_span_name"
+JUDGE_TRACE_ID_KEY = "judge_trace_id"
+JUDGE_SPAN_ID_KEY = "judge_span_id"
+# Reserved join-tag key stamped by LLMObs.evaluated_span() and consumed by
+# submit_evaluation(span_with_tag_value=...). Dot-free (agentless export rewrites "." -> "_")
+# and "_dd_"-prefixed to avoid colliding with user tags.
+EVAL_JOIN_TAG_KEY = "eval_join_id"
+
 
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""

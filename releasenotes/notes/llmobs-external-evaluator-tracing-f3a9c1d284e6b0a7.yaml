@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: Add ``LLMObs.evaluation()``, which traces an external (SDK-run) LLM-as-a-judge
+    evaluator as a standalone judge trace under ``ml_app:datadog-evaluations`` (its own trace even when
+    called inside an active span). ``LLMObs.submit_evaluation()`` gains a ``judge_span`` argument that
+    links the score to that judge trace.
+  - |
+    LLM Observability: Add ``LLMObs.evaluated_span()``, a context manager that marks an
+    auto-instrumented LLM span (for example, an OpenAI call) as an evaluation target, so a score can be
+    joined to it without managing a join id.
