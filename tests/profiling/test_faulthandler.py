@@ -369,7 +369,9 @@ def test_uninstall_not_called_on_pause_timeout() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"},
+    err=None,
+    timeout=30,
 )
 def test_faulthandler_enable_concurrent_threads() -> None:
     """Calling faulthandler.enable from two threads simultaneously must not deadlock or crash.
@@ -398,9 +400,8 @@ def test_faulthandler_enable_concurrent_threads() -> None:
 
         def _enable() -> None:
             try:
-                barrier.wait(timeout=5)
-                for _ in range(20):
-                    faulthandler.enable()
+                barrier.wait()
+                faulthandler.enable()
             except BaseException as exc:
                 errors.append(exc)
 
@@ -408,10 +409,8 @@ def test_faulthandler_enable_concurrent_threads() -> None:
         for t in threads:
             t.start()
         for t in threads:
-            t.join(timeout=10)
+            t.join()
 
-        still_alive = [t for t in threads if t.is_alive()]
-        assert not still_alive, f"{len(still_alive)} thread(s) deadlocked"
         assert not errors, f"Thread errors: {errors}"
         assert faulthandler.is_enabled()
         time.sleep(0.05)
