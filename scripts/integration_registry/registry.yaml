@@ -829,7 +829,7 @@ integrations:
   tested_versions_by_dependency:
     pyramid:
       min: 1.10.8
-      max: 2.0.2
+      max: 2.1.0
 
 - integration_name: pytest
   is_external_package: true
@@ -875,7 +875,7 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.54.1
+      max: 2.49.2
 
 - integration_name: ray_serve
   is_external_package: true
