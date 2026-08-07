@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    tracing: Adds support for OpenTelemetry HTTP semantic conventions on HTTP client and
+    server spans, enabled with ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. When enabled,
+    spans carry attributes such as ``http.request.method``, ``url.path``, ``url.full``,
+    ``server.address``, ``http.response.status_code`` and ``http.route`` instead of the
+    Datadog names, and HTTP client spans are marked as errors for 4xx as well as 5xx
+    responses. The client range is fixed at 400-599 under the flag; the default path is
+    unchanged and still uses ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` for both span kinds.
+    The rename covers the HTTP attributes written through ``set_http_meta``;
+    integrations that write HTTP tags directly, such as botocore and elasticsearch, keep the
+    Datadog names. HTTP span names are also derived from the span's own attributes under the
+    flag: ``{method} {http.route}`` on server spans, ``{method}`` alone when no route was
+    resolved, and ``{method}`` on client spans, which changes the name of every ``requests``,
+    ``httpx`` and ``urllib3`` span. A resource name set explicitly by the application is
+    preserved. The default remains the existing Datadog behavior.

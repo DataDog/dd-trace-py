@@ -21,6 +21,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
@@ -121,6 +122,12 @@ def _default_span_processors_factory(
 
     if config._trace_resource_renaming_enabled:
         span_processors.append(ResourceRenamingProcessor())
+
+    # After ResourceRenamingProcessor, which only sets http.endpoint and never the name, so the
+    # order does not matter today. Keeping the OTel naming last makes it the single writer of
+    # the name under the flag if that ever changes.
+    if config._otel_trace_semantics_enabled:
+        span_processors.append(OtelSpanNamingProcessor())
 
     span_processors.append(profiling_span_processor)
 

@@ -6,7 +6,7 @@ from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
-from ddtrace.ext import http
+from ddtrace.contrib.internal.trace_utils_base import _set_query_string_tag
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
@@ -66,7 +66,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         # aiohttp supports per-app trace_query_string overrides that may differ from
         # integration_config.trace_query_string.
         if event.trace_query_string and event.query is not None:
-            span._set_attribute(http.QUERY_STRING, event.query)
+            _set_query_string_tag(span, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in core.get_item("additional_tags", default=dict()).items():

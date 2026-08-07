@@ -19,9 +19,9 @@ from ddtrace.contrib.internal.django.patch import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
+from ddtrace.contrib.internal.trace_utils_base import _http_block_metadata
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -51,17 +51,21 @@ config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     url: Optional[str] = None
-    metadata: dict[str, str] = {}
+    metadata: dict[str, Any] = {}
     query: str = ""
     try:
-        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
+        # The dispatch below applies these to the request span as-is, so they are already
+        # spelled and shaped for whichever semantics mode is active. Built from the method and
+        # status alone first, so a failure in the calls below still leaves those on the span.
+        metadata = _http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        if query and config_django.trace_query_string:
-            metadata[http.QUERY_STRING] = query
-        user_agent = trace_utils._get_request_header_user_agent(request_headers)
-        if user_agent:
-            metadata[http.USER_AGENT] = user_agent
+        metadata = _http_block_metadata(
+            request.method,
+            403,
+            query=query if config_django.trace_query_string else None,
+            user_agent=trace_utils._get_request_header_user_agent(request_headers),
+        )
     except Exception as e:
         log.warning("Could not gather some metadata on blocked request: %s", str(e))
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))

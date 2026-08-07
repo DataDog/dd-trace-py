@@ -15,6 +15,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils_base import SERVER_URL_TAG
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -358,7 +359,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
+        request_spans[-1].set_tag(SERVER_URL_TAG, request_spans[0].get_tag(SERVER_URL_TAG))
 
     return wrapped(*args, **kwargs)
 

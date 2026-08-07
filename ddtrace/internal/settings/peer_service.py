@@ -1,5 +1,6 @@
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -11,7 +12,19 @@ class PeerServiceConfig(object):
     source_tag_name = "_dd.peer.service.source"
     tag_name = "peer.service"
     enabled_span_kinds = {SpanKind.CLIENT, SpanKind.PRODUCER}
-    prioritized_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "mongodb.db", "rpc.service", "out.host"]
+    _base_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "mongodb.db", "rpc.service", "out.host"]
+    # server.address is appended only under DD_TRACE_OTEL_SEMANTICS_ENABLED, and last, so it
+    # takes effect only when out.host is absent, which is the case for HTTP client spans under
+    # the flag. Adding it unconditionally would change peer.service on any span that already
+    # carries server.address, such as one created through the OTel API shim, with no opt-in.
+    #
+    # AIDEV-QUESTION: this is provisional. Whether server.address should feed peer.service at
+    # all, and where it belongs in the precedence order, is still pending sign-off from the
+    # peer.service owners. Revisit once we have confirmation; the ordering below is the
+    # conservative choice in the meantime, not a decision.
+    prioritized_data_sources = (
+        [*_base_data_sources, "server.address"] if config._otel_trace_semantics_enabled else _base_data_sources
+    )
 
     def __init__(self, set_defaults_enabled=None, peer_service_mapping=None):
         self._set_defaults_enabled = set_defaults_enabled

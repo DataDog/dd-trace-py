@@ -12,6 +12,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
+from ddtrace.contrib.internal.trace_utils_base import _set_status_code_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -97,7 +98,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_attribute(http.STATUS_CODE, "500")
+    _set_status_code_tag(span, 500)
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
