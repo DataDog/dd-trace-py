@@ -5,18 +5,17 @@ import ctypes.util
 from enum import IntEnum
 from platform import system
 from typing import Any
+from typing import Callable
 from typing import Optional
+from typing import Union
 
-from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_subcontext_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
+
+DDWafRulesType = Union[None, int, float, str, list[Any], dict[str, Any]]
 
 log = get_logger(__name__)
 
@@ -117,6 +116,9 @@ ddwaf_builder = ctypes.c_void_p  # mainly an abstract type in the interface
 class ddwaf_object(ctypes.Union):
     """ctypes view of the libddwaf 2.0 ``ddwaf_object`` 16-byte tagged union."""
 
+    type: int
+    value: "_ddwaf_object_value"
+
     def __init__(
         self,
         struct: Optional[DDWafRulesType] = None,
@@ -196,28 +198,42 @@ ddwaf_object_kv_p = ctypes.POINTER(ddwaf_object_kv)
 
 
 class _ddwaf_object_bool(ctypes.Structure):
+    type: int
+    val: bool
     _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_bool)]
 
 
 class _ddwaf_object_signed(ctypes.Structure):
+    type: int
+    val: int
     _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_int64)]
 
 
 class _ddwaf_object_unsigned(ctypes.Structure):
+    type: int
+    val: int
     _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_uint64)]
 
 
 class _ddwaf_object_float(ctypes.Structure):
+    type: int
+    val: float
     _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_double)]
 
 
 class _ddwaf_object_string(ctypes.Structure):
+    type: int
+    size: int
+    val: bytes
     # ``ptr`` is a raw pointer read with ctypes.string_at using the explicit size
     # (the buffer is not necessarily NUL-terminated in libddwaf 2.0).
     _fields_ = [("type", ctypes.c_uint8), ("size", ctypes.c_uint32), ("ptr", ctypes.c_void_p)]
 
 
 class _ddwaf_object_small_string(ctypes.Structure):
+    type: int
+    size: int
+    val: bytes
     _fields_ = [("type", ctypes.c_uint8), ("size", ctypes.c_uint8), ("data", ctypes.c_char * 14)]
 
 
@@ -244,6 +260,14 @@ class _ddwaf_object_map(ctypes.Structure):
 
 
 class _ddwaf_object_value(ctypes.Union):
+    b8: _ddwaf_object_bool
+    i64: _ddwaf_object_signed
+    u64: _ddwaf_object_unsigned
+    f64: _ddwaf_object_float
+    str: _ddwaf_object_string
+    sstr: _ddwaf_object_small_string
+    array: _ddwaf_object_array
+    map: _ddwaf_object_map
     _fields_ = [
         ("b8", _ddwaf_object_bool),
         ("i64", _ddwaf_object_signed),
@@ -401,7 +425,7 @@ ddwaf_log_cb = ctypes.POINTER(
 #
 
 
-ddwaf_get_default_allocator = ctypes.CFUNCTYPE(ddwaf_allocator)(
+ddwaf_get_default_allocator: Callable[[], ddwaf_allocator] = ctypes.CFUNCTYPE(ddwaf_allocator)(
     ("ddwaf_get_default_allocator", ddwaf),
     (),
 )
@@ -410,7 +434,9 @@ ddwaf_get_default_allocator = ctypes.CFUNCTYPE(ddwaf_allocator)(
 DEFAULT_ALLOCATOR = ddwaf_get_default_allocator()
 
 
-ddwaf_object_destroy = ctypes.CFUNCTYPE(None, ddwaf_object_p, ddwaf_allocator)(
+ddwaf_object_destroy: Callable[[ddwaf_object, ddwaf_allocator], None] = ctypes.CFUNCTYPE(
+    None, ddwaf_object_p, ddwaf_allocator
+)(
     ("ddwaf_object_destroy", ddwaf),
     (
         (1, "object"),
@@ -428,7 +454,9 @@ def ddwaf_object_free(obj: ddwaf_object) -> None:
 # Functions Prototypes (creating python counterpart function from C function)
 #
 
-ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
+ddwaf_init: Callable[[ddwaf_object, ddwaf_object], ddwaf_handle] = ctypes.CFUNCTYPE(
+    ddwaf_handle, ddwaf_object_p, ddwaf_object_p
+)(
     ("ddwaf_init", ddwaf),
     (
         (1, "ruleset_map"),
@@ -437,16 +465,12 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
 )
 
 
-def py_ddwaf_init(ruleset_map: ddwaf_object, info: ddwaf_object) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, info), ddwaf_destroy)
-
-
-ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
+ddwaf_destroy: Callable[[ddwaf_handle], None] = ctypes.CFUNCTYPE(None, ddwaf_handle)(
     ("ddwaf_destroy", ddwaf),
     ((1, "handle"),),
 )
 
-ddwaf_known_addresses = ctypes.CFUNCTYPE(
+ddwaf_known_addresses: Callable[[ddwaf_handle, ctypes.c_uint32], "ctypes._Pointer[ctypes.c_char_p]"] = ctypes.CFUNCTYPE(
     ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
 )(
     ("ddwaf_known_addresses", ddwaf),
@@ -457,13 +481,9 @@ ddwaf_known_addresses = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> list[str]:
-    size = ctypes.c_uint32()
-    obj = ddwaf_known_addresses(handle.handle, size)
-    return [obj[i].decode("UTF-8") for i in range(size.value)]
-
-
-ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle, ddwaf_allocator)(
+ddwaf_context_init: Callable[[ddwaf_handle, ddwaf_allocator], ddwaf_context] = ctypes.CFUNCTYPE(
+    ddwaf_context, ddwaf_handle, ddwaf_allocator
+)(
     ("ddwaf_context_init", ddwaf),
     (
         (1, "handle"),
@@ -472,11 +492,7 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle, ddwaf_allocat
 )
 
 
-def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule:
-    return ddwaf_context_capsule(ddwaf_context_init(handle.handle, DEFAULT_ALLOCATOR), ddwaf_context_destroy)
-
-
-ddwaf_context_eval = ctypes.CFUNCTYPE(
+ddwaf_context_eval: Callable[[ddwaf_context, ddwaf_object, ddwaf_allocator, ddwaf_object, int], int] = ctypes.CFUNCTYPE(
     ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_allocator, ddwaf_object_p, ctypes.c_uint64
 )(
     ("ddwaf_context_eval", ddwaf),
@@ -489,7 +505,7 @@ ddwaf_context_eval = ctypes.CFUNCTYPE(
     ),
 )
 
-ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
+ddwaf_context_destroy: Callable[[ddwaf_context], None] = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ("ddwaf_context_destroy", ddwaf),
     ((1, "context"),),
 )
@@ -498,30 +514,26 @@ ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
 # ddwaf_subcontext (libddwaf 2.0 replacement for ephemeral data)
 
 
-ddwaf_subcontext_init = ctypes.CFUNCTYPE(ddwaf_subcontext, ddwaf_context)(
+ddwaf_subcontext_init: Callable[[ddwaf_context], ddwaf_subcontext] = ctypes.CFUNCTYPE(ddwaf_subcontext, ddwaf_context)(
     ("ddwaf_subcontext_init", ddwaf),
     ((1, "context"),),
 )
 
 
-def py_ddwaf_subcontext_init(ctx: ddwaf_context_capsule) -> ddwaf_subcontext_capsule:
-    return ddwaf_subcontext_capsule(ddwaf_subcontext_init(ctx.ctx), ddwaf_subcontext_destroy)
-
-
-ddwaf_subcontext_eval = ctypes.CFUNCTYPE(
-    ctypes.c_int, ddwaf_subcontext, ddwaf_object_p, ddwaf_allocator, ddwaf_object_p, ctypes.c_uint64
-)(
-    ("ddwaf_subcontext_eval", ddwaf),
-    (
-        (1, "subcontext"),
-        (1, "data"),
-        (1, "alloc"),
-        (1, "result"),
-        (1, "timeout"),
-    ),
+ddwaf_subcontext_eval: Callable[[ddwaf_subcontext, ddwaf_object, ddwaf_allocator, ddwaf_object, int], int] = (
+    ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_subcontext, ddwaf_object_p, ddwaf_allocator, ddwaf_object_p, ctypes.c_uint64)(
+        ("ddwaf_subcontext_eval", ddwaf),
+        (
+            (1, "subcontext"),
+            (1, "data"),
+            (1, "alloc"),
+            (1, "result"),
+            (1, "timeout"),
+        ),
+    )
 )
 
-ddwaf_subcontext_destroy = ctypes.CFUNCTYPE(None, ddwaf_subcontext)(
+ddwaf_subcontext_destroy: Callable[[ddwaf_subcontext], None] = ctypes.CFUNCTYPE(None, ddwaf_subcontext)(
     ("ddwaf_subcontext_destroy", ddwaf),
     ((1, "subcontext"),),
 )
@@ -530,38 +542,29 @@ ddwaf_subcontext_destroy = ctypes.CFUNCTYPE(None, ddwaf_subcontext)(
 # ddwaf_builder
 
 
-ddwaf_builder_init = ctypes.CFUNCTYPE(ddwaf_builder)(
+ddwaf_builder_init: Callable[[], ddwaf_builder] = ctypes.CFUNCTYPE(ddwaf_builder)(
     ("ddwaf_builder_init", ddwaf),
     (),
 )
 
 
-def py_ddwaf_builder_init() -> ddwaf_builder_capsule:
-    return ddwaf_builder_capsule(ddwaf_builder_init(), ddwaf_builder_destroy)
-
-
-ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
-    ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32, ddwaf_object_p, ddwaf_object_p
-)(
-    ("ddwaf_builder_add_or_update_config", ddwaf),
-    (
-        (1, "builder"),
-        (1, "path"),
-        (1, "path_len"),
-        (1, "config"),
-        (1, "diagnostics"),
-    ),
+ddwaf_builder_add_or_update_config: Callable[[ddwaf_builder, bytes, int, ddwaf_object, ddwaf_object], bool] = (
+    ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32, ddwaf_object_p, ddwaf_object_p)(
+        ("ddwaf_builder_add_or_update_config", ddwaf),
+        (
+            (1, "builder"),
+            (1, "path"),
+            (1, "path_len"),
+            (1, "config"),
+            (1, "diagnostics"),
+        ),
+    )
 )
 
 
-def py_add_or_update_config(
-    builder: ddwaf_builder_capsule, path: str, config: ddwaf_object, diagnostics: ddwaf_object
-) -> bool:
-    bin_path = path.encode()
-    return ddwaf_builder_add_or_update_config(builder.builder, bin_path, len(bin_path), config, diagnostics)
-
-
-ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32)(
+ddwaf_builder_remove_config: Callable[[ddwaf_builder, bytes, int], bool] = ctypes.CFUNCTYPE(
+    ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32
+)(
     ("ddwaf_builder_remove_config", ddwaf),
     (
         (1, "builder"),
@@ -571,22 +574,13 @@ ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, cty
 )
 
 
-def py_remove_config(builder: ddwaf_builder_capsule, path: str) -> bool:
-    bin_path = path.encode()
-    return ddwaf_builder_remove_config(builder.builder, bin_path, len(bin_path))
-
-
-ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
+ddwaf_builder_build_instance: Callable[[ddwaf_builder], ddwaf_handle] = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
     ("ddwaf_builder_build_instance", ddwaf),
     ((1, "builder"),),
 )
 
 
-def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
-
-
-ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
+ddwaf_builder_get_config_paths: Callable[[ddwaf_builder, None, bytes, int], int] = ctypes.CFUNCTYPE(
     ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32
 )(
     ("ddwaf_builder_get_config_paths", ddwaf),
@@ -599,11 +593,7 @@ ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter_str: str) -> int:
-    return ddwaf_builder_get_config_paths(builder.builder, None, filter_str.encode(), len(filter_str))
-
-
-ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
+ddwaf_builder_destroy: Callable[[ddwaf_builder], None] = ctypes.CFUNCTYPE(None, ddwaf_builder)(
     ("ddwaf_builder_destroy", ddwaf),
     ((1, "builder"),),
 )
@@ -612,9 +602,9 @@ ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
 # ddwaf_object creation / serialization (libddwaf 2.0 set_* and insert API)
 
 
-ddwaf_object_set_string = ctypes.CFUNCTYPE(
-    ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
-)(
+ddwaf_object_set_string: Callable[
+    ["ctypes._Pointer[ddwaf_object]", bytes, int, ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"
+] = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator)(
     ("ddwaf_object_set_string", ddwaf),
     (
         (1, "object"),
@@ -624,44 +614,56 @@ ddwaf_object_set_string = ctypes.CFUNCTYPE(
     ),
 )
 
-ddwaf_object_set_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
-    ("ddwaf_object_set_signed", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
+ddwaf_object_set_signed: Callable[["ctypes._Pointer[ddwaf_object]", int], "ctypes._Pointer[ddwaf_object]"] = (
+    ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+        ("ddwaf_object_set_signed", ddwaf),
+        (
+            (1, "object"),
+            (1, "value"),
+        ),
+    )
 )
 
-ddwaf_object_set_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
-    ("ddwaf_object_set_unsigned", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
+ddwaf_object_set_unsigned: Callable[["ctypes._Pointer[ddwaf_object]", int], "ctypes._Pointer[ddwaf_object]"] = (
+    ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+        ("ddwaf_object_set_unsigned", ddwaf),
+        (
+            (1, "object"),
+            (1, "value"),
+        ),
+    )
 )
 
-ddwaf_object_set_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
-    ("ddwaf_object_set_bool", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
+ddwaf_object_set_bool: Callable[["ctypes._Pointer[ddwaf_object]", bool], "ctypes._Pointer[ddwaf_object]"] = (
+    ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
+        ("ddwaf_object_set_bool", ddwaf),
+        (
+            (1, "object"),
+            (1, "value"),
+        ),
+    )
 )
 
-ddwaf_object_set_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
-    ("ddwaf_object_set_float", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
+ddwaf_object_set_float: Callable[["ctypes._Pointer[ddwaf_object]", float], "ctypes._Pointer[ddwaf_object]"] = (
+    ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
+        ("ddwaf_object_set_float", ddwaf),
+        (
+            (1, "object"),
+            (1, "value"),
+        ),
+    )
 )
 
-ddwaf_object_set_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+ddwaf_object_set_null: Callable[["ctypes._Pointer[ddwaf_object]"], "ctypes._Pointer[ddwaf_object]"] = ctypes.CFUNCTYPE(
+    ddwaf_object_p, ddwaf_object_p
+)(
     ("ddwaf_object_set_null", ddwaf),
     ((1, "object"),),
 )
 
-ddwaf_object_set_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+ddwaf_object_set_array: Callable[
+    ["ctypes._Pointer[ddwaf_object]", int, ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"
+] = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
     ("ddwaf_object_set_array", ddwaf),
     (
         (1, "object"),
@@ -670,7 +672,9 @@ ddwaf_object_set_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes
     ),
 )
 
-ddwaf_object_set_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+ddwaf_object_set_map: Callable[
+    ["ctypes._Pointer[ddwaf_object]", int, ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"
+] = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
     ("ddwaf_object_set_map", ddwaf),
     (
         (1, "object"),
@@ -680,17 +684,19 @@ ddwaf_object_set_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c
 )
 
 # Returns a pointer to the newly inserted (uninitialized) element to be built into.
-ddwaf_object_insert = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
-    ("ddwaf_object_insert", ddwaf),
-    (
-        (1, "array"),
-        (1, "alloc"),
-    ),
+ddwaf_object_insert: Callable[["ctypes._Pointer[ddwaf_object]", ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"] = (
+    ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
+        ("ddwaf_object_insert", ddwaf),
+        (
+            (1, "array"),
+            (1, "alloc"),
+        ),
+    )
 )
 
-ddwaf_object_insert_key = ctypes.CFUNCTYPE(
-    ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
-)(
+ddwaf_object_insert_key: Callable[
+    ["ctypes._Pointer[ddwaf_object]", bytes, int, ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"
+] = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator)(
     ("ddwaf_object_insert_key", ddwaf),
     (
         (1, "map"),
@@ -700,7 +706,7 @@ ddwaf_object_insert_key = ctypes.CFUNCTYPE(
     ),
 )
 
-ddwaf_object_from_json = ctypes.CFUNCTYPE(
+ddwaf_object_from_json: Callable[[ddwaf_object, bytes, int, ddwaf_allocator], bool] = ctypes.CFUNCTYPE(
     ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
 )(
     ("ddwaf_object_from_json", ddwaf),
@@ -713,7 +719,7 @@ ddwaf_object_from_json = ctypes.CFUNCTYPE(
 )
 
 
-ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
+ddwaf_get_version: Callable[[], bytes] = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     ("ddwaf_get_version", ddwaf),
     (),
 )
@@ -721,7 +727,7 @@ ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
 asm_config._ddwaf_version = ddwaf_get_version().decode()
 
 
-ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(
+ddwaf_set_log_cb: Callable[[Any, int], bool] = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(
     ("ddwaf_set_log_cb", ddwaf),
     (
         (1, "cb"),

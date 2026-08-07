@@ -44,7 +44,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
-from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -661,7 +661,7 @@ class SyncRemoteConfigPoller(RemoteConfigPoller):
 
     def poll(self) -> None:
         """Force client subscriber to poll new data for testing."""
-        self._client._global_subscriber.periodic()
+        self._client.dispatch_native_changes([])
 
 
 @pytest.fixture
@@ -684,8 +684,24 @@ def rc_poller():
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
-    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
+    telemetry_writer = TelemetryWriter(agentless=False)
     telemetry_writer.enable()
+
+    # Capture emitted logs in-process, exposed as ``_logs``, so tests can assert on them: the native
+    # worker otherwise only ships logs to the agent (there is no in-process buffer anymore). Wrapping
+    # ``add_log`` is enough because ``add_error_log`` (used by the ddtrace error-log handler for IAST
+    # native exceptions) funnels through it. Each entry mirrors the old ``LogData`` shape enough for
+    # existing assertions (which key on ``message``).
+    telemetry_writer._logs = []
+    _orig_add_log = telemetry_writer.add_log
+
+    def _capturing_add_log(level, message, stack_trace="", tags=None):
+        telemetry_writer._logs.append(
+            {"message": message, "level": getattr(level, "value", level), "stack_trace": stack_trace, "tags": tags}
+        )
+        return _orig_add_log(level, message, stack_trace=stack_trace, tags=tags)
+
+    telemetry_writer.add_log = _capturing_add_log
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
@@ -694,7 +710,7 @@ def telemetry_writer():
             yield telemetry_writer
 
     finally:
-        if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
+        if telemetry_writer._worker is not None:
             telemetry_writer.disable()
         ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
@@ -705,7 +721,9 @@ class TelemetryTestSession(object):
         self.telemetry_writer = telemetry_writer
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
+        from ddtrace.internal.settings._agent import config as _agent_config
+
+        parsed = parse.urlparse(_agent_config.trace_agent_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method: str, url: str) -> tuple[int, bytes]:
@@ -758,7 +776,7 @@ class TelemetryTestSession(object):
 
         Results are in reverse order by ``seq_id``
         """
-        requests = self.get_requests()
+        requests = self.get_requests(filter_heartbeats=filter_heartbeats)
         events = []
         for req in requests:
             for req_body in self._get_request_bodies(req):
@@ -773,13 +791,13 @@ class TelemetryTestSession(object):
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:
-            payloads = [{"payload": req["body"]["payload"], "request_type": req["body"]["request_type"]}]
+            payloads = [{"payload": req["body"].get("payload"), "request_type": req["body"]["request_type"]}]
 
         requests = []
         for payload in payloads:
             req_body = copy.deepcopy(req["body"])
             req_body["request_type"] = payload["request_type"]
-            req_body["payload"] = payload["payload"]
+            req_body["payload"] = payload.get("payload") or {}
             requests.append(req_body)
         return requests
 
@@ -821,15 +839,17 @@ class TelemetryTestSession(object):
             for c in configurations:
                 c.pop("seq_id")
 
+        # The native worker always emits a per-config ``config_id`` - noise for the test.
+        for c in configurations:
+            if c.get("config_id") is None:
+                c.pop("config_id", None)
+
         return configurations
 
 
 @pytest.fixture
 def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
-    telemetry_writer._restart_sequence()
-    telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
-
     requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
@@ -847,6 +867,19 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
         finally:
             conn.close()
 
+    # Apply the token AFTER the session is registered: the native worker is rebuilt
+    # and (re-)emits app-started, which must land in this session to be asserted on.
+    telemetry_writer._restart_sequence()
+    telemetry_writer.set_test_session_token(token)
+    # Export the session token for child processes via the canonical carrier the trace
+    # writer, Remote Config, and the telemetry worker all read (an
+    # X-Datadog-Test-Session-Token pair in _DD_TRACE_WRITER_ADDITIONAL_HEADERS), merging
+    # into any headers already set rather than clobbering them.
+    persistent_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    headers = parse_tags_str(persistent_headers or "")
+    headers["X-Datadog-Test-Session-Token"] = token
+    os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join("%s:%s" % (k, v) for k, v in headers.items())
+
     p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
         # The default environment for the telemetry writer tests disables agentless mode
@@ -856,7 +889,10 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
         yield requests
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
-        telemetry_writer.reset_queues()
+        if persistent_headers is None:
+            os.environ.pop("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", None)
+        else:
+            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = persistent_headers
 
 
 @pytest.fixture()

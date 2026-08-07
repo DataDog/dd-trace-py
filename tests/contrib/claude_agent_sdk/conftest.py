@@ -13,6 +13,8 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SE
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
+from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_PARALLEL_TOOL_USE_SEQUENCE
@@ -82,6 +84,18 @@ def mock_internal_client(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_double_assistant_no_tools(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_dedupe_same_message_id(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_dedupe_tool_split(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE):
         yield
 
 

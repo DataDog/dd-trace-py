@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where applications using uWSGI with ``--lazy-apps`` and
+    ``--skip-atexit`` can crash while workers shut down on Python 3.12 or later.

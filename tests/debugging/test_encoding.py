@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 
 from collections import defaultdict
+from collections import namedtuple
 import inspect
 import json
 import sys
 import threading
 from typing import Any
+from typing import Generic
+from typing import NamedTuple
 from typing import Optional
+from typing import TypeVar
 from typing import cast
 
 import pytest
@@ -53,6 +57,33 @@ class Tree(object):
 
 
 tree = Tree("root", Node("0", Node("0l", Node("0ll"), Node("0lr")), Node("0r", Node("0rl"))))
+
+
+PointFunctional = namedtuple("PointFunctional", ["x", "y"])
+
+
+class PointTyped(NamedTuple):
+    x: int
+    y: int
+
+
+class Credentials(NamedTuple):
+    username: str
+    password: str
+
+
+_T = TypeVar("_T")
+
+# Generic typing.NamedTuple via multiple inheritance is only supported on 3.11+.
+if sys.version_info >= (3, 11):
+
+    class GenericPoint(NamedTuple, Generic[_T]):
+        x: _T
+        y: _T
+
+    _NAMEDTUPLE_FLAVORS = [PointFunctional, PointTyped, GenericPoint]
+else:
+    _NAMEDTUPLE_FLAVORS = [PointFunctional, PointTyped]
 
 
 @pytest.mark.parametrize(
@@ -924,3 +955,146 @@ def test_numpy_import_hook_expands_types_end_to_end():
     assert numpy.float64 in utils.SIMPLE_TYPES
     assert numpy.ndarray in utils.CONTAINER_TYPES
     assert numpy.ndarray in utils.ARRAY_TYPES
+
+
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
+def test_is_namedtuple_type_detects_both_flavors(_type):
+    # collections.namedtuple() and typing.NamedTuple produce classes that
+    # behave identically at runtime (both are plain tuple subclasses with a
+    # _fields tuple), so a single structural check must accept both.
+    assert utils._is_namedtuple_type(_type)
+
+
+@pytest.mark.parametrize(
+    "_type",
+    [
+        tuple,
+        list,
+        dict,
+        type("PlainTupleSubclass", (tuple,), {}),
+    ],
+)
+def test_is_namedtuple_type_rejects_non_namedtuples(_type):
+    assert not utils._is_namedtuple_type(_type)
+
+
+@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
+def test_is_namedtuple_type_detects_subclasses():
+    # A subclass of a namedtuple inherits a valid _fields tuple, so it is still
+    # treated as a namedtuple.
+    assert utils._is_namedtuple_type(type("FurtherSubclass", (PointFunctional,), {}))
+
+
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
+def test_serialize_namedtuple(_type):
+    assert utils.serialize(_type(1, 2)) == "%s(x=1, y=2)" % _type.__name__
+
+
+@pytest.mark.parametrize("_type", _NAMEDTUPLE_FLAVORS)
+def test_capture_value_namedtuple(_type):
+    assert utils.capture_value(_type(1, 2)) == {
+        "type": _type.__qualname__,
+        "fields": {
+            "x": {"type": "int", "value": "1"},
+            "y": {"type": "int", "value": "2"},
+        },
+    }
+
+
+@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
+def test_serialize_namedtuple_subclass():
+    subclass = type("FurtherSubclass", (PointFunctional,), {})
+    assert utils.serialize(subclass(1, 2)) == "FurtherSubclass(x=1, y=2)"
+
+
+@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
+def test_capture_value_namedtuple_subclass():
+    assert utils.capture_value(PointFunctional(1, 2)) == {
+        "type": PointFunctional.__qualname__,
+        "fields": {
+            "x": {"type": "int", "value": "1"},
+            "y": {"type": "int", "value": "2"},
+        },
+    }
+
+
+@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
+def test_capture_value_namedtuple_subclass_subclass():
+    subclass = type("FurtherSubclass", (PointFunctional,), {})
+
+    assert utils.capture_value(subclass(1, 2)) == {
+        "type": subclass.__qualname__,
+        "fields": {
+            "x": {"type": "int", "value": "1"},
+            "y": {"type": "int", "value": "2"},
+        },
+    }
+
+
+def test_degenerate_namedtuple_subclass():
+    class DegenerateSubclass(PointFunctional):
+        _fields = ("a", "b")
+
+    assert utils.capture_value(DegenerateSubclass(1, 2)) == {
+        "type": DegenerateSubclass.__qualname__,
+        "fields": {
+            "a": {"type": "int", "value": "1"},
+            "b": {"type": "int", "value": "2"},
+        },
+    }
+
+
+def test_degenerate_namedtuple_subclass_more_fields():
+    class DegenerateSubclass(PointFunctional):
+        _fields = ("a", "b", "c")
+
+    assert utils.capture_value(DegenerateSubclass(1, 2)) == {
+        "type": DegenerateSubclass.__qualname__,
+        "fields": {
+            "a": {"type": "int", "value": "1"},
+            "b": {"type": "int", "value": "2"},
+        },
+    }
+
+
+def test_degenerate_namedtuple_subclass_less_fields():
+    class DegenerateSubclass(PointFunctional):
+        _fields = ("a",)
+
+    assert utils.capture_value(DegenerateSubclass(1, 2)) == {
+        "type": DegenerateSubclass.__qualname__,
+        "fields": {
+            "a": {"type": "int", "value": "1"},
+        },
+    }
+
+
+def test_degenerate_namedtuple_subclass_incorrect_type_dict():
+    class DegenerateSubclass(PointFunctional):
+        _fields = {"a": "b"}  # pyright: ignore[reportAssignmentType]
+
+    assert utils.capture_value(DegenerateSubclass(1, 2)) == {
+        "type": DegenerateSubclass.__qualname__,
+        "fields": {},
+    }
+
+
+def test_degenerate_namedtuple_subclass_incorrect_type_list():
+    class DegenerateSubclass(PointFunctional):
+        _fields = ["a", "b"]  # pyright: ignore[reportAssignmentType]
+
+    assert utils.capture_value(DegenerateSubclass(1, 2)) == {
+        "type": DegenerateSubclass.__qualname__,
+        "fields": {},
+    }
+
+
+def test_capture_value_namedtuple_redacts_sensitive_fields():
+    result = utils.capture_value(Credentials("admin", "secret"))
+    assert result == {
+        "type": Credentials.__qualname__,
+        "fields": {
+            "username": {"type": "str", "value": "'admin'"},
+            "password": utils.redacted_value("secret"),
+        },
+    }

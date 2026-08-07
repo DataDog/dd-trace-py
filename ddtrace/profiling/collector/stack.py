@@ -5,6 +5,9 @@ import sys
 from types import ModuleType
 import typing
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
@@ -15,6 +18,13 @@ from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
+
+
+def _link_span(
+    _provider: BaseContextProvider,
+    span: typing.Optional[typing.Union[Context, Span]],
+) -> None:
+    stack.link_span(span)
 
 
 class StackCollector(collector.Collector):
@@ -74,7 +84,7 @@ class StackCollector(collector.Collector):
         # Register the span-link hook only after the sampler has started successfully,
         # so we never leave a stale listener behind if startup fails.
         if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", stack.link_span)
+            core.on("ddtrace.context_provider.activate", _link_span)
 
         # Start native C function call tracking (Python 3.12+ only)
         if sys.version_info >= (3, 12) and config.stack.native_frames:
@@ -105,7 +115,7 @@ class StackCollector(collector.Collector):
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
+            core.reset_listeners("ddtrace.context_provider.activate", _link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

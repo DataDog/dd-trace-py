@@ -43,6 +43,21 @@ TEST(ThreadSpanLinksConcurrency, GetSetRace)
     t2.join();
 }
 
+TEST(ThreadSpanLinks, UnlinkOnlyMatchingSpan)
+{
+    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    constexpr uint64_t thread_id = 43;
+    constexpr uint64_t span_id = 100;
+
+    links.link_span(thread_id, span_id, 200, "web");
+    links.unlink_span(thread_id, span_id + 1);
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), Datadog::Span(span_id, 200, "web"));
+
+    links.unlink_span(thread_id, span_id);
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+}
+
 TEST(ThreadSpanLinks, ClearFinished)
 {
     unsigned int num_thread_ids = 100;

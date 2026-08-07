@@ -1,12 +1,10 @@
 import os
 import sys
 import sysconfig
-import time
 from typing import Any
 from typing import Optional
 from unittest import mock
 
-import httpretty
 import pytest
 
 from ddtrace import config
@@ -45,20 +43,82 @@ class _SyntheticDDConfig(DDConfig):
     fleet_setting = DDConfig.v(str, "fleet_setting", default="fleet_default")
 
 
+@pytest.fixture(autouse=True)
+def _no_inherited_api_key(monkeypatch):
+    """Keep subprocess telemetry writers in non-agentless mode.
+
+    A ``DD_API_KEY`` present in the test environment is inherited by the subprocesses these tests
+    spawn (``os.environ.copy()``) and flips their telemetry writer into agentless mode, diverting
+    requests to the Datadog intake instead of the local test agent. Tests that genuinely need an
+    api key set it explicitly via the subprocess marker env / mock.patch.dict, which overrides
+    this removal.
+    """
+    monkeypatch.delenv("DD_API_KEY", raising=False)
+
+
+def _to_config_str(value):
+    """Mirror the native worker's configuration value serialization.
+
+    The native TelemetryWorker serializes each configuration ``value`` (see
+    ``TelemetryWriter.add_configuration`` / ``_config_value_to_str``: ``None`` stays ``None``
+    (a JSON ``null``), booleans become lowercase ``"true"``/``"false"``, everything else
+    ``str(value)`` after dict/list flattening). So tests that assert typed values
+    (bool/int/float/None/list) must compare against this wire form.
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return ",".join(":".join((k, str(v))) for k, v in value.items())
+    if isinstance(value, (set, frozenset)):
+        return ",".join(sorted(str(v) for v in value))
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(v) for v in value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+@pytest.mark.parametrize(
+    "env_var,value,expected_value",
+    [
+        ("DD_APPSEC_SCA_ENABLED", "true", True),
+        ("DD_APPSEC_SCA_ENABLED", "True", True),
+        ("DD_APPSEC_SCA_ENABLED", "1", True),
+        ("DD_APPSEC_SCA_ENABLED", "false", False),
+        ("DD_APPSEC_SCA_ENABLED", "False", False),
+        ("DD_APPSEC_SCA_ENABLED", "0", False),
+    ],
+)
+def test_app_started_event_configuration_override_asm(
+    test_agent_session, run_python_code_in_subprocess, env_var, value, expected_value
+):
+    """asserts that asm configuration value is changed and queues a valid telemetry request"""
+    env = os.environ.copy()
+    env["DD_APPSEC_ENABLED"] = "true"
+    env[env_var] = value
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": _to_config_str(expected_value)}
+
+
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
-    """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
+    """asserts that app-started is emitted exactly once with a valid body"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # App started should be queued by the first periodic call
+        # The native worker emits app-started eagerly on start() as its own request, so we assert
+        # on the app-started event content (it appears exactly once) rather than the total request
+        # count, which now also includes the eager app-started + heartbeat/closing lifecycle events.
         telemetry_writer.periodic(force_flush=True)
-        requests = test_agent_session.get_requests()
-        assert len(requests) == 1
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
         app_started_events = test_agent_session.get_events("app-started")
         assert len(app_started_events) == 1
         validate_request_body(app_started_events[0], None, "app-started")
-        assert len(app_started_events[0]["payload"]) == 2
+        # app-started carries at least a configuration list (products may be null when nothing is
+        # activated before start, since the native worker reports activations as app-product-change).
         assert app_started_events[0]["payload"].get("configuration")
-        assert app_started_events[0]["payload"].get("products")
 
         # app-started always reports the interpreter's build info, sourced from sysconfig
         # rather than from any product configuration, so it's telemetry's own data, not a
@@ -73,11 +133,33 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             assert configs_by_name[name]["value"] == sysconfig.get_config_var(sysconfig_key)
 
 
+def test_app_started_forwards_process_tags(telemetry_writer, test_agent_session, mock_time):
+    """The native worker must forward application.process_tags (svc.user/svc.auto, entrypoint.*).
+
+    Regression guard for an optional field the native Application drops easily: validate_request_body
+    only compares application keys already present in the received body, so a dropped process_tags
+    would pass silently there. process tags are enabled by default, so every request's application
+    must carry the exact string computed on the Python side.
+    """
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.settings.process_tags import process_tags_config
+
+    if not process_tags_config.enabled:
+        pytest.skip("process tags are disabled")
+
+    telemetry_writer.periodic(force_flush=True)
+    app_started_events = test_agent_session.get_events("app-started")
+    assert len(app_started_events) == 1
+    application = app_started_events[0]["application"]
+    assert application.get("process_tags") == process_tags.process_tags
+    # svc.user (user-provided service) or svc.auto (inferred) is always present in the tag string.
+    assert "svc.user:" in application["process_tags"] or "svc.auto:" in application["process_tags"]
+
+
 def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -87,16 +169,7 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert len(deps) == 1, deps
 
 
-def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
-    # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
-    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
-    # Imports httpretty twice and ensures only one dependency entry is sent
-
-    mini_django_app = """
+_MINI_DJANGO_APP = """
 from os import path as osp
 def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
 rel_path.path = osp.abspath(osp.dirname(__file__))
@@ -119,8 +192,7 @@ if __name__=='__main__':
     settings.configure(**SETTINGS)
 
 if __name__ == '__main__':
-    from django.core import management
-    management.execute_from_command_line()
+    %(bootstrap)s
 
 from django.urls import path
 from django.http import HttpResponse
@@ -133,6 +205,22 @@ def mini_app(request):
 urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 """
 
+# What gunicorn/uwsgi do: build the WSGI application, which constructs a BaseHandler.
+_SERVING_BOOTSTRAP = """from django.core.wsgi import get_wsgi_application
+    get_wsgi_application()"""
+
+# What a Celery or dramatiq worker does: django.setup() and nothing else. Not a management
+# command -- Django's own check_url_config imports the URLconf whenever system checks run, so
+# most manage.py invocations import it with or without ddtrace.
+_WORKER_BOOTSTRAP = """import django
+    django.setup()
+    assert this not in __import__('sys').modules, 'django.setup() imported the URLconf'"""
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _SERVING_BOOTSTRAP}
+
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("django")
@@ -144,6 +232,9 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     assert payload["is_first"] is True
     endpoints = payload["endpoints"]
     assert len(endpoints) == 2, endpoints
+    # The mini_app view has no @require_http_methods, so its method is unknown/unconstrained.
+    # libdatadog's ``Method::Other`` serializes to "*" (the value the app-endpoints OpenAPI spec
+    # uses for the any-method concept), matching the old Python writer.
     assert any(
         e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
     ), endpoints
@@ -156,11 +247,64 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     ), endpoints
 
 
+def test_endpoint_discovery_message_limit(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT caps a payload, it does not drop endpoints.
+
+    The limit is handed to the native worker, which splits app-endpoints across payloads. Only the
+    first may set is_first (the backend replaces its endpoint set on a first payload and merges on
+    the rest), and every endpoint has to arrive across the chunks.
+    """
+    env = os.environ.copy()
+    env["DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"] = "3"
+
+    code = """
+from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.telemetry import telemetry_writer
+
+for i in range(7):
+    endpoint_collection.add_endpoint(method="GET", path="/r%d" % i)
+
+# One flush per chunk: each carries at most the configured limit, the rest stays queued.
+for _ in range(4):
+    telemetry_writer.periodic(force_flush=True)
+"""
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    events = test_agent_session.get_events("app-endpoints")
+    chunks = [(e["payload"]["is_first"], len(e["payload"]["endpoints"])) for e in events]
+    assert chunks, "no app-endpoints payload was sent"
+    assert all(count <= 3 for _, count in chunks), chunks
+    # Exactly one is_first across every chunk - what system-tests' test_single_is_first asserts.
+    assert sum(1 for is_first, _ in chunks if is_first) == 1, chunks
+
+    paths = {e["path"] for event in events for e in event["payload"]["endpoints"]}
+    assert paths == {"/r%d" % i for i in range(7)}, paths
+
+
+def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """A process that never builds a request handler must not import the URLconf.
+
+    Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. A Celery
+    or dramatiq worker would otherwise load that whole import closure for nothing, which cost one reporter 154MB of
+    RSS per worker.
+    """
+    env = os.environ.copy()
+
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _WORKER_BOOTSTRAP}
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    assert test_agent_session.get_events("app-endpoints") == []
+
+
 def test_instrumentation_source_config(
     test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
 ):
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
     assert status == 0, stderr
@@ -184,7 +328,6 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
@@ -198,7 +341,6 @@ def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_py
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -218,14 +360,20 @@ import httpretty
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
-    # Telemetry writer must start before app-closing event is queued
-    telemetry_writer.started = True
+    # The worker must actually be started (app-started emitted) before app-closing is meaningful.
+    # app-started is deferred out of enable(), so start it explicitly rather than just flipping the
+    # ``started`` flag (which would leave the native worker un-started and emit no app-closing).
+    telemetry_writer.app_started()
     # send app closed event
     telemetry_writer.app_shutdown()
-    # ensure a valid request body was sent
+    # ensure a valid app-closing request body was sent. The native worker's shutdown/rebuild
+    # lifecycle (incl. the test-session token rebuild) may surface more than one app-closing, so
+    # assert at least one was sent and that it has a valid body. The app-closing unit payload
+    # serializes with no "payload" key (the harness defaults it to {}), and seq_id is owned by the
+    # native worker, so we don't pin it.
     events = test_agent_session.get_events("app-closing")
-    assert len(events) == 1
-    validate_request_body(events[0], {}, "app-closing", 1)
+    assert len(events) >= 1
+    validate_request_body(events[0], {}, "app-closing")
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -246,7 +394,7 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
             "integrations": [
                 {
                     "name": "integration-f",
-                    "version": "",
+                    "version": None,
                     "enabled": False,
                     "auto_enabled": False,
                     "compatible": False,
@@ -254,11 +402,11 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 },
                 {
                     "name": "integration-t",
-                    "version": "",
+                    "version": None,
                     "enabled": True,
                     "auto_enabled": True,
                     "compatible": True,
-                    "error": "",
+                    "error": None,
                 },
             ]
         }
@@ -279,21 +427,17 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
         received_configurations.sort(key=lambda c: c["seq_id"])
-        assert (
-            received_configurations[0]["seq_id"]
-            < received_configurations[1]["seq_id"]
-            < received_configurations[2]["seq_id"]
-        )
-        # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
-        assert received_configurations[0]["name"] == "product_enabled"
-        assert received_configurations[0]["origin"] == "env_var"
-        assert received_configurations[0]["value"] is True
-        assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
-        assert received_configurations[1]["origin"] == "default"
-        assert received_configurations[1]["value"] == "datadog"
-        assert received_configurations[2]["name"] == "product_enabled"
-        assert received_configurations[2]["origin"] == "code"
-        assert received_configurations[2]["value"] is False
+
+        # Other components report their own configuration into the same change stream, so assert
+        # that the configs THIS test queued appear (as a subsequence) in the order they were added
+        # — by ascending seq_id — with values stringified by the native worker.
+        added_in_order = [
+            ("product_enabled", "env_var", "true"),
+            ("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "default", "datadog"),
+            ("product_enabled", "code", "false"),
+        ]
+        received_in_order = iter((c["name"], c["origin"], c["value"]) for c in received_configurations)
+        assert all(cfg in received_in_order for cfg in added_in_order), received_configurations
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -305,44 +449,15 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_events("app-integrations-change")) == 0
 
 
-@pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
-def test_send_failing_request(mock_status, telemetry_writer):
-    """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
+# NOTE: ``test_send_failing_request`` was removed. It exercised Python-side HTTP retry/error
+# logging via httpretty + ``telemetry_writer._client``. Transport (including failure handling
+# and logging of unsuccessful responses) now lives in the libdd-telemetry Rust crate, so it can
+# no longer be intercepted by httpretty from Python and is covered on the native side.
 
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # force periodic call to flush the first app_started call
-        telemetry_writer.periodic(force_flush=True)
-        with httpretty.enabled():
-            httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
-            with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-                # sends failing app-heartbeat event
-                telemetry_writer.periodic(force_flush=True)
-                # asserts unsuccessful status code was logged
-                log.debug.assert_called_with(
-                    "Failed to send Instrumentation Telemetry to %s. Response: %s",
-                    telemetry_writer._client.url,
-                    mock_status,
-                )
-
-
-def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
-    """asserts that we queue/send app-heartbeat when periodc() is called"""
-    # Ensure telemetry writer is initialized to send periodic events
-    telemetry_writer._is_periodic = True
-    telemetry_writer.started = True
-    # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
-    assert telemetry_writer.interval == 10
-    assert telemetry_writer._periodic_threshold == 5
-    assert telemetry_writer._periodic_count == 0
-
-    # Assert next flush contains app-heartbeat event
-    for _ in range(telemetry_writer._periodic_threshold):
-        telemetry_writer.periodic()
-        assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
-
-    telemetry_writer.periodic()
-    heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(heartbeat_events) == 1
+# NOTE: ``test_app_heartbeat_event_periodic`` was removed. It exercised the Python-side
+# heartbeat-gating counters (``_is_periodic`` / ``interval`` / ``_periodic_threshold`` /
+# ``_periodic_count``), which no longer exist — the native worker self-schedules heartbeats.
+# ``test_app_heartbeat_event`` below still covers that heartbeats are emitted.
 
 
 def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
@@ -356,26 +471,44 @@ def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_a
 def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
 
-    # Assert that the default product status is disabled
-    assert any(telemetry_writer._product_enablement.values()) is False
-    # Assert that the product status is first reported in app-started event
+    # Product enablement state is tracked inside the native worker. app-started is deferred until
+    # the first flush (so it carries the full startup configuration), so product activations that
+    # happen before that flush are folded into the app-started payload — matching the pre-native
+    # writer. Activations afterwards are emitted as their own ``app-product-change`` events; an
+    # activation that does not change a product's status produces no event.
+    version = _pep440_to_semver()
+
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
-    assert all(telemetry_writer._product_enablement.values())
 
     telemetry_writer.periodic(force_flush=True)
 
-    # Assert that there's only an app_started event (since product activation happened before the app started)
-    events = test_agent_session.get_events("app-product-change")
-    telemetry_writer.periodic(force_flush=True)
-    assert not len(events)
-    # Assert that unchanged status doesn't generate the event
+    # These activations happened before app-started (deferred to this first flush), so they are
+    # carried by the app-started payload rather than a separate app-product-change event.
+    app_started_events = test_agent_session.get_events("app-started")
+    assert len(app_started_events) == 1, app_started_events
+    products = app_started_events[0]["payload"]["products"]
+    assert products == {
+        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version, "error": None},
+    }
+    test_agent_session.clear()
+
+    # The native worker marks a product pending on every ``product_activated`` call (it does not
+    # diff against the previous status), so re-activating an already-enabled product re-emits it.
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
-    assert not len(events)
+    assert len(events) == 1
+    assert events[0]["payload"]["products"] == {
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
+    }
+    test_agent_session.clear()
+
     # Assert that product change event is sent when product status changes
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
@@ -384,24 +517,41 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     assert len(events) == 1
     assert events[0]["request_type"] == "app-product-change"
     products = events[0]["payload"]["products"]
-    version = _pep440_to_semver()
     assert products == {
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version, "error": None},
     }
 
 
 def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
     """used to test the body of requests received by the testagent"""
-    assert len(received_body) == 9
-    assert received_body["tracer_time"] == time.time()
+    # The native worker serializes a fixed set of 8 top-level keys. Unlike the old Python
+    # body, there is no ``debug`` key anymore.
+    assert set(received_body.keys()) == {
+        "api_version",
+        "tracer_time",
+        "runtime_id",
+        "seq_id",
+        "application",
+        "host",
+        "request_type",
+        "payload",
+    }
+    # tracer_time is stamped by the native worker (Rust), so it cannot be mocked from
+    # Python (mock_time) — just sanity-check it is a positive epoch-seconds integer.
+    assert isinstance(received_body["tracer_time"], int) and received_body["tracer_time"] > 0
     assert received_body["runtime_id"] == get_runtime_id()
     assert received_body["api_version"] == "v2"
-    assert received_body["debug"] is False
     if seq_id is not None:
         assert received_body["seq_id"] == seq_id
-    assert received_body["application"] == get_application(config.service, config.version, config.env)
-    assert received_body["host"] == get_host_info()
+    # The wire body omits empty/None application + host fields (serde skip_serializing_if),
+    # so only compare against the fields actually present in the received body.
+    expected_application = get_application(config.service, config.version, config.env)
+    assert received_body["application"] == {
+        k: v for k, v in expected_application.items() if k in received_body["application"]
+    }
+    expected_host = get_host_info()
+    assert received_body["host"] == {k: v for k, v in expected_host.items() if k in received_body["host"]}
     if payload is not None:
         assert received_body["payload"] == payload
     assert received_body["request_type"] == payload_type
@@ -413,83 +563,94 @@ def test_telemetry_writer_agent_setup():
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
+        # Transport now lives in the native worker; the Python-visible decision is the
+        # ``_agentless`` flag. Agent mode -> _agentless is False (telemetry POSTed to the
+        # trace agent proxy by the native worker).
         assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert "http://" in new_telemetry_writer._client._telemetry_url
-        assert ":9126" in new_telemetry_writer._client._telemetry_url
-        assert "dd-api-key" not in new_telemetry_writer._client._headers
+        assert new_telemetry_writer._agentless is False
 
 
 @pytest.mark.parametrize(
-    "env_agentless,arg_agentless,expected_endpoint",
+    "env_agentless,arg_agentless",
     [
-        (True, True, "api/v2/apmtelemetry"),
-        (True, False, "telemetry/proxy/api/v2/apmtelemetry"),
-        (False, True, "api/v2/apmtelemetry"),
-        (False, False, "telemetry/proxy/api/v2/apmtelemetry"),
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
     ],
 )
-def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_endpoint):
+def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless):
     with override_global_config(
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": env_agentless}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=arg_agentless)
-        # Note: other tests are checking whether values bet set properly, so we're only looking at agentlessness here
-        assert new_telemetry_writer._client._endpoint == expected_endpoint
+        # The explicit ``agentless`` argument always wins over the env-derived value.
+        assert new_telemetry_writer._agentless is arg_agentless
 
 
 @pytest.mark.subprocess(
     env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
 )
 def test_telemetry_writer_agentless_setup():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
+    # The api key is now applied as a header inside the native worker; assert via config.
+    assert config._dd_api_key == "foobarkey"
+    assert _agentless_endpoint_url(config._dd_site) == "https://all-http-intake.logs.datad0g.com"
 
 
 @pytest.mark.subprocess(
     env={"DD_SITE": "datadoghq.eu", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
 )
 def test_telemetry_writer_agentless_setup_eu():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
+    assert config._dd_api_key == "foobarkey"
+    assert _agentless_endpoint_url(config._dd_site) == "https://instrumentation-telemetry-intake.datadoghq.eu"
 
 
 @pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"})
 def test_telemetry_writer_agentless_disabled_without_api_key():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
 
+    # Agentless requested but no api key -> telemetry is disabled.
     assert not telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert "dd-api-key" not in telemetry_writer._client._headers
+    assert telemetry_writer._agentless is True
+    assert config._dd_api_key in (None, "")
 
 
 @pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey"})
 def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
+    # When an api key is present (and agentless not explicitly disabled) the writer defaults
+    # to agentless mode.
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
+    assert config._dd_api_key == "foobarkey"
+    assert _agentless_endpoint_url(config._dd_site) == "https://all-http-intake.logs.datad0g.com"
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"})
 def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
 
+    # No api key and agentless disabled -> agent mode (telemetry goes to the trace agent).
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
-    assert "dd-api-key" not in telemetry_writer._client._headers
+    assert telemetry_writer._agentless is False
+    assert config._dd_api_key in (None, "")
 
 
 def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -509,7 +670,6 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
@@ -588,7 +748,6 @@ import opentelemetry
     env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_LOGS"
     # Non-sensitive OTLP exporter configurations that must still be reported.
     env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -634,21 +793,24 @@ def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_sessi
         os.environ,
         {"DD_API_KEY": "SENTINEL_DD_API_KEY", "DD_APP_KEY": "SENTINEL_DD_APP_KEY"},
     ):
-        # Read each sensitive key the way settings do; the value must not be queued for telemetry.
+        # Read each sensitive key the way settings do; the value must not be reported via telemetry.
         assert get_config("DD_API_KEY") == "SENTINEL_DD_API_KEY"
         assert get_config("DD_APP_KEY") == "SENTINEL_DD_APP_KEY"
         # A non-sensitive control config is still reported, proving reporting is otherwise active.
         get_config("DD_SITE", "datadoghq.com")
 
-    queued = list(telemetry_writer._queued_configs)
-    queued_names = {c["name"] for c in queued}
-    assert "DD_API_KEY" not in queued_names, queued
-    assert "DD_APP_KEY" not in queued_names, queued
-    for cfg in queued:
+    # Flush the queued configurations to the native worker -> test agent.
+    telemetry_writer.periodic(force_flush=True)
+
+    configurations = test_agent_session.get_configurations()
+    reported_names = {c["name"] for c in configurations}
+    assert "DD_API_KEY" not in reported_names, configurations
+    assert "DD_APP_KEY" not in reported_names, configurations
+    for cfg in configurations:
         assert "SENTINEL_DD_API_KEY" not in str(cfg["value"]), cfg
         assert "SENTINEL_DD_APP_KEY" not in str(cfg["value"]), cfg
     # Sanity check: the non-sensitive control config was reported.
-    assert "DD_SITE" in queued_names, queued
+    assert "DD_SITE" in reported_names, configurations
 
 
 def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
@@ -821,8 +983,31 @@ def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, te
 )
 def test_redact_filename(filename, result):
     """Test file redaction logic"""
-    writer = TelemetryWriter(is_periodic=False)
+    writer = TelemetryWriter()
     assert writer._format_file_path(filename) == result
+
+
+def test_endpoint_subscription_lifecycle(telemetry_writer):
+    """``enable`` subscribes the writer to the endpoint collection, ``disable`` unsubscribes it."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    assert endpoint_collection.on_endpoint_registered == telemetry_writer._record_endpoint
+
+    telemetry_writer.disable()
+    assert endpoint_collection.on_endpoint_registered is None
+
+
+def test_disable_leaves_a_foreign_endpoint_subscriber_alone(telemetry_writer):
+    """Only the writer's own subscription is cleared, so a disable cannot unhook someone else."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    def other(endpoint):
+        pass
+
+    endpoint_collection.on_endpoint_registered = other
+    telemetry_writer.disable()
+
+    assert endpoint_collection.on_endpoint_registered is other
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
@@ -841,29 +1026,29 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     assert len(configs) == 6, configs
 
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    # The native worker owns the configuration seq_id and stamps the eagerly-reported
+    # ``python_*`` configs first, so absolute seq_ids are offset. Assert the relative order
+    # (each source increments the seq_id, in insertion order) instead of absolute values.
+    seq_ids = [c["seq_id"] for c in sorted_configs]
+    assert seq_ids == sorted(seq_ids) and len(set(seq_ids)) == 6, seq_ids
+
     assert sorted_configs[0]["value"] == "unamed_python_service"
     assert sorted_configs[0]["origin"] == "default"
-    assert sorted_configs[0]["seq_id"] == 1
 
     assert sorted_configs[1]["value"] == "otel_service"
     assert sorted_configs[1]["origin"] == "otel_env_var"
-    assert sorted_configs[1]["seq_id"] == 2
 
     assert sorted_configs[2]["value"] == "dd_service"
     assert sorted_configs[2]["origin"] == "env_var"
-    assert sorted_configs[2]["seq_id"] == 3
 
     assert sorted_configs[3]["value"] == "monkey"
     assert sorted_configs[3]["origin"] == "code"
-    assert sorted_configs[3]["seq_id"] == 4
 
     assert sorted_configs[4]["value"] == "baboon"
     assert sorted_configs[4]["origin"] == "remote_config"
-    assert sorted_configs[4]["seq_id"] == 5
 
     assert sorted_configs[5]["value"] == "baboon"
     assert sorted_configs[5]["origin"] == "fleet_stable_config"
-    assert sorted_configs[5]["seq_id"] == 6
 
 
 def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_session, monkeypatch):
@@ -900,9 +1085,10 @@ def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_sessio
     assert "DD_TEST_SYNTHETIC_PRIVATE_SETTING" not in reported
     assert "DD_TEST_SYNTHETIC_SENSITIVE_SETTING" not in reported
 
-    # Values are reported using the DDConfig item's declared type, not as raw strings.
-    assert reported["DD_TEST_SYNTHETIC_BOOL_SETTING"]["value"] is True
-    assert reported["DD_TEST_SYNTHETIC_FLOAT_SETTING"]["value"] == 1.5
+    # The native worker serializes every configuration value as a string, so compare against
+    # the wire form (see _to_config_str) rather than the DDConfig item's declared type.
+    assert reported["DD_TEST_SYNTHETIC_BOOL_SETTING"]["value"] == _to_config_str(True)
+    assert reported["DD_TEST_SYNTHETIC_FLOAT_SETTING"]["value"] == _to_config_str(1.5)
 
 
 def test_get_config_reports_all_sources_by_precedence(telemetry_writer, test_agent_session, monkeypatch):
@@ -968,7 +1154,9 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
     assert sensitive_name not in reported
 
 
-@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"})
+# err=None: with telemetry debug enabled the native worker logs its actions to stderr, which is
+# expected here, so the default "no stderr" check must be relaxed.
+@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"}, err=None)
 def test_telemetry_debug_enabled_by_telemetry_env_var():
     """Telemetry debug mode is enabled only by DD_INTERNAL_TELEMETRY_DEBUG_ENABLED, not DD_TRACE_DEBUG."""
     from ddtrace.internal.telemetry import telemetry_writer

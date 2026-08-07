@@ -12,7 +12,7 @@
       "_dd.llmobs.span_kind": "agent",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a39795400000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.claude_agent_sdk",
       "error.message": "Connection failed",
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/llmobs/_integrations/base_stream_handler.py\", line 245, in __aiter__\n    async for chunk in self._self_async_stream_iter:\n        await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)\n        yield chunk\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk0023_pytest-asyncio/lib/python3.13/site-packages/claude_agent_sdk/query.py\", line 123, in query\n    async for message in client.process_query(\n    ...<2 lines>...\n        yield message\n  File \"/home/bits/project/tests/contrib/claude_agent_sdk/conftest.py\", line 151, in mock_process_query_error\n    raise ValueError(\"Connection failed\")\nValueError: Connection failed\n",
@@ -42,7 +42,7 @@
        "error": 1,
        "meta": {
          "_dd.llmobs.span_kind": "step",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "datadog",
          "error.message": "Connection failed",
          "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/llmobs/_integrations/base_stream_handler.py\", line 245, in __aiter__\n    async for chunk in self._self_async_stream_iter:\n        await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)\n        yield chunk\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk0023_pytest-asyncio/lib/python3.13/site-packages/claude_agent_sdk/query.py\", line 123, in query\n    async for message in client.process_query(\n    ...<2 lines>...\n        yield message\n  File \"/home/bits/project/tests/contrib/claude_agent_sdk/conftest.py\", line 151, in mock_process_query_error\n    raise ValueError(\"Connection failed\")\nValueError: Connection failed\n",
          "error.type": "builtins.ValueError"
@@ -66,7 +66,7 @@
           "meta": {
             "_dd.llmobs.model_provider": "anthropic",
             "_dd.llmobs.span_kind": "llm",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "datadog",
             "error.message": "Connection failed",
             "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/llmobs/_integrations/base_stream_handler.py\", line 245, in __aiter__\n    async for chunk in self._self_async_stream_iter:\n        await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)\n        yield chunk\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk0023_pytest-asyncio/lib/python3.13/site-packages/claude_agent_sdk/query.py\", line 123, in query\n    async for message in client.process_query(\n    ...<2 lines>...\n        yield message\n  File \"/home/bits/project/tests/contrib/claude_agent_sdk/conftest.py\", line 151, in mock_process_query_error\n    raise ValueError(\"Connection failed\")\nValueError: Connection failed\n",
             "error.type": "builtins.ValueError"

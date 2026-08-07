@@ -201,6 +201,13 @@
         "default": "true"
       }
     ],
+    "DD_AI_GUARD_REDACTION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_TIMEOUT": [
       {
         "implementation": "A",
@@ -1695,6 +1702,42 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "agentless"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "sensitive": true
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "5"
+      }
+    ],
+    "DD_FEATURE_FLAGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_FFE_INTAKE_ENABLED": [
@@ -5711,6 +5754,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED": [
       {
         "implementation": "A",
@@ -5759,11 +5810,19 @@
         "internal": true
       }
     ],
-    "_DD_COVERAGE_FILE_LEVEL": [
+    "_DD_COVERAGE_ACCURATE_IMPORTS": [
       {
         "implementation": "A",
         "type": "boolean",
         "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_COVERAGE_FILE_LEVEL": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
         "internal": true
       }
     ],
@@ -5848,14 +5907,6 @@
       }
     ],
     "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -6020,14 +6071,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
-      {
-        "implementation": "A",
-        "type": "map",
-        "default": null,
         "internal": true
       }
     ],

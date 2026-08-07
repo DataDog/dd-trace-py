@@ -518,9 +518,6 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
-        self._is_user_provided_service = self.service is not None
-        _service_state.set_is_user_provided_service(self._is_user_provided_service)
-
         self._inferred_base_service = detect_service(sys.argv)
 
         # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
@@ -535,6 +532,9 @@ class Config(object):
             default_span_service_name = self._inferred_base_service or None
         else:
             default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
+        self._is_user_provided_service = self.service is not None
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         if self.service is None and in_aws_lambda():
             self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)
