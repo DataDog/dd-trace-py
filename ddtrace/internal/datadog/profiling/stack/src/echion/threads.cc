@@ -771,7 +771,8 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         reset_cycle_state();
     };
 
-    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
+    // The mandatory cycle guard owns renderer cleanup for every return and exception after render_thread_begin().
+    [[maybe_unused]] auto render_cycle = renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
     auto update_cpu_time_success = update_cpu_time();

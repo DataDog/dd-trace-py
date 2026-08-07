@@ -63,6 +63,27 @@ struct ThreadState
 
 class StackRenderer
 {
+  public:
+    class [[nodiscard]] RenderCycle
+    {
+        // Non-owning scope guard. The StackRenderer that creates this guard must outlive it. Only the guard whose ID
+        // matches StackRenderer::active_cycle_id may clean up a sample, so a delayed older guard cannot affect a newer
+        // render cycle.
+        StackRenderer* renderer = nullptr;
+        std::uint64_t cycle_id = 0;
+
+        RenderCycle(StackRenderer& _renderer, std::uint64_t _cycle_id) noexcept;
+        friend class StackRenderer;
+
+      public:
+        ~RenderCycle() noexcept;
+        RenderCycle(RenderCycle&& other) noexcept;
+        RenderCycle(const RenderCycle&) = delete;
+        RenderCycle& operator=(const RenderCycle&) = delete;
+        RenderCycle& operator=(RenderCycle&&) = delete;
+    };
+
+  private:
     struct SampleDropper
     {
         void operator()(Sample* _sample) const noexcept;
@@ -73,6 +94,11 @@ class StackRenderer
     SampleHandle sample;
     ThreadState thread_state = {};
 
+    // Zero means no render cycle is active. Every new cycle receives a distinct generation so cleanup from a moved or
+    // otherwise delayed guard is harmless after a newer cycle has started.
+    std::uint64_t active_cycle_id = 0;
+    std::uint64_t next_cycle_id = 0;
+
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
     // deduplicates entries, keeping track of which items have been interned is faster than
@@ -80,21 +106,25 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
+    void finish_cycle(std::uint64_t cycle_id) noexcept;
+
   public:
     StackRenderer();
-    void render_thread_begin(PyThreadState* tstate,
-                             std::string_view name,
-                             microsecond_t wall_time_us,
-                             uintptr_t thread_id,
-                             unsigned long native_id);
+    StackRenderer(const StackRenderer&) = delete;
+    StackRenderer(StackRenderer&&) = delete;
+    StackRenderer& operator=(const StackRenderer&) = delete;
+    StackRenderer& operator=(StackRenderer&&) = delete;
+
+    [[nodiscard]] RenderCycle render_thread_begin(PyThreadState* tstate,
+                                                  std::string_view name,
+                                                  microsecond_t wall_time_us,
+                                                  uintptr_t thread_id,
+                                                  unsigned long native_id);
     void render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();
-
-    // Drop a partially-built sample without flushing it.
-    void abort_sample();
 
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
