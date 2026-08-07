@@ -742,6 +742,9 @@ venv = Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
             pys=select_pys(),
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+            },
         ),
         Venv(
             name="ddtracerun",
