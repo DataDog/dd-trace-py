@@ -8,8 +8,8 @@ import typing as t
 import pytest
 
 import ddtrace
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
-from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestTag
 
 
@@ -27,12 +27,8 @@ STEP_KIND = "pytest_bdd.step"
 log = logging.getLogger(__name__)
 
 
-class _TestOptPluginProtocol(t.Protocol):
-    manager: SessionManager
-
-
 class BddTestOptPlugin:
-    def __init__(self, main_plugin: _TestOptPluginProtocol) -> None:
+    def __init__(self, main_plugin: TestOptPluginProtocol) -> None:
         self.main_plugin = main_plugin
         self.framework_version = self._get_framework_version()
 

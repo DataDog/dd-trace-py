@@ -7,8 +7,8 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api._base import _TestVisibilitySessionProtocol
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._protocols import TestVisibilitySessionProtocol
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 
 class TestVisibilitySession(
-    TestVisibilityParentItem[TestModuleId, TestVisibilityModule], _TestVisibilitySessionProtocol
+    TestVisibilityParentItem[TestModuleId, TestVisibilityModule], TestVisibilitySessionProtocol
 ):
     """This class represents a Test session and is the top level in the hierarchy of Test visibility items.
 

@@ -10,6 +10,8 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
+from ddtrace.testing.internal._protocols import TestRunProtocol
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
@@ -18,30 +20,6 @@ from ddtrace.testing.internal.settings_data import Settings
 log = logging.getLogger(__name__)
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
-
-
-class _TestRunProtocol(t.Protocol):
-    """Protocol for TestRun, to avoid a circular import with test_data.py."""
-
-    test: t.Any
-
-    def is_benchmark(self) -> bool: ...
-
-    def is_retry(self) -> bool: ...
-
-    def is_rum(self) -> bool: ...
-
-    def get_browser_driver(self) -> t.Optional[str]: ...
-
-    def has_failed_all_retries(self) -> bool: ...
-
-
-class _BackendConnectorSetupProtocol(t.Protocol):
-    """Protocol for the backend connector setup, to avoid a circular import with http.py."""
-
-    def get_connector_for_subdomain(self, subdomain: t.Any) -> t.Any: ...
-
-    def default_env(self) -> str: ...
 
 
 class ErrorType(str, Enum):
@@ -75,7 +53,7 @@ class GitTelemetry(str, Enum):
 class TelemetryAPI:
     _instance: t.Optional[TelemetryAPI] = None
 
-    def __init__(self, connector_setup: _BackendConnectorSetupProtocol) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
 
@@ -254,7 +232,7 @@ class TelemetryAPI:
 
     # Test creation/finish events.
 
-    def record_test_created(self, test_framework: str, test_run: _TestRunProtocol) -> None:
+    def record_test_created(self, test_framework: str, test_run: TestRunProtocol) -> None:
         tags = {
             "event_type": EventType.TEST.value,
             "test_framework": test_framework,
@@ -263,7 +241,7 @@ class TelemetryAPI:
         self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
-        self, test_framework: str, test_run: _TestRunProtocol, ci_provider_name: t.Optional[str], is_auto_injected: bool
+        self, test_framework: str, test_run: TestRunProtocol, ci_provider_name: t.Optional[str], is_auto_injected: bool
     ) -> None:
         tags = {
             "event_type": EventType.TEST.value,
@@ -377,7 +355,7 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
     integration and dependency information on the next flush.
     """
 
-    def __init__(self, connector_setup: _BackendConnectorSetupProtocol, output_dir: str) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
         self._writer_supports_intercept = hasattr(self.writer, "_client")

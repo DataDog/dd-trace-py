@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
@@ -27,7 +28,6 @@ from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
-from ddtrace.testing.internal.telemetry import _BackendConnectorSetupProtocol
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -100,7 +100,7 @@ RETRIABLE_ERRORS = {
 }
 
 
-class BackendConnectorSetup(_BackendConnectorSetupProtocol):
+class BackendConnectorSetup(BackendConnectorSetupProtocol):
     """
     Logic for detecting the backend connection mode (agentless or EVP) and creating new connectors.
     """
