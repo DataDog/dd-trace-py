@@ -16,13 +16,20 @@ from ddtrace.testing.internal.settings_data import Settings
 
 
 if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.http import BackendConnectorSetup
     from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
+
+
+class _BackendConnectorSetupProtocol(t.Protocol):
+    """Protocol for the backend connector setup, to avoid a circular import with http.py."""
+
+    def get_connector_for_subdomain(self, subdomain: t.Any) -> t.Any: ...
+
+    def default_env(self) -> str: ...
 
 
 class ErrorType(str, Enum):
@@ -56,7 +63,7 @@ class GitTelemetry(str, Enum):
 class TelemetryAPI:
     _instance: t.Optional[TelemetryAPI] = None
 
-    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
+    def __init__(self, connector_setup: _BackendConnectorSetupProtocol) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
 
@@ -358,7 +365,7 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
     integration and dependency information on the next flush.
     """
 
-    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+    def __init__(self, connector_setup: _BackendConnectorSetupProtocol, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
         self._writer_supports_intercept = hasattr(self.writer, "_client")

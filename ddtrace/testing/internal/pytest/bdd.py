@@ -18,7 +18,6 @@ if t.TYPE_CHECKING:
     from pytest_bdd.parser import Scenario
     from pytest_bdd.parser import Step
 
-    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 
 FRAMEWORK = "pytest_bdd"
 STEP_KIND = "pytest_bdd.step"
@@ -27,8 +26,12 @@ STEP_KIND = "pytest_bdd.step"
 log = logging.getLogger(__name__)
 
 
+class _TestOptPluginProtocol(t.Protocol):
+    manager: t.Any
+
+
 class BddTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
+    def __init__(self, main_plugin: _TestOptPluginProtocol) -> None:
         self.main_plugin = main_plugin
         self.framework_version = self._get_framework_version()
 
@@ -131,7 +134,7 @@ class BddTestOptPlugin:
 
     def _get_codeowners(self, feature_path: Path) -> t.Optional[list[str]]:
         if codeowners := self.main_plugin.manager.codeowners:
-            return codeowners.of(str(feature_path))
+            return t.cast(t.Optional[list[str]], codeowners.of(str(feature_path)))
         return None
 
 
