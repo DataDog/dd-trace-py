@@ -66,7 +66,9 @@ class StackRenderer
   public:
     class [[nodiscard]] RenderCycle
     {
-        // Non-owning scope guard. The StackRenderer that creates this guard must outlive it.
+        // Non-owning scope guard. The StackRenderer that creates this guard must outlive it. Only the guard whose ID
+        // matches StackRenderer::active_cycle_id may clean up a sample, so a delayed older guard cannot affect a newer
+        // render cycle.
         StackRenderer* renderer = nullptr;
         std::uint64_t cycle_id = 0;
 
@@ -91,6 +93,9 @@ class StackRenderer
 
     SampleHandle sample;
     ThreadState thread_state = {};
+
+    // Zero means no render cycle is active. Every new cycle receives a distinct generation so cleanup from a moved or
+    // otherwise delayed guard is harmless after a newer cycle has started.
     std::uint64_t active_cycle_id = 0;
     std::uint64_t next_cycle_id = 0;
 

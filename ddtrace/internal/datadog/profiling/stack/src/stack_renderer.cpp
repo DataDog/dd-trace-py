@@ -311,6 +311,8 @@ StackRenderer::render_stack_end()
 void
 StackRenderer::finish_cycle(std::uint64_t cycle_id) noexcept
 {
+    // A guard may be destroyed after another cycle has started. In that case, the newer cycle owns the active sample
+    // and the stale guard must not return it to the pool.
     if (active_cycle_id != cycle_id) {
         return;
     }
