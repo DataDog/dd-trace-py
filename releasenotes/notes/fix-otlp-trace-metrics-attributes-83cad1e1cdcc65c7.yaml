@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Adds support for exporting Datadog trace metrics through OTLP using libdatadog. Set ``OTEL_TRACES_SPAN_METRICS_ENABLED=true`` to enable it.

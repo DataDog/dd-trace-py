@@ -24,7 +24,7 @@ if sys.platform == "linux":
                 return
 
             if type(ctx) is Span:
-                update_otel_thread_context(ctx, ctx._local_root_value)
+                update_otel_thread_context(ctx, ctx._local_root_value, int(ctx.context._traceflags, 16))
             else:
                 detach_otel_thread_context()
 
