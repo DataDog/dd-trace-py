@@ -35,7 +35,10 @@ from ddtrace.internal.ci_visibility.telemetry.api_request import record_api_requ
 from ddtrace.internal.ci_visibility.telemetry.constants import ERROR_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import GIT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import EARLY_FLAKE_DETECTION_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_pages_fetched
 from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_tests_count
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_total_fetch_ms
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_total_request_ms
 from ddtrace.internal.ci_visibility.telemetry.git import record_settings_response
 from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
@@ -579,7 +582,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         page_state: t.Optional[str] = None
         max_pages = _get_known_tests_max_pages()
 
+        pages_fetched = 0
+        total_request_ms = 0.0
+        from ddtrace.internal.utils.time import StopWatch
+
+        fetch_sw = StopWatch()
+        fetch_sw.start()
+
         for page_number in range(max_pages):
+            pages_fetched += 1
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
             request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
@@ -599,9 +610,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             }
 
             try:
+                request_sw = StopWatch()
+                request_sw.start()
                 parsed_response = self._do_request_with_telemetry(
                     "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
                 )
+                request_sw.stop()
+                total_request_ms += request_sw.elapsed() * 1000
             except Exception:  # noqa: E722
                 return None
 
@@ -651,7 +666,11 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 
+        fetch_sw.stop()
         record_early_flake_detection_tests_count(len(known_test_ids))
+        record_early_flake_detection_pages_fetched(pages_fetched)
+        record_early_flake_detection_total_fetch_ms(fetch_sw.elapsed() * 1000)
+        record_early_flake_detection_total_request_ms(total_request_ms)
 
         return known_test_ids
 
