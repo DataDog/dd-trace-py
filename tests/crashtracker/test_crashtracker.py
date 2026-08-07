@@ -497,7 +497,8 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         # Check for expected exit condition
         assert not stdout
         assert not stderr
-        assert exitcode == -11
+        # ctypes.string_at(0) can produce SIGBUS (-7) instead of SIGSEGV (-11).
+        assert exitcode in (-11, -7), f"Expected crash signal, got {exitcode}"
 
         # Check for crash ping
         _ping = utils.get_crash_ping(client, service=service)
