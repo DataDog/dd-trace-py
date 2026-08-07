@@ -3875,6 +3875,18 @@ venv = Venv(
                         ),
                     ],
                 ),
+                # Run the full profiling suite with both wall and CPU timer sampling enabled.
+                # Match the standard profile dependencies so Riot can reuse its existing venv hashes.
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    env={
+                        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+                    },
+                    pkgs={
+                        "uwsgi": latest,
+                        "protobuf": latest,
+                    },
+                ),
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501

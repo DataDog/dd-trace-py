@@ -2,6 +2,7 @@
 #include <echion/state.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cerrno>
 #include <csetjmp>
@@ -33,6 +34,11 @@ static const size_t page_size = []() -> size_t {
 struct sigaction g_old_segv;
 struct sigaction g_old_bus;
 
+static_assert(std::atomic<ProfilingFaultRecover>::is_always_lock_free,
+              "profiling fault handler requires a lock-free recovery callback atomic");
+
+std::atomic<ProfilingFaultRecover> g_external_recover{ nullptr };
+
 thread_local ThreadAltStack t_altstack;
 
 // We "arm" by publishing a valid jmp env for this thread.
@@ -61,8 +67,15 @@ disarm_fault_handler()
 }
 
 static void
-segv_handler(int signo, siginfo_t*, void*)
+segv_handler(int signo, siginfo_t* si, void* ucontext)
 {
+    const int saved_errno = errno;
+    ProfilingFaultRecover recover = g_external_recover.load(std::memory_order_relaxed);
+    if (recover != nullptr && recover(signo, si, ucontext)) {
+        errno = saved_errno;
+        return;
+    }
+
     if (!t_handler_armed) {
         if (t_in_unarmed_chain) {
             // We are being re-entered while already chaining to a previous
@@ -91,21 +104,19 @@ segv_handler(int signo, siginfo_t*, void*)
         return;
     }
 
+    errno = saved_errno;
     // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
     siglongjmp(t_jmpenv, 1);
 }
 
 int
-init_segv_catcher()
+init_profiling_fault_handler()
 {
-    if (t_altstack.ensure_installed() != 0) {
-        return -1;
-    }
-
     struct sigaction sa
     {};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
+    sigaddset(&sa.sa_mask, SIGPROF);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
 
@@ -141,6 +152,22 @@ init_segv_catcher()
 }
 
 bool
+profiling_fault_handler_still_installed()
+{
+    constexpr int required_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    struct sigaction current;
+    if (sigaction(SIGSEGV, nullptr, &current) != 0 || current.sa_sigaction != segv_handler ||
+        (current.sa_flags & required_flags) != required_flags) {
+        return false;
+    }
+    if (sigaction(SIGBUS, nullptr, &current) != 0 || current.sa_sigaction != segv_handler ||
+        (current.sa_flags & required_flags) != required_flags) {
+        return false;
+    }
+    return true;
+}
+
+bool
 segv_handler_installed()
 {
     // Recovery needs our handler to own BOTH SIGSEGV and SIGBUS
@@ -156,6 +183,29 @@ segv_handler_installed()
         }
     }
     return true;
+}
+
+void
+register_profiling_fault_recover(ProfilingFaultRecover recover)
+{
+    g_external_recover.store(recover, std::memory_order_release);
+}
+
+void
+unregister_profiling_fault_recover(ProfilingFaultRecover recover)
+{
+    ProfilingFaultRecover current = recover;
+    (void)g_external_recover.compare_exchange_strong(current, nullptr, std::memory_order_acq_rel);
+}
+
+int
+init_segv_catcher()
+{
+    if (t_altstack.ensure_installed() != 0) {
+        return -1;
+    }
+
+    return init_profiling_fault_handler();
 }
 
 void
