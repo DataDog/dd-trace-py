@@ -54,7 +54,9 @@ init_safe_copy()
     // Try safe_memcpy (fast path) first.
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
-        fast_copy_active = true;
+        fast_copy_active.store(true, std::memory_order_relaxed);
+        fast_copy_requested = true;
+        fast_copy_desired.store(true, std::memory_order_relaxed);
         safe_memcpy_initialized = true;
     } else {
         // std::cerr might not have been fully initialized at this point.
@@ -80,7 +82,9 @@ init_safe_copy()
 
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
-        fast_copy_active = true;
+        fast_copy_active.store(true, std::memory_order_relaxed);
+        fast_copy_requested = true;
+        fast_copy_desired.store(true, std::memory_order_relaxed);
         safe_memcpy_initialized = true;
         return;
     }
@@ -98,7 +102,8 @@ set_fast_copy_enabled(bool enabled)
         // Fast copy enabled: prefer safe_memcpy, fall back to process_vm_readv.
         if (safe_memcpy_initialized) {
             safe_copy = safe_memcpy_wrapper;
-            fast_copy_active = true;
+            fast_copy_active.store(true, std::memory_order_relaxed);
+            fast_copy_requested = true;
             return true;
         }
         fprintf(stderr,
@@ -112,7 +117,7 @@ set_fast_copy_enabled(bool enabled)
 #if defined PL_LINUX
     if (process_vm_readv_available) {
         safe_copy = process_vm_readv;
-        fast_copy_active = false;
+        fast_copy_active.store(false, std::memory_order_relaxed);
         return true;
     }
     fprintf(stderr,
@@ -123,7 +128,7 @@ set_fast_copy_enabled(bool enabled)
 #elif defined PL_DARWIN
     // mach_vm_read_overwrite is always available on macOS.
     safe_copy = mach_vm_read_overwrite;
-    fast_copy_active = false;
+    fast_copy_active.store(false, std::memory_order_relaxed);
     return true;
 #endif
 }

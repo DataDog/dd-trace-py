@@ -19,6 +19,8 @@ class EchionSampler;
 
 namespace Datadog {
 
+class ProfilerStats;
+
 enum class PauseResult : std::uint8_t
 {
     Paused,     // sampler was running and is now paused
@@ -82,10 +84,6 @@ class Sampler
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
-    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
-    // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
-
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
     // that doesn't collapse to zero during brief idle periods.
@@ -100,15 +98,12 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
-    // Fast-copy startup warmup in seconds.
     double fast_copy_warmup_seconds = 15.0;
 
-    // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
-    // Tracks whether the sampler was running when prefork was called,
-    // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
+    bool paused_for_fork_{ false };
 
     void atfork_child();
     friend void stack_atfork_prepare();
@@ -145,6 +140,8 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     bool is_running() const { return thread_running.load(); }
+    bool is_sampling_paused() const { return paused_.load(std::memory_order_acquire); }
+    bool take_prefork_pause_observation();
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)
@@ -177,12 +174,13 @@ class Sampler
     // Restart the sampling thread in the parent after fork
     void postfork_parent();
 
-    // Restart the sampler after fork if it was running.
-    // Returns true if start() was invoked and succeeded.
-    bool restart_after_fork();
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
+// Publish the current echion fast-copy globals into ProfilerState and,
+// optionally, the active profile stats object.
 void
-seed_fast_copy_profiler_stats();
+publish_fast_copy_profiler_metadata(Datadog::ProfilerStats* stats = nullptr);
 
 } // namespace Datadog

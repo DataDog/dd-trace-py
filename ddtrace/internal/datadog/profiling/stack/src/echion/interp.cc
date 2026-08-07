@@ -1,7 +1,9 @@
 #include <echion/interp.h>
 
 void
-for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
+for_each_interp(_PyRuntimeState* runtime,
+                const std::function<void(InterpreterInfo& interp)>& callback,
+                const std::function<bool()>& continue_sampling)
 {
     InterpreterInfo interpreter_info = { 0 };
 
@@ -15,6 +17,10 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
 
     // Safety: prevent infinite loops from cycles or corrupted interpreter linked lists
     for (size_t iteration_count = 0; iteration_count < MAX_INTERPRETERS && interp_addr != NULL; ++iteration_count) {
+
+        if (!continue_sampling()) {
+            break;
+        }
 
         // Cycle detection: if we didn't advance from previous iteration, we're stuck
         if (prev_interp_addr != nullptr && interp_addr == prev_interp_addr) {
