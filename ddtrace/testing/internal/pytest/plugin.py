@@ -34,6 +34,8 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
+from ddtrace.testing.internal.pytest.bdd import _TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
@@ -283,7 +285,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(_TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -1679,8 +1681,6 @@ def pytest_configure(config: pytest.Config) -> None:
 
     if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
         try:
-            from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
-
             config.pluginmanager.register(BddTestOptPlugin(plugin))
         except Exception:
             log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)

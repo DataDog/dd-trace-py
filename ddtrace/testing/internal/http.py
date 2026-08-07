@@ -27,6 +27,7 @@ from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
+from ddtrace.testing.internal.telemetry import _BackendConnectorSetupProtocol
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -99,7 +100,7 @@ RETRIABLE_ERRORS = {
 }
 
 
-class BackendConnectorSetup:
+class BackendConnectorSetup(_BackendConnectorSetupProtocol):
     """
     Logic for detecting the backend connection mode (agentless or EVP) and creating new connectors.
     """

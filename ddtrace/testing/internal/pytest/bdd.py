@@ -9,6 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
+from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestTag
 
 
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class _TestOptPluginProtocol(t.Protocol):
-    manager: t.Any
+    manager: SessionManager
 
 
 class BddTestOptPlugin:
@@ -134,7 +135,7 @@ class BddTestOptPlugin:
 
     def _get_codeowners(self, feature_path: Path) -> t.Optional[list[str]]:
         if codeowners := self.main_plugin.manager.codeowners:
-            return t.cast(t.Optional[list[str]], codeowners.of(str(feature_path)))
+            return codeowners.of(str(feature_path))
         return None
 
 
