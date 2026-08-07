@@ -1,4 +1,7 @@
 import json
+import sys
+from typing import Optional
+from typing import Union
 
 import mock
 from pydantic import BaseModel
@@ -530,19 +533,6 @@ def _manifest_of(span):
     return _get_llmobs_data_metastruct(span)["meta"]["metadata"]["_dd"]["agent_manifest"]
 
 
-def _without_hashes(node):
-    """Drop source_hash everywhere so a field mapping can be compared exactly.
-
-    The hash covers formatting and file position, so it is not stable enough to assert by value.
-    test_function_source_is_hashed_never_emitted covers the hash itself.
-    """
-    if isinstance(node, dict):
-        return {k: _without_hashes(v) for k, v in node.items() if k != "source_hash"}
-    if isinstance(node, list):
-        return [_without_hashes(v) for v in node]
-    return node
-
-
 class ABSENT:
     """Marks keys a case asserts are missing. An empty expected dict asserts nothing at all."""
 
@@ -671,6 +661,14 @@ MANIFEST_FIELD_CASES = [
         id="history_processors_land_in_memory_policies",
     ),
     pytest.param(
+        # A processor listed twice runs twice, so it is reported twice: collapsing the repeat would
+        # describe a pipeline the agent does not run, the same way reordering it would.
+        lambda: dict(history_processors=[_redact_history, _redact_history]),
+        {"memory_policies": ["_redact_history", "_redact_history"]},
+        None,
+        id="repeated_history_processor_is_reported_twice",
+    ),
+    pytest.param(
         lambda: dict(toolsets=[_tenant_toolset]),
         {"capabilities": [{"name": "_tenant_toolset", "type": "custom"}]},
         (0, 4, 4),
@@ -707,24 +705,6 @@ MANIFEST_FIELD_CASES = [
         id="output_function_does_not_become_a_handoff",
     ),
 ]
-
-
-def _empty_paths(node, path="manifest"):
-    """Every path in the manifest whose value is None or an empty container.
-
-    Used instead of spot-checking known keys, so a newly added grouping cannot quietly start emitting
-    nulls without a test noticing.
-    """
-    if node is None or (isinstance(node, (str, bytes, list, tuple, dict, set)) and len(node) == 0):
-        return [path]
-    found = []
-    if isinstance(node, dict):
-        for key, value in node.items():
-            found.extend(_empty_paths(value, "{}.{}".format(path, key)))
-    elif isinstance(node, (list, tuple)):
-        for index, value in enumerate(node):
-            found.extend(_empty_paths(value, "{}[{}]".format(path, index)))
-    return found
 
 
 @pytest.mark.parametrize(
@@ -865,7 +845,7 @@ class TestPydanticAIAgentManifest:
             model_settings={"temperature": 0.2, "max_tokens": 1024},
         )
 
-        actual = _without_hashes(manifest)
+        actual = manifest
         assert actual["framework"] == "PydanticAI"
         assert actual["name"] == "support_orchestrator"
         assert actual["instructions"] == "You orchestrate specialists."
@@ -1004,11 +984,11 @@ class TestPydanticAIAgentManifest:
             assert capability["name"]
             assert capability["type"] in {"mcp", "builtin", "custom", "tool_preparation"}
 
-    async def test_extra_instructions_carry_type_name_and_hash(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A dynamic resolver ships as {type, name, content}, not as a boolean.
+    async def test_extra_instructions_carry_type_and_name(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A dynamic resolver ships flat as {type, name, reevaluated}.
 
-        Instructions are half the agent version fingerprint. A boolean "is dynamic" would say the text
-        varies between runs but not how, so a prompt change inside a resolver would be invisible.
+        Naming the resolver says which text is decided at run time, which a boolean "has dynamic
+        instructions" on the agent could not.
         """
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
 
@@ -1020,11 +1000,9 @@ class TestPydanticAIAgentManifest:
         await agent.run("Hello, world!")
         manifest = _manifest_of(test_spans.pop_traces()[0][0])
 
-        entries = manifest["extra_instructions"]
-        assert [entry["name"] for entry in entries] == ["per_tenant_policy"]
-        assert entries[0]["type"] == "dynamic_instructions"
-        assert entries[0]["content"]["source_hash"]
-        assert entries[0]["content"]["reevaluated"] is True
+        assert manifest["extra_instructions"] == [
+            {"type": "dynamic_instructions", "name": "per_tenant_policy", "reevaluated": True}
+        ]
 
     async def test_function_source_never_reaches_the_wire(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A callable is recorded by name. A function body can hold a literal secret."""
@@ -1043,6 +1021,25 @@ class TestPydanticAIAgentManifest:
         assert "def reject_ungrounded" not in blob
         assert manifest["guardrails"] == ["reject_ungrounded"]
 
+    async def test_repeated_output_validator_is_reported_twice(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """The same validator registered twice runs twice, so both registrations are reported.
+
+        pydantic-ai keeps both in _output_validators, so reporting one would understate the
+        validation the agent actually performs.
+        """
+        agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
+
+        def reject_ungrounded(value):
+            return value
+
+        agent.output_validator(reject_ungrounded)
+        agent.output_validator(reject_ungrounded)
+
+        await agent.run("Hello, world!")
+        manifest = _manifest_of(test_spans.pop_traces()[0][0])
+
+        assert manifest["guardrails"] == ["reject_ungrounded", "reject_ungrounded"]
+
     async def test_data_contracts_carry_the_output_type(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """The declared output type lands under data_contracts.output by name."""
 
@@ -1055,6 +1052,52 @@ class TestPydanticAIAgentManifest:
         )
 
         assert manifest["data_contracts"] == {"output": {"name": "Resolution"}}
+
+    async def test_output_type_name_omits_the_defining_module(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """A generic's arguments are named bare, so the value does not move with the import path.
+
+        str(list[Resolution]) qualifies the argument, which would report list[__main__.Resolution]
+        under a script and list[app.models.Resolution] imported: the same agent, two manifests.
+        """
+
+        class Resolution(BaseModel):
+            answer: str
+
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=list[Resolution], model=_test_model()
+        )
+
+        assert manifest["data_contracts"] == {"output": {"name": "list[Resolution]"}}
+        assert Resolution.__module__ not in manifest["data_contracts"]["output"]["name"]
+
+    async def test_output_type_name_is_one_value_per_union_spelling(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """The three ways to declare the same union report the same name.
+
+        Union[A, B], A | B and the [A, B] list form are one contract, so they cannot fingerprint as
+        three. Optional spells its arm None, the way it is written.
+        """
+
+        class Answer(BaseModel):
+            answer: str
+
+        class Refusal(BaseModel):
+            reason: str
+
+        spellings = [Union[Answer, Refusal], [Answer, Refusal]]
+        if sys.version_info >= (3, 10):
+            # PEP 604 unions on classes raise TypeError below 3.10, and this suite pins 3.9.
+            spellings.append(Answer.__or__(Refusal))
+
+        for output_type in spellings:
+            _, manifest = await self._run(
+                pydantic_ai, test_spans, name="test_agent", output_type=output_type, model=_test_model()
+            )
+            assert manifest["data_contracts"] == {"output": {"name": "Answer | Refusal"}}
+
+        _, manifest = await self._run(
+            pydantic_ai, test_spans, name="test_agent", output_type=Optional[Answer], model=_test_model()
+        )
+        assert manifest["data_contracts"] == {"output": {"name": "Answer | None"}}
 
     async def test_agent_settings_carry_the_loop_knobs(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """retries is the output-validation budget and tool_retries the per-tool one.

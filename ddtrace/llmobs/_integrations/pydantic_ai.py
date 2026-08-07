@@ -1,9 +1,10 @@
 import functools
-import hashlib
-import inspect
+import types
 from typing import Any
 from typing import Optional
 from typing import Sequence
+from typing import Union
+from typing import get_args
 from typing import get_origin
 
 from ddtrace.internal import core
@@ -55,7 +56,7 @@ def _is_flat_scalar_value(value: Any) -> bool:
 
 
 def _iter_agent_tools(agent: Any):
-    """Yield (name, tool, fn) for the agent's function tools, de-duped first-wins, across versions."""
+    """Yield (name, tool) for the agent's function tools, de-duped first-wins, across versions."""
     seen: set[str] = set()
     tool_dicts: list[dict[str, Any]] = []
     function_tools = getattr(agent, "_function_tools", None)
@@ -78,26 +79,7 @@ def _iter_agent_tools(agent: Any):
             if name in seen:
                 continue
             seen.add(name)
-            fn = getattr(tool, "function", None)
-            if fn is None:
-                fn = getattr(getattr(tool, "function_schema", None), "function", None)
-            yield name, tool, fn
-
-
-def _dedupe_by_id(items: list[Any], key=lambda item: id(item)) -> list[Any]:
-    """Collapse duplicates by key, default object id, preserving first-seen order.
-
-    Pair call sites pass key=lambda p: id(p[0]) to dedupe (fn, flag) tuples on the function id.
-    """
-    seen: set[int] = set()
-    unique: list[Any] = []
-    for item in items:
-        k = key(item)
-        if k in seen:
-            continue
-        seen.add(k)
-        unique.append(item)
-    return unique
+            yield name, tool
 
 
 def _callable_name(fn: Any) -> str:
@@ -109,36 +91,48 @@ def _callable_name(fn: Any) -> str:
 
 
 def _type_name(candidate: Any) -> str:
-    """Readable name for an output-type candidate, including a parameterized generic like list[Fruit]."""
-    if get_origin(candidate) is not None:
-        return str(candidate)
-    return getattr(candidate, "__name__", None) or str(candidate)
+    """Readable name for an output-type candidate, including a parameterized generic like list[Fruit].
+
+    Assembled from the type's parts rather than str(), which qualifies every argument with its
+    defining module: the same agent would otherwise report list[__main__.Fruit] run as a script and
+    list[app.models.Fruit] imported.
+    """
+    if candidate is type(None):
+        return "None"
+    origin, args = get_origin(candidate), get_args(candidate)
+    if origin is None or not args:
+        return getattr(candidate, "__name__", None) or str(candidate)
+    names = [_type_name(arg) for arg in args]
+    if origin is Union or origin is getattr(types, "UnionType", None):
+        return " | ".join(names)
+    return "{}[{}]".format(getattr(origin, "__name__", None) or str(origin), ", ".join(names))
 
 
-def _collect_instructions(agent: Any) -> tuple[list[str], list[tuple[Any, bool]]]:
+def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     """Gather (static_texts, dynamic_resolvers) from an agent's instructions.
 
-    _instructions is a str below 1.63.0 and a mixed list after, with resolvers in
-    _instructions_functions below and inline after, so read both and de-dupe by id.
+    _instructions is a str below 1.63.0 and a mixed list after, so a resolver sits in
+    _instructions_functions below and inline in _instructions after. The two are populated
+    exclusively, never both, so reading each in turn cannot double-count.
     """
     static_texts: list[str] = []
-    dynamic: list[tuple[Any, bool]] = []
+    dynamic: list[Any] = []
     instructions = getattr(agent, "_instructions", None)
     if isinstance(instructions, (list, tuple)):
         for entry in instructions:
             if isinstance(entry, str):
                 static_texts.append(entry)
             elif callable(entry):
-                dynamic.append((entry, True))
+                dynamic.append(entry)
     elif isinstance(instructions, str):
         static_texts.append(instructions)
     elif callable(instructions):
-        dynamic.append((instructions, True))
+        dynamic.append(instructions)
     for runner in getattr(agent, "_instructions_functions", None) or []:
         fn = getattr(runner, "function", runner)
         if callable(fn):
-            dynamic.append((fn, True))
-    return static_texts, _dedupe_by_id(dynamic, key=lambda p: id(p[0]))
+            dynamic.append(fn)
+    return static_texts, dynamic
 
 
 def _collect_dynamic_system_prompts(agent: Any) -> list[tuple[Any, bool]]:
@@ -152,7 +146,7 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[tuple[Any, bool]]:
         fn = getattr(runner, "function", runner)
         if callable(fn):
             dynamic.append((fn, bool(getattr(runner, "dynamic", False))))
-    return _dedupe_by_id(dynamic, key=lambda p: id(p[0]))
+    return dynamic
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
@@ -353,9 +347,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _manifest_instructions(self, agent: Any) -> dict[str, Any]:
         """What the agent is told: static text, static system prompts, and dynamic resolvers.
 
-        instructions is a plain string, so a consumer never has to branch on its type. Every resolver
-        lands in extra_instructions as {type, name, content}, which is what makes a prompt change
-        detectable: a boolean "is dynamic" would say that the text varies but not how.
+        instructions is a plain string, so a consumer never has to branch on its type. A resolver's
+        text is only known at run time, so it lands in extra_instructions by name.
         """
         fields: dict[str, Any] = {}
         static_texts, dynamic_instructions = _collect_instructions(agent)
@@ -365,15 +358,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
         put_field(fields, "system_prompts", prompts)
         extra: list[dict[str, Any]] = []
         for kind, resolvers in (
-            ("dynamic_instructions", dynamic_instructions),
+            ("dynamic_instructions", [(fn, True) for fn in dynamic_instructions]),
             ("dynamic_system_prompt", _collect_dynamic_system_prompts(agent)),
         ):
             for fn, reevaluated in resolvers:
-                for described in self._describe_functions([fn]):
-                    entry: dict[str, Any] = {"type": kind, "name": described.pop("name", "")}
-                    described["reevaluated"] = reevaluated
-                    put_field(entry, "content", described)
-                    extra.append(entry)
+                extra.append({"type": kind, "name": _callable_name(fn), "reevaluated": reevaluated})
         put_field(fields, "extra_instructions", extra)
         return fields
 
@@ -430,9 +419,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return {"data_contracts": {"output": {"name": name}}} if name else {}
 
     def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
-        """The message-history pipeline, order preserved: [trim, summarize] is not [summarize, trim]."""
+        """The message-history pipeline, order preserved: [trim, summarize] is not [summarize, trim].
+
+        A repeat is kept for the same reason order is: [trim, trim] runs trim twice.
+        """
         fields: dict[str, Any] = {}
-        processors = _dedupe_by_id([fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)])
+        processors = [fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)]
         put_field(fields, "memory_policies", [_callable_name(fn) for fn in processors])
         return fields
 
@@ -440,7 +432,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """Output validators by name, matching the shape the other integrations already emit."""
         fields: dict[str, Any] = {}
         validators = getattr(agent, "_output_validators", None) or []
-        fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
+        fns = [getattr(v, "function", v) for v in validators]
         put_field(fields, "guardrails", [_callable_name(fn) for fn in fns if callable(fn)])
         return fields
 
@@ -481,7 +473,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         on _function_toolset and on any user-supplied FunctionToolset in _user_toolsets.
         """
         tools: list[dict[str, Any]] = []
-        for tool_name, tool_instance, _fn in _iter_agent_tools(agent):
+        for tool_name, tool_instance in _iter_agent_tools(agent):
             entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
             # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
             # what it cannot encode, which can carry credentials.
@@ -514,26 +506,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 param_dict["required"] = True
             parameters[str(param)] = param_dict
         return parameters
-
-    @staticmethod
-    def _describe_functions(fns: list[Any]) -> list[dict[str, Any]]:
-        """Describe each function as {name, source_hash?}.
-
-        AIDEV-NOTE: hash rather than ship the source, which can hold secrets. The hash covers the
-        decorator and indentation, so it is a change signal, not a semantic fingerprint.
-        """
-        described: list[dict[str, Any]] = []
-        for fn in fns:
-            entry: dict[str, Any] = {"name": _callable_name(fn)}
-            try:
-                source: Optional[str] = inspect.getsource(fn)
-            except (OSError, TypeError):
-                # No retrievable source (a lambda, a REPL definition, a C function), so name only.
-                source = None
-            if source is not None:
-                entry["source_hash"] = hashlib.sha256(source.encode("utf-8")).hexdigest()
-            described.append(entry)
-        return described
 
     def _builtin_tool_names(self, agent: Any) -> list[str]:
         """Provider-side builtin tools by name. _builtin_tools is gone from 2.x, so the key drops."""
