@@ -52,6 +52,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
+from ddtrace.internal.ci_visibility.service_registry import _CIVisibilityProtocol
 from ddtrace.internal.ci_visibility.service_registry import register_ci_visibility_instance
 from ddtrace.internal.ci_visibility.service_registry import unregister_ci_visibility_instance
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
@@ -151,7 +152,7 @@ class CIVisibilityTracer(Tracer):
         super().__init__(*args, **kwargs)
 
 
-class CIVisibility(Service):
+class CIVisibility(Service, _CIVisibilityProtocol):
     _instance: Optional["CIVisibility"] = None
     enabled = False
 
