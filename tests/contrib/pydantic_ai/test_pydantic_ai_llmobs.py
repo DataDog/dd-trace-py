@@ -1032,7 +1032,7 @@ class TestPydanticAIAgentManifest:
 
         for capability in manifest["capabilities"]:
             assert capability["name"]
-            assert capability["type"] in {"tool", "mcp", "builtin", "custom"}
+            assert capability["type"] in {"tool", "mcp", "builtin", "custom", "tool_preparation"}
 
     async def test_extra_instructions_carry_type_name_and_hash(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A dynamic resolver ships as {type, name, content}, not as a boolean.
@@ -1217,6 +1217,59 @@ class TestPydanticAIAgentManifest:
         json.dumps(manifest, allow_nan=False)
         assert manifest["model_settings"] == {"top_p": 0.9}
 
+    def test_mcp_servers_are_filtered_named_and_scrubbed(self, pydantic_ai):
+        """MCP capture, which no other test reaches: the mcp extra is in none of the riot venvs.
+
+        Stubbing the class lookup rather than the extra keeps the real filtering, naming and URL
+        scrubbing under test. A stdio server has no url, so it must be named without one: its command
+        and args can carry secrets.
+        """
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        class FakeMCPServer:
+            def __init__(self, server_id=None, url=None):
+                self.id = server_id
+                self.url = url
+
+        class NotAnMCPServer:
+            pass
+
+        agent = mock.Mock()
+        agent._user_toolsets = [
+            FakeMCPServer(server_id="billing", url="https://user:sk-secret@mcp.example.com:8443/sse?token=abc"),
+            FakeMCPServer(server_id=None, url=None),
+            NotAnMCPServer(),
+        ]
+        integration = PydanticAIIntegration(integration_config=mock.Mock())
+
+        with mock.patch.object(PydanticAIIntegration, "_mcp_server_classes", staticmethod(lambda: (FakeMCPServer,))):
+            servers = integration._get_mcp_servers(agent)
+
+        assert servers == [
+            {"name": "billing", "uri": "https://mcp.example.com:8443"},
+            {"name": "FakeMCPServer"},
+        ], "the non-MCP toolset is filtered out, credentials and path are scrubbed, a urlless server keeps only a name"
+
+    async def test_non_string_agent_name_falls_back_to_the_placeholder(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans
+    ):
+        """A name that is not a str must not be printed onto the wire.
+
+        The name is not type-checked by pydantic-ai, and the span encoder reprs a value it cannot
+        encode, so an object here discloses its contents. Same rule as the tool description.
+        """
+
+        class Leaky:
+            def __repr__(self):
+                return "Leaky(token=sk-not-a-real-key)"
+
+        agents = [pydantic_ai.Agent(model=_test_model(), name=Leaky())]
+        await agents[0].run("Hello, world!")
+        manifest = _manifest_of(test_spans.pop_traces()[0][0])
+
+        assert "sk-not-a-real-key" not in safe_json(manifest)
+        assert manifest["name"] == "PydanticAI Agent"
+
     async def test_non_string_tool_description_is_dropped(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A tool description that is not a str must not be printed onto the wire.
 
@@ -1273,20 +1326,23 @@ class TestPydanticAIAgentManifest:
         assert set(parameters) == {"alpha", "7"}, "both parameters survive, with keys coerced to str"
         assert safe_json(manifest) is not None, "the payload must still encode"
 
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no tool_timeout")
     async def test_non_finite_agent_settings_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """The same rule for agent_settings, which does not go through the value coercer.
 
-        tool_timeout=float("inf") is a plausible way to say "no timeout", and it reached the wire as a
-        bare Infinity token. Python's json parser accepts that, a strict one does not, and spans ship
-        batched, so a single such agent can invalidate a whole payload.
+        float("inf") is a plausible way to say "no limit", and it reached the wire as a bare Infinity
+        token. Python's json parser accepts that, a strict one does not, and spans ship batched, so a
+        single such agent can invalidate a whole payload.
+
+        Driven through output_retries rather than tool_timeout: pydantic-ai accepts a non-finite for
+        both, but tool_timeout does not exist below 1.63.0, and guarding on it would skip this test on
+        the versions where the hazard is just as reachable.
         """
         _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", tool_timeout=float("inf"), model=_test_model()
+            pydantic_ai, test_spans, name="test_agent", output_retries=float("inf"), model=_test_model()
         )
 
         json.dumps(manifest, allow_nan=False)
-        assert "tool_timeout" not in manifest["agent_settings"]
+        assert "retries" not in manifest["agent_settings"], "a non-finite retry budget must drop"
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 63, 0), reason="pydantic-ai < 1.63.0 has no agent metadata")
     async def test_cyclic_metadata_does_not_cost_the_section(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
@@ -1435,6 +1491,15 @@ class TestPydanticAIAgentManifest:
         # the manifest even if one ever reaches this helper.
         ("file:///usr/local/bin/secret-tool", None),
         ("stdio://run?key=sk-secret", None),
+        # Single-slash forms have no "//" for urlsplit to find an authority in, so they take the
+        # scheme-less host:port branch. Without a scheme check there they were rebuilt into an https
+        # URL that never existed: "stdio:/usr/bin/srv" became "https://stdio".
+        ("file:/usr/local/bin/secret-tool", None),
+        ("stdio:/usr/local/bin/srv --api-key sk-secret", None),
+        ("mailto:someone@example.com", None),
+        # A stdio command line is not a URL. Its first token was previously rebuilt into a host, and
+        # an "@" in a package name made the rest of the command read as userinfo.
+        ("npx -y @modelcontextprotocol/server-filesystem /home/me", None),
         ("", None),
         (None, None),
         # No host means nothing worth emitting.

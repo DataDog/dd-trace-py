@@ -5,9 +5,13 @@ security:
     parameters from an agent's ``model_settings``, which may contain an API key, an authorization
     token, or an end-user identifier. Only known inference parameters are captured.
   - |
-    LLM Observability: The ``pydantic_ai`` integration no longer captures a tool ``description`` that
-    is not a string. Such a value was previously written to the span as its ``repr``, which may
-    disclose the contents of the object.
+    LLM Observability: The ``pydantic_ai`` integration no longer captures an agent ``name`` or a tool
+    ``description`` that is not a string. Such a value was previously written to the span as its
+    ``repr``, which may disclose the contents of the object.
+  - |
+    LLM Observability: The ``pydantic_ai`` integration no longer reports a URI for an MCP server that
+    is not addressed over HTTP. A stdio server's command, and other non-HTTP URIs, were previously
+    rebuilt into an ``https`` address that the agent never used.
 fixes:
   - |
     LLM Observability: The ``pydantic_ai`` integration no longer reports empty or null values for agent

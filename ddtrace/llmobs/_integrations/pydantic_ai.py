@@ -1,7 +1,6 @@
 import functools
 import hashlib
 import inspect
-import math
 from typing import Any
 from typing import Optional
 from typing import Sequence
@@ -13,6 +12,11 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._integrations.agent_manifest import MANIFEST_VERSION
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import put_field
+from ddtrace.llmobs._integrations.agent_manifest import wire_schema
+from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -30,8 +34,6 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-vertex": "google",
 }
 
-# Bump only when the manifest encoding changes.
-MANIFEST_VERSION = 1
 # The display name the integration has always emitted. Kept so the shared schema migration does not
 # also silently re-key every existing consumer's framework filter.
 FRAMEWORK_NAME = "PydanticAI"
@@ -39,8 +41,6 @@ FRAMEWORK_NAME = "PydanticAI"
 _HTTP_MCP_SCHEMES = frozenset({"http", "https"})
 # Legal hostname characters, plus ":" for IPv6. An IDN host drops, which is the safe direction.
 _HOSTNAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-:")
-# Deep enough for a nested output schema, shallow enough that a cyclic value terminates.
-_MAX_WIRE_DEPTH = 20
 # How far into a declared generic to look for a model. dict[str, list[Row]] is 2, and a caller can
 # nest further, but an output contract that deep is not worth an unbounded walk on every agent span.
 _MAX_OUTPUT_TYPE_DEPTH = 4
@@ -115,107 +115,6 @@ _BUILTIN_TOOL_CONFIG_FIELDS = frozenset(
 )
 
 
-def _put_field(fields: dict[str, Any], name: str, value: Any) -> None:
-    """Assign a manifest field, dropping values that mean "not configured".
-
-    Every field assignment goes through here, so no grouping can ship null, "", [], {} or ().
-    False and 0 are kept: filtering on truthiness instead is what loses a configured temperature=0.
-    """
-    if value is None:
-        return
-    if isinstance(value, (str, bytes, list, tuple, dict, set, frozenset)) and len(value) == 0:
-        return
-    fields[name] = value
-
-
-def _is_number(value: Any) -> bool:
-    """A finite JSON number.
-
-    bool is an int subclass, so True would otherwise pass as a count. A non-finite float is rejected
-    for the same reason _wire_value rejects one: it encodes as a bare Infinity or NaN token, which is
-    not valid JSON, and spans ship batched, so one of them invalidates the whole payload rather than
-    this one field. tool_timeout=float("inf") is a plausible way to say "no timeout".
-
-    isfinite is applied only to floats: a Python int is never non-finite, and converting a very large
-    one to float to check would raise.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    return math.isfinite(value) if isinstance(value, float) else True
-
-
-def _wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> Any:
-    """Coerce a value to a JSON-native one, or None when it cannot ship.
-
-    An allowlist rather than a repr fallback: an unencodable value in meta_struct fails the span at
-    encode time, and a repr can leak connection config. A provider sentinel such as OpenAI's Omit
-    means "not set", so it drops rather than emitting "Omit()" where a number belongs.
-    """
-    if value is None or isinstance(value, (bool, int, str)):
-        return value
-    if isinstance(value, float):
-        # json.dumps writes these as bare NaN/Infinity tokens, which are not valid JSON. Spans ship
-        # batched, so one of them invalidates the whole payload rather than this one field.
-        return value if math.isfinite(value) else None
-    if isinstance(value, (list, tuple, dict)):
-        # A self-referential container would recurse until RecursionError, costing the section.
-        if depth > _MAX_WIRE_DEPTH or id(value) in ancestors:
-            return None
-        ancestors = ancestors + (id(value),)
-    if isinstance(value, (list, tuple)):
-        items = [_wire_value(item, depth + 1, ancestors) for item in value]
-        return None if any(item is None for item in items) else items
-    if isinstance(value, dict):
-        coerced: dict[str, Any] = {}
-        for key, item in value.items():
-            wired = _wire_value(item, depth + 1, ancestors)
-            if wired is not None:
-                # Coerce, not drop: logit_bias is keyed by token id, and dropping loses the field.
-                coerced[str(key)] = wired
-        return coerced or None
-    return None
-
-
-# Distinct from None, which is a legal value inside a JSON document. _wire_value conflates the two
-# because for a config field a null and an absent key mean the same thing.
-_UNENCODABLE = object()
-
-
-def _wire_document(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> Any:
-    """Coerce a whole JSON document, keeping null as data rather than treating it as absence.
-
-    For a config field a null means "not configured" and _wire_value is right to drop it. A declared
-    JSON Schema is a document, where "default": null and an enum containing null are assertions the
-    caller made. Dropping those silently narrows the recorded contract: an enum of ["a", "b", null]
-    would otherwise lose the whole list and record the field as unconstrained.
-    """
-    if value is None or isinstance(value, (bool, int, str)):
-        return value
-    if isinstance(value, float):
-        return value if math.isfinite(value) else _UNENCODABLE
-    if isinstance(value, (list, tuple, dict)):
-        if depth > _MAX_WIRE_DEPTH or id(value) in ancestors:
-            return _UNENCODABLE
-        ancestors = ancestors + (id(value),)
-    if isinstance(value, (list, tuple)):
-        items = [_wire_document(item, depth + 1, ancestors) for item in value]
-        return _UNENCODABLE if any(item is _UNENCODABLE for item in items) else items
-    if isinstance(value, dict):
-        coerced: dict[str, Any] = {}
-        for key, item in value.items():
-            wired = _wire_document(item, depth + 1, ancestors)
-            if wired is not _UNENCODABLE:
-                coerced[str(key)] = wired
-        return coerced
-    return _UNENCODABLE
-
-
-def _wire_schema(value: Any) -> Any:
-    """_wire_document for a _put_field call site: an undecodable document drops the key entirely."""
-    wired = _wire_document(value)
-    return None if wired is _UNENCODABLE else wired
-
-
 def _redact_mcp_uri(raw: Any) -> Optional[str]:
     """Scrub an HTTP MCP URL down to scheme://host with an optional port.
 
@@ -224,14 +123,23 @@ def _redact_mcp_uri(raw: Any) -> Optional[str]:
     if not raw:
         return None
     text = str(raw).strip()
-    if not text:
+    if not text or any(character.isspace() for character in text):
+        # Whitespace means this is not a URL. A stdio server's command line lands here, and its first
+        # token would otherwise be rebuilt into a host that was never one.
         return None
     try:
         parsed = urllib.parse.urlsplit(text)
-        # A scheme-less host:port has no //, so re-parse with a leading // to let urlsplit find the host.
+        scheme = parsed.scheme.lower()
         if not parsed.netloc and "//" not in text:
+            # A scheme-less host:port parses with the host AS the scheme, so re-parse with a leading //
+            # to let urlsplit find it. Only when what follows the colon is a port, though: otherwise
+            # this is a non-HTTP URI such as stdio:/usr/bin/srv, and rebuilding it would assert an
+            # https MCP server that does not exist.
+            _, _, after_colon = text.partition(":")
+            if scheme and not after_colon.isdigit():
+                return None
             parsed = urllib.parse.urlsplit("//" + text)
-        elif parsed.scheme and parsed.scheme.lower() not in _HTTP_MCP_SCHEMES:
+        elif scheme and scheme not in _HTTP_MCP_SCHEMES:
             return None
         host = parsed.hostname
         port = parsed.port
@@ -500,6 +408,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
+        # str-only for the same reason the manifest guards it: pydantic-ai accepts a non-str
+        # description, and the span encoder falls back to repr, which can disclose the object.
+        if not isinstance(tool_description, str):
+            tool_description = ""
 
         output_val = None
         if not span.error:
@@ -568,16 +480,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # that two distinct unnamed agents share a name here, so name must not be treated as identity
         # for versioning. pydantic-ai may also infer a name from the caller's frame, which we cannot
         # detect, so an absent name is not proof the caller left it unset.
-        _put_field(fields, "name", getattr(agent, "name", None) or "PydanticAI Agent")
+        agent_name = getattr(agent, "name", None)
+        put_field(fields, "name", agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent")
         # _description is absent across the whole supported range (0.8.1 to 1.63.0) and present by
         # 2.24.0, so on every version CI exercises this key never appears.
         description = getattr(agent, "_description", None)
-        _put_field(fields, "description", description if isinstance(description, str) else None)
+        put_field(fields, "description", description if isinstance(description, str) else None)
         metadata = getattr(agent, "_metadata", None)
         # metadata accepts a callable from 1.39.0 on, resolved per run. Not captured: it is caller
         # labels rather than behaviour, and nothing downstream versions on it, so a resolver's
         # identity would buy nothing. Recording it needs a key the shared schema does not define.
-        _put_field(fields, "metadata", _wire_value(metadata) if isinstance(metadata, dict) else None)
+        put_field(fields, "metadata", wire_value(metadata) if isinstance(metadata, dict) else None)
         return fields
 
     def _manifest_instructions(self, agent: Any) -> dict[str, Any]:
@@ -590,10 +503,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         static_texts, dynamic_instructions = _collect_instructions(agent)
         # Newline join to match how pydantic-ai renders a multi-entry instructions list.
-        _put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
+        put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
         # pydantic-ai does not validate these; a non-string would ship as a repr with a memory address.
         prompts = [p for p in (getattr(agent, "_system_prompts", None) or ()) if isinstance(p, str)]
-        _put_field(fields, "system_prompts", prompts)
+        put_field(fields, "system_prompts", prompts)
         extra: list[dict[str, Any]] = []
         for kind, resolvers in (
             ("dynamic_instructions", dynamic_instructions),
@@ -603,9 +516,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 for described in self._describe_functions([fn]):
                     entry: dict[str, Any] = {"type": kind, "name": described.pop("name", "")}
                     described["reevaluated"] = reevaluated
-                    _put_field(entry, "content", described)
+                    put_field(entry, "content", described)
                     extra.append(entry)
-        _put_field(fields, "extra_instructions", extra)
+        put_field(fields, "extra_instructions", extra)
         return fields
 
     def _manifest_model(self, agent: Any) -> dict[str, Any]:
@@ -621,21 +534,21 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # the FIRST colon: a bedrock or azure model name contains its own, and rpartition would
             # report "bedrock:anthropic.claude-v1:0" as the model "0".
             _, _, declared_name = model.partition(":")
-            _put_field(fields, "model", declared_name or model)
+            put_field(fields, "model", declared_name or model)
         elif model:
             model_name, _ = self._get_model_and_provider(model)
-            _put_field(fields, "model", model_name)
+            put_field(fields, "model", model_name)
         settings = getattr(agent, "model_settings", None)
         if isinstance(settings, dict):
             allowed: dict[str, Any] = {}
             for key, value in settings.items():
                 if key not in _ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
                     continue
-                # Through _put_field, not a direct assignment: _wire_value returns None for a value
+                # Through put_field, not a direct assignment: wire_value returns None for a value
                 # it cannot encode, such as NaN, and a direct assignment would ship that as an
                 # explicit null. Absence has to keep meaning "not configured".
-                _put_field(allowed, key, _wire_value(value))
-            _put_field(fields, "model_settings", allowed)
+                put_field(allowed, key, wire_value(value))
+            put_field(fields, "model_settings", allowed)
         return fields
 
     def _manifest_capabilities(self, agent: Any) -> dict[str, Any]:
@@ -644,7 +557,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         fields: dict[str, Any] = {}
         tools = self._get_agent_tools(agent)
-        _put_field(fields, "tools", tools)
+        put_field(fields, "tools", tools)
         # AIDEV-NOTE: a prepare hook rewrites or removes tool definitions on every step, so the list
         # above is what was declared, NOT what the model was shown. Recording the hook makes a change
         # to it move the manifest; it does NOT make the tool list correct. An agent that gates a
@@ -663,15 +576,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ("tool_preparation", self._describe_functions(prepared)),
         ):
             capabilities.extend(self._as_capability(entry, kind) for entry in entries)
-        _put_field(fields, "capabilities", capabilities)
+        put_field(fields, "capabilities", capabilities)
         return fields
 
     def _manifest_data_contracts(self, agent: Any) -> dict[str, Any]:
         """The typed edges. pydantic-ai declares an output type but no input schema, so only output."""
         output = self._get_agent_output_type(agent)
         contract: dict[str, Any] = {}
-        _put_field(contract, "name", output.get("name"))
-        _put_field(contract, "schema", _wire_schema(output.get("schema")))
+        put_field(contract, "name", output.get("name"))
+        put_field(contract, "schema", wire_schema(output.get("schema")))
         return {"data_contracts": {"output": contract}} if contract else {}
 
     def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
@@ -683,7 +596,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         processors = getattr(agent, "history_processors", None) or []
         history = _dedupe_by_id([fn for fn in processors if callable(fn)])
-        _put_field(fields, "memory_policies", [self._as_named_content(d) for d in self._describe_functions(history)])
+        put_field(fields, "memory_policies", [self._as_named_content(d) for d in self._describe_functions(history)])
         return fields
 
     def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
@@ -692,7 +605,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         validators = getattr(agent, "_output_validators", None) or []
         fns = _dedupe_by_id([getattr(v, "function", v) for v in validators])
         checks = self._describe_functions([fn for fn in fns if callable(fn)])
-        _put_field(fields, "guardrails", [self._as_named_content(d) for d in checks])
+        put_field(fields, "guardrails", [self._as_named_content(d) for d in checks])
         return fields
 
     def _manifest_agent_settings(self, agent: Any) -> dict[str, Any]:
@@ -704,7 +617,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         settings: dict[str, Any] = {}
         # 1.107.1 renamed _max_result_retries to _max_output_retries, so fall back to the successor.
         retries = getattr(agent, "_max_result_retries", None)
-        if not _is_number(retries):
+        if not is_number(retries):
             retries = getattr(agent, "_max_output_retries", None)
         for name, value in (
             ("retries", retries),
@@ -714,30 +627,30 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # limiter is None when unset, which keeps "unset" distinct from a real value.
             ("max_concurrency", getattr(getattr(agent, "_concurrency_limiter", None), "max_running", None)),
         ):
-            if _is_number(value):
+            if is_number(value):
                 settings[name] = value
         end_strategy = getattr(agent, "end_strategy", None)
         if isinstance(end_strategy, str):
-            _put_field(settings, "end_strategy", end_strategy)
+            put_field(settings, "end_strategy", end_strategy)
         deps_type = getattr(agent, "_deps_type", None)
         # Omit the "no deps" default, NoneType below 2.x and object from 2.x on, so it is not noise.
         if isinstance(deps_type, type) and deps_type not in (type(None), object):
-            _put_field(settings, "deps_type", deps_type.__name__)
+            put_field(settings, "deps_type", deps_type.__name__)
         return {"agent_settings": settings} if settings else {}
 
     @staticmethod
     def _as_capability(entry: dict[str, Any], kind: str) -> dict[str, Any]:
         """Reshape an extractor entry into the shared {name, type, description?, content?} shape."""
         capability: dict[str, Any] = {"name": entry.get("name", ""), "type": kind}
-        _put_field(capability, "description", entry.get("description"))
-        _put_field(capability, "content", {k: v for k, v in entry.items() if k not in ("name", "description")})
+        put_field(capability, "description", entry.get("description"))
+        put_field(capability, "content", {k: v for k, v in entry.items() if k not in ("name", "description")})
         return capability
 
     @staticmethod
     def _as_named_content(described: dict[str, Any]) -> dict[str, Any]:
         """Reshape a {name, source_hash?} descriptor into the shared {name, content?} entry shape."""
         entry: dict[str, Any] = {"name": described.get("name", "")}
-        _put_field(entry, "content", {k: v for k, v in described.items() if k != "name"})
+        put_field(entry, "content", {k: v for k, v in described.items() if k != "name"})
         return entry
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
@@ -753,8 +666,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # and nothing downstream coerces it. safe_json falls back to repr for a value it cannot
             # encode, so an object here is printed onto the wire, and a repr can carry credentials.
             description = getattr(tool_instance, "description", None)
-            _put_field(entry, "description", description if isinstance(description, str) else None)
-            _put_field(entry, "parameters", self._tool_parameters(tool_instance))
+            put_field(entry, "description", description if isinstance(description, str) else None)
+            put_field(entry, "parameters", self._tool_parameters(tool_instance))
             tools.append(entry)
         return tools
 
@@ -777,7 +690,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # the encoder returns None, dropping the whole batched payload rather than this one span.
             param_dict: dict[str, Any] = {}
             if isinstance(schema, dict):
-                _put_field(param_dict, "type", _wire_value(schema.get("type")))
+                put_field(param_dict, "type", wire_value(schema.get("type")))
             if str(param) in required_params:
                 param_dict["required"] = True
             parameters[str(param)] = param_dict
@@ -818,9 +731,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
             entry: dict[str, Any] = {"name": name}
             config: dict[str, Any] = {}
             for field in sorted(_BUILTIN_TOOL_CONFIG_FIELDS):
-                _put_field(config, field, _wire_value(getattr(tool, field, None)))
-            _put_field(config, "uri", _redact_mcp_uri(getattr(tool, "url", None)))
-            _put_field(entry, "config", config)
+                put_field(config, field, wire_value(getattr(tool, field, None)))
+            put_field(config, "uri", _redact_mcp_uri(getattr(tool, "url", None)))
+            put_field(entry, "config", config)
             entries.append(entry)
         return entries
 
@@ -961,7 +874,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if not isinstance(toolset, mcp_classes):
                 continue
             entry: dict[str, Any] = {"name": self._toolset_name(toolset)}
-            _put_field(entry, "uri", _redact_mcp_uri(getattr(toolset, "url", None)))
+            put_field(entry, "uri", _redact_mcp_uri(getattr(toolset, "url", None)))
             servers.append(entry)
         return servers
 
