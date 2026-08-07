@@ -54,11 +54,11 @@ class TestProviderConfigEnabled:
 
 
 class TestProviderConfigDisabled:
-    """Test experimental_flagging_provider_enabled=False or unset behavior."""
+    """Test the stable kill switch (DD_FEATURE_FLAGS_ENABLED=false) disabling the provider."""
 
     def test_provider_disabled_returns_default(self):
         """Provider should return default values when disabled."""
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
+        with override_global_config({"feature_flags_enabled": False}):
             provider = DataDogProvider()
 
             config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
@@ -70,19 +70,19 @@ class TestProviderConfigDisabled:
             assert result.reason == Reason.DISABLED
             assert result.variant is None
 
-    def test_provider_disabled_by_default(self):
-        """Provider should be disabled by default."""
-        # Don't override config, use defaults
-        provider = DataDogProvider()
+    def test_provider_disabled_by_kill_switch(self):
+        """The stable kill switch disables the provider even with the default agentless source."""
+        with override_global_config({"feature_flags_enabled": False}):
+            provider = DataDogProvider()
 
-        result = provider.resolve_string_details("test-flag", "default-value")
+            result = provider.resolve_string_details("test-flag", "default-value")
 
-        assert result.value == "default-value"
-        assert result.reason == Reason.DISABLED
+            assert result.value == "default-value"
+            assert result.reason == Reason.DISABLED
 
     def test_provider_disabled_all_types(self):
         """Provider should return defaults for all flag types when disabled."""
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
+        with override_global_config({"feature_flags_enabled": False}):
             provider = DataDogProvider()
 
             # Boolean
@@ -112,7 +112,7 @@ class TestProviderConfigDisabled:
 
     def test_provider_disabled_skips_initialization(self):
         """Provider should skip initialization when disabled."""
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
+        with override_global_config({"feature_flags_enabled": False}):
             provider = DataDogProvider()
             context = EvaluationContext(targeting_key="user-123")
 
@@ -125,22 +125,22 @@ class TestProviderConfigDisabled:
 
     def test_provider_disabled_skips_shutdown(self):
         """Provider should skip shutdown when disabled."""
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
+        with override_global_config({"feature_flags_enabled": False}):
             provider = DataDogProvider()
 
             # Should not raise, just skip shutdown
             provider.shutdown()
 
     def test_provider_disabled_logs_warning(self):
-        """Provider should log an error when disabled."""
+        """Provider should log a warning when disabled."""
         from unittest.mock import patch
 
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
-            # Mock the logger to verify error is logged
+        with override_global_config({"feature_flags_enabled": False}):
+            # Mock the logger to verify the warning is logged
             with patch("ddtrace.internal.openfeature._provider.logger") as mock_logger:
                 _ = DataDogProvider()
 
                 mock_logger.warning.assert_called_once()
                 call_args = mock_logger.warning.call_args
-                assert "experimental flagging provider is not enabled" in call_args[0][0]
-                assert "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED" in call_args[0][0]
+                assert "Feature Flagging provider is disabled" in call_args[0][0]
+                assert "DD_FEATURE_FLAGS_ENABLED" in call_args[0][0]
