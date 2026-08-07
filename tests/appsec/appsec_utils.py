@@ -9,12 +9,12 @@ import sys
 import time
 import typing as _t
 
+import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
-from ddtrace.vendor import psutil
 from tests.utils import _build_env
 from tests.webclient import Client
 

@@ -17,6 +17,7 @@ mod library_config;
 mod log;
 #[cfg(target_os = "linux")]
 mod otel_thread_ctx;
+mod process_metrics;
 mod py_string;
 mod rand;
 mod rc_shm;
@@ -81,6 +82,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contextvar::register_contextvar(m)?;
     context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
+    process_metrics::register_process_metrics(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
