@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
+from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partial_messages
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
@@ -26,11 +27,37 @@ def _supported_versions() -> dict[str, str]:
     return {"claude_agent_sdk": ">=0.0.23"}
 
 
+def traced_client_init(func, instance, args, kwargs):
+    """Force partial streaming on the client's options before it connects.
+
+    ClaudeSDKClient reads options at construction/connect time (before query()), so
+    the flag must be set here rather than on the query() call. We flip the flag in
+    place on the client's own options object rather than swapping in a copy, so we
+    don't drop later caller mutations. We stash
+    whether we forced the flag so receive_messages() can tell the handler to filter the
+    extra events.
+    """
+    func(*args, **kwargs)
+    try:
+        _, forced_partial = force_include_partial_messages(getattr(instance, "options", None), in_place=True)
+        instance._dd_forced_partial = forced_partial
+    except Exception:
+        instance._dd_forced_partial = False
+
+
 def traced_query_async_generator(func, _instance, args, kwargs):
     """Trace the standalone query() async generator function."""
     integration = claude_agent_sdk._datadog_integration
 
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
+
+    # Turn on partial streaming so the handler can read accurate per-turn output tokens
+    # from the message_delta events.
+    forced_partial = False
+    options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
+    if forced_partial:
+        wrapped_kwargs = dict(wrapped_kwargs)
+        wrapped_kwargs["options"] = options
 
     span = integration.trace(
         "claude_agent_sdk.query",
@@ -43,7 +70,9 @@ def traced_query_async_generator(func, _instance, args, kwargs):
 
     try:
         resp = func(*wrapped_args, **wrapped_kwargs)
-        return handle_streamed_response(integration, resp, args, kwargs, span, operation="query")
+        return handle_streamed_response(
+            integration, resp, args, kwargs, span, operation="query", filter_partial=forced_partial
+        )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="query")
@@ -113,7 +142,14 @@ def traced_receive_messages(func, instance, args, kwargs):
     try:
         resp = func(*args, **kwargs)
         return handle_streamed_response(
-            integration, resp, query_args, query_kwargs, span, operation="request", instance=instance
+            integration,
+            resp,
+            query_args,
+            query_kwargs,
+            span,
+            operation="request",
+            instance=instance,
+            filter_partial=getattr(instance, "_dd_forced_partial", False),
         )
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -132,6 +168,7 @@ def patch():
     claude_agent_sdk._datadog_integration = integration
 
     wrap("claude_agent_sdk", "query", traced_query_async_generator)
+    wrap("claude_agent_sdk", "ClaudeSDKClient.__init__", traced_client_init)
     wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query)
     wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages)
 
@@ -143,6 +180,7 @@ def unpatch():
     claude_agent_sdk._datadog_patch = False
 
     unwrap(claude_agent_sdk, "query")
+    unwrap(claude_agent_sdk.ClaudeSDKClient, "__init__")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "query")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "receive_messages")
 

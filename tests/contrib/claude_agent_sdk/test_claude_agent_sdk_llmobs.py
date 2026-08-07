@@ -19,6 +19,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_SPLIT_TOOL_USE_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
@@ -918,6 +919,173 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(input_msgs),
             output_value=safe_json(output_msgs),
             metrics=EXPECTED_ASSISTANT_USAGE,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_partial_messages_correct_output_tokens(
+        self, claude_agent_sdk, mock_internal_client_partial_messages, claude_agent_sdk_llmobs, test_spans
+    ):
+        """The llm/step spans should carry the TRUE per-turn output tokens from the
+        message_delta stream, not the pre-generation message_start snapshot, and the
+        forced-on StreamEvent/status chunks must not leak to the caller's stream.
+        """
+        prompt = "What is 2+2?"
+        caller_msgs = []
+        async for msg in claude_agent_sdk.query(prompt=prompt):
+            caller_msgs.append(msg)
+
+        caller_type_names = [type(m).__name__ for m in caller_msgs]
+
+        # The integration force-enables include_partial_messages, so it must filter the
+        # extra StreamEvent and SystemMessage(status) chunks back out — the caller sees
+        # only what it would have without the flag.
+        assert "StreamEvent" not in caller_type_names
+        system_subtypes = [getattr(m, "subtype", None) for m in caller_msgs if type(m).__name__ == "SystemMessage"]
+        assert "status" not in system_subtypes
+        # Only the init SystemMessage survives; the status ping was swallowed.
+        assert system_subtypes == ["init"]
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+
+        # Snapshot output was 1; true per-turn output from the delta is 120. Input (10)
+        # and total (10 + 120) are derived from the corrected output.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [{"content": "The answer is 4.", "role": "assistant"}]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(output_msgs),
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_partial_messages_synthesize_usage_without_assistant_usage(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_partial_messages_no_assistant_usage,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """On SDK versions predating AssistantMessage.usage (< 0.1.49), the llm/step spans
+        should still carry token counts, synthesized entirely from the partial-message
+        stream: input/cache from message_start and the true output from message_delta.
+        """
+        prompt = "What is 2+2?"
+        caller_msgs = []
+        async for msg in claude_agent_sdk.query(prompt=prompt):
+            caller_msgs.append(msg)
+
+        # The forced-on partial events must still be filtered back out of the caller stream.
+        caller_type_names = [type(m).__name__ for m in caller_msgs]
+        assert "StreamEvent" not in caller_type_names
+        system_subtypes = [getattr(m, "subtype", None) for m in caller_msgs if type(m).__name__ == "SystemMessage"]
+        assert system_subtypes == ["init"]
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+
+        # AssistantMessage had no usage; input (10) comes from message_start, output (120)
+        # from the message_delta, and total is their sum.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [{"content": "The answer is 4.", "role": "assistant"}]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(output_msgs),
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_partial_messages_split_text_tool(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_partial_messages_split_text_tool,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """On older SDKs one model message (a text block plus a tool_use block) arrives as two
+        message_id-less AssistantMessages. They must join by the streaming message_start id into a
+        single llm span carrying the whole message's tokens, matching the >= 0.1.49 behavior.
+        """
+        prompt = "Run 'echo alpha' using the Bash tool"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        # Two model turns: the split text+tool_use message and the final text message.
+        assert len(llm_spans) == 2
+        first_llm_span = llm_spans[0]
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        # The whole first message's token count lands on the single merged llm span, rather than
+        # being lost because its text and tool_use halves arrived as separate message_id-less chunks.
+        expected_metrics = {"input_tokens": 10, "output_tokens": 120, "total_tokens": 130}
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        output_msgs = [
+            {"content": "I'll run the command.", "role": "assistant"},
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "Bash",
+                        "arguments": {"command": "echo alpha"},
+                        "tool_id": MOCK_PARTIAL_SPLIT_TOOL_USE_ID,
+                        "type": "tool_use",
+                    }
+                ],
+            },
+        ]
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(first_llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            metrics=expected_metrics,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(tool_span),
+            span_kind="tool",
+            input_value=safe_json({"command": "echo alpha"}),
+            output_value="alpha",
+            metadata={"tool_id": MOCK_PARTIAL_SPLIT_TOOL_USE_ID},
             tags=COMMON_TAGS,
         )
 

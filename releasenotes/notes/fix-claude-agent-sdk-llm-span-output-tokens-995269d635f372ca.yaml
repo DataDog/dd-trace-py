@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where token counts were not captured properly on
+    LLM spans generated via the Claude Agent SDK integration.
+    The integration now reads the accurate per-turn token counts from the SDK's streaming
+    events, leaving the caller's message stream unchanged. This also enables token counts
+    on ``claude-agent-sdk`` versions prior to 0.1.49, which do not report usage on the
+    assistant message.
