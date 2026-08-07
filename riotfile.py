@@ -4768,6 +4768,7 @@ venv = Venv(
 
 _ITR_MIN_PYTHON_VERSION = Version("3.12")
 
+
 def _python_hint_to_version(hint: str) -> t.Optional[Version]:
     try:
         return Version(hint)
