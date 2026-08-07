@@ -21,7 +21,6 @@ class TelemetryConfig(DDConfig):
     INSTALL_ID = DDConfig.v(t.Optional[str], "instrumentation.install_id", default=None)
     INSTALL_TYPE = DDConfig.v(t.Optional[str], "instrumentation.install_type", default=None)
     INSTALL_TIME = DDConfig.v(t.Optional[str], "instrumentation.install_time", default=None)
-    FORCE_START = DDConfig.v(bool, "instrumentation_telemetry.tests.force_app_started", default=False, private=True)
     LOG_COLLECTION_ENABLED = DDConfig.v(bool, "telemetry.log_collection.enabled", default=True)
     # Interval should be fixed to 24 hours. The value should only be overridden in tests.
     EXTENDED_HEARTBEAT_INTERVAL = DDConfig.v(
