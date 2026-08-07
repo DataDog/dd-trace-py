@@ -93,11 +93,11 @@ system-tests parametric:
 
 include:
   - project: 'DataDog/system-tests'
-    ref: main
+    ref: '147620e1977d1b315c4a9f9f29625054c69a84eb'
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      ref: main
+      ref: '147620e1977d1b315c4a9f9f29625054c69a84eb'
       condition: '$CI_COMMIT_BRANCH == "main"'
 
 "build lambda layer":
@@ -162,4 +162,3 @@ system_tests_param:
     SYSTEM_TESTS_PUSH_TO_TEST_OPTIMIZATION: "true"
     BINARIES_ARTIFACT_PATH: pywheels
     BINARIES_ARTIFACTS: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64];build lambda layer"
-
