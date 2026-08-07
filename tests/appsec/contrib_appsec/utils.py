@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import json
 import sys
@@ -22,6 +23,40 @@ import tests.appsec.rules as rules
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+@contextlib.contextmanager
+def mock_metric_points():
+    """Intercept telemetry metric points across all metric types.
+
+    The telemetry writer inlines its four ``add_*_metric`` methods (there is no shared
+    ``_add_metric_point`` seam anymore), so patch each of them and expose a combined
+    ``call_args_list`` of ``((metric_type, namespace, name, value, tags), {})`` tuples — the
+    shape the assertions in this module expect (``metric_type`` is the plain string used by
+    the writer: ``"count"``/``"gauge"``/``"rate"``/``"distribution"``).
+    """
+    from unittest.mock import MagicMock
+    from unittest.mock import patch as mock_patch
+
+    import ddtrace.internal.telemetry
+
+    writer = ddtrace.internal.telemetry.telemetry_writer
+    combined = MagicMock()
+    combined.call_args_list = []
+
+    def recorder(metric_type):
+        def _record(namespace, name, value=1, tags=None):
+            combined.call_args_list.append(((metric_type, namespace, name, value, tags), {}))
+
+        return _record
+
+    with (
+        mock_patch.object(writer, "add_count_metric", side_effect=recorder("count")),
+        mock_patch.object(writer, "add_gauge_metric", side_effect=recorder("gauge")),
+        mock_patch.object(writer, "add_rate_metric", side_effect=recorder("rate")),
+        mock_patch.object(writer, "add_distribution_metric", side_effect=recorder("distribution")),
+    ):
+        yield combined
 
 
 SECID: str = "[security_response_id]"
@@ -229,18 +264,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert triggers is not None, "no appsec struct in root span"
 
     def test_simple_attack_timeout(self, interface: Interface, entry_span, get_entry_span_metric):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         with (
             override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             query_params = urlencode({"q": "1"})
@@ -252,8 +278,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 entry_span()._get_numeric_attributes(),
             )
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if args[2] == "waf.requests"
             ]
             assert len(args_list) == 1
@@ -364,18 +390,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
     def test_truncation_telemetry(self, interface: Interface, get_entry_span_metric):
         from unittest.mock import ANY
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(dict(_asm_enabled=True)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             body: dict[str, Any] = {"val": "x" * 5000}
@@ -387,15 +405,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             assert self.status(response) == 200
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if "truncated" in args[2] or args[2] == "waf.requests"
             ]
             assert args_list == [
-                ("distributions", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
                 (
                     "count",
@@ -1447,20 +1465,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     ):
         import base64
         import gzip
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(
                 dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
             ),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             response = interface.client.post(
@@ -1501,9 +1511,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                             else api[0] == expected[0]
                             for expected in expected_value
                         ), (api, name, expected_value)
-                telemetry_calls = {
-                    (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-                }
+                telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
                 assert (
                     "count",
                     "appsec.api_security.request.schema",
@@ -1802,11 +1810,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         action_level,
         status_expected,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
         from ddtrace.appsec._constants import APPSEC
-        import ddtrace.internal.telemetry
 
         def validate_top_function(trace):
             # Validate that the stack trace contains an expected function near the top.
@@ -1832,7 +1836,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             override_global_config(
                 dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
@@ -1842,9 +1846,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), entry_span)
                 assert self.check_for_stack_trace(entry_span)
@@ -2040,11 +2042,6 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         status_code,
         user_id,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         if not USER_SDK_V2:
             raise pytest.skip("SDK v2 not available")
 
@@ -2056,7 +2053,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     _auto_user_instrumentation_enabled=True,
                 )
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            mock_metric_points() as telemetry_mock,
         ):
             self.update_tracer(interface)
             metadata = json.dumps(
@@ -2084,9 +2081,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
             assert self.status(response) == status_code
             assert get_entry_span_tag("http.status_code") == str(status_code)
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.call_args_list}
             if status_code == 401:
                 assert get_entry_span_tag("appsec.events.users.login.failure.track") == "true"
                 if user_id:

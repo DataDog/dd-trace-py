@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -62,7 +63,14 @@ struct ThreadState
 
 class StackRenderer
 {
-    Sample* sample = nullptr;
+    struct SampleDropper
+    {
+        void operator()(Sample* _sample) const noexcept;
+    };
+
+    using SampleHandle = std::unique_ptr<Sample, SampleDropper>;
+
+    SampleHandle sample;
     ThreadState thread_state = {};
 
     // Caches for interned strings and function IDs. These are used to avoid
