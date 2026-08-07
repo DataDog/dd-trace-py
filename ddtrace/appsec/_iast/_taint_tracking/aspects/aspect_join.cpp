@@ -1,8 +1,8 @@
 #include "aspect_join.h"
 
-PyObject*
+void
 aspect_join_str(PyObject* sep,
-                PyObject* result,
+                py::object& result,
                 PyObject* iterable_str,
                 size_t len_iterable,
                 const TaintedObjectMapTypePtr& tx_taint_map)
@@ -13,8 +13,7 @@ aspect_join_str(PyObject* sep,
     const auto& to_joiner = get_tainted_object(sep, tx_taint_map);
 
     if (to_joiner == nullptr and to_iterable_str == nullptr) {
-        // No taints at all: return original result
-        return result;
+        return;
     }
 
     const size_t& len_sep = PyUnicode_GET_LENGTH(sep);
@@ -51,14 +50,16 @@ aspect_join_str(PyObject* sep,
         }
     }
 
-    PyObject* new_result{ new_pyobject_id(result) };
-    set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DECREF(result);
-    return new_result;
+    py::object new_result = new_pyobject_id_owned(result);
+    if (!new_result) {
+        throw py::error_already_set();
+    }
+    set_tainted_object(new_result.ptr(), result_to, tx_taint_map);
+    result = std::move(new_result);
 }
 
-PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintedObjectMapTypePtr& tx_taint_map)
+void
+aspect_join(PyObject* sep, py::object& result, PyObject* iterable_elements, const TaintedObjectMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
 
@@ -71,10 +72,10 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
         GetElement = PyTuple_GetItem;
     } else if (PyUnicode_Check(sep) and PyUnicode_Check(iterable_elements)) {
         len_iterable = PyUnicode_GET_LENGTH(iterable_elements);
-        if (len_iterable)
-            return aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
-        else
-            return result; // Empty string is returned if empty iterable, so no tainted
+        if (len_iterable) {
+            aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
+        }
+        return;
     }
 
     unsigned long current_pos{ 0L };
@@ -126,14 +127,16 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
             result_to = safe_allocate_tainted_object_copy(first_tainted_to);
         } else {
             // No taints at all
-            return result;
+            return;
         }
     }
 
-    PyObject* new_result{ new_pyobject_id(result) };
-    set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DECREF(result);
-    return new_result;
+    py::object new_result = new_pyobject_id_owned(result);
+    if (!new_result) {
+        throw py::error_already_set();
+    }
+    set_tainted_object(new_result.ptr(), result_to, tx_taint_map);
+    result = std::move(new_result);
 }
 
 PyObject*
@@ -169,31 +172,30 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         owned_arg0 = std::move(list_aux);
         arg0 = owned_arg0.ptr();
     }
-    PyObject* result = nullptr;
+    py::object result;
     if (PyUnicode_Check(sep)) {
-        result = PyUnicode_Join(sep, arg0);
+        result = py::reinterpret_steal<py::object>(PyUnicode_Join(sep, arg0));
     } else if (PyBytes_Check(sep)) {
-        py::bytes result_ptr =
-          py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.release().ptr();
+        result = py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
     } else if (PyByteArray_Check(sep)) {
-        py::bytearray result_ptr =
-          py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.release().ptr();
+        result = py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
     }
 
-    if (has_pyerr()) {
+    if (has_pyerr() or !result) {
         return nullptr;
     }
 
-    CHECK_IAST_INITIALIZED_OR_RETURN(result);
+    if (!taint_engine_context || !initializer) {
+        return result.release().ptr();
+    }
 
-    TRY_CATCH_ASPECT("join_aspect", return result, , {
+    TRY_CATCH_ASPECT("join_aspect", return result.release().ptr(), , {
         auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
-        if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
+        if (not ctx_map or ctx_map->empty() or get_pyobject_size(result.ptr()) == 0) {
             // Empty result cannot have taint ranges
-            return result;
+            return result.release().ptr();
         }
-        return aspect_join(sep, result, arg0, ctx_map);
+        aspect_join(sep, result, arg0, ctx_map);
+        return result.release().ptr();
     });
 }

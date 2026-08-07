@@ -108,6 +108,9 @@ args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
 PyTextType
 get_pytext_type(PyObject* obj);
 
+py::object
+new_pyobject_id_owned(const py::handle& tainted_object);
+
 PyObject*
 new_pyobject_id(PyObject* tainted_object);
 
