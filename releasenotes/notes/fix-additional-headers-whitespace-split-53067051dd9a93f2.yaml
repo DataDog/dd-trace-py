@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: fixes an issue where a ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` header value
+    containing whitespace (for example ``Authorization:Bearer <token>``) was incorrectly split on
+    whitespace instead of being kept as a single value, when the overall string contained no comma.
