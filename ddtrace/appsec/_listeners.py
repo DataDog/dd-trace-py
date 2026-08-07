@@ -1,12 +1,9 @@
-import sys
-
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.trace import tracer
 
 
-_APPSEC_TO_BE_LOADED = True
 log = get_logger(__name__)
 
 
@@ -64,11 +61,37 @@ def _abort_appsec(failure_msg: str) -> None:
 def disable_appsec(reconfigure_tracer: bool = False) -> None:
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._processor import unlisten as processor_unlisten
     except Exception as e:
         _abort_appsec(str(e))
         return
 
     AppSecSpanProcessor.disable()
+    processor_unlisten()
+
+    from ddtrace.appsec._asm_request_context import asm_unlisten
+    from ddtrace.appsec._contrib.aws_lambda import unlisten as aws_lambda_unlisten
+    from ddtrace.appsec._contrib.django import unlisten as django_unlisten
+    from ddtrace.appsec._contrib.fastapi import unlisten as fastapi_unlisten
+    from ddtrace.appsec._contrib.flask import unlisten as flask_unlisten
+    from ddtrace.appsec._contrib.httpx import unlisten as httpx_unlisten
+    from ddtrace.appsec._contrib.openai.handlers import unlisten as openai_unlisten
+    from ddtrace.appsec._contrib.stripe.handlers import unlisten as stripe_unlisten
+    from ddtrace.appsec._contrib.tornado import unlisten as tornado_unlisten
+    from ddtrace.appsec._handlers import unlisten
+    from ddtrace.appsec._trace_utils import unlisten as trace_utils_unlisten
+
+    unlisten()
+    asm_unlisten()
+    aws_lambda_unlisten()
+    flask_unlisten()
+    django_unlisten()
+    fastapi_unlisten()
+    httpx_unlisten()
+    openai_unlisten()
+    stripe_unlisten()
+    tornado_unlisten()
+    trace_utils_unlisten()
 
     if asm_config._api_security_active:
         from ddtrace.appsec._api_security.api_manager import APIManager
@@ -88,6 +111,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     """Lazily load the appsec module listeners."""
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._processor import listen as processor_listen
     except Exception as e:
         _abort_appsec(str(e))
         return False
@@ -97,31 +121,31 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
     from ddtrace.appsec._contrib.flask import listen as flask_listen
+    from ddtrace.appsec._contrib.httpx import listen as httpx_listen
     from ddtrace.appsec._contrib.openai.handlers import listen as openai_listen
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._handlers import listen_telemetry
+    from ddtrace.appsec._trace_utils import listen as trace_utils_listen
     # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
 
-    global _APPSEC_TO_BE_LOADED
-    if _APPSEC_TO_BE_LOADED:
-        listen()
-        asm_listen()
-        aws_lambda_listen()
-        flask_listen()
-        django_listen()
-        fastapi_listen()
-        import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+    listen()
+    listen_telemetry()
+    asm_listen()
+    aws_lambda_listen()
+    flask_listen()
+    django_listen()
+    fastapi_listen()
+    httpx_listen()
+    openai_listen()
+    stripe_listen()
+    tornado_listen()
+    trace_utils_listen()
+    processor_listen()
 
-        openai_listen()
-        stripe_listen()
-        tornado_listen()
-
-        # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
-        # grpc_listen()
-
-        core.on("asm.switch_state", _asm_switch_state)
-        _APPSEC_TO_BE_LOADED = False
+    # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
+    # grpc_listen()
 
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -150,13 +174,5 @@ def load_common_appsec_modules() -> None:
         patch_common_modules()
 
 
-# Test only helpers
-# for tests that needs to load the appsec module later
+# Test-only helper for tests that need to load AppSec modules later.
 core.on("test.config.override", load_common_appsec_modules)
-
-
-def _asm_switch_state() -> None:
-    if asm_config._asm_enabled:
-        load_appsec()
-    elif "ddtrace.appsec._processor" in sys.modules:
-        disable_appsec()

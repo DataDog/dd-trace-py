@@ -450,5 +450,12 @@ def waf_update(
         AppSecSpanProcessor._instance._update_rules(removals, updates)
 
 
+def listen() -> None:
+    core.on("waf.update", waf_update)
+
+
+def unlisten() -> None:
+    core.reset_listeners("waf.update", waf_update)
+
+
 core.on("test.config.override", AppSecSpanProcessor._reset)
-core.on("waf.update", waf_update)

@@ -125,3 +125,13 @@ def _on_set_http_meta_for_normalized_route(
 def listen() -> None:
     core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_normalized_route)
+
+
+def unlisten() -> None:
+    core.reset_listeners("set_http_meta_for_asm", _on_set_http_meta)
+    core.reset_listeners("set_http_meta_for_asm", _on_set_http_meta_for_normalized_route)
+
+
+def listen_telemetry() -> None:
+    # This listener must observe both enabled and disabled AppSec states.
+    core.on("telemetry.periodic", _on_telemetry_periodic)

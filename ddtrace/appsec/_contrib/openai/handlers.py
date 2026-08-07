@@ -24,3 +24,9 @@ def listen() -> None:
     core.on("openai.chat.completions.create.before", _on_openai_llm_call)
     core.on("openai.responses.create.before", _on_openai_llm_call)
     core.on("openai.completions.create.before", _on_openai_llm_call)
+
+
+def unlisten() -> None:
+    core.reset_listeners("openai.chat.completions.create.before", _on_openai_llm_call)
+    core.reset_listeners("openai.responses.create.before", _on_openai_llm_call)
+    core.reset_listeners("openai.completions.create.before", _on_openai_llm_call)

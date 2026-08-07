@@ -274,3 +274,19 @@ def listen() -> None:
     core.on("flask.start_response", _call_waf_first)
 
     core.on("context.ended.wsgi.__call__", _on_context_ended)
+
+
+def unlisten() -> None:
+    core.reset_listeners("flask.request_call_modifier", _on_request_span_modifier)
+    core.reset_listeners("flask.blocked_request_callable", _on_flask_blocked_request)
+    core.reset_listeners("flask.start_response.blocked", _on_start_response_blocked)
+    core.reset_listeners("wsgi.block.started", _wsgi_make_block_content)
+
+    core.reset_listeners("flask.finalize_request.post", _set_headers_and_response)
+    core.reset_listeners("flask.wrapped_view", _on_wrapped_view)
+    core.reset_listeners("flask._patched_request", _on_pre_tracedrequest)
+    core.reset_listeners("wsgi.block_decided", _on_block_decided)
+    core.reset_listeners("flask.start_response", _call_waf_first)
+
+    core.reset_listeners("context.ended.wsgi.__call__", _on_context_ended)
+    core.reset_listeners("flask.block.request.content")

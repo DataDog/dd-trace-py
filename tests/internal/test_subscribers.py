@@ -51,6 +51,15 @@ def test_base_subscriber():
         called,
     )
 
+    DirectSubscriber.unregister()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name]
+
+    DirectSubscriber.register()
+    DirectSubscriber.register()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name, SubscriberEvent.event_name]
+
 
 def test_base_subscriber_inheritance():
     """Test that parent and child BaseSubscriber handlers run in order."""
@@ -70,6 +79,23 @@ def test_base_subscriber_inheritance():
     core.dispatch_event(SubscriberEvent())
 
     assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
+
+
+def test_base_subscriber_can_disable_automatic_registration():
+    class ExplicitSubscriber(Subscriber):
+        auto_register = False
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event_instance):
+            called.append(event_instance.event_name)
+
+    core.dispatch_event(SubscriberEvent())
+    assert called == []
+
+    ExplicitSubscriber.register()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name]
 
 
 def test_base_subscriber_multiple_event_names():
@@ -128,6 +154,18 @@ def test_base_context_subscriber():
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
 
+    assert called == ["started", "foo", "ended"]
+
+    called.clear()
+    DirectSubscriber.unregister()
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
+    assert called == []
+
+    DirectSubscriber.register()
+    DirectSubscriber.register()
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
     assert called == ["started", "foo", "ended"]
 
 

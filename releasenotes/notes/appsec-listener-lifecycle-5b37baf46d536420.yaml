@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where AppSec integration event handlers remain active after
+    AppSec is disabled through one-click activation.

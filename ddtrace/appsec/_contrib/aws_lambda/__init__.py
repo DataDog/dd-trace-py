@@ -93,3 +93,9 @@ def listen() -> None:
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
+
+
+def unlisten() -> None:
+    core.reset_listeners("aws_lambda.start_request", _on_lambda_start_request)
+    core.reset_listeners("aws_lambda.start_response", _on_lambda_start_response)
+    core.reset_listeners("aws_lambda.parse_body", _on_lambda_parse_body)

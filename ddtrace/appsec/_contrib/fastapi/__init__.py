@@ -126,3 +126,14 @@ def listen() -> None:
     core.on("asgi.finalize_response", _set_headers_and_response)
 
     core.on("context.ended.asgi.__call__", _on_context_ended)
+
+
+def unlisten() -> None:
+    core.reset_listeners("asgi.request.parse.body", _on_asgi_request_parse_body)
+    core.reset_listeners("asgi.block.started", _asgi_make_block_content)
+
+    core.reset_listeners("asgi.start_request", _call_waf_first)
+    core.reset_listeners("asgi.start_response", _call_waf)
+    core.reset_listeners("asgi.finalize_response", _set_headers_and_response)
+
+    core.reset_listeners("context.ended.asgi.__call__", _on_context_ended)

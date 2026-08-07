@@ -139,3 +139,11 @@ def listen() -> None:
     core.on("appsec.stripe.webhook.construct_event", _on_payment_intent_event)
     core.on("appsec.stripe.stripe_client.construct_event", _on_payment_intent_event)
     core.on("appsec.stripe.stripe_client.parse_event_notification", _on_payment_intent_event)
+
+
+def unlisten() -> None:
+    core.reset_listeners("appsec.stripe.checkout.session.create", _on_checkout_session_create)
+    core.reset_listeners("appsec.stripe.payment_intent.create", _on_payment_intent_create)
+    core.reset_listeners("appsec.stripe.webhook.construct_event", _on_payment_intent_event)
+    core.reset_listeners("appsec.stripe.stripe_client.construct_event", _on_payment_intent_event)
+    core.reset_listeners("appsec.stripe.stripe_client.parse_event_notification", _on_payment_intent_event)

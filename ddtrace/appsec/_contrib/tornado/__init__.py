@@ -119,3 +119,10 @@ def listen() -> None:
     core.on("tornado.block_request", tornado_block, "tornado_future")
     core.on("tornado.send_response", tornado_call_waf_response)
     core.on("context.ended.request.tornado", _on_context_ended)
+
+
+def unlisten() -> None:
+    core.reset_listeners("tornado.start_request", tornado_call_waf_first)
+    core.reset_listeners("tornado.block_request", tornado_block)
+    core.reset_listeners("tornado.send_response", tornado_call_waf_response)
+    core.reset_listeners("context.ended.request.tornado", _on_context_ended)
