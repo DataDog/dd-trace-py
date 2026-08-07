@@ -28,21 +28,18 @@ from ddtrace.internal.threads import Lock
 if sys.version_info < (3, 15):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
+# mypy's configured python_version is below 3.15, so it considers everything
+# past the guard above unreachable; that's expected here since the module
+# raises ImportError before this point on unsupported versions.
 log = get_logger(__name__)  # type: ignore[unreachable]
 
 _E = sys.monitoring.events
-DISABLE = sys.monitoring.DISABLE
-_DISABLE = DISABLE
+_DISABLE = sys.monitoring.DISABLE
 
 # On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
 # set_local_events alongside PY_START/PY_RETURN/LINE.
 _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 
-# CPython tool IDs (see ddtrace/profiling/collector/_exception.pyx):
-#   0 DEBUGGER_ID, 1 COVERAGE_ID, 2 PROFILER_ID, 3 handled exceptions, 5 OPTIMIZER_ID.
-# Slot 4 is today's exception-profiler slot; the 3.15 stack migrates that
-# collector onto this multiplexer. Never claim 0/1/2/3/5 or a slot owned by
-# another tool name.
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 _CANDIDATE_TOOL_IDS = (4,)
 
@@ -295,9 +292,9 @@ def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
     # A DISABLE returned from a per-line callback is sticky until the monitored
     # event set changes or restart_events() is called. Re-applying the same
     # local events does not clear it; toggling local events off and back on
-    # re-arms only this tool's DISABLE marks for *code* without the global
+    # re-arms only this tool's DISABLE marks for code without the global
     # restart_events() call that would reset other tools' disabled-event
-    # bookkeeping (coverage.py).
+    # bookkeeping.
     _set_local_events(tool_id, code, 0)
     _set_local_events(tool_id, code, events)
 
@@ -334,7 +331,7 @@ def refresh(code: CodeType) -> None:
     """Re-apply local events for *code*, resetting any per-line DISABLE state.
 
     Call this after adding a new hook for a line that may have been previously
-    disabled via a ``DISABLE`` return from :meth:`MonitoringEventHandler.on_py_line`.
+    disabled via a DISABLE return from :meth:`MonitoringEventHandler.on_py_line`.
     """
     with _registry_lock:
         handlers: Optional[_CodeHandlers] = _registry.get(code)
