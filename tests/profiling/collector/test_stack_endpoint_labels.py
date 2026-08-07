@@ -101,10 +101,13 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
     endpoint = "worker-endpoint"
     worker_thread_ids = []
 
+    def traced_worker_sleep():
+        time.sleep(0.3)
+
     def traced_worker_work():
         worker_thread_ids.append(threading.get_ident())
         with tracer.trace("worker.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
-            time.sleep(0.3)
+            traced_worker_sleep()
 
     def untraced_worker_work():
         worker_thread_ids.append(threading.get_ident())
@@ -123,7 +126,7 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    traced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "traced_worker_work")
+    traced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "traced_worker_sleep")
     untraced_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "untraced_worker_work")
 
     assert traced_samples
