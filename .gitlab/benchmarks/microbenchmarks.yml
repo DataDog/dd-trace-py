@@ -18,6 +18,8 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  # Known flaky benchmarks
+  FLAKY_BENCHMARKS_REGEX: ""
 
 .benchmarks:
   stage: test
