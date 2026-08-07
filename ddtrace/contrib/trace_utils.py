@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.trace_utils import REQUEST  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import RESPONSE  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import USER_AGENT_PATTERNS  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import decode_amqp_headers  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import ext_service  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url  # noqa: F401

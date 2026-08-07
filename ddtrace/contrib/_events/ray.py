@@ -104,17 +104,17 @@ class RayCoreAPIEvent(TracingEvent):
         self.operation_name = self.api_name
 
         if self.timeout_s is not None:
-            self.tags[RAY_WAIT_TIMEOUT] = str(self.timeout_s)
+            self.attributes[RAY_WAIT_TIMEOUT] = str(self.timeout_s)
         if self.num_returns is not None:
-            self.tags[RAY_WAIT_NUM_RETURNS] = str(self.num_returns)
+            self.attributes[RAY_WAIT_NUM_RETURNS] = str(self.num_returns)
         if self.fetch_local is not None:
-            self.tags[RAY_WAIT_FETCH_LOCAL] = str(self.fetch_local)
+            self.attributes[RAY_WAIT_FETCH_LOCAL] = str(self.fetch_local)
         if self.get_value_size_bytes is not None:
-            self.tags[RAY_GET_VALUE_SIZE_BYTES] = str(self.get_value_size_bytes)
+            self.attributes[RAY_GET_VALUE_SIZE_BYTES] = str(self.get_value_size_bytes)
         if self.put_value_type is not None:
-            self.tags[RAY_PUT_VALUE_TYPE] = self.put_value_type
+            self.attributes[RAY_PUT_VALUE_TYPE] = self.put_value_type
         if self.put_value_size_bytes is not None:
-            self.tags[RAY_PUT_VALUE_SIZE_BYTES] = str(self.put_value_size_bytes)
+            self.attributes[RAY_PUT_VALUE_SIZE_BYTES] = str(self.put_value_size_bytes)
 
 
 @dataclass
