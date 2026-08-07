@@ -279,7 +279,7 @@ def test_detect_launcher_torchrun(monkeypatch):
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _utils._detect_launcher() == "torchrun"
+    assert _utils.detect_launcher() == "torchrun"
 
 
 def test_detect_launcher_ray(monkeypatch):
@@ -289,7 +289,7 @@ def test_detect_launcher_ray(monkeypatch):
     monkeypatch.setenv("RAY_JOB_ID", "rayjob-99")
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _utils._detect_launcher() == "ray"
+    assert _utils.detect_launcher() == "ray"
 
 
 def test_detect_launcher_slurm(monkeypatch):
@@ -299,7 +299,7 @@ def test_detect_launcher_slurm(monkeypatch):
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.setenv("SLURM_JOB_ID", "slurm-42")
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _utils._detect_launcher() == "slurm"
+    assert _utils.detect_launcher() == "slurm"
 
 
 def test_detect_launcher_kubeflow(monkeypatch):
@@ -309,7 +309,7 @@ def test_detect_launcher_kubeflow(monkeypatch):
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.setenv("KUBEFLOW_TRAINING_JOB_ID", "kf-job-1")
-    assert _utils._detect_launcher() == "kubeflow"
+    assert _utils.detect_launcher() == "kubeflow"
 
 
 def test_detect_launcher_none(monkeypatch):
@@ -322,7 +322,7 @@ def test_detect_launcher_none(monkeypatch):
         "KUBEFLOW_TRAINING_JOB_ID",
     ):
         monkeypatch.delenv(var, raising=False)
-    assert _utils._detect_launcher() is None
+    assert _utils.detect_launcher() is None
 
 
 def test_get_cached_backend_caches_result(monkeypatch):
@@ -342,14 +342,14 @@ def test_get_cached_backend_caches_result(monkeypatch):
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.get_backend",
         lambda: "nccl",
     )
-    result1 = _utils._get_cached_backend()
+    result1 = _utils.get_cached_backend()
     assert result1 == "nccl"
     # Second call should return cached value without calling get_backend again.
     monkeypatch.setattr(
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.get_backend",
         lambda: "SHOULD_NOT_BE_CALLED",
     )
-    result2 = _utils._get_cached_backend()
+    result2 = _utils.get_cached_backend()
     assert result2 == "nccl"
     # Clean up.
     _utils._cached_distributed_backend = None
@@ -367,7 +367,7 @@ def test_get_cached_backend_returns_none_when_not_initialized(monkeypatch):
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.is_initialized",
         lambda: False,
     )
-    assert _utils._get_cached_backend() is None
+    assert _utils.get_cached_backend() is None
     _utils._cached_distributed_backend = None
 
 
