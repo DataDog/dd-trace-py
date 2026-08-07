@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Awaitable
 from typing import Optional
@@ -58,6 +59,18 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
             service += b":" + ensure_binary(str(request.url.port))
         return ensure_text(service, errors="backslashreplace")
     return ext_service(None, config.httpx)
+
+
+def _set_response(event: HttpClientRequestEvent, response: httpx.Response) -> None:
+    event.set_response(response)
+
+    # Preserve HTTPX response JSON for AppSec SSRF analysis without retaining the response.
+    if not response.is_closed or not response.content:
+        return
+    try:
+        event.response_body = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        event.response_body = None
 
 
 def _wrapped_sync_send_single_request(
@@ -138,7 +151,7 @@ async def _wrapped_async_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                _set_response(ctx.event, resp)
 
 
 def _wrapped_sync_send(
@@ -169,7 +182,7 @@ def _wrapped_sync_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                _set_response(ctx.event, resp)
 
 
 def patch() -> None:
