@@ -8,7 +8,7 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
+from tests.contrib.claude_agent_sdk.utils import EXPECTED_CACHE_ONLY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT
@@ -77,7 +77,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
         # The LLM Observability UI filters out span links from parent to direct
@@ -138,7 +138,7 @@ class TestLLMObsClaudeAgentSdk:
                 "stop_reason": "end_turn",
                 "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)},
             },
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
 
@@ -186,7 +186,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
 
@@ -281,7 +281,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             error={"type": MOCK_ASSISTANT_MESSAGE_ERROR, "message": MOCK_ASSISTANT_MESSAGE_ERROR, "stack": ANY},
             tags=COMMON_TAGS,
         )
@@ -341,7 +341,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             error=expected_error,
             tags=COMMON_TAGS,
         )
@@ -392,13 +392,7 @@ class TestLLMObsClaudeAgentSdk:
                 **({"stop_reason": "end_turn"} if CLAUDE_AGENT_SDK_VERSION >= (0, 1, 49) else {}),
                 "_dd": {"agent_manifest": expected_agent_manifest()},
             },
-            metrics={
-                "input_tokens": 14599,
-                "output_tokens": 5,
-                "total_tokens": 14604,
-                "cache_write_input_tokens": 12742,
-                "cache_read_input_tokens": 1854,
-            },
+            metrics={},
             tags=COMMON_TAGS,
         )
 
@@ -479,7 +473,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
@@ -561,7 +555,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
@@ -643,7 +637,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
@@ -695,7 +689,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
-            metrics=EXPECTED_QUERY_USAGE,
+            metrics={},
             tags=COMMON_TAGS,
         )
 
@@ -749,13 +743,7 @@ class TestLLMObsClaudeAgentSdk:
                 **({"stop_reason": "end_turn"} if CLAUDE_AGENT_SDK_VERSION >= (0, 1, 49) else {}),
                 "_dd": {"agent_manifest": expected_agent_manifest()},
             },
-            metrics={
-                "input_tokens": 14599,
-                "output_tokens": 5,
-                "total_tokens": 14604,
-                "cache_write_input_tokens": 12742,
-                "cache_read_input_tokens": 1854,
-            },
+            metrics={},
             tags=COMMON_TAGS,
         )
 
@@ -918,6 +906,30 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(input_msgs),
             output_value=safe_json(output_msgs),
             metrics=EXPECTED_ASSISTANT_USAGE,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_llm_span_folds_cache_only_input_tokens(
+        self, claude_agent_sdk, mock_internal_client_cache_only, claude_agent_sdk_llmobs, test_spans
+    ):
+        """A fully cache-served turn (uncached input_tokens == 0, cache_read > 0) must still report
+        the folded cache input on the llm span rather than dropping it.
+        """
+        prompt = "What is 2+2?"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
+            output_messages=[{"content": "4", "role": "assistant"}],
+            metrics=EXPECTED_CACHE_ONLY_USAGE,
             tags=COMMON_TAGS,
         )
 
