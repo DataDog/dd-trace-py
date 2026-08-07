@@ -23,7 +23,6 @@ def test_app_started_event_configuration_override(
 ):
     """Assert that AppSec configuration overrides are included in telemetry."""
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
     env[env_var] = value
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
@@ -31,7 +30,8 @@ def test_app_started_event_configuration_override(
 
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
-    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
+    expected_wire_value = str(expected_value).lower() if isinstance(expected_value, bool) else str(expected_value)
+    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_wire_value}
 
 
 def test_app_started_event_fleet_config_id(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -45,7 +45,6 @@ apm_configuration_default:
     )
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["_DD_SC_MANAGED_FILE_OVERRIDE"] = str(managed_config)
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
@@ -57,7 +56,7 @@ apm_configuration_default:
         {
             "name": "DD_APPSEC_SCA_ENABLED",
             "origin": "fleet_stable_config",
-            "value": True,
+            "value": "true",
             "config_id": "sca-policy",
         }
     ]
@@ -69,7 +68,7 @@ apm_configuration_default:
         {
             "name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED",
             "origin": "default",
-            "value": True,
+            "value": "true",
         }
     ]
 
@@ -80,7 +79,6 @@ def test_app_started_event_agentic_onboarding_reported_verbatim(
 ):
     """RFC-1113: DD_APPSEC_AGENTIC_ONBOARDING is reported verbatim as an ordinary config key."""
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_AGENTIC_ONBOARDING"] = onboarding_value
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
@@ -99,7 +97,6 @@ def test_app_started_event_agentic_onboarding_reported_verbatim(
 def test_app_started_event_agentic_onboarding_absent(test_agent_session, run_python_code_in_subprocess):
     """RFC-1113: when unset, the key is still reported with an empty value and origin=default."""
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
     env.pop("DD_APPSEC_AGENTIC_ONBOARDING", None)
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
