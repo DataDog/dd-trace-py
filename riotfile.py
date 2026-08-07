@@ -2831,6 +2831,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={
+                "anyio": ["~=3.4.0", latest],
+                "pytest-randomly": latest,
+            },
+            pys=select_pys(),
+        ),
+        Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
@@ -2842,12 +2851,20 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": "==0.21.1",
                     },
+                    venvs=[
+                        Venv(),
+                        Venv(pkgs={"uvloop": ["==0.19.0", latest]}),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
                     pkgs={
                         "pytest-asyncio": ">=1.0.0",
                     },
+                    venvs=[
+                        Venv(),
+                        Venv(pkgs={"uvloop": latest}),
+                    ],
                 ),
             ],
         ),

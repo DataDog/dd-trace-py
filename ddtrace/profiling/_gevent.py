@@ -7,8 +7,9 @@ import gevent.greenlet
 from gevent.greenlet import Greenlet as _Greenlet
 import gevent.hub
 from greenlet import greenlet
-from greenlet import settrace
 
+from ddtrace.internal._greenlet import register_trace
+from ddtrace.internal._greenlet import unregister_trace
 from ddtrace.internal.datadog.profiling import stack
 
 
@@ -20,7 +21,6 @@ _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
 _tracked_greenlets: set[int] = set()
-_original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
 
@@ -143,9 +143,6 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         except Exception:  # nosec B110
             pass
 
-    if _original_greenlet_tracer is not None:
-        _original_greenlet_tracer(event, args)
-
 
 def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     """Untrack a greenlet by its ID. Idempotent."""
@@ -261,8 +258,6 @@ def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Opt
 
 
 def patch() -> None:
-    global _original_greenlet_tracer
-
     # Patch the spawn method to track greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = Greenlet
     gevent.spawn = Greenlet.spawn
@@ -273,7 +268,7 @@ def patch() -> None:
 
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
-    _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
+    register_trace(greenlet_tracer)
 
 
 def unpatch() -> None:
@@ -287,4 +282,4 @@ def unpatch() -> None:
 
     gevent.hub.spawn_raw = _gevent_hub_spawn_raw
 
-    settrace(_original_greenlet_tracer)
+    unregister_trace(greenlet_tracer)

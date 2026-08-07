@@ -1,0 +1,5 @@
+features:
+  - |
+    tracing: Adds ``DD_TRACE_PYTHON_CONTEXT_WATCHER_ENABLED`` (default ``true``).
+    Set it to ``false`` to disable native Python 3.14 context-switch tracking and use
+    compatibility instrumentation instead.
