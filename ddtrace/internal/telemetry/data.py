@@ -10,10 +10,6 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
-from ..logger import get_logger
-
-
-log = get_logger(__name__)
 
 
 def _format_version_info(vi: "sys._version_info") -> str:
@@ -85,6 +81,7 @@ def get_host_info() -> dict:
         "os": platform.system(),
         "hostname": get_hostname(),
         "os_version": _get_os_version(),
+        "architecture": platform.machine(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),

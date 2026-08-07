@@ -1668,11 +1668,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
             ),
-            Extension(
-                "ddtrace.internal.telemetry.metrics_namespaces",
-                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                language="c",
-            ),
         ]
 
         if sys.version_info < (3, 15):
