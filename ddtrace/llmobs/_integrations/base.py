@@ -110,7 +110,10 @@ class BaseLLMIntegration:
         if span_kind is None:
             return
         agent_name = self._llmobs_agent_name_at_start(span, **kwargs)
-        _annotate_llmobs_span_data(span, kind=span_kind, **({"name": agent_name} if agent_name else {}))
+        if agent_name:
+            _annotate_llmobs_span_data(span, kind=span_kind, name=agent_name)
+        else:
+            _annotate_llmobs_span_data(span, kind=span_kind)
 
     def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
         """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.
