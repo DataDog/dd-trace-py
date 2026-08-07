@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterator
+from typing import Protocol
 from typing import cast
 
 import pytest
@@ -23,10 +24,18 @@ if TYPE_CHECKING:
 else:
     monitoring = pytest.importorskip("ddtrace.internal.monitoring")
 
-# Cast to Any: `_E = sys.monitoring.events` has an indeterminate type when mypy
-# analyzes the source module under a pre-3.15 Python version.
-_E: Any = cast(Any, monitoring._E)  # type: ignore[has-type]
-_DISABLE: Any = cast(Any, monitoring._DISABLE)  # type: ignore[has-type]
+
+class _MonitoringEvents(Protocol):
+    """Subset of sys.monitoring.events used by these tests."""
+
+    PY_START: int
+    PY_UNWIND: int
+
+
+# `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
+# source module under a pre-3.15 Python version.
+_E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)  # type: ignore[has-type]
+_DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
