@@ -41,7 +41,11 @@ _DISABLE = sys.monitoring.DISABLE
 _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
-_CANDIDATE_TOOL_IDS = (4,)
+# sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
+# for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
+# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
+# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
+_CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterator
+from typing import cast
 
 import pytest
 
@@ -22,11 +23,10 @@ if TYPE_CHECKING:
 else:
     monitoring = pytest.importorskip("ddtrace.internal.monitoring")
 
-# Fetched via getattr so the type checker treats it as Any: the source module's
-# `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes it
-# under a pre-3.15 Python version.
-_E: Any = getattr(monitoring, "_E")
-_DISABLE: Any = getattr(monitoring, "_DISABLE")
+# Cast to Any: `_E = sys.monitoring.events` has an indeterminate type when mypy
+# analyzes the source module under a pre-3.15 Python version.
+_E: Any = cast(Any, monitoring._E)  # type: ignore[has-type]
+_DISABLE: Any = cast(Any, monitoring._DISABLE)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
