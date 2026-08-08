@@ -57,6 +57,15 @@ PROPAGATION_KEY = "dd-pathway-ctx"
 PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
 SHUTDOWN_TIMEOUT = 5
 
+# Cache of pathway *node* hashes. The node hash only depends on (service, env, process tags base
+# hash, sorted edge tags), all of which take a very small number of distinct values for the
+# lifetime of a process, while _compute_hash is called on every single message. Caching it avoids
+# re-running the pure-Python FNV-1 loop over ~140 bytes per message.
+# NOTE: process_tags.base_hash_bytes is mutable at runtime (recomputed by
+# process_tags.compute_base_hash once container tags are known), so it is part of the key.
+_NODE_HASH_CACHE: dict = {}
+_NODE_HASH_CACHE_MAX_SIZE = 4096
+
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
@@ -417,14 +426,23 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        def get_bytes(s):
-            return bytes(s, encoding="utf-8")
-
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
-
-        for t in tags:
-            b += get_bytes(t)
-        node_hash = fnv1_64(b)
+        base_hash_bytes = process_tags.base_hash_bytes
+        cache_key = (self.service, self.env, base_hash_bytes, tuple(tags))
+        node_hash = _NODE_HASH_CACHE.get(cache_key)
+        if node_hash is None:
+            b = (
+                bytes(self.service, encoding="utf-8")
+                + bytes(self.env, encoding="utf-8")
+                + base_hash_bytes
+            )
+            for t in tags:
+                b += bytes(t, encoding="utf-8")
+            node_hash = fnv1_64(b)
+            if len(_NODE_HASH_CACHE) >= _NODE_HASH_CACHE_MAX_SIZE:
+                # Pathological cardinality (e.g. topic names containing per-message ids): drop the
+                # cache rather than growing without bound. Correctness is unaffected.
+                _NODE_HASH_CACHE.clear()
+            _NODE_HASH_CACHE[cache_key] = node_hash
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
