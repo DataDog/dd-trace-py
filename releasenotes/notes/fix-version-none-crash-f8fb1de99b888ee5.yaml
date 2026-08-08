@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves a crash on ``import ddtrace.auto`` (``TypeError:
+    argument of type 'NoneType' is not iterable``) that could occur when
+    ``importlib.metadata.version()`` returned ``None`` instead of a version
+    string, for example when stale coexisting ``ddtrace-*.dist-info``
+    directories were present. ``__version__`` and the internal SemVer helper now
+    fall back to ``0.0.0`` when the resolved version is missing.
