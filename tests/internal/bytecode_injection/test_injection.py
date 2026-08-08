@@ -1,9 +1,14 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 import sys
+from types import FunctionType
+from typing import Any
+from typing import Optional
+from unittest import mock
 
-import mock
 import pytest
 
+from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection import InvalidLine
 from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
@@ -13,7 +18,12 @@ from ddtrace.internal.utils.inspection import linenos
 
 
 @contextmanager
-def injected_hook(f, hook, arg, line=None):
+def injected_hook(
+    f: FunctionType,
+    hook: HookType,
+    arg: Any,
+    line: Optional[int] = None,
+) -> Iterator[FunctionType]:
     code = f.__code__
 
     if line is None:
@@ -31,7 +41,13 @@ def injected_hook(f, hook, arg, line=None):
 
     eject_hook(f, hook, line, arg)
 
-    assert f.__code__ is not code
+    if sys.version_info >= (3, 15):
+        # The 3.15+ monitoring-based injection path attaches hooks via
+        # sys.monitoring rather than rewriting bytecode, so the code object is
+        # intentionally left unchanged across inject/eject.
+        assert f.__code__ is code
+    else:
+        assert f.__code__ is not code
 
 
 def injection_target(a, b):
@@ -292,4 +308,11 @@ def test_for_block():
     with injected_hook(for_loop, hook, arg, line=for_loop.__code__.co_firstlineno + 2):
         for_loop()
 
-    hook.assert_called_once_with(arg)
+    if sys.version_info >= (3, 15):
+        # The monitoring-based path fires a LINE event every time the loop
+        # header line is (re-)entered, i.e. once per iteration, rather than
+        # once at loop setup as the bytecode-rewriting path does.
+        assert hook.call_count >= 10
+        hook.assert_called_with(arg)
+    else:
+        hook.assert_called_once_with(arg)

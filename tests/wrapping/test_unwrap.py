@@ -10,15 +10,22 @@ in-place restore to cover here.
 These tests assert a wrap->unwrap round-trip restores call behaviour and the
 signature, and pin a divergence in how completely the original is reinstated:
 ``internal_wrap`` puts back the exact original ``__code__`` object (a true
-inverse, even when layers are nested); ``WrappingContext.unwrap`` restores
-behaviour but rebuilds the code object rather than reinstating the original, so
-``__code__`` identity is not restored (codified with a strict xfail).
+inverse, even when layers are nested). On Python < 3.15, ``WrappingContext.unwrap``
+restores behaviour but rebuilds the code object rather than reinstating the
+original, so ``__code__`` identity is not restored (codified with a strict xfail).
+On 3.15+ the monitoring path never mutates ``__code__``, so identity is preserved.
 
 Mechanism-specific (the matrix's other two mechanisms have no in-place unwrap), so
 these opt out of the all-mechanisms ``mech`` guardrail.
 """
 
+from collections.abc import Callable
 import inspect
+import sys
+from types import FunctionType
+from typing import Any
+from typing import Union
+from typing import cast
 
 import pytest
 
@@ -30,11 +37,11 @@ from ddtrace.internal.wrapping.context import WrappingContext
 pytestmark = pytest.mark.mechanism_specific
 
 
-def _noop(wrapped, args, kwargs):
+def _noop(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     return wrapped(*args, **kwargs)
 
 
-def _noop2(wrapped, args, kwargs):
+def _noop2(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     return wrapped(*args, **kwargs)
 
 
@@ -45,44 +52,48 @@ class _NoopContext(WrappingContext):
 class _InternalRestore:
     """internal wrap()/unwrap() round-trip on a function (mutates in place)."""
 
-    def wrap(self, fn):
+    def wrap(self, fn: FunctionType) -> None:
         _internal_wrap(fn, _noop)
 
-    def unwrap(self, fn):
+    def unwrap(self, fn: FunctionType) -> None:
         _internal_unwrap(fn, _noop)
 
 
 class _ContextRestore:
     """WrappingContext wrap()/unwrap(); the instance is retained to unwrap with."""
 
-    def __init__(self):
-        self._ctx = {}
+    def __init__(self) -> None:
+        self._ctx: dict[FunctionType, WrappingContext] = {}
 
-    def wrap(self, fn):
+    def wrap(self, fn: FunctionType) -> None:
         ctx = _NoopContext(fn)
         ctx.wrap()
         self._ctx[fn] = ctx
 
-    def unwrap(self, fn):
+    def unwrap(self, fn: FunctionType) -> None:
         self._ctx.pop(fn).unwrap()
 
 
+_Restore = Union[_InternalRestore, _ContextRestore]
+
+
 @pytest.fixture(params=[_InternalRestore, _ContextRestore], ids=["internal_wrap", "wrapping_context"])
-def restore(request):
-    return request.param()
+def restore(request: pytest.FixtureRequest) -> _Restore:
+    return cast(_Restore, request.param())
 
 
-def test_roundtrip_restores_behavior_and_signature(restore):
-    def f(a, b=2, *, k=3):
+def test_roundtrip_restores_behavior_and_signature(restore: _Restore) -> None:
+    def f(a: Any, b: int = 2, *, k: int = 3) -> tuple[Any, int, int]:
         return (a, b, k)
 
-    sig = str(inspect.signature(f))
-    assert f(1) == (1, 2, 3)
-    restore.wrap(f)
-    assert f(1) == (1, 2, 3)  # transparent while wrapped
-    restore.unwrap(f)
-    assert f(1) == (1, 2, 3)  # behaviour restored after unwrap
-    assert str(inspect.signature(f)) == sig
+    fn = cast(FunctionType, f)
+    sig = str(inspect.signature(fn))
+    assert fn(1) == (1, 2, 3)
+    restore.wrap(fn)
+    assert fn(1) == (1, 2, 3)  # transparent while wrapped
+    restore.unwrap(fn)
+    assert fn(1) == (1, 2, 3)  # behaviour restored after unwrap
+    assert str(inspect.signature(fn)) == sig
 
 
 def test_internal_wrap_unwrap_reinstates_original_code():
@@ -114,6 +125,7 @@ def test_internal_wrap_nested_unwrap_restores():
 
 @pytest.mark.xfail(
     strict=True,
+    condition=sys.version_info < (3, 15),
     reason="WrappingContext.unwrap restores behaviour but rebuilds the code object instead of "
     "reinstating the original, so __code__ identity is not restored after a wrap->unwrap round-trip",
 )

@@ -40,11 +40,12 @@ _DISABLE = sys.monitoring.DISABLE
 # set_local_events alongside PY_START/PY_RETURN/LINE.
 _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 
+# CPython tool IDs (see ddtrace/profiling/collector/_exception.pyx):
+#   0 DEBUGGER_ID, 1 COVERAGE_ID, 2 PROFILER_ID, 3 handled exceptions, 5 OPTIMIZER_ID.
+# Slot 4 is today's exception-profiler slot; the 3.15 stack migrates that
+# collector onto this multiplexer. Never claim 0/1/2/3/5 or a slot owned by
+# another tool name. Fall back to 3 if 4 is claimed by another tool.
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
-# sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
-# for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
-# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
 _CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
@@ -213,6 +214,22 @@ def _setup() -> int:
 # ---------------------------------------------------------------------------
 
 
+def _dispatch_start(code: CodeType, instruction_offset: int, entry: _Entry) -> None:
+    entry.handler.on_py_start(code, instruction_offset)
+
+
+def _dispatch_return(code: CodeType, instruction_offset: int, retval: object, entry: _Entry) -> None:
+    entry.handler.on_py_return(code, instruction_offset, retval)
+
+
+def _dispatch_unwind(code: CodeType, instruction_offset: int, exception: BaseException, entry: _Entry) -> None:
+    entry.handler.on_py_unwind(code, instruction_offset, exception)
+
+
+def _dispatch_line(code: CodeType, line_number: int, entry: _Entry) -> Optional[object]:
+    return entry.handler.on_py_line(code, line_number)
+
+
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
@@ -220,7 +237,7 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
             try:
-                e.handler.on_py_start(code, instruction_offset)
+                _dispatch_start(code, instruction_offset, e)
             except Exception:
                 log.warning("monitoring PY_START handler failed", exc_info=True)
     return None
@@ -233,7 +250,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
             try:
-                e.handler.on_py_return(code, instruction_offset, retval)
+                _dispatch_return(code, instruction_offset, retval, e)
             except Exception:
                 log.warning("monitoring PY_RETURN handler failed", exc_info=True)
     return None
@@ -246,7 +263,7 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
             try:
-                e.handler.on_py_unwind(code, instruction_offset, exception)
+                _dispatch_unwind(code, instruction_offset, exception, e)
             except Exception:
                 log.warning("monitoring PY_UNWIND handler failed", exc_info=True)
     return None
@@ -260,7 +277,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     for e in handlers.snapshot:
         if e.events & _E.LINE:
             try:
-                if e.handler.on_py_line(code, line_number) is not _DISABLE:
+                if _dispatch_line(code, line_number, e) is not _DISABLE:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
@@ -281,9 +298,9 @@ def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
     # A DISABLE returned from a per-line callback is sticky until the monitored
     # event set changes or restart_events() is called. Re-applying the same
     # local events does not clear it; toggling local events off and back on
-    # re-arms only this tool's DISABLE marks for code without the global
+    # re-arms only this tool's DISABLE marks for *code* without the global
     # restart_events() call that would reset other tools' disabled-event
-    # bookkeeping.
+    # bookkeeping (coverage.py).
     _set_local_events(tool_id, code, 0)
     _set_local_events(tool_id, code, events)
 
@@ -320,7 +337,7 @@ def refresh(code: CodeType) -> None:
     """Re-apply local events for *code*, resetting any per-line DISABLE state.
 
     Call this after adding a new hook for a line that may have been previously
-    disabled via a DISABLE return from :meth:`MonitoringEventHandler.on_py_line`.
+    disabled via a ``DISABLE`` return from :meth:`MonitoringEventHandler.on_py_line`.
     """
     with _registry_lock:
         handlers: Optional[_CodeHandlers] = _registry.get(code)
