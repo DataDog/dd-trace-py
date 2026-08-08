@@ -193,8 +193,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         # botocore.patched_api_call: distributed_tracing off -> suppress (opt-out,
         # no headers anywhere); on + handler registered -> suppress; on +
         # registration failed -> do NOT suppress, fall back to aiohttp injection.
+        # Mirror the sync path: combine the global flag with the per-service override
+        # so DD_BOTOCORE_{SERVICE}_DISTRIBUTED_TRACING=false is respected here too.
+        effective_distributed_tracing = config.botocore["distributed_tracing"] and config.botocore[
+            "service_distributed_tracing"
+        ].get(endpoint_name, True)
         token = None
-        if not config.botocore["distributed_tracing"]:
+        if not effective_distributed_tracing:
             token = _http_propagation_suppressed.set(True)
         elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
             token = _http_propagation_suppressed.set(True)
