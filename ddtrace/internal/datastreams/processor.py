@@ -20,7 +20,14 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import _human_size
+try:
+    from ddtrace.internal.utils import _human_size
+except ImportError:  # pragma: no cover
+    # Back-compat shim: `_human_size` lived in `ddtrace.internal.writer.writer` before it was
+    # moved to `ddtrace.internal.utils` (PR #19122). Needed so this module still imports cleanly
+    # when overlaid onto an older released `ddtrace` wheel (e.g. in the DSM overhead benchmark
+    # harness, which pip-installs a published release and overlays only the datastreams source).
+    from ddtrace.internal.writer.writer import _human_size  # type: ignore[no-redef]
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
