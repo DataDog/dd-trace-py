@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Iterable
+import inspect
 from io import StringIO
 import re
 import sys
@@ -46,6 +47,37 @@ if _graphql_version < (3, 0):
     from graphql.language.ast import Document
 else:
     from graphql.language.ast import DocumentNode as Document
+
+
+def _get_middleware_arg_position(execute_fn: Optional[Callable] = None) -> int:
+    """Positional index of ``middleware`` in ``graphql.execute()``.
+
+    graphql-core has moved this parameter between releases (3.2.10 inserted
+    ``max_coercion_errors`` ahead of it, shifting it from index 9 to 10), so the
+    index is read from the live ``execute`` signature rather than hardcoded
+    against the graphql-core version. ``execute_fn`` is only passed by tests; in
+    normal use the wrapped ``graphql.execute`` is introspected. Falls back to the
+    documented positions for stable releases when the signature can't be read.
+    """
+    if execute_fn is None and _graphql_version >= (3, 0):
+        try:
+            from graphql.execution.execute import execute as execute_fn
+        except ImportError:
+            execute_fn = None
+    if execute_fn is not None:
+        try:
+            return list(inspect.signature(execute_fn).parameters).index("middleware")
+        except (ValueError, TypeError):
+            pass
+    # Signature introspection failed: fall back to the documented positions.
+    if _graphql_version >= (3, 2, 10):
+        return 10
+    if _graphql_version >= (3, 2):
+        return 9
+    return 8
+
+
+_middleware_arg_position = _get_middleware_arg_position()
 
 
 def get_version() -> str:
@@ -250,10 +282,7 @@ def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kw
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
-    middlewares_arg = 8
-    if _graphql_version >= (3, 2):
-        # middleware is the 10th argument graphql.execute(..) version 3.2+
-        middlewares_arg = 9
+    middlewares_arg = _middleware_arg_position
 
     # get middlewares from args or kwargs
     try:
