@@ -385,10 +385,18 @@ monitoring.unregister(code, handler)
 
 ### Local vs. Global Events
 
-All events multiplexed here (`PY_START`, `PY_RETURN`, `PY_UNWIND`, `LINE`) are
-enabled **locally**, per code object, via `set_local_events()` — never
-globally. This keeps monitoring overhead confined to the code objects that
-actually have handlers registered.
+`PY_START`, `PY_RETURN`, and `LINE` are always enabled **locally**, per code
+object, via `set_local_events()`.
+
+`PY_UNWIND` depends on the Python version:
+
+- **3.15+:** local per code object (same as the other events).
+- **3.12–3.14:** global-only via `set_events()`; the multiplexer filters
+  dispatch to registered code objects and never returns `DISABLE` for
+  unregistered frames (which would permanently silence global unwind).
+
+This keeps monitoring overhead confined to code objects that actually have
+handlers registered.
 
 ### `DISABLE` and `refresh()`
 
