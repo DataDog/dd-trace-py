@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import _thread
 import functools
+import os
 import os.path
 import sys
 import time
@@ -555,53 +556,71 @@ class LockCollector(collector.CaptureSamplerCollector):
     def _get_patch_target(self) -> Callable[..., Any]:
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
 
+    def _use_sys_monitoring_path(self) -> bool:
+        if sys.version_info < (3, 12):
+            return False
+        if os.environ.get("DD_PROFILING_LOCK_USE_SYS_MONITORING", "").lower() not in ("1", "true", "yes"):
+            return False
+        return self.PATCHED_LOCK_NAME in ("Lock", "RLock")
+
     def _set_patch_target(self, value: Union[_LockAllocatorWrapper, Callable[..., Any], None]) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
         _c_initialize_gevent_support()
-        self.patch()
+        if self._use_sys_monitoring_path():
+            from ddtrace.profiling.collector.lock_monitoring import LockMonitoringService
+
+            LockMonitoringService.acquire(self)
+        else:
+            self.patch()
 
         LockCollector._active_collectors.add(self)
-        LockCollector._ensure_gevent_monkey_hook()
+        if not self._use_sys_monitoring_path():
+            LockCollector._ensure_gevent_monkey_hook()
 
-        # Register a hook to re-apply patches if the target module is
-        # re-imported after cleanup_loaded_modules() discards it from sys.modules.
-        # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
-        module_name: str = self.MODULE.__name__
-        patched_module_id: int = id(self.MODULE)
+            # Register a hook to re-apply patches if the target module is
+            # re-imported after cleanup_loaded_modules() discards it from sys.modules.
+            # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
+            module_name: str = self.MODULE.__name__
+            patched_module_id: int = id(self.MODULE)
 
-        def _on_module_reimport(new_module: ModuleType) -> None:
-            nonlocal patched_module_id
-            if id(new_module) == patched_module_id:
-                return
-            log.warning(
-                (
-                    "%s: target module %r was re-imported (id %#x -> %#x); "
-                    "re-applying lock profiling patches. "
-                    "This typically happens when gevent is installed and cleanup_loaded_modules() "
-                    "discards the previously-patched module from sys.modules."
-                ),
-                type(self).__name__,
-                module_name,
-                patched_module_id,
-                id(new_module),
-            )
-            self.unpatch()
-            self.MODULE = new_module
-            self.patch()
-            patched_module_id = id(new_module)
+            def _on_module_reimport(new_module: ModuleType) -> None:
+                nonlocal patched_module_id
+                if id(new_module) == patched_module_id:
+                    return
+                log.warning(
+                    (
+                        "%s: target module %r was re-imported (id %#x -> %#x); "
+                        "re-applying lock profiling patches. "
+                        "This typically happens when gevent is installed and cleanup_loaded_modules() "
+                        "discards the previously-patched module from sys.modules."
+                    ),
+                    type(self).__name__,
+                    module_name,
+                    patched_module_id,
+                    id(new_module),
+                )
+                self.unpatch()
+                self.MODULE = new_module
+                self.patch()
+                patched_module_id = id(new_module)
 
-        self._reimport_hook = _on_module_reimport
-        ModuleWatchdog.register_module_hook(module_name, self._reimport_hook)
+            self._reimport_hook = _on_module_reimport
+            ModuleWatchdog.register_module_hook(module_name, self._reimport_hook)
 
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
-        self.unpatch()
+        if self._use_sys_monitoring_path():
+            from ddtrace.profiling.collector.lock_monitoring import LockMonitoringService
+
+            LockMonitoringService.release(self)
+        else:
+            self.unpatch()
         LockCollector._active_collectors.discard(self)
         if self._reimport_hook is not None:
             ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)

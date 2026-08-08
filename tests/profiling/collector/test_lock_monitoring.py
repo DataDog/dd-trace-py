@@ -1,0 +1,47 @@
+"""Tests for the opt-in sys.monitoring lock profiling spike."""
+
+import sys
+import threading as th
+
+import pytest
+
+
+pytestmark = pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring lock spike requires 3.12+")
+
+
+def test_lock_monitoring_preserves_native_identity(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_LOCK_USE_SYS_MONITORING", "true")
+    from ddtrace.profiling.collector import lock_monitoring
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    lock_monitoring.LockMonitoringService._instance = None
+
+    collector = ThreadingLockCollector(capture_pct=100)
+    collector.start()
+    try:
+        lock = th.Lock()
+        assert isinstance(lock, lock_monitoring._THREAD_LOCK_TYPES)
+        assert not isinstance(lock, _ProfiledLock)
+        lock.acquire()
+        lock.release()
+    finally:
+        collector.stop()
+
+
+def test_lock_monitoring_service_refcount(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_LOCK_USE_SYS_MONITORING", "true")
+    from ddtrace.profiling.collector import lock_monitoring
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    lock_monitoring.LockMonitoringService._instance = None
+    c1 = ThreadingLockCollector(capture_pct=0)
+    c2 = ThreadingLockCollector(capture_pct=0)
+    c1.start()
+    c2.start()
+    assert lock_monitoring.LockMonitoringService._instance is not None
+    assert lock_monitoring.LockMonitoringService._instance._refcount == 2
+    c1.stop()
+    assert lock_monitoring.LockMonitoringService._instance._refcount == 1
+    c2.stop()
+    assert lock_monitoring.LockMonitoringService._instance is None
