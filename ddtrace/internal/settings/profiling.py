@@ -146,6 +146,15 @@ class ProfilingConfig(DDConfig):
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
 
+    remote_config_poc_enabled = DDConfig.v(
+        bool,
+        "remote_config_poc_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Enable the experimental profiling Remote Config lifecycle POC",
+        private=True,
+    )
+
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
 
