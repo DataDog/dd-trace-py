@@ -73,6 +73,14 @@ SHUTDOWN_TIMEOUT = 5
 _NODE_HASH_CACHE: dict = {}
 _NODE_HASH_CACHE_MAX_SIZE = 4096
 
+# Cache of the *final* pathway hash (node hash combined with the parent hash). _compute_hash is a
+# pure function of (service, env, process tags base hash, edge tags, parent_hash); the number of
+# distinct combinations is bounded by the pipeline topology (edges x upstream pathways), while the
+# function is called on every single message. Caching it removes the 16-byte pure-Python FNV-1
+# combine loop from the per-message path entirely.
+_PATHWAY_HASH_CACHE: dict = {}
+_PATHWAY_HASH_CACHE_MAX_SIZE = 4096
+
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
@@ -434,7 +442,13 @@ class DataStreamsCtx:
 
     def _compute_hash(self, tags, parent_hash):
         base_hash_bytes = process_tags.base_hash_bytes
-        cache_key = (self.service, self.env, base_hash_bytes, tuple(tags))
+        tags_key = tuple(tags)
+        pathway_key = (self.service, self.env, base_hash_bytes, tags_key, parent_hash)
+        pathway_hash = _PATHWAY_HASH_CACHE.get(pathway_key)
+        if pathway_hash is not None:
+            return pathway_hash
+
+        cache_key = (self.service, self.env, base_hash_bytes, tags_key)
         node_hash = _NODE_HASH_CACHE.get(cache_key)
         if node_hash is None:
             b = (
@@ -450,7 +464,12 @@ class DataStreamsCtx:
                 # cache rather than growing without bound. Correctness is unaffected.
                 _NODE_HASH_CACHE.clear()
             _NODE_HASH_CACHE[cache_key] = node_hash
-        return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+
+        pathway_hash = fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+        if len(_PATHWAY_HASH_CACHE) >= _PATHWAY_HASH_CACHE_MAX_SIZE:
+            _PATHWAY_HASH_CACHE.clear()
+        _PATHWAY_HASH_CACHE[pathway_key] = pathway_hash
+        return pathway_hash
 
     def set_checkpoint(
         self,
