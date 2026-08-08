@@ -39,6 +39,7 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
+from .encoding import var_int_64_len
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -62,6 +63,7 @@ log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
 PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+PROPAGATION_KEY_BASE_64_LEN = len(PROPAGATION_KEY_BASE_64)
 SHUTDOWN_TIMEOUT = 5
 
 # Cache of pathway *node* hashes. The node hash only depends on (service, env, process tags base
@@ -392,7 +394,7 @@ class DataStreamsProcessor(PeriodicService):
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
-            payload_size += len(ctx.encode_b64()) + len(PROPAGATION_KEY_BASE_64)
+            payload_size += ctx.encoded_b64_len() + PROPAGATION_KEY_BASE_64_LEN
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
@@ -439,6 +441,20 @@ class DataStreamsCtx:
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")
         return data_streams_context
+
+    def encoded_b64_len(self) -> int:
+        """Length of encode_b64() without doing the encoding.
+
+        encode() produces 8 bytes for the hash plus one varint per timestamp; base64 of n bytes is
+        always 4 * ceil(n / 3) characters (b64encode always pads). This is called on every produced
+        message purely to account for the injected header's size, so it must not allocate.
+        """
+        n = (
+            8
+            + var_int_64_len(int(self.pathway_start_sec * 1e3))
+            + var_int_64_len(int(self.current_edge_start_sec * 1e3))
+        )
+        return 4 * ((n + 2) // 3)
 
     def _compute_hash(self, tags, parent_hash):
         base_hash_bytes = process_tags.base_hash_bytes

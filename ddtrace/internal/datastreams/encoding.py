@@ -26,6 +26,25 @@ def encode_var_uint_64(v: int) -> bytes:
     return b
 
 
+def var_uint_64_len(v: int) -> int:
+    """Length in bytes of encode_var_uint_64(v), without building the bytes object.
+
+    Mirrors encode_var_uint_64 exactly: it emits one continuation byte per 7-bit group while
+    v >= 0x80, for at most MAX_VAR_LEN_64 iterations, then one final byte.
+    """
+    if v < 0x80:
+        return 1
+    continuation_bytes = (v.bit_length() - 1) // 7
+    if continuation_bytes > MAX_VAR_LEN_64:
+        continuation_bytes = MAX_VAR_LEN_64
+    return continuation_bytes + 1
+
+
+def var_int_64_len(v: int) -> int:
+    """Length in bytes of encode_var_int_64(v), without building the bytes object."""
+    return var_uint_64_len(v >> (64 - 1) ^ (v << 1))
+
+
 def decode_var_uint_64(b: bytes) -> tuple[int, bytes]:
     x = 0
     s = 0
