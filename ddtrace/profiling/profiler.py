@@ -379,6 +379,26 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        # Arm native (C/C++) heap allocation profiling, if requested and
+        # available. This installs process-global GOT overrides so Datadog's
+        # ddheap USDT probe sites fire on sampled allocations; the OpenTelemetry
+        # eBPF profiler or Datadog Host Profiler collects them out-of-band. This
+        # only runs when the Python profiler is started (``DD_PROFILING_ENABLED``),
+        # so native heap is an additive profiling feature rather than a standalone
+        # toggle. Installation is permanent and idempotent: after ``fork()`` the
+        # child inherits the patched GOT, and a post-fork ``_start_service()`` call
+        # (e.g. uWSGI workers) is a harmless no-op.
+        if profiling_config.native_heap.enabled:
+            from ddtrace.internal.datadog.profiling import heap_gotter
+
+            try:
+                if heap_gotter.install():
+                    LOG.debug("Native heap profiling armed (GOT overrides installed)")
+                else:
+                    LOG.debug("Native heap profiling requested but GOT overrides were not installed")
+            except Exception:
+                LOG.debug("Failed to arm native heap profiling", exc_info=True)
+
         collectors = []
         for col in self._collectors:
             try:
