@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import _thread
 import functools
-import os
 import os.path
 import sys
 import time
@@ -557,9 +556,14 @@ class LockCollector(collector.CaptureSamplerCollector):
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
 
     def _use_sys_monitoring_path(self) -> bool:
+        """True when ``config.lock.use_sys_monitoring`` is on for this collector.
+
+        When False, ``_start_service`` / ``_stop_service`` fall back to the
+        regular ``_ProfiledLock`` allocator-wrapper path.
+        """
         if sys.version_info < (3, 12):
             return False
-        if os.environ.get("DD_PROFILING_LOCK_USE_SYS_MONITORING", "").lower() not in ("1", "true", "yes"):
+        if not config.lock.use_sys_monitoring:
             return False
         return self.PATCHED_LOCK_NAME in ("Lock", "RLock")
 

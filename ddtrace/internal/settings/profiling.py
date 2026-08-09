@@ -42,7 +42,9 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = (
+            psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
+        )
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -467,6 +469,18 @@ class ProfilingConfigLock(DDConfig):
             "REPLACES the in-tree default rather than appending to it; users who only need to add "
             "an entry should reproduce the full default list and append to it. "
             "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
+        ),
+    )
+
+    use_sys_monitoring = DDConfig.v(
+        bool,
+        "use_sys_monitoring",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Profile ``threading.Lock`` / ``threading.RLock`` via ``sys.monitoring`` CALL/C_RETURN "
+            "instead of ``_ProfiledLock`` wrappers. Requires Python 3.12+. When disabled (default), "
+            "the collector falls back to the regular allocator-wrapper path. Research / opt-in only."
         ),
     )
 

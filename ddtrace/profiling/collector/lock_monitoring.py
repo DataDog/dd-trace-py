@@ -1,8 +1,10 @@
 """Opt-in lock profiling via sys.monitoring CALL/C_RETURN (Python 3.12+).
 
-Research spike behind ``DD_PROFILING_LOCK_USE_SYS_MONITORING``. Avoids
+Research spike behind ``config.lock.use_sys_monitoring`` /
+``DD_PROFILING_LOCK_USE_SYS_MONITORING`` (default off). When enabled, avoids
 ``_ProfiledLock`` / allocator patching for ``threading.Lock`` and
-``threading.RLock`` while preserving native lock identity.
+``threading.RLock`` while preserving native lock identity. When disabled,
+``LockCollector`` uses the regular wrapper path.
 """
 
 from __future__ import annotations

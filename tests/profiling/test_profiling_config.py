@@ -70,6 +70,20 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
 
+class TestLockUseSysMonitoringConfig:
+    def test_default_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_LOCK_USE_SYS_MONITORING", raising=False)
+        from ddtrace.internal.settings.profiling import ProfilingConfigLock
+
+        assert ProfilingConfigLock().use_sys_monitoring is False
+
+    def test_env_enables(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_LOCK_USE_SYS_MONITORING", "true")
+        from ddtrace.internal.settings.profiling import ProfilingConfigLock
+
+        assert ProfilingConfigLock().use_sys_monitoring is True
+
+
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 

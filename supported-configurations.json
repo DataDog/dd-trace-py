@@ -2893,6 +2893,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_LOCK_USE_SYS_MONITORING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_MAX_FRAMES": [
       {
         "implementation": "B",
