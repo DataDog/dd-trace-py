@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Thin cdylib wrapper around libdatadog's `libdd-profiling-heap-gotter` crate
-# (published on crates.io). See "Phase 1.5" in
-# `ddtrace/native-heap-profiling-roadmap.md`: this dependency was migrated from
-# a libdatadog `main` git pin to the published crates.io release.
+# (published on crates.io).
 #
 # Why this crate exists (rather than consuming the upstream crate directly):
 #   * Building our own cdylib lets us pick a clean `[lib] name` and so sidestep
@@ -13,11 +11,6 @@
 #   * It lets us expose a stable, ddtrace-owned C ABI (`ddtrace_heap_gotter_*`)
 #     over the upstream crate's pure-Rust API, so the Python ctypes activator
 #     links against fixed, unmangled symbol names and gets a plain `bool`.
-#
-# Phase 1 is allocation-only: the `live-heap` cargo feature of the gotter is
-# intentionally NOT enabled, so the free-path USDT (`ddheap:free`) and its
-# per-free overhead stay compiled out. Enabling live-heap later just adds the
-# `live-heap` feature on the `libdd-profiling-heap-gotter` dependency below.
 [package]
 name = "ddtrace-heap-gotter"
 version = "0.1.0"
