@@ -1,24 +1,8 @@
 // Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
 // SPDX-License-Identifier: Apache-2.0
 
-//! Thin cdylib that wraps libdatadog's published `libdd-profiling-heap-gotter`
-//! crate under stable, ddtrace-owned C symbols. The Python ctypes activator
-//! (`ddtrace/internal/datadog/profiling/heap_gotter`) dlopen's the resulting
-//! `libdd_heap_gotter.<ext-suffix>.so` and drives GOT-based native heap
-//! profiling from it.
-//!
-//! The upstream crate exposes a pure-Rust API (`install_heap_overrides`,
-//! `heap_overrides_are_installed`); it is not a C-ABI surface. Here we re-export
-//! those calls as fixed, unmangled `extern "C"` entry points returning a plain
-//! `bool`, so the Python ctypes side links against stable symbol names and gets
-//! a trivial success signal.
-//!
-//! Installation is permanent and process-global: the GOT entries patched by
-//! `install` point at functions inside the linked-in gotter code, so this
-//! library must stay loaded for the life of the process. The Python activator
-//! loads it into the global namespace and never unloads it. After `fork()` the
-//! child inherits both the loaded library and the patched GOT, so a re-install
-//! in the child is a harmless no-op.
+//! Thin cdylib wrapping `libdd-profiling-heap-gotter` (crates.io) under stable
+//! `extern "C"` symbols for the Python ctypes activator to dlopen.
 
 /// Install GOT overrides for supported heap-allocation symbols and report
 /// whether the install actually took effect.
@@ -48,6 +32,29 @@ pub extern "C" fn ddtrace_heap_gotter_install() -> bool {
 #[no_mangle]
 pub extern "C" fn ddtrace_heap_gotter_is_installed() -> bool {
     libdd_profiling_heap_gotter::heap_overrides_are_installed()
+}
+
+/// Set the mean sample distance (bytes between samples) for the heap sampler.
+/// Must be called before `ddtrace_heap_gotter_install` to take effect.
+///
+/// # Safety
+///
+/// C ABI entry point; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_set_sampling_distance(distance: u64) {
+    libdd_profiling_heap_gotter::set_default_sampling_distance(distance);
+}
+
+/// Re-scan loaded libraries and patch any newly-introduced GOT entries.
+/// Normally called automatically from the internal `dlopen` hook; exposed here
+/// for cases where the Python side loads a `.so` and wants immediate coverage.
+///
+/// # Safety
+///
+/// C ABI entry point with no arguments and no pointers; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_update() {
+    libdd_profiling_heap_gotter::update_heap_overrides();
 }
 
 /// Test-only: number of times a patched hook has run in this process. Lets

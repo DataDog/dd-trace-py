@@ -1107,10 +1107,10 @@ class CustomBuildExt(build_ext):
             subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
 
         if self._should_strip_heap_gotter():
-            debug_sidecar = self._extract_and_strip_staged_debug_symbols(gotter_library)
+            debug_sidecar: t.Optional[Path] = self._extract_and_strip_staged_debug_symbols(gotter_library)
             if debug_sidecar:
-                unstripped_size = built.stat().st_size
-                stripped_size = gotter_library.stat().st_size
+                unstripped_size: int = built.stat().st_size
+                stripped_size: int = gotter_library.stat().st_size
                 print(
                     f"Stripped heap-gotter cdylib for wheel packaging: "
                     f"{unstripped_size} -> {stripped_size} bytes "
@@ -1225,15 +1225,15 @@ class CustomBuildExt(build_ext):
         are stripped post-build; heap-gotter is stripped at staging time because it
         is built out-of-band from setuptools extensions).
         """
-        objcopy = shutil.which("objcopy")
-        strip_bin = shutil.which("strip")
+        objcopy: t.Optional[str] = shutil.which("objcopy")
+        strip_bin: t.Optional[str] = shutil.which("strip")
         if not objcopy or not strip_bin:
             print("WARNING: objcopy/strip not found, skipping heap-gotter symbol stripping", flush=True)
             return None
 
-        so_path = str(so_file)
+        so_path: str = str(so_file)
         subprocess.run([objcopy, "--remove-section", ".llvmbc", so_path], check=False)
-        debug_out = f"{so_path}.debug"
+        debug_out: str = f"{so_path}.debug"
         try:
             subprocess.run([objcopy, "--only-keep-debug", so_path, debug_out], check=True)
             if not Path(debug_out).is_file() or Path(debug_out).stat().st_size == 0:

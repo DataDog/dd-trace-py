@@ -37,7 +37,6 @@ codegen-units = 1
 test-support = ["libdd-profiling-heap-gotter/test-support"]
 
 [dependencies]
-# Pinned to the published crates.io release (Phase 1.5 migration off the
-# libdatadog `main` git pin). `default-features = false` keeps the
-# allocation-only surface: `live-heap` stays opt-in and off for Phase 1.
-libdd-profiling-heap-gotter = { version = "1.0.0", default-features = false }
+# Pinned to the published crates.io release. `live-heap` enables balanced
+# alloc/free sampling so the profiler can report retained (live) heap.
+libdd-profiling-heap-gotter = { version = "1.0.0", features = ["live-heap"] }
