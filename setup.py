@@ -116,6 +116,10 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 NATIVE_CRATE = HERE / "src" / "native"
 # Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
 # crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
+# TODO: Integrate into the `src/native` workspace as a Cargo feature flag (e.g.
+# `[features] heap-gotter = [...]`) rather than maintaining a standalone crate and
+# separate build step. This would let the heap-gotter follow the same compile, link,
+# strip, and packaging path as the other profiling native artifacts.
 NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
