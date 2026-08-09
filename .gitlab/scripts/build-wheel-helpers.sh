@@ -151,13 +151,69 @@ PY
   # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
   section_start "repair_wheel" "Repairing wheel"
   if [[ "$(uname -s)" == "Linux" ]]; then
-    # The opt-in heap-gotter cdylib (DD_PROFILING_NATIVE_HEAP_BUILD=1) is a
-    # statically-linked Rust artifact with non-standard ELF versioning sections
-    # that trip auditwheel's iter_versions parser. Exclude it from repair —
-    # same rationale as skipping it in extract_debug_symbols above.
-    auditwheel repair -w "${TMP_WHEEL_DIR}" \
-      --exclude 'libdd_heap_gotter*.so' \
-      "${BUILT_WHEEL_FILE}"
+    # The opt-in heap-gotter cdylib (DD_PROFILING_NATIVE_HEAP_BUILD=1) has
+    # non-standard ELF versioning sections that trip auditwheel's iter_versions
+    # parser. --exclude does not help: it only drops a SONAME from dependency
+    # grafting, while repair still parses every ELF listed in the wheel's RECORD.
+    # So the cdylib has to leave the wheel entirely and be reinserted after.
+    GOTTER_STASH_DIR="${WORK_DIR}/heap_gotter_stash"
+    GOTTER_PATTERN='*libdd_heap_gotter*.so'
+    if unzip -l "${BUILT_WHEEL_FILE}" | grep -q 'libdd_heap_gotter.*\.so$'; then
+      mkdir -p "${GOTTER_STASH_DIR}"
+      unzip -q "${BUILT_WHEEL_FILE}" "${GOTTER_PATTERN}" -d "${GOTTER_STASH_DIR}"
+      uv run --no-project scripts/zip_filter.py "${BUILT_WHEEL_FILE}" "${GOTTER_PATTERN}"
+    fi
+
+    auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
+
+    if [[ -d "${GOTTER_STASH_DIR}" ]]; then
+      REPAIRED_WHEEL_FILE=$(ls "${TMP_WHEEL_DIR}"/*.whl | head -n 1)
+      GOTTER_STASH_DIR="${GOTTER_STASH_DIR}" REPAIRED_WHEEL_FILE="${REPAIRED_WHEEL_FILE}" \
+        uv run --no-project python - <<'PY'
+import base64
+import csv
+import hashlib
+import io
+import os
+import zipfile
+from pathlib import Path
+
+wheel = Path(os.environ["REPAIRED_WHEEL_FILE"])
+stash = Path(os.environ["GOTTER_STASH_DIR"])
+
+additions = {str(p.relative_to(stash)): p for p in sorted(stash.rglob("*")) if p.is_file()}
+if not additions:
+    print("No stashed heap-gotter cdylib to reinsert")
+    raise SystemExit(0)
+
+tmp_wheel = Path(f"{wheel}.tmp")
+with (
+    zipfile.ZipFile(wheel, "r") as source_zip,
+    zipfile.ZipFile(tmp_wheel, "w", zipfile.ZIP_DEFLATED) as temp_zip,
+):
+    record = next((f for f in source_zip.infolist() if f.filename.endswith(".dist-info/RECORD")), None)
+    if record is None:
+        raise SystemExit(f"no RECORD found in {wheel}")
+    # DEV: Use ZipInfo objects to ensure original file attributes are preserved
+    for file in source_zip.infolist():
+        if file.filename == record.filename or file.filename in additions:
+            continue
+        temp_zip.writestr(file, source_zip.read(file.filename))
+    rows = [r for r in csv.reader(io.StringIO(source_zip.read(record.filename).decode("utf-8"))) if r]
+    rows = [r for r in rows if r[0] != record.filename and r[0] not in additions]
+    for arcname, path in additions.items():
+        data = path.read_bytes()
+        temp_zip.writestr(arcname, data)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+        rows.append([arcname, f"sha256={digest}", str(len(data))])
+        print(f"Reinserted heap-gotter cdylib: {arcname}")
+    rows.append([record.filename, "", ""])
+    output = io.StringIO()
+    csv.writer(output, lineterminator="\n").writerows(rows)
+    temp_zip.writestr(record, output.getvalue())
+os.replace(tmp_wheel, wheel)
+PY
+    fi
   else
     # macOS
     MACOSX_DEPLOYMENT_TARGET=14.7 uvx --from="delocate" delocate-wheel \
