@@ -7,6 +7,7 @@ pub mod ffe {
     use std::collections::HashMap;
 
     use pyo3::{exceptions::PyValueError, prelude::*};
+    use serde_json::Value;
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
@@ -19,6 +20,7 @@ pub mod ffe {
     #[pyo3(name = "Configuration")]
     struct FfeConfiguration {
         inner: Configuration,
+        variant_type_mismatch_flags: HashMap<String, FlagType>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +105,7 @@ pub mod ffe {
                 config_bytes.len()
             );
 
+            let variant_type_mismatch_flags = find_variant_type_mismatch_flags(&config_bytes);
             let configuration = Configuration::from_server_response(
                 UniversalFlagConfig::from_json(config_bytes).map_err(|err| {
                     debug!("Failed to parse FFE configuration: {err}");
@@ -112,6 +115,7 @@ pub mod ffe {
 
             Ok(FfeConfiguration {
                 inner: configuration,
+                variant_type_mismatch_flags,
             })
         }
 
@@ -130,6 +134,13 @@ pub mod ffe {
                     ))
                 }
             };
+
+            if self.variant_type_mismatch_flags.get(flag_key) == Some(&expected_type) {
+                return Ok(ResolutionDetails::error(
+                    ErrorCode::ParseError,
+                    "variant value does not match the declared variation type",
+                ));
+            }
 
             let assignment = get_assignment(
                 Some(&self.inner),
@@ -157,6 +168,57 @@ pub mod ffe {
             };
 
             Ok(result)
+        }
+    }
+
+    fn find_variant_type_mismatch_flags(config_bytes: &[u8]) -> HashMap<String, FlagType> {
+        let Ok(config) = serde_json::from_slice::<Value>(config_bytes) else {
+            return HashMap::new();
+        };
+        let Some(flags) = config.get("flags").and_then(Value::as_object) else {
+            return HashMap::new();
+        };
+
+        flags
+            .iter()
+            .filter_map(|(flag_key, flag)| {
+                if flag.get("enabled").and_then(Value::as_bool) == Some(false) {
+                    return None;
+                }
+                let variation_type = flag.get("variationType")?.as_str()?;
+                let flag_type = declared_flag_type(variation_type)?;
+                let variations = flag.get("variations")?.as_object()?;
+                let has_mismatch = variations.values().any(|variation| {
+                    variation
+                        .get("value")
+                        .is_some_and(|value| !variant_value_matches(variation_type, value))
+                });
+                has_mismatch.then(|| (flag_key.clone(), flag_type))
+            })
+            .collect()
+    }
+
+    fn declared_flag_type(variation_type: &str) -> Option<FlagType> {
+        match variation_type {
+            "BOOLEAN" => Some(FlagType::Boolean),
+            "STRING" => Some(FlagType::String),
+            "INTEGER" => Some(FlagType::Integer),
+            "NUMERIC" => Some(FlagType::Float),
+            "JSON" => Some(FlagType::Object),
+            _ => None,
+        }
+    }
+
+    fn variant_value_matches(variation_type: &str, value: &Value) -> bool {
+        match variation_type {
+            "BOOLEAN" => value.is_boolean(),
+            "STRING" => value.is_string(),
+            "INTEGER" => value.is_i64() || value.is_u64(),
+            "NUMERIC" => value.is_number(),
+            // JSON flag values may be any valid JSON value.
+            "JSON" => true,
+            // Preserve libdatadog's existing handling for unknown flag types.
+            _ => true,
         }
     }
 

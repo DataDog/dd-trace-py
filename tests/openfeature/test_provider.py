@@ -185,6 +185,18 @@ class TestIntegerFlagResolution:
         assert result.reason == Reason.ERROR
         assert result.error_code == ErrorCode.TYPE_MISMATCH
 
+    def test_resolve_integer_flag_variant_type_mismatch(self, provider):
+        """Should return PARSE_ERROR when a variant value violates the declared flag type."""
+        flag = create_integer_flag("invalid-integer-flag", 1, enabled=True)
+        flag["variations"]["var-1"]["value"] = "not-an-integer"
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_integer_details("invalid-integer-flag", 0)
+
+        assert result.value == 0
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PARSE_ERROR
+
 
 class TestFloatFlagResolution:
     """Test float/numeric flag resolution."""
