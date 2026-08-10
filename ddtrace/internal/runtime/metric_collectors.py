@@ -65,23 +65,34 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
     _NS_TO_SEC = 1e-9
 
     def _on_modules_load(self):
-        # Smoke test: if this raises, `_load_modules`'s caller never sees it since it's
-        # not an ImportError, so surface it the same way a failed import would.
+        # `_reset_state` doubles as the smoke test: if it raises, `_load_modules`'s caller
+        # never sees it since it's not an ImportError, so surface it the same way a failed
+        # import would.
         try:
-            self.modules["ddtrace.internal.native"].process_metrics()
+            self._reset_state()
         except Exception:
             self.enabled = False
             return
 
-        self._reset_state()
         forksafe.register(self._reset_state)
 
     def _reset_state(self):
-        # A forked child inherits these as the parent's last-observed values, while its own
-        # /proc/self/stat counters restart near zero -- without resetting here, the child's
-        # first post-fork delta would be negative.
-        self.stored_cpu_times = {CPU_TIME_SYS: 0.0, CPU_TIME_USER: 0.0}
-        self.stored_ctx_switches = {CTX_SWITCH_VOLUNTARY: 0, CTX_SWITCH_INVOLUNTARY: 0}
+        # Seed the baselines from a fresh reading instead of zero, both here and on fork:
+        # a forked child inherits these as the parent's last-observed values, while its own
+        # counters (e.g. Linux's /proc/self/stat) restart near zero, so an unseeded baseline
+        # would make the very next collect_fn call report a huge one-off delta -- the
+        # process's entire lifetime CPU time/ctx switches so far, rather than the delta since
+        # enablement/fork.
+        native = self.modules["ddtrace.internal.native"]
+        process_metrics = _ProcessMetrics(*native.process_metrics())
+        self.stored_cpu_times = {
+            CPU_TIME_SYS: process_metrics.cpu_time_sys_ns * self._NS_TO_SEC,
+            CPU_TIME_USER: process_metrics.cpu_time_user_ns * self._NS_TO_SEC,
+        }
+        self.stored_ctx_switches = {
+            CTX_SWITCH_VOLUNTARY: process_metrics.ctx_switches_voluntary,
+            CTX_SWITCH_INVOLUNTARY: process_metrics.ctx_switches_involuntary,
+        }
         self._last_wall_time = time.monotonic()
 
     def collect_fn(self, keys):

@@ -60,9 +60,11 @@ pub fn process_metrics() -> PyResult<(u64, u64, i64, i64, u64, u64)> {
     let utime_ticks = field(11)?;
     let stime_ticks = field(12)?;
 
-    let ticks_per_sec = clock_ticks_per_sec() as u64;
-    let cpu_time_user_ns = utime_ticks * 1_000_000_000 / ticks_per_sec;
-    let cpu_time_sys_ns = stime_ticks * 1_000_000_000 / ticks_per_sec;
+    let ticks_per_sec = clock_ticks_per_sec() as u128;
+    // Widen through u128 for the multiply: at HZ=100, a u64 tick count overflows after
+    // ~5.8 CPU-years, which a busy multi-core process can accumulate in weeks.
+    let cpu_time_user_ns = (utime_ticks as u128 * 1_000_000_000 / ticks_per_sec) as u64;
+    let cpu_time_sys_ns = (stime_ticks as u128 * 1_000_000_000 / ticks_per_sec) as u64;
 
     let status = fs::read_to_string("/proc/self/status")
         .map_err(|e| io_err("reading /proc/self/status", e))?;

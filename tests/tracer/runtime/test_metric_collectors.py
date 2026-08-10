@@ -42,7 +42,15 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         mock_thread_count = 5
         mock_memory_rss = 1024 * 1024 * 100  # 100 MB
 
-        collector = NativeProcessMetricCollector()
+        # Mock native.process_metrics() before construction too: _reset_state() (run at
+        # enablement) now primes stored_cpu_times/stored_ctx_switches from a real reading,
+        # so it must see a deterministic zero baseline rather than this test process's
+        # actual, non-zero lifetime CPU time.
+        with mock.patch(
+            "ddtrace.internal.native.process_metrics",
+            return_value=(0, 0, 0, 0, mock_thread_count, mock_memory_rss),
+        ):
+            collector = NativeProcessMetricCollector()
         native = collector.modules["ddtrace.internal.native"]
         # collector.__init__ already consumed a real time.monotonic() call for
         # _last_wall_time; seed it explicitly so the mocked "now" below produces a
