@@ -21,7 +21,7 @@ log = get_logger(__name__)
 _CVE_DATA_PATH = os.path.join(os.path.dirname(__file__), "_cve_data.json")
 
 
-def _parse_version_constraint(constraint: str) -> Optional[tuple]:
+def _parse_version_constraint(constraint: str) -> Optional[tuple[str, Version]]:
     """Parse a version constraint string into (operator, version).
 
     Supports: "<1.2.3", "<=1.2.3", ">1.2.3", ">=1.2.3", "==1.2.3"

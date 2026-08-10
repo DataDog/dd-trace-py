@@ -53,6 +53,24 @@ EXPECTED_TOOL_DEFINITIONS = [
 ]
 
 
+def _assert_stream_helper_span(test_spans):
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="llm",
+        model_name="claude-3-opus-20240229",
+        model_provider="anthropic",
+        output_messages=[
+            {
+                "content": 'The famous philosophical statement "I think, therefore I am" (originally in',
+                "role": "assistant",
+            }
+        ],
+        metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
+    )
+
+
 class TestLLMObsAnthropic:
     def test_content_block_stop_without_content_does_not_crash(self):
         """Regression test for beta streaming: content_block_stop can arrive without any content blocks."""
@@ -655,6 +673,90 @@ class TestLLMObsAnthropic:
                 metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
+
+    @pytest.mark.parametrize("final_method", ["get_final_message", "get_final_text"])
+    def test_stream_helper_final_method_without_proxy_iteration(
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr, final_method
+    ):
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            }
+                        ],
+                    },
+                ],
+            ) as stream:
+                result = getattr(stream, final_method)()
+                assert result is not None
+
+        _assert_stream_helper_span(test_spans)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_method", ["get_final_message", "get_final_text"])
+    async def test_async_stream_helper_final_method_without_proxy_iteration(
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr, final_method
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            }
+                        ],
+                    },
+                ],
+            ) as stream:
+                result = await getattr(stream, final_method)()
+                assert result is not None
+
+        _assert_stream_helper_span(test_spans)
+
+    @pytest.mark.asyncio
+    async def test_async_stream_helper_traces_remaining_events_after_partial_proxy_iteration(
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            }
+                        ],
+                    },
+                ],
+            ) as stream:
+                first_event = await stream.__anext__()
+                assert first_event is not None
+                message = await stream.get_final_message()
+                assert message is not None
+
+        _assert_stream_helper_span(test_spans)
 
     def test_image(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an image input.

@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
+from ddtrace.internal.ci_visibility._protocols import CIVisibilityProtocol
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySessionSettings
@@ -151,7 +152,7 @@ class CIVisibilityTracer(Tracer):
         super().__init__(*args, **kwargs)
 
 
-class CIVisibility(Service):
+class CIVisibility(Service, CIVisibilityProtocol):
     _instance: Optional["CIVisibility"] = None
     enabled = False
 

@@ -146,7 +146,7 @@ They use the Flask integration tests as a teaching example. Referencing these in
    running the app server in a subprocess started with a ``ddtrace-run`` command. The app
    server is started by a Pytest fixture function that's defined in the snapshot test file.
 6. If the library you're integrating with requires communication with a datastore, make sure there's
-   an image for that datastore referenced in ``docker-compose.yml``. If there is not, add one.
+   an image for that datastore referenced in ``docker-compose.base.yml``. If there is not, add one.
    You can find a suitable image by searching on `Docker Hub <https://hub.docker.com>`_.
 7. Write a simple test. In your new snapshot test file, define a function testing your app's
    happy path. Here's an example from the Flask test suite:

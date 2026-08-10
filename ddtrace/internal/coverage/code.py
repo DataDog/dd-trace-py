@@ -39,6 +39,12 @@ _PY_GE_312 = sys.version_info >= (3, 12)
 _PY_GE_313 = sys.version_info >= (3, 13)
 _PY_GE_314 = sys.version_info >= (3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
+_SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
+
+
+def _is_site_packages_path(path: Path) -> bool:
+    return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
+
 
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
@@ -517,6 +523,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             return code
 
         code_path = resolved_code_origin(code)
+
+        if _is_site_packages_path(code_path):
+            # Do not instrument dependencies vendored or installed under the workspace.
+            return code
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument

@@ -391,7 +391,7 @@ def test_symbols_upload_enabled():
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     assert not SymbolDatabaseUploader.is_installed()
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is not None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None
 
 
 @pytest.mark.subprocess(
@@ -556,9 +556,9 @@ def test_symbols_fork_forces_reenable_and_install():
 
     # Simulate that this process was already correctly disabled by the guard,
     # e.g. some ancestor already decided this branch shouldn't upload symbols.
-    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is None
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is None
 
     upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
 
@@ -566,7 +566,7 @@ def test_symbols_fork_forces_reenable_and_install():
         if not (child := os.fork()):
             # The after-fork hook (ProductManager.restart_products -> symbol_db.restart())
             # has already run by this point, before any of our own code executes here.
-            assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is not None, (
+            assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None, (
                 "fork should have force re-registered the RC callback despite the earlier disable"
             )
 

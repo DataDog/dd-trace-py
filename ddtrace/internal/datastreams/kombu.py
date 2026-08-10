@@ -16,22 +16,26 @@ def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
     routing_key = get_routing_key_from_args(args)
-    dsm_identifier = get_exchange_from_args(args)
+    exchange = get_exchange_from_args(args)
     payload_size = 0
     payload_size += _calculate_byte_size(args[HEADER_POS])
     payload_size += _calculate_byte_size(args[PUBLISH_BODY_IDX])
 
     has_routing_key = str(bool(routing_key)).lower()
 
-    pathway_tags = []
-    for prefix, value in [
-        ("direction", "out"),
-        ("exchange", dsm_identifier),
-        ("has_routing_key", has_routing_key),
-        ("type", "rabbitmq"),
-    ]:
-        if value is not None:
-            pathway_tags.append(f"{prefix}:{value}")
+    # On the default (unnamed) exchange, the routing key is the destination queue name.
+    if not exchange and routing_key:
+        pathway_tags = ["direction:out", f"topic:{routing_key}", "type:rabbitmq"]
+    else:
+        pathway_tags = []
+        for prefix, value in [
+            ("direction", "out"),
+            ("exchange", exchange),
+            ("has_routing_key", has_routing_key),
+            ("type", "rabbitmq"),
+        ]:
+            if value is not None:
+                pathway_tags.append(f"{prefix}:{value}")
 
     ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
     DsmPathwayCodec.encode(ctx, args[HEADER_POS])

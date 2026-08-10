@@ -75,7 +75,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "arm64",
-         "_dd.svc_src": "azure_functions",
+         "_dd.svc_src": "azure_cosmos",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
@@ -98,7 +98,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "arm64",
-         "_dd.svc_src": "azure_functions",
+         "_dd.svc_src": "azure_cosmos",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
