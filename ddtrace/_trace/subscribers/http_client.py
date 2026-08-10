@@ -36,15 +36,15 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
 
-        if _http_propagation_suppressed.get():
-            return
-        # Set resource from request method and URL path if not explicitly provided by the integration
         if event.resource is None and event.request_method and event.request_url:
             try:
                 parsed_url = parse.urlparse(event.request_url)
-                ctx.span.resource = f"{event.request_method.upper()} {parsed_url.path}"
+                span_from_context(ctx).resource = f"{event.request_method.upper()} {parsed_url.path}"
             except Exception:
                 log.debug("error computing resource from request URL", exc_info=True)
+
+        if _http_propagation_suppressed.get():
+            return
 
         if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:
             HTTPPropagator.inject(span_from_context(ctx).context, cast(dict[str, str], event.request_headers))

@@ -126,6 +126,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
+        self.assertEqual(span.resource, "GET /status/200")
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
