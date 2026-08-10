@@ -274,13 +274,6 @@ impl DebuggerSenderPy {
         self.agentless
     }
 
-    /// Whether the logs and snapshots tracks currently point at the diagnostics
-    /// endpoint because of a [`downgrade_to_diagnostics`] call.
-    #[getter]
-    fn downgraded(&self) -> bool {
-        self.with_state(|state| state.downgraded)
-    }
-
     /// Point the logs and snapshots tracks at the diagnostics endpoint, for
     /// agents that do not proxy `/debugger/v2/input`.
     ///
@@ -338,7 +331,7 @@ impl DebuggerSenderPy {
             "DebuggerSender(url={:?}, agentless={}, downgraded={})",
             self.base_endpoint.url.to_string(),
             self.agentless,
-            self.downgraded(),
+            self.with_state(|state| state.downgraded),
         )
     }
 }

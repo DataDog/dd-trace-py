@@ -476,10 +476,6 @@ class DebuggerSender:
     def agentless(self) -> bool:
         """Whether payloads go straight to the intake rather than via the agent."""
         ...
-    @property
-    def downgraded(self) -> bool:
-        """Whether the logs/snapshots tracks currently point at the diagnostics endpoint."""
-        ...
     def downgrade_to_diagnostics(self) -> bool:
         """Point the logs and snapshots tracks at the diagnostics endpoint.
 

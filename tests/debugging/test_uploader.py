@@ -1,5 +1,9 @@
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import json
 from queue import Queue
+from threading import Thread
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -11,8 +15,10 @@ from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import SignalUploaderError
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal.native import DebuggerSender
 from ddtrace.internal.native import DebuggerSenderError
 from ddtrace.internal.native import DebuggerTrackType
+from ddtrace.internal.native_runtime import get_native_runtime
 
 
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError
@@ -90,40 +96,44 @@ def test_uploader_502_error():
 
 
 def test_info_check_endpoint_selection():
-    """Test info_check endpoint selection and fallback behavior for both LOGS and SNAPSHOT tracks."""
-    # Test 1: v2 endpoint available (agent reports endpoints without a leading
-    # slash) - both tracks use v2
-    uploader = SignalUploader(interval=LONG_INTERVAL)
-    agent_info = {"endpoints": ["debugger/v2/input", "debugger/v1/diagnostics"]}
-    assert uploader.info_check(agent_info) is True
-    assert uploader._tracks[SignalTrack.LOGS].enabled is True
-    assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is True
-    assert uploader._sender.downgraded is False
+    """info_check picks the track endpoints, checked by where payloads actually land."""
+    with _intake_server() as intake:
+        # v2 advertised (without a leading slash): both tracks use v2.
+        uploader = _uploader_to(intake.url)
+        assert uploader.info_check({"endpoints": ["debugger/v2/input", "debugger/v1/diagnostics"]}) is True
+        assert uploader._tracks[SignalTrack.LOGS].enabled is True
+        assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is True
+        assert intake.path_for(uploader, DebuggerTrackType.Logs) == "/debugger/v2/input"
+        assert intake.path_for(uploader, DebuggerTrackType.Snapshots) == "/debugger/v2/input"
 
-    # Test 2: Only diagnostics available (leading-slash form) - both tracks fallback
-    uploader = SignalUploader(interval=LONG_INTERVAL)
-    agent_info = {"endpoints": ["/debugger/v1/diagnostics"]}
-    assert uploader.info_check(agent_info) is True
-    assert uploader._sender.downgraded is True
+        # Only diagnostics advertised (leading-slash form): both tracks fall back.
+        uploader = _uploader_to(intake.url)
+        assert uploader.info_check({"endpoints": ["/debugger/v1/diagnostics"]}) is True
+        assert intake.path_for(uploader, DebuggerTrackType.Logs) == "/debugger/v1/diagnostics"
+        assert intake.path_for(uploader, DebuggerTrackType.Snapshots) == "/debugger/v1/diagnostics"
 
-    # Test 3: No supported endpoints - both tracks disabled
+        # An agent that regains the v2 endpoint undoes an earlier downgrade.
+        uploader = _uploader_to(intake.url)
+        assert uploader._sender.downgrade_to_diagnostics() is True
+        assert intake.path_for(uploader, DebuggerTrackType.Logs) == "/debugger/v1/diagnostics"
+        assert uploader.info_check({"endpoints": ["debugger/v2/input"]}) is True
+        assert intake.path_for(uploader, DebuggerTrackType.Logs) == "/debugger/v2/input"
+
+        # The diagnostics track is unaffected by the downgrade: it is already there.
+        uploader = _uploader_to(intake.url)
+        assert uploader.info_check({"endpoints": ["debugger/v2/input"]}) is True
+        assert intake.path_for(uploader, DebuggerTrackType.Diagnostics) == "/debugger/v1/diagnostics"
+
+    # No supported endpoints: both tracks disabled.
     uploader = SignalUploader(interval=LONG_INTERVAL)
-    agent_info = {"endpoints": ["/some/other/endpoint"]}
-    assert uploader.info_check(agent_info) is True
+    assert uploader.info_check({"endpoints": ["/some/other/endpoint"]}) is True
     assert uploader._tracks[SignalTrack.LOGS].enabled is False
     assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is False
 
-    # Test 4: No endpoints key or agent unreachable - returns False
+    # No endpoints key, or agent unreachable: returns False.
     uploader = SignalUploader(interval=LONG_INTERVAL)
     assert uploader.info_check({"version": "7.48.0"}) is False
     assert uploader.info_check(None) is False
-
-    # Test 5: an agent that regains the v2 endpoint undoes an earlier downgrade
-    uploader = SignalUploader(interval=LONG_INTERVAL)
-    assert uploader._sender.downgrade_to_diagnostics() is True
-    assert uploader._sender.downgraded is True
-    assert uploader.info_check({"endpoints": ["debugger/v2/input"]}) is True
-    assert uploader._sender.downgraded is False
 
 
 def test_downgrade_to_diagnostics_is_idempotent():
@@ -140,7 +150,83 @@ def test_downgrade_to_diagnostics_is_idempotent():
 # ---------------------------------------------------------------------------
 
 
-def _make_sender(rejected=None, error=None, agentless=False, downgraded=False):
+class _IntakeServer:
+    """A real HTTP server standing in for the agent, recording the paths it is POSTed to.
+
+    Endpoint selection lives in the native sender, so the only way to observe it
+    from Python is to send something and see where it lands.
+    """
+
+    def __init__(self) -> None:
+        paths = self.paths = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                # The sender streams debugger payloads chunked; drain either
+                # framing so the connection is not left half-read.
+                if self.headers.get("Transfer-Encoding") == "chunked":
+                    while True:
+                        size = int(self.rfile.readline().strip(), 16)
+                        if not size:
+                            self.rfile.readline()
+                            break
+                        self.rfile.read(size)
+                        self.rfile.readline()
+                else:
+                    self.rfile.read(int(self.headers.get("Content-Length") or 0))
+
+                paths.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def url(self) -> str:
+        host, port = self._server.server_address[:2]
+        return f"http://{host}:{port}"
+
+    def path_for(self, uploader, track) -> str:
+        """POST an empty batch on `track` and return the path it landed on."""
+        del self.paths[:]
+        # Send through the sender rather than uploader._write, which swallows
+        # transport failures: an unreachable server has to fail the test with the
+        # reason, not look indistinguishable from "no request was made".
+        response = uploader._sender.send(b"[]", track)
+        assert response.accepted, f"intake rejected the payload: {response.status} {response.body}"
+        (path,) = self.paths
+        # The sender always appends a ddtags query string; only the route matters.
+        return path.partition("?")[0]
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+
+@contextmanager
+def _intake_server():
+    server = _IntakeServer()
+    try:
+        yield server
+    finally:
+        server.close()
+
+
+def _uploader_to(url):
+    """An uploader whose sender posts to `url` instead of the configured agent."""
+    sender = DebuggerSender(get_native_runtime(), url=url, tags="")
+    with patch("ddtrace.debugging._uploader.build_debugger_sender", return_value=sender):
+        return SignalUploader(interval=LONG_INTERVAL)
+
+
+def _make_sender(rejected=None, error=None, agentless=False):
     """A stand-in for the native DebuggerSender.
 
     ``rejected`` is the ``(status, body)`` the send should report as a rejection,
@@ -148,7 +234,6 @@ def _make_sender(rejected=None, error=None, agentless=False, downgraded=False):
     """
     sender = MagicMock()
     sender.agentless = agentless
-    sender.downgraded = downgraded
     if error is not None:
         sender.send.side_effect = error
     else:
@@ -233,27 +318,27 @@ def test_reset_replaces_queues_and_updates_collector():
 
 
 def test_flush_track_downgrades_and_retries_on_signal_uploader_error():
-    uploader = SignalUploader(interval=LONG_INTERVAL)
-    _put_data(uploader)
+    with _intake_server() as intake:
+        uploader = _uploader_to(intake.url)
+        _put_data(uploader)
 
-    calls = []
+        calls = []
 
-    def write_side_effect(payload, debugger_type):
-        calls.append(debugger_type)
-        if len(calls) == 1:
-            raise SignalUploaderError("first attempt")
+        def write_side_effect(payload, debugger_type):
+            calls.append(debugger_type)
+            if len(calls) == 1:
+                raise SignalUploaderError("first attempt")
 
-    with (
-        patch.object(uploader, "_write_with_backoff", side_effect=write_side_effect),
-        patch("ddtrace.debugging._uploader.meter"),
-    ):
-        uploader._flush_track(uploader._tracks[SignalTrack.LOGS])
+        with (
+            patch.object(uploader, "_write_with_backoff", side_effect=write_side_effect),
+            patch("ddtrace.debugging._uploader.meter"),
+        ):
+            uploader._flush_track(uploader._tracks[SignalTrack.LOGS])
 
-    assert len(calls) == 2
-    # The retry goes to the same track; it is the sender that now resolves it to
-    # the diagnostics endpoint.
-    assert calls == [DebuggerTrackType.Logs, DebuggerTrackType.Logs]
-    assert uploader._sender.downgraded is True
+        # The retry goes to the same track; it is the sender that now resolves it
+        # to the diagnostics endpoint.
+        assert calls == [DebuggerTrackType.Logs, DebuggerTrackType.Logs]
+        assert intake.path_for(uploader, DebuggerTrackType.Logs) == "/debugger/v1/diagnostics"
 
 
 def test_flush_track_reraises_when_already_on_diagnostics():
