@@ -203,14 +203,11 @@ class TraceMiddleware:
             root_app = scope.get("app")
             if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
                 # Set the flag before attempting collection to avoid retrying on every request
-                # if the import or walk fails (e.g., starlette not patched, pure ASGI app).
+                # if the walk fails (e.g., starlette not patched, pure ASGI app).
+                # Framework integrations (e.g. starlette) register a listener for this event
+                # to walk their route tree; asgi itself has no notion of routes.
                 root_app._datadog_endpoints_collected = True
-                try:
-                    from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
-
-                    _collect_routes_from_app(root_app)
-                except Exception:
-                    log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+                core.dispatch("asgi.collect_routes", (root_app,))
 
         if scope["type"] == "http":
             method = scope["method"]

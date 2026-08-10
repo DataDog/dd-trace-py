@@ -1,160 +1,76 @@
-import threading
-from time import sleep
+from time import monotonic
+from unittest import mock
 
 import pytest
 
+from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import HttpEndPointsCollection
 
 
 @pytest.fixture
 def collection():
+    # ``HttpEndPointsCollection`` is a singleton; reset its mutable state around each test.
     coll = HttpEndPointsCollection()
     coll.reset()
+    coll.max_size_length = 900
+    coll.drop_time_seconds = 90.0
     yield coll
     coll.reset()
+    coll.max_size_length = 900
+    coll.drop_time_seconds = 90.0
 
 
-def test_flush_uses_tuple_snapshot(collection):
-    """Test that flush() operates on a tuple snapshot, not the original set."""
+@pytest.fixture(autouse=True)
+def record_endpoint(collection):
+    """Subscribe a mock in place of the telemetry writer.
+
+    ``add_endpoint`` notifies whatever is registered as ``on_endpoint_registered``; substituting a
+    mock lets these unit tests assert on what gets forwarded without spinning up the native worker
+    or depending on its state.
+    """
+    previous = collection.on_endpoint_registered
+    m = mock.Mock()
+    collection.on_endpoint_registered = m
+    yield m
+    collection.on_endpoint_registered = previous
+
+
+def test_add_endpoint_populates_set(collection):
     collection.add_endpoint("GET", "/api/users")
     collection.add_endpoint("POST", "/api/users")
     collection.add_endpoint("DELETE", "/api/users/123")
 
     assert len(collection.endpoints) == 3
-    result = collection.flush(max_length=10)
-    assert result["is_first"] is True
-    assert len(result["endpoints"]) == 3
-    assert len(collection.endpoints) == 0
 
 
-def test_flush_snapshot_prevents_modification_during_iteration(collection):
-    """Test that modifying self.endpoints during flush iteration doesn't cause RuntimeError."""
-    collection.add_endpoint("GET", "/api/v1")
-    collection.add_endpoint("POST", "/api/v2")
-    collection.add_endpoint("PUT", "/api/v3")
+def test_add_endpoint_forwards_normalized_fields(collection, record_endpoint):
+    """Each new endpoint is forwarded once, method upper-cased and resource defaulted."""
+    collection.add_endpoint("get", "/api/users", operation_name="flask.request")
 
-    initial_count = len(collection.endpoints)
-    assert initial_count == 3
-    result = collection.flush(max_length=10)
-
-    assert len(result["endpoints"]) == initial_count
-    assert result["is_first"] is True
+    record_endpoint.assert_called_once_with(
+        HttpEndPoint(method="GET", path="/api/users", resource_name="GET /api/users", operation_name="flask.request")
+    )
 
 
-def test_concurrent_add_during_flush_does_not_break_iteration(collection):
-    """Test that adding endpoints from another thread during flush doesn't cause RuntimeError."""
-    for i in range(5):
-        collection.add_endpoint("GET", f"/api/endpoint{i}")
+def test_endpoints_are_collected_without_a_subscriber(collection):
+    """Registrations before telemetry subscribes are still collected, for it to replay."""
+    collection.on_endpoint_registered = None
 
-    assert len(collection.endpoints) == 5
+    collection.add_endpoint("GET", "/api/users")
 
-    flush_completed = threading.Event()
-    flush_result = {}
-    exception_caught = []
-
-    def flush_thread():
-        try:
-            result = collection.flush(max_length=10)
-            flush_result["data"] = result
-            flush_completed.set()
-        except Exception as e:
-            exception_caught.append(e)
-            flush_completed.set()
-
-    def add_thread():
-        sleep(0.001)
-
-        # Try to modify the set while flush might be iterating
-        for i in range(5, 10):
-            collection.add_endpoint("POST", f"/api/new{i}")
-            sleep(0.001)
-
-    t1 = threading.Thread(target=flush_thread)
-    t2 = threading.Thread(target=add_thread)
-
-    t1.start()
-    t2.start()
-
-    t1.join(timeout=2.0)
-    t2.join(timeout=2.0)
-
-    assert flush_completed.is_set(), "Flush did not complete"
-    assert len(exception_caught) == 0, f"Exception occurred during flush: {exception_caught}"
-    assert "data" in flush_result, "Flush did not return a result"
-
-    result = flush_result["data"]
-    assert "endpoints" in result
-    assert "is_first" in result
+    assert len(collection.endpoints) == 1
 
 
-def test_flush_with_partial_batch(collection):
-    """Test that flush creates a tuple snapshot even when using pop() for partial batches."""
-    for i in range(10):
-        collection.add_endpoint("GET", f"/api/endpoint{i}")
+def test_duplicate_endpoint_is_not_forwarded_again(collection, record_endpoint):
+    collection.add_endpoint("GET", "/api/test")
+    collection.add_endpoint("GET", "/api/test")
 
-    assert len(collection.endpoints) == 10
-
-    result = collection.flush(max_length=5)
-
-    assert len(result["endpoints"]) == 5
-    assert result["is_first"] is True
-    assert len(collection.endpoints) == 5
-
-    result2 = collection.flush(max_length=10)
-    assert len(result2["endpoints"]) == 5
-    assert result2["is_first"] is False  # Not first anymore
-
-    assert len(collection.endpoints) == 0
-
-
-def test_partial_flush_with_concurrent_modification(collection):
-    """Test that partial flush (max_length < size) is safe from race conditions."""
-    for i in range(10):
-        collection.add_endpoint("GET", f"/api/endpoint{i}")
-
-    assert len(collection.endpoints) == 10
-
-    flush_completed = threading.Event()
-    flush_result = {}
-    exception_caught = []
-
-    def flush_thread():
-        try:
-            # Partial flush - this should trigger the else branch at line 118
-            result = collection.flush(max_length=5)
-            flush_result["data"] = result
-            flush_completed.set()
-        except Exception as e:
-            exception_caught.append(e)
-            flush_completed.set()
-
-    def add_thread():
-        sleep(0.001)
-        # Try to modify the set while flush might be iterating
-        for i in range(10, 15):
-            collection.add_endpoint("POST", f"/api/new{i}")
-            sleep(0.001)
-
-    t1 = threading.Thread(target=flush_thread)
-    t2 = threading.Thread(target=add_thread)
-
-    t1.start()
-    t2.start()
-
-    t1.join(timeout=2.0)
-    t2.join(timeout=2.0)
-
-    assert flush_completed.is_set(), "Flush did not complete"
-    assert len(exception_caught) == 0, f"Exception occurred during flush: {exception_caught}"
-    assert "data" in flush_result, "Flush did not return a result"
-
-    result = flush_result["data"]
-    assert len(result["endpoints"]) == 5
-    assert "is_first" in result
+    assert len(collection.endpoints) == 1
+    assert record_endpoint.call_count == 1
 
 
 def test_http_endpoint_hash_consistency(collection):
-    """Test that HttpEndPoint hashing works correctly for set operations."""
+    """HttpEndPoint hashes by (method, path); differing method or path is a distinct entry."""
     collection.add_endpoint("GET", "/api/test")
     collection.add_endpoint("GET", "/api/test")
     assert len(collection.endpoints) == 1
@@ -164,16 +80,47 @@ def test_http_endpoint_hash_consistency(collection):
     assert len(collection.endpoints) == 3
 
 
-def test_snapshot_is_tuple_type(collection):
-    """Verify that the snapshot created in flush is actually a tuple."""
-    collection.add_endpoint("GET", "/test")
-    collection.add_endpoint("POST", "/test")
-    assert isinstance(collection.endpoints, set)
+def test_explicit_resource_name_is_preserved(collection, record_endpoint):
+    collection.add_endpoint("GET", "/api/users/{id}", resource_name="users.show")
 
-    result = collection.flush(max_length=10)
-    assert len(result["endpoints"]) == 2
+    record_endpoint.assert_called_once_with(
+        HttpEndPoint(method="GET", path="/api/users/{id}", resource_name="users.show")
+    )
 
-    for ep in result["endpoints"]:
-        assert isinstance(ep, dict)
-        assert "method" in ep
-        assert "path" in ep
+
+def test_max_size_cap_stops_registration(collection, record_endpoint):
+    collection.max_size_length = 3
+    for i in range(10):
+        collection.add_endpoint("GET", f"/api/endpoint{i}")
+
+    assert len(collection.endpoints) == 3
+    assert record_endpoint.call_count == 3
+
+
+def test_drop_time_resets_stale_collection(collection, record_endpoint):
+    collection.add_endpoint("GET", "/api/old")
+    assert len(collection.endpoints) == 1
+
+    # Simulate a long idle gap (e.g. a dev-server hot reload): the next registration should
+    # drop the stale route table before adding the new endpoint.
+    collection.last_modification_time = monotonic() - collection.drop_time_seconds - 1
+    collection.add_endpoint("GET", "/api/new")
+
+    assert len(collection.endpoints) == 1
+    assert next(iter(collection.endpoints)).path == "/api/new"
+
+
+def test_reset_clears_endpoints(collection):
+    collection.add_endpoint("GET", "/api/a")
+    collection.add_endpoint("POST", "/api/b")
+    assert len(collection.endpoints) == 2
+
+    collection.reset()
+    assert len(collection.endpoints) == 0
+
+
+def test_http_endpoint_defaults_resource_name():
+    ep = HttpEndPoint(method="get", path="/x")
+    # method upper-cased, resource_name defaulted to "<METHOD> <path>"
+    assert ep.method == "GET"
+    assert ep.resource_name == "GET /x"
