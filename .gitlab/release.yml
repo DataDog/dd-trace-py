@@ -1,6 +1,3 @@
-variables:
-  PYPI_PUBLISH_IMAGE: registry.ddbuild.io/images/mirror/python:3.12.0
-
 .release_base:
   stage: release
   rules:
@@ -11,22 +8,15 @@ variables:
 
 .release_pypi:
   extends: .release_base
-  image: ${PYPI_PUBLISH_IMAGE}
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   variables:
     TWINE_USERNAME: "__token__"
     TWINE_NON_INTERACTIVE: "1"
-  before_script:
-    - |
-      curl -L "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.2.3.zip" -o "awscliv2.zip"
-      echo "13ee8a87756aa61027bd87985d4da4dee7ac777a36410321b03621a943cf030e awscliv2.zip" | sha256sum --check
-      unzip awscliv2.zip
-      ./aws/install
-    - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
-    - pip install -r ci/requirements/ci.txt
-    - python -m twine check --strict pywheels/*
   script:
-    - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*
+    - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
+    - uvx --with="twine>=5.0,<7" twine check --strict pywheels/*
+    - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*
   artifacts:
     paths:
       - pywheels/*.whl
@@ -47,13 +37,12 @@ notify_datadog_release:
   extends: .release_base
   allow_failure: true
   needs: [ "ddtrace package", "release_pypi_prod" ]
-  image: ${PYPI_PUBLISH_IMAGE}
+  image: ${CI_UTILS_IMAGE}
   id_tokens:
     DD_STS_OIDC_TOKEN:
       aud: rapid-seceng-sit
   tags: [ "arch:amd64" ]
   before_script:
-    - apt-get update && apt-get install --no-install-recommends -y curl jq
     - >-
       DD_STS_RESPONSE=$(curl -sS
       -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
