@@ -280,6 +280,21 @@ impl TraceExporterPy {
         })
     }
 
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        Ok(())
+    }
+
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
         if let Some(exporter) = self.inner.take() {
             exporter
