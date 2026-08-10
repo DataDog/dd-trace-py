@@ -1,8 +1,10 @@
+from contextlib import ExitStack
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import json
 from queue import Queue
+import socket
 from threading import Thread
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -24,6 +26,16 @@ from ddtrace.internal.native_runtime import get_native_runtime
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError
 # so we use a large enough integer as an approximation instead.
 LONG_INTERVAL = 2147483647.0
+
+# httpretty -- reached through tests.internal.remoteconfig.rcm_endpoint, which
+# test_debugger.py uses earlier in this suite -- intermittently leaves the socket
+# module holding its fakes after being disabled. A server built on a fake socket binds
+# a port that never accepts, so the native sender only reports a timeout. These are
+# captured at import time, before any test can patch them, and reinstalled for the
+# lifetime of the intake server below.
+_REAL_SOCKET_ATTRS = {
+    name: getattr(socket, name) for name in ("socket", "create_connection", "getaddrinfo", "socketpair")
+}
 
 
 class MockSignalUploader(SignalUploader):
@@ -212,11 +224,18 @@ class _IntakeServer:
 
 @contextmanager
 def _intake_server():
-    server = _IntakeServer()
-    try:
-        yield server
-    finally:
-        server.close()
+    # socket.socket is consulted again on every accept(), so the real
+    # implementations have to stay installed for as long as the server serves, not
+    # just while it is constructed.
+    with ExitStack() as stack:
+        for name, real in _REAL_SOCKET_ATTRS.items():
+            stack.enter_context(patch.object(socket, name, real))
+
+        server = _IntakeServer()
+        try:
+            yield server
+        finally:
+            server.close()
 
 
 def _uploader_to(url):
