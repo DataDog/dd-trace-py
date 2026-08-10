@@ -292,7 +292,7 @@ class SessionManager:
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
-            self.retry_handlers.append(AttemptToFixHandler(self))
+            self.retry_handlers.append(AttemptToFixHandler(self.settings))
 
         if self.settings.early_flake_detection.enabled:
             if self.known_tests:
@@ -309,12 +309,12 @@ class SessionManager:
                     log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
-                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
+                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self.settings))
             else:
                 log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
-            self.retry_handlers.append(AutoTestRetriesHandler(self))
+            self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
     def start(self) -> None:
         self.writer.start()
@@ -842,9 +842,10 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
-            log.debug("Test Impact Analysis is disabled by environment variable")
-            self.settings.itr_enabled = False
+        ITR_FORCE_ENABLE_COVERAGE = asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
+        if ITR_FORCE_ENABLE_COVERAGE:
+            log.debug("TIA code coverage collection is enabled by environment variable")
+            self.settings.coverage_enabled = True
 
         if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
@@ -866,22 +867,40 @@ class SessionManager:
         if _coverage_upload_env.lower() in ("false", "0"):
             log.debug("Coverage report upload is disabled by environment variable")
             self.settings.coverage_report_upload_enabled = False
+        elif asbool(_coverage_upload_env):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+        ITR_PREVENT_TEST_SKIPPING = asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false"))
+        if ITR_PREVENT_TEST_SKIPPING:
             log.debug("TIA test skipping is disabled by environment variable")
             self.settings.skipping_enabled = False
 
         # Other overrides.
         # These variables default to false, and if explicitly given a true value, enable a feature.
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
-            log.debug("TIA code coverage collection is enabled by environment variable")
-            self.settings.coverage_enabled = True
 
-        if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
-            log.debug("Code coverage report upload is enabled by environment variable")
-            self.settings.coverage_report_upload_enabled = True
+        # If ITR is explicitly enabled via env var but the backend did not return skipping_enabled (e.g. because the
+        # service has not yet built up enough test history), and we are not in coverage-only mode
+        # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE), force skipping on
+        # so that tests are actually skipped once the skippable list is populated.
+
+        _itr_enabled_env = env.get("DD_CIVISIBILITY_ITR_ENABLED")
+        if _itr_enabled_env is not None and not asbool(_itr_enabled_env):
+            log.debug("Test Impact Analysis is disabled by environment variable")
+            self.settings.itr_enabled = False
+        elif _itr_enabled_env is not None and self.service == "dd-trace-py":
+            log.warning("Test Impact Analysis is ENABLED by environment variable")
+            self.settings.itr_enabled = True
+
+            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE:
+                if not self.settings.skipping_enabled:
+                    log.warning(
+                        "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
+                        "forcing skipping_enabled=True"
+                    )
+                self.settings.skipping_enabled = True
 
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)
