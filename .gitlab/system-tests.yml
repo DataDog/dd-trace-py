@@ -98,14 +98,14 @@ include:
     inputs:
       stage: "tests"
       ref: '147620e1977d1b315c4a9f9f29625054c69a84eb'
-      # condition: '$CI_COMMIT_BRANCH == "main"'
+      condition: '$CI_COMMIT_BRANCH == "main"'
 
 "build lambda layer":
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["docker-in-docker:amd64"]
   stage: package
-  # rules:
-    # - if: '$CI_COMMIT_BRANCH == "main"'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
   needs:
     - job: "build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: true
@@ -142,8 +142,8 @@ include:
 system_tests_param:
   extends: .system_tests_param_base
   stage: tests
-  # rules:
-  #   - if: '$CI_COMMIT_BRANCH == "main"'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
   needs:
     - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: false
