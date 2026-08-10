@@ -1,0 +1,4 @@
+fixes:
+  - |
+    AAP: Fixes incorrect request fingerprints when a web application is wrapped by
+    same-service tracing middleware.

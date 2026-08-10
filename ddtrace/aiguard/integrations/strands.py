@@ -287,16 +287,13 @@ class AIGuardStrandsIntegration:
         so this hook does not touch it.
         """
         try:
-            logger.debug("AIGuard event: %s", event)
             messages = event.agent.messages
             system_prompt = event.agent.system_prompt
             # Exclude_tool_results=True because tool outputs were
             # already scanned in AfterToolCall; re-scanning would be redundant.
             ai_guard_messages = _convert_strands_messages(messages, system_prompt, exclude_tool_results=True)
-            logger.debug("AIGuard messages: %s", ai_guard_messages)
             if ai_guard_messages:
-                result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
-                logger.debug("AIGuard client evaluate result: %s", result)
+                self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
         except AIGuardAbortError:
             raise
         except Exception:
@@ -310,10 +307,8 @@ class AIGuardStrandsIntegration:
         ``AIGuardAbortError``.
         """
         try:
-            logger.debug("AIGuard event: %s", event)
             if not event.stop_response:
                 return
-            logger.debug("AIGuard message: %s", event.stop_response.message)
             message = event.stop_response.message
             if not message:
                 return
@@ -327,8 +322,7 @@ class AIGuardStrandsIntegration:
                 return
             ai_guard_messages = _convert_strands_messages([text_only_message])
             if ai_guard_messages:
-                result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
-                logger.debug("AIGuard client evaluate result: %s", result)
+                self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
         except AIGuardAbortError:
             raise
         except Exception:
@@ -343,11 +337,6 @@ class AIGuardStrandsIntegration:
 
         :returns: ``(ai_guard_messages, tool_name)``
         """
-        logger.debug("AIGuard event: %s", event)
-        logger.debug("AIGuard agent: %s", event.agent)
-        if event.agent:
-            logger.debug("AIGuard message: %s", event.agent.messages)
-
         tool_use = event.tool_use
         tool_name = tool_use.get("name", "")
         tool_use_id = tool_use.get("toolUseId", "")
@@ -380,8 +369,7 @@ class AIGuardStrandsIntegration:
         tool_name = ""
         try:
             ai_guard_messages, tool_name = self._build_tool_call_messages(event)
-            result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
-            logger.debug("AIGuard client evaluate result: %s", result)
+            self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
                 raise
@@ -410,8 +398,7 @@ class AIGuardStrandsIntegration:
                 )
             )
 
-            result = self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
-            logger.debug("AIGuard client evaluate result: %s", result)
+            self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
                 raise

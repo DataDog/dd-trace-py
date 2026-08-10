@@ -5,12 +5,14 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._common_module_patches import execute_4C9BAC8E228EB347
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
 from ddtrace.internal import core
+from ddtrace.internal.module import ModuleWatchdog
 
 
 def test_patch_read():
@@ -38,6 +40,40 @@ def test_patch_read_enabled():
         assert open.__wrapped__ is original_open
     finally:
         unpatch_common_modules()
+
+
+def test_patch_common_modules_unregisters_module_hooks():
+    unpatch_common_modules()
+    watchdog = ModuleWatchdog._instance
+    assert watchdog is not None
+    initial_hooks = {module: tuple(hooks) for module, hooks in watchdog._hook_map.items() if hooks}
+
+    try:
+        patch_common_modules()
+        patched_hooks = sum(len(hooks) for hooks in watchdog._hook_map.values())
+        assert patched_hooks > sum(len(hooks) for hooks in initial_hooks.values())
+
+        patch_common_modules()
+        assert sum(len(hooks) for hooks in watchdog._hook_map.values()) == patched_hooks
+    finally:
+        unpatch_common_modules()
+
+    remaining_hooks = {module: tuple(hooks) for module, hooks in watchdog._hook_map.items() if hooks}
+    assert remaining_hooks == initial_hooks
+
+
+def test_patch_common_modules_unregisters_dbapi_listener():
+    event = "asm.block.dbapi.execute"
+    unpatch_common_modules()
+    core.reset_listeners(event, execute_4C9BAC8E228EB347)
+
+    try:
+        patch_common_modules()
+        assert core.has_listeners(event)
+    finally:
+        unpatch_common_modules()
+
+    assert not core.has_listeners(event)
 
 
 @pytest.mark.parametrize(

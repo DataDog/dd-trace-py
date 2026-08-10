@@ -4,11 +4,14 @@ import pytest
 from pytest_memray import LeaksFilterFunction
 from pytest_memray import Stack
 
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import reset_native_state
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -56,6 +59,28 @@ class IASTFilter(LeaksFilterFunction):
                     return True
 
         return False
+
+
+@pytest.mark.limit_leaks("1.0 KB", filter_fn=IASTFilter())
+def test_rebuilding_iast_module_list_does_not_leak():
+    env_name = IAST.PATCH_MODULES
+    previous_value = os.environ.get(env_name)
+    try:
+        os.environ[env_name] = "iast_test_module." * 8
+        for _ in range(20):
+            assert iastpatch.build_list_from_env(env_name)
+    finally:
+        if previous_value is None:
+            os.environ.pop(env_name, None)
+        else:
+            os.environ[env_name] = previous_value
+        iastpatch.build_list_from_env(env_name)
+
+
+@pytest.mark.limit_leaks("2.0 MB", filter_fn=IASTFilter())
+def test_repeated_native_state_reset_does_not_leak():
+    for _ in range(4):
+        reset_native_state()
 
 
 @pytest.mark.limit_leaks("8.8 KB", filter_fn=IASTFilter())

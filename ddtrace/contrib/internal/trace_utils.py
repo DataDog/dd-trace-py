@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_he
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import _service_state
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
@@ -407,7 +408,7 @@ def set_service_and_source(
             "integration_name",
             int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
         )
-    else:
+    elif _service_state.is_user_provided_service():
         service_source = "m"
     if service_source:
         span.set_tag(_SERVICE_SOURCE, service_source)

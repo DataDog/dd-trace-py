@@ -43,6 +43,17 @@ ThreadSpanLinks::unlink_span(uint64_t thread_id)
 }
 
 void
+ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+
+    auto it = thread_id_to_span.find(thread_id);
+    if (it != thread_id_to_span.end() && it->second->span_id == expected_span_id) {
+        thread_id_to_span.erase(it);
+    }
+}
+
+void
 ThreadSpanLinks::reset()
 {
     std::lock_guard<std::mutex> lock(mtx);

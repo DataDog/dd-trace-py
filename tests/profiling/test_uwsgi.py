@@ -391,6 +391,11 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     except OSError:
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
+    assert res_pid == parent_pid
+    assert not os.WIFSIGNALED(res_status), (
+        f"uWSGI worker {parent_pid} crashed with signal {os.WTERMSIG(res_status)} and raw wait status {res_status}"
+    )
+
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
 

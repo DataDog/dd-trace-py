@@ -6,6 +6,7 @@ use pyo3::{pyfunction, PyRef};
 pub fn update_otel_thread_context(
     span: PyRef<'_, SpanData>,
     local_root: Option<PyRef<'_, SpanData>>,
+    trace_flags: u8,
 ) {
     let local_root_span_id = if let Some(local_root) = local_root {
         local_root.span_id
@@ -16,6 +17,7 @@ pub fn update_otel_thread_context(
     ThreadContext::update(
         span.trace_id.to_be_bytes(),
         span.span_id.to_be_bytes(),
+        trace_flags,
         local_root_span_id.to_be_bytes(),
         &[],
     );
