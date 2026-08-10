@@ -914,23 +914,27 @@ Examples:
         return 0 if success else 1
 
     # Normal flow: determine which files to check
+    # When --list is set, status messages go to stderr to keep stdout clean for JSON
+    status_out = sys.stderr if args.list else sys.stdout
     if args.files:
         # Use explicitly provided files
         files = set(args.files)
-        print(f"📁 Checking explicitly provided files: {', '.join(files)}")
+        print(f"📁 Checking explicitly provided files: {', '.join(files)}", file=status_out)
     elif args.all_suites:
         # Use a dummy set that will match all suites
         files = {"*"}
-        print("📁 Checking all available test suites")
+        print("📁 Checking all available test suites", file=status_out)
     else:
         # Use git changes
         files = runner.get_git_changed_files(args.git_base)
         if not files:
-            print("ℹ️  No changed files found. Use --all-suites to see all available suites.")
-            return 0
-        print(f"📁 Found {len(files)} changed file(s): {', '.join(list(files)[:5])}")
-        if len(files) > 5:
-            print(f"    ... and {len(files) - 5} more")
+            print("ℹ️  No changed files found. Showing all available suites.", file=status_out)
+            files = {"*"}
+            args.all_suites = True
+        else:
+            print(f"📁 Found {len(files)} changed file(s): {', '.join(list(files)[:5])}", file=status_out)
+            if len(files) > 5:
+                print(f"    ... and {len(files) - 5} more", file=status_out)
 
     # Find matching suites
     if args.all_suites:
@@ -941,6 +945,11 @@ Examples:
             suite_config["matched_files"] = []
     else:
         matching_suites = runner.find_matching_suites(files)
+        if not matching_suites:
+            print("ℹ️  No matching test suites for the changed files. Showing all available suites.", file=status_out)
+            matching_suites = get_suites()
+            for suite_config in matching_suites.values():
+                suite_config["matched_files"] = []
 
     # Handle --list flag (output JSON for AI agents)
     if args.list:

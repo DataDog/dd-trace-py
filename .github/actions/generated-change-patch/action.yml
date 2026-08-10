@@ -1,0 +1,116 @@
+name: Generated change patch
+description: Create or safely apply a patch containing generated version updates
+
+inputs:
+  mode:
+    description: Whether to create or apply the patch
+    required: true
+  patch-file:
+    description: Path to the patch artifact
+    required: true
+  profile:
+    description: Allowlist of generated paths to enforce
+    required: true
+
+outputs:
+  changed:
+    description: Whether the generated patch contains changes
+    value: ${{ steps.patch.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    # AIDEV-NOTE: Keep patch application and validation in this single shell step,
+    # and do not add repository-mutating steps between this action and PR creation.
+    # The patch is untrusted data and must not replace code that is executed later.
+    - id: patch
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        PATCH_FILE: ${{ inputs.patch-file }}
+        PROFILE: ${{ inputs.profile }}
+      run: |
+        set -euo pipefail
+
+        validate_path() {
+          local path=$1
+
+          case "$PROFILE" in
+            package-versions)
+              if [[ "$path" =~ ^\.riot/requirements/[^/]+\.txt$ ]] ||
+                [[ "$path" == "supported_versions.json" ]] ||
+                [[ "$path" == "scripts/integration_registry/registry.yaml" ]]; then
+                return
+              fi
+              ;;
+            supported-versions)
+              if [[ "$path" == "supported_versions.json" ]]; then
+                return
+              fi
+              ;;
+            *)
+              printf '::error::Unknown generated-change profile: %q\n' "$PROFILE"
+              exit 1
+              ;;
+          esac
+
+          printf '::error::Unexpected generated change: %q\n' "$path"
+          exit 1
+        }
+
+        validate_mode() {
+          local path=$1
+          local mode
+          mode=$(git ls-files -s -- "$path" | awk '{print $1}')
+          if [[ -n "$mode" && "$mode" != "100644" ]]; then
+            printf '::error::Unexpected file mode %q for %q\n' "$mode" "$path"
+            exit 1
+          fi
+        }
+
+        if [[ "$MODE" == "create" ]]; then
+          while IFS= read -r -d '' path; do
+            validate_path "$path"
+            git add --intent-to-add -- "$path"
+          done < <(git ls-files --others --exclude-standard -z)
+
+          if git diff --quiet HEAD --; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          while IFS= read -r -d '' path; do
+            validate_path "$path"
+            validate_mode "$path"
+          done < <(git diff --name-only -z HEAD --)
+
+          # Keep generated artifacts clean before they cross into the PR-creation job.
+          git diff --check HEAD --
+          git diff --binary --full-index --no-ext-diff HEAD -- > "$PATCH_FILE"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [[ "$MODE" == "apply" ]]; then
+          git apply --check --index "$PATCH_FILE"
+          git apply --index "$PATCH_FILE"
+
+          changed=false
+          while IFS= read -r -d '' path; do
+            changed=true
+            validate_path "$path"
+            validate_mode "$path"
+          done < <(git diff --cached --name-only -z)
+
+          if [[ "$changed" != "true" ]]; then
+            echo "::error::Generated patch contains no changes"
+            exit 1
+          fi
+
+          git diff --cached --check
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        printf '::error::Unknown generated-change mode: %q\n' "$MODE"
+        exit 1
