@@ -44,6 +44,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -200,7 +201,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 

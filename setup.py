@@ -1749,8 +1749,6 @@ setup(
         ),
     },
     zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,

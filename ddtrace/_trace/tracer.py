@@ -59,11 +59,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 

@@ -11,7 +11,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
 

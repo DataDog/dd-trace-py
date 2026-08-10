@@ -14,8 +14,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer as ddtracer
-from ddtrace.vendor.debtcollector import deprecate
 
 from .utils import _extract_client
 from .utils import _extract_conn_tags
