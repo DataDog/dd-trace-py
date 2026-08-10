@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the sampling decision of an incoming distributed trace was
+    discarded, reported as a propagation error on the local root span, and logged as a warning
+    when the trace was sampled by a mechanism that is not known to this version of the library.
+    Well-formed sampling decisions are now propagated unchanged.

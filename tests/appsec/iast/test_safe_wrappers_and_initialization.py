@@ -14,6 +14,26 @@ import sys
 import pytest
 
 
+@pytest.mark.subprocess
+def test_native_helper_modules_do_not_keep_unowned_references():
+    import sys
+
+    from ddtrace.appsec._iast import _taint_tracking
+    from ddtrace.appsec._iast._taint_tracking import _native
+
+    for name in ("aspects", "ops"):
+        helper_module = getattr(_native, name)
+        sys.modules.pop(helper_module.__name__, None)
+        delattr(_native, name)
+        if hasattr(_taint_tracking, name):
+            delattr(_taint_tracking, name)
+
+        method_references = sum(
+            getattr(value, "__self__", None) is helper_module for value in vars(helper_module).values()
+        )
+        assert sys.getrefcount(helper_module) == method_references + 2
+
+
 @pytest.mark.skip_iast_check_logs
 class TestUninitializedStateHandling:
     """Test that IAST functions handle uninitialized state gracefully."""

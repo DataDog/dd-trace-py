@@ -35,6 +35,7 @@ from typing import Callable
 from typing import Collection
 from typing import Mapping
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 
@@ -45,6 +46,7 @@ from bytecode import Instr
 from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
@@ -62,12 +64,11 @@ _SAFE_RECONSTRUCTIBLE_TYPES: frozenset[type] = frozenset({list, tuple, set, froz
 # Direct handles on type's own C-level getset_descriptors.
 # _type_dict_descriptor: calling .__get__(cls) returns the class namespace
 # (tp_dict) as a mappingproxy, bypassing any metaclass __dict__ override.
-# _type_module_descriptor / _type_qualname_descriptor: calling .__get__(cls)
-# reads tp_module / tp_name directly, bypassing any metaclass __module__ or
-# __qualname__ property that could invoke arbitrary user code.
+# _type_module_descriptor: calling .__get__(cls) reads tp_module directly,
+# bypassing any metaclass __module__ property that could invoke arbitrary
+# user code. See safe_qualname() for the __qualname__ equivalent.
 _type_dict_descriptor: Any = type.__dict__["__dict__"]  # type: ignore[index]
 _type_module_descriptor: Any = type.__dict__["__module__"]  # type: ignore[index]
-_type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
 
 # Builtin sized/container types whose unbound methods are safe to call.
 # We use _isinstance (issubclass(type(obj), t) — purely C-level, no descriptors)
@@ -145,7 +146,7 @@ def instanceof(value: Any, type_qname: str) -> bool:
                 # __qualname__ so that a custom metaclass property for either
                 # attribute cannot be invoked as a side effect.
                 module = _type_module_descriptor.__get__(c)
-                qualname = _type_qualname_descriptor.__get__(c)
+                qualname = safe_qualname(c)
                 if f"{module}.{qualname}" == type_qname:
                     return True
         except Exception:
@@ -486,6 +487,9 @@ class DDExpressionEvaluationError(Exception):
         self.error = str(e)
 
 
+E = TypeVar("E", bound="DDExpression")
+
+
 def _invalid_expression(_: Any) -> None:
     """Forces probes with invalid expression/conditions to never trigger.
 
@@ -517,7 +521,7 @@ class DDExpression:
         return _invalid_expression
 
     @classmethod
-    def compile(cls, expr: Mapping[str, Any]) -> "DDExpression":
+    def compile(cls: type[E], expr: Mapping[str, Any]) -> E:
         ast = expr["json"]
         dsl = expr["dsl"]
 

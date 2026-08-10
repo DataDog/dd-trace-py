@@ -935,14 +935,15 @@ def test_extract_unicode(tracer):  # noqa: F811
     "x_datadog_tags, expected_trace_tags",
     [
         ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        (
-            "_dd.p.dm=-22",
-            {"_dd.propagation_error": "decoding_error"},
-        ),  # This test validates a value that does not exist in the SamplingMechanism enum
+        # Unenumerated but well-formed id: must still propagate. "-15" is the #19335 repro.
+        ("_dd.p.dm=-15", {"_dd.p.dm": "-15"}),
+        ("_dd.p.dm=-255", {"_dd.p.dm": "-255"}),
+        # Malformed syntax.
+        ("_dd.p.dm=-1a", {"_dd.propagation_error": "decoding_error"}),
+        # Out of the 0..255 range the mechanism is encoded in.
+        ("_dd.p.dm=-256", {"_dd.propagation_error": "decoding_error"}),
+        # Legacy service hash form, dropped from the spec and never emitted by dd-trace-py.
+        ("_dd.p.dm=934086a6-4", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
