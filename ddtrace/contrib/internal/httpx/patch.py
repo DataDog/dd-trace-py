@@ -68,9 +68,9 @@ def _set_response(event: HttpClientRequestEvent, response: httpx.Response) -> No
     if not response.is_closed or not response.content:
         return
     try:
-        event.response_body = response.json()
+        event.set_response_body(response.json())
     except (json.JSONDecodeError, UnicodeDecodeError):
-        event.response_body = None
+        event.set_response_body(None)
 
 
 def _wrapped_sync_send_single_request(

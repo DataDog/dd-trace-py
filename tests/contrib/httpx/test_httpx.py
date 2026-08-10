@@ -81,6 +81,10 @@ def test_http_client_event_does_not_read_generic_response_body():
     assert event.response_status_code == 200
     assert event.response_body is None
 
+    event.set_response_body({"response": "body"})
+
+    assert event.response_body == {"response": "body"}
+
 
 def test_httpx_response_body_is_captured_after_response_is_buffered():
     event = _http_client_event()
