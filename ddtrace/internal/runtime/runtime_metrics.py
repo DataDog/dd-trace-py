@@ -101,6 +101,10 @@ class RuntimeWorker(periodic.PeriodicService):
             self._platform_tags = self._format_tags(PlatformTags())
 
         self._process_tags: list[str] = list(ProcessTags())
+        # Tags the dogstatsd client derived at construction (e.g. dd.internal.entity_id from
+        # DD_ENTITY_ID). flush() below replaces constant_tags on every call, so without this
+        # snapshot those tags would be dropped after the first flush.
+        self._client_constant_tags: list[str] = list(self._dogstatsd_client.constant_tags or [])
 
     @classmethod
     def disable(cls) -> None:
@@ -141,8 +145,12 @@ class RuntimeWorker(periodic.PeriodicService):
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        log.debug("Sending runtime metrics with the following tags: %s", runtime_tags)
-        self._dogstatsd_client.constant_tags = runtime_tags
+        # Re-add the client's original constant tags (e.g. dd.internal.entity_id) on every flush,
+        # deduping exact-string repeats in case a tag (e.g. entity_id via a DD_TAGS workaround) ends
+        # up in both lists.
+        constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
+        log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
+        self._dogstatsd_client.constant_tags = constant_tags
 
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:

@@ -136,6 +136,52 @@ def test_runtime_tags_manual_tracer_tags():
     assert tags["manual"] == "tag"
 
 
+def test_runtime_worker_flush_preserves_entity_id_tag(monkeypatch):
+    # Regression test for GH-19526: flush() used to overwrite the dogstatsd client's
+    # constant_tags wholesale, permanently dropping dd.internal.entity_id (derived from
+    # DD_ENTITY_ID at client construction) after the very first flush. Assert against the
+    # packets actually sent on the wire, not just the client's in-memory tag list.
+    monkeypatch.setenv("DD_ENTITY_ID", "test-entity-123")
+
+    with mock.patch("socket.socket") as sock:
+        sock.return_value.getsockopt.return_value = 0
+        worker = RuntimeWorker()
+        assert "dd.internal.entity_id:test-entity-123" in worker._dogstatsd_client.constant_tags
+
+        for _ in range(3):
+            worker.flush()
+
+        statsd_socket = worker._dogstatsd_client.socket
+        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+        assert received, "expected at least one packet to be sent"
+        gauges = [line for packet in received for line in packet.split("\n") if line]
+        assert gauges, "expected at least one metric line to be sent"
+        for gauge in gauges:
+            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+
+
+def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
+    # If a customer applied the documented DD_TAGS workaround before this fix shipped, the same
+    # entity_id tag now arrives via both the client's constant_tags snapshot and TracerTagCollector
+    # (which surfaces DD_TAGS). flush() should dedupe the exact-string repeat in the outgoing
+    # packets rather than emit it twice.
+    monkeypatch.setenv("DD_ENTITY_ID", "test-entity-123")
+    monkeypatch.setenv("DD_TAGS", "dd.internal.entity_id:test-entity-123")
+
+    with mock.patch("socket.socket") as sock:
+        sock.return_value.getsockopt.return_value = 0
+        worker = RuntimeWorker()
+        worker.flush()
+
+        statsd_socket = worker._dogstatsd_client.socket
+        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+        assert received, "expected at least one packet to be sent"
+        gauges = [line for packet in received for line in packet.split("\n") if line]
+        assert gauges, "expected at least one metric line to be sent"
+        for gauge in gauges:
+            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+
+
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
         metrics = set([k for (k, v) in RuntimeMetrics()])
