@@ -551,7 +551,8 @@ class ProfilingConfigNativeHeap(DDConfig):
             "profiler starts and calls the activator; samples are collected out-of-band "
             "by the OpenTelemetry eBPF profiler or Datadog Host Profiler (nothing is "
             "collected or uploaded by the tracer itself). Requires Linux and a wheel "
-            "built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Phase 1 is allocation-only. "
+            "built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Both allocations and the "
+            "frees that release them are sampled, so retained (live) heap is reported. "
             "Disabled by default (experimental)."
         ),
     )
