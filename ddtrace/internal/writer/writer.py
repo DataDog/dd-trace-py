@@ -11,7 +11,6 @@ from typing import Callable
 from typing import Optional
 from typing import TextIO
 
-from ddtrace._trace.telemetry import record_trace_writer_metric
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -25,6 +24,8 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enab
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
@@ -68,6 +69,12 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+
+
+def record_trace_writer_metric(name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None) -> None:
+    """Record a trace-writer count metric when count is positive."""
+    if count > 0:
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
 
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:

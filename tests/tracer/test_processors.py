@@ -547,6 +547,9 @@ def test_span_creation_metrics():
 
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
     from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    tracer._span_aggregator.writer = DummyWriter()
 
     with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
