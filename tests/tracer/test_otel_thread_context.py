@@ -44,9 +44,10 @@ def _published_span_id():
 @pytest.fixture(autouse=True)
 def _enable_otel_thread_context(tracer, monkeypatch):
     monkeypatch.setattr(config, "_otel_thread_context_enabled", True)
-    register_otel_thread_context_listener(tracer)
+    listener = register_otel_thread_context_listener(tracer)
+    assert listener is not None
     yield
-    core.reset_listeners("ddtrace.context_provider.activate")
+    core.reset_listeners("ddtrace.context_provider.activate", listener)
 
 
 def test_span_context_is_published_and_detached(tracer: Tracer):
