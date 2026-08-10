@@ -2,3 +2,4 @@
 features:
   - |
     tracing: Adds OpenTelemetry thread-context publication on Linux, enabling compatible profiling tools to correlate samples with the active trace and span.
+    Set the experimental ``DD_TRACE_OTEL_CTX_ENABLED`` environment variable to ``true`` to enable publication; it is disabled by default.
