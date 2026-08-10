@@ -79,6 +79,9 @@ def disable_appsec_rc() -> None:
         remoteconfig_poller.disable_product(product_name)
 
 
+core.on("asm.disable_rc", disable_appsec_rc)
+
+
 class AppSecCallback(RCCallback):
     """Remote config callback for AppSec products."""
 

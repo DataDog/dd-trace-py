@@ -109,7 +109,7 @@ def _get_rasp_capability(capability: str) -> bool:
         try:
             from ddtrace.appsec._processor import AppSecSpanProcessor
         except Exception as e:
-            from ddtrace.appsec._listeners import _abort_appsec
+            from ddtrace.appsec._lifecycle import _abort_appsec
 
             _abort_appsec(str(e))
             return False
