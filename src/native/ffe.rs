@@ -4,8 +4,9 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
+    use libdd_common::regex_engine::Regex;
     use pyo3::{exceptions::PyValueError, prelude::*};
     use serde_json::Value;
     use tracing::debug;
@@ -21,6 +22,7 @@ pub mod ffe {
     struct FfeConfiguration {
         inner: Configuration,
         variant_type_mismatch_flags: HashMap<String, FlagType>,
+        invalid_regex_flags: HashSet<String>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +107,8 @@ pub mod ffe {
                 config_bytes.len()
             );
 
-            let variant_type_mismatch_flags = find_variant_type_mismatch_flags(&config_bytes);
+            let (variant_type_mismatch_flags, invalid_regex_flags) =
+                find_flag_validation_errors(&config_bytes);
             let configuration = Configuration::from_server_response(
                 UniversalFlagConfig::from_json(config_bytes).map_err(|err| {
                     debug!("Failed to parse FFE configuration: {err}");
@@ -116,6 +119,7 @@ pub mod ffe {
             Ok(FfeConfiguration {
                 inner: configuration,
                 variant_type_mismatch_flags,
+                invalid_regex_flags,
             })
         }
 
@@ -139,6 +143,12 @@ pub mod ffe {
                 return Ok(ResolutionDetails::error(
                     ErrorCode::ParseError,
                     "variant value does not match the declared variation type",
+                ));
+            }
+            if self.invalid_regex_flags.contains(flag_key) {
+                return Ok(ResolutionDetails::error(
+                    ErrorCode::ParseError,
+                    "condition contains an invalid regular expression",
                 ));
             }
 
@@ -171,31 +181,70 @@ pub mod ffe {
         }
     }
 
-    fn find_variant_type_mismatch_flags(config_bytes: &[u8]) -> HashMap<String, FlagType> {
+    fn find_flag_validation_errors(
+        config_bytes: &[u8],
+    ) -> (HashMap<String, FlagType>, HashSet<String>) {
         let Ok(config) = serde_json::from_slice::<Value>(config_bytes) else {
-            return HashMap::new();
+            return (HashMap::new(), HashSet::new());
         };
         let Some(flags) = config.get("flags").and_then(Value::as_object) else {
-            return HashMap::new();
+            return (HashMap::new(), HashSet::new());
         };
 
-        flags
-            .iter()
-            .filter_map(|(flag_key, flag)| {
-                if flag.get("enabled").and_then(Value::as_bool) == Some(false) {
-                    return None;
-                }
-                let variation_type = flag.get("variationType")?.as_str()?;
-                let flag_type = declared_flag_type(variation_type)?;
-                let variations = flag.get("variations")?.as_object()?;
+        let mut variant_type_mismatch_flags = HashMap::new();
+        let mut invalid_regex_flags = HashSet::new();
+        for (flag_key, flag) in flags {
+            if flag.get("enabled").and_then(Value::as_bool) == Some(false) {
+                continue;
+            }
+
+            if let Some((variation_type, flag_type, variations)) = flag
+                .get("variationType")
+                .and_then(Value::as_str)
+                .and_then(|variation_type| {
+                    Some((
+                        variation_type,
+                        declared_flag_type(variation_type)?,
+                        flag.get("variations")?.as_object()?,
+                    ))
+                })
+            {
                 let has_mismatch = variations.values().any(|variation| {
                     variation
                         .get("value")
                         .is_some_and(|value| !variant_value_matches(variation_type, value))
                 });
-                has_mismatch.then(|| (flag_key.clone(), flag_type))
+                if has_mismatch {
+                    variant_type_mismatch_flags.insert(flag_key.clone(), flag_type);
+                }
+            }
+
+            if flag_has_invalid_regex(flag) {
+                invalid_regex_flags.insert(flag_key.clone());
+            }
+        }
+
+        (variant_type_mismatch_flags, invalid_regex_flags)
+    }
+
+    fn flag_has_invalid_regex(flag: &Value) -> bool {
+        flag.get("allocations")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|allocation| allocation.get("rules").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|rule| rule.get("conditions").and_then(Value::as_array))
+            .flatten()
+            .any(|condition| {
+                matches!(
+                    condition.get("operator").and_then(Value::as_str),
+                    Some("MATCHES" | "NOT_MATCHES")
+                ) && condition
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .is_some_and(|pattern| Regex::new(pattern).is_err())
             })
-            .collect()
     }
 
     fn declared_flag_type(variation_type: &str) -> Option<FlagType> {

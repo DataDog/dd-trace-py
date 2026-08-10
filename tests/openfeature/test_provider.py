@@ -148,6 +148,20 @@ class TestStringFlagResolution:
         assert result.variant == "variant-a"
         assert result.error_code is None
 
+    def test_resolve_string_flag_invalid_regex(self, provider, evaluation_context):
+        """Should return PARSE_ERROR when a condition contains an invalid regex."""
+        flag = create_string_flag("invalid-regex-flag", "variant-a", enabled=True)
+        flag["allocations"][0]["rules"] = [
+            {"conditions": [{"attribute": "email", "operator": "MATCHES", "value": "[invalid"}]}
+        ]
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_string_details("invalid-regex-flag", "default", evaluation_context)
+
+        assert result.value == "default"
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PARSE_ERROR
+
     def test_resolve_string_flag_no_config(self, provider):
         """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
