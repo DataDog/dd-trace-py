@@ -128,7 +128,7 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.0.0"
+LIBDDWAF_VERSION = "2.0.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -1667,11 +1667,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
-            ),
-            Extension(
-                "ddtrace.internal.telemetry.metrics_namespaces",
-                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                language="c",
             ),
         ]
 

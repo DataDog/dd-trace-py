@@ -1,0 +1,84 @@
+{
+  "//": [
+    "Module-prefix to architectural zone mapping used by layers.py.",
+    "Zone ids: 'internal-core', 'contrib', or 'product:<name>'.",
+    "Longest matching prefix wins, so a product's ddtrace.internal.<x>",
+    "subpackage can be carved out of the ddtrace.internal catch-all below.",
+    "Modules with no matching prefix are unclassified ('foundation') and",
+    "are exempt from every rule, both as importer and as imported module."
+  ],
+  "zones": {
+    "ddtrace.internal": "internal-core",
+    "ddtrace.contrib": "contrib",
+
+    "ddtrace._trace": "product:tracing",
+    "ddtrace.trace": "product:tracing",
+
+    "ddtrace.appsec": "product:appsec",
+    "ddtrace.internal.appsec": "product:appsec",
+    "ddtrace.internal.iast": "product:appsec",
+
+    "ddtrace.aiguard": "product:aiguard",
+    "ddtrace.internal.aiguard": "product:aiguard",
+
+    "ddtrace.llmobs": "product:llmobs",
+
+    "ddtrace.profiling": "product:profiling",
+
+    "ddtrace.debugging": "product:debugging",
+
+    "ddtrace.internal.ci_visibility": "product:ci_visibility",
+    "ddtrace.internal.test_visibility": "product:ci_visibility",
+
+    "ddtrace.errortracking": "product:errortracking",
+
+    "ddtrace.openfeature": "product:openfeature",
+    "ddtrace.internal.openfeature": "product:openfeature",
+
+    "ddtrace.opentelemetry": "product:opentelemetry",
+    "ddtrace.internal.opentelemetry": "product:opentelemetry",
+
+    "ddtrace.runtime": "product:runtime",
+    "ddtrace.internal.runtime": "product:runtime"
+  },
+  "foundation": {
+    "//": [
+      "Direct children of the ddtrace package root that are deliberately left",
+      "unclassified (foundation code, exempt from every rule). layers.py's coverage",
+      "check fails on any top-level ddtrace/<x> package or module that is neither a",
+      "key in 'zones' nor listed here -- so adding a new top-level submodule forces",
+      "a conscious decision about which zone it belongs to, instead of silently",
+      "falling through with no rules applied at all."
+    ],
+    "top_level": [
+      "ddtrace._logger",
+      "ddtrace._monkey",
+      "ddtrace.auto",
+      "ddtrace.constants",
+      "ddtrace.data_streams",
+      "ddtrace.version",
+      "ddtrace.ext",
+      "ddtrace.propagation",
+      "ddtrace.vendor",
+      "ddtrace.testing",
+      "ddtrace.bootstrap",
+      "ddtrace.commands",
+      "ddtrace.sourcecode"
+    ]
+  },
+  "rules": {
+    "//": [
+      "A directed edge importer-zone -> imported-zone is a violation when:",
+      "  - importer zone is 'internal-core' or 'contrib' and imported zone is any product, or",
+      "  - importer and imported zones are two different products.",
+      "Same-zone edges, and edges into/out of unclassified (foundation) modules, are never flagged.",
+      "'exceptions' lists zone-pairs that are exempt from the above -- e.g. if we later decide a",
+      "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
+      "\"product:appsec\"} here rather than changing the detection logic."
+    ],
+    "forbid_from_zones_into_products": ["internal-core", "contrib"],
+    "exceptions": [
+      {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"}
+    ]
+  }
+}

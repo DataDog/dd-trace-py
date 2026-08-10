@@ -21,7 +21,7 @@ from tests.utils import call_program
 
 @contextlib.contextmanager
 def runtime_metrics_service(tracer=None):
-    RuntimeWorker.enable(tracer=tracer)
+    RuntimeWorker.enable()
     assert RuntimeWorker._instance is not None
     assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
 
