@@ -30,6 +30,9 @@ from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
 
 
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
+
+
 logger = ddlogger.get_logger(__name__)
 
 ALLOW = "ALLOW"
