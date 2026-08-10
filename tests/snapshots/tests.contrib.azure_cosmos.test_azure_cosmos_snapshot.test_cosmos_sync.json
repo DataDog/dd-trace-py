@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -44,6 +45,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -77,6 +79,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -111,6 +114,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -145,6 +149,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -179,6 +184,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -213,6 +219,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -247,6 +254,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f399cc00000000",
+      "_dd.svc_src": "azure_cosmos",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",

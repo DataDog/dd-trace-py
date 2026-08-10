@@ -15,26 +15,10 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: Cross-module coordination primitive. A higher-level integration sets
-# this True to tell this subscriber to skip its own injection — either because the
-# integration already injected upstream (e.g. botocore's before-sign handler) or
-# because distributed tracing is disabled and no headers should go out at any layer.
-#
-# Consumers today: ddtrace.contrib.internal.botocore.patch and
-# ddtrace.contrib.internal.aiobotocore.patch (the SigV4 fix — botocore's
-# before-sign event fires earlier than this subscriber's on_started, so
-# headers can land in the canonical signed request).
-#
-# OWNERSHIP CONTRACT (do not break): the only setters of this contextvar
-# are `patched_api_call` (botocore) and `_wrapped_api_call` (aiobotocore).
-# Both MUST capture the Token and reset() in a try/finally. The before-sign
-# event handler itself must not touch the contextvar — see the leak
-# history in PR #18152 if you're tempted to change that. The handler was
-# previously allowed to flip it True; that caused a real leak when
-# early-return paths in patched_api_call bypassed the try/finally.
-#
-# ContextVar provides per-thread isolation: concurrent requests in different
-# threads each see their own value of this flag.
+# AIDEV-NOTE: set True by a higher-level integration to skip its own injection
+# (e.g. botocore SigV4, requests suppressing the nested urllib3 span). Only
+# `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send` may set this,
+# and must reset() in try/finally — see PR #18152 for the leak that caused.
 _http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 

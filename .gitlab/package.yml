@@ -295,7 +295,7 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   id_tokens:
@@ -361,8 +361,9 @@ download_dependency_wheels:
     - |
       set -euo pipefail
 
-      # Upload to branch path (only for main/release branches)
-      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+      # Upload to branch path (only for main/staging/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [ "${CI_COMMIT_BRANCH:-}" = "staging" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]];
+      then
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
 
