@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where OpenTelemetry thread-context records are published by default on Linux.
+    Publication is now disabled by default and can be enabled by setting the experimental ``DD_TRACE_OTEL_CTX_ENABLED`` environment variable to ``true``.
