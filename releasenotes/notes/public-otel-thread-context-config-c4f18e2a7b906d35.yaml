@@ -1,0 +1,4 @@
+features:
+  - |
+    tracing: Adds the experimental ``DD_TRACE_OTEL_CTX_ENABLED`` environment variable, which is ``false`` by default.
+    Set it to ``true`` on Linux to let compatible external readers, such as the OpenTelemetry eBPF Profiler, correlate profiler samples with active traces and spans.

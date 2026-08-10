@@ -7,6 +7,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
 
 
 class TracerProtocol(Protocol):
@@ -19,6 +20,9 @@ if sys.platform == "linux":
     from ddtrace.internal.native._native import update_otel_thread_context
 
     def register_otel_thread_context_listener(tracer: TracerProtocol) -> None:
+        if not config._otel_thread_context_enabled:
+            return
+
         def _sync_otel_thread_context(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
             if provider is not tracer.context_provider:
                 return
