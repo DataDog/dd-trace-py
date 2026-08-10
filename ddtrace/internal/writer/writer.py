@@ -182,7 +182,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     # Whether this writer emits span/trace instrumentation telemetry (TRACERS namespace).
     # CI Visibility reuses this HTTP pipeline for event/coverage uploads but is not a trace
     # writer, so it opts out to avoid polluting tracer telemetry dashboards.
-    _records_trace_telemetry = True
+    _records_trace_telemetry = False
 
     def __init__(
         self,
@@ -600,6 +600,7 @@ class AgentlessTraceWriter(HTTPWriter):
         "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
     }
     FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
+    _records_trace_telemetry = True
 
     @staticmethod
     def compute_intake_url(site: str) -> str:
