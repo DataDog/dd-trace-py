@@ -21,6 +21,7 @@ from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
@@ -861,6 +862,17 @@ def test_capture_value_builtin_redacted_type():
             "elements": [utils.redacted_type(int)] * 3,
             "size": 3,
         }
+
+
+def test_serialize_redacted_type():
+    class SensitiveModel:
+        def __init__(self):
+            self.value = 42
+            self.token = "secret"
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="*.SensitiveModel"):
+        assert utils.serialize(SensitiveModel()) == REDACTED_PLACEHOLDER
+        assert utils.serialize([SensitiveModel()]) == "[%s]" % REDACTED_PLACEHOLDER
 
 
 @pytest.mark.subprocess(err=None)
