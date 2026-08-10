@@ -375,7 +375,6 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
         MICROBENCHMARKS_GEN.write_text(
             """
 microbenchmark-noop:
-  image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   script: |
     echo "noop"
