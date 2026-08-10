@@ -1,7 +1,17 @@
 import pytest
 
 
-@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
+def _ignore_dsm_flush_err(stderr):
+    for line in stderr.splitlines():
+        if not line.strip():
+            continue
+        if "failed to send data stream stats payload" in line:
+            continue
+        return False
+    return True
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
 def test_public_api():
     from ddtrace.data_streams import set_consume_checkpoint
     from ddtrace.data_streams import set_produce_checkpoint
@@ -45,6 +55,60 @@ def test_manual_checkpoint_behavior():
 
 
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
+def test_additional_tags_behavior():
+    import mock
+
+    from ddtrace.data_streams import set_consume_checkpoint
+    from ddtrace.data_streams import set_produce_checkpoint
+    from ddtrace.internal.datastreams import data_streams_processor
+
+    processor = data_streams_processor()
+
+    # set_checkpoint is mocked (no wraps) so no real checkpoint is created and no stats are
+    # flushed on shutdown; we only assert the tags forwarded to the processor. Fresh empty
+    # carriers keep decode_pathway_b64/encode_b64 off the mocked return value.
+    with mock.patch.object(processor, "set_checkpoint") as mock_set_checkpoint:
+        set_produce_checkpoint("eventbridge", "my-detail", {}.setdefault, tags=["exchange:my-bus"])
+        produce_tags = mock_set_checkpoint.call_args[0][0]
+        assert "type:eventbridge" in produce_tags
+        assert "topic:my-detail" in produce_tags
+        assert "direction:out" in produce_tags
+        assert "manual_checkpoint:true" in produce_tags
+        assert "exchange:my-bus" in produce_tags
+
+        mock_set_checkpoint.reset_mock()
+        set_consume_checkpoint("eventbridge", "my-detail", {}.get, tags=["exchange:my-bus"])
+        consume_tags = mock_set_checkpoint.call_args[0][0]
+        assert "exchange:my-bus" in consume_tags
+        assert "direction:in" in consume_tags
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
+def test_additional_tags_hash_behavior():
+    from ddtrace.data_streams import set_consume_checkpoint
+    from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.processor import DataStreamsCtx
+
+    headers = {}
+
+    got_default = set_consume_checkpoint("eventbridge", "my-detail", headers.get)
+    got_with_tags = set_consume_checkpoint("eventbridge", "my-detail", headers.get, tags=["exchange:my-bus"])
+
+    processor = data_streams_processor()
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    ctx = DataStreamsCtx(processor, 0, 0, 0)
+
+    expected_with_tags = ctx._compute_hash(
+        sorted(["direction:in", "manual_checkpoint:true", "type:eventbridge", "topic:my-detail", "exchange:my-bus"]),
+        0,
+    )
+
+    assert got_with_tags.hash == expected_with_tags
+    # Additional tags must change the pathway hash relative to the default tag set.
+    assert got_with_tags.hash != got_default.hash
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
 def test_manual_checkpoint_hash_behavior():
     from ddtrace.data_streams import set_consume_checkpoint
     from ddtrace.internal.datastreams import data_streams_processor

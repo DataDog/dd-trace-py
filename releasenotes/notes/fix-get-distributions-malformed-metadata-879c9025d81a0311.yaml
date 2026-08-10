@@ -1,0 +1,6 @@
+---
+
+fixes:
+  - |
+    telemetry: tolerate malformed installed distribution metadata so a single
+    bad dist-info entry no longer floods stderr with repeated tracebacks.

@@ -7,11 +7,19 @@ from unittest.mock import Mock
 
 import pytest
 
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.offline_mode import reset_offline_mode
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from tests.testing._itr_env import clear_itr_rollout_env  # noqa: F401
 
 
 # Enable pytester plugin for testing pytest plugins
 pytest_plugins = ["pytester"]
+
+
+@pytest.fixture(autouse=True)
+def clear_ci_itr_rollout_env() -> None:
+    clear_itr_rollout_env()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -20,6 +28,11 @@ def set_env() -> None:
     Make sure that we don't send inner tests to Datadog.
     """
     os.environ["DD_API_KEY"] = "test-key"
+    # The riotfile enables out-of-session retries globally (_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED=1)
+    # for dd-trace-py's own test runs. These plugin tests drive the plugin via pytester.inline_run,
+    # which shares this process's environment, so we force OSR off here and let the OSR tests opt in explicitly
+    # (see test_pytest_osr.py).
+    os.environ["_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"] = "0"
 
 
 @pytest.fixture
@@ -81,7 +94,23 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> Mock:
+def clear_outer_manifest_env() -> t.Iterator[None]:
+    """Do not let the manifest of an outer xdist session leak into these tests.
+
+    These tests run inside an xdist worker, which shares its process environment with the controller that generated
+    the manifest -- so unlike a subprocess, they cannot rely on the plugin's ownership check to ignore it.  Reset the
+    cached OfflineMode too, since it is resolved from the environment on first use.
+    """
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
+    yield
+    # Again after the test: some tests set the var themselves while building subprocess environments.
+    os.environ.pop(DD_TEST_OPTIMIZATION_MANIFEST_FILE, None)
+    reset_offline_mode()
+
+
+@pytest.fixture(autouse=True)
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> t.Iterator[Mock]:
     """
     Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in the ``openai`` integration where
+    streamed chat completion spans under-reported ``output_tokens`` and
+    ``total_tokens`` for OpenAI-compatible providers that emit a cumulative
+    ``usage`` object on every streamed chunk.

@@ -130,7 +130,7 @@ lotsa_frames_lotsa_samples()
         ddup_push_walltime(h, 1.0, 1);
         ddup_push_exceptioninfo(h, "WowThisIsBad", 1);
         ddup_push_alloc(h, 100, 1);
-        ddup_push_heap(h, 100);
+        ddup_push_heap(h, 100, 1);
         ddup_push_acquire(h, 66, 1);
         ddup_push_release(h, 66, 1);
         ddup_push_threadinfo(h, i + 1024, i * 200 % 11, "MyFavoriteThreadEver");

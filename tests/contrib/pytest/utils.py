@@ -5,6 +5,23 @@ from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
+_LEGACY_PYTEST_PLUGIN_DEPRECATION = "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated"
+
+
+def _drop_expected_legacy_pytest_plugin_warnings(stats):
+    warnings = stats.get("warnings")
+    if not warnings:
+        return
+
+    unexpected_warnings = [
+        warning for warning in warnings if _LEGACY_PYTEST_PLUGIN_DEPRECATION not in str(warning.message)
+    ]
+    if unexpected_warnings:
+        stats["warnings"] = unexpected_warnings
+    else:
+        stats.pop("warnings")
+
+
 def assert_stats(rec, **outcomes):
     """
     Assert that the correct number of test results of each type is present in a test run.
@@ -13,6 +30,7 @@ def assert_stats(rec, **outcomes):
     """
     stats = {**rec.getcall("pytest_terminal_summary").terminalreporter.stats}
     stats.pop("", None)
+    _drop_expected_legacy_pytest_plugin_warnings(stats)
 
     for outcome, expected_count in outcomes.items():
         actual_count = len(stats.pop(outcome, []))

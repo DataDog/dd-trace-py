@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    iast: Fixed an issue where sensitive content could be left
+    unredacted in vulnerability reports when a sensitive value overlapped a
+    tainted range.

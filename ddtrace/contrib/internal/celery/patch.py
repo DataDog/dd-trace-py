@@ -5,6 +5,7 @@ from ddtrace.contrib.internal.celery.app import patch_app
 from ddtrace.contrib.internal.celery.app import unpatch_app
 from ddtrace.contrib.internal.celery.constants import PRODUCER_SERVICE
 from ddtrace.contrib.internal.celery.constants import WORKER_SERVICE
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
@@ -14,10 +15,10 @@ config._add(
     "celery",
     {
         "distributed_tracing": asbool(env.get("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
-        "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
-        "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
-        "_default_service_producer": PRODUCER_SERVICE,
-        "_default_service_worker": WORKER_SERVICE,
+        "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE", default=PRODUCER_SERVICE),
+        "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE", default=WORKER_SERVICE),
+        "_default_service_producer": schematize_service_name(PRODUCER_SERVICE),  # type: ignore[operator]
+        "_default_service_worker": schematize_service_name(WORKER_SERVICE),  # type: ignore[operator]
     },
 )
 

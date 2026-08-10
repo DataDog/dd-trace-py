@@ -1,10 +1,14 @@
+# pyright: reportPossiblyUnboundVariable=false
 import importlib.util
 import platform
 import sys
+import traceback
+from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
+from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
@@ -19,7 +23,8 @@ from ddtrace.internal.settings.profiling import config_str
 
 log = get_logger(__name__)
 
-is_available = True
+# Native bindings exist only when this import succeeds. Call sites gate on ``is_available``
+# or return immediately from ``_get_args`` when native is absent (pyright cannot prove that).
 try:
     from ddtrace.internal.native._native import CrashtrackerConfiguration
     from ddtrace.internal.native._native import CrashtrackerMetadata
@@ -28,8 +33,11 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
-except ImportError:
+
+    is_available = True
+except ImportError:  # pragma: no cover
     is_available = False
 
 
@@ -83,6 +91,9 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[dict[str, str]]):
+    if not is_available:
+        return (None, None, None)
+
     # Instead of searching PATH for the receiver binary, invoke the receiver script
     # directly with the current Python interpreter. This is more reliable and doesn't
     # depend on PATH configuration.
@@ -120,6 +131,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.use_alt_stack,
         5000,  # timeout_ms
         stacktrace_resolver,
+        crashtracker_config.collect_all_threads,
+        crashtracker_config.max_threads,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
@@ -129,9 +142,9 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
-    crashtracking_enabled = env.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
-    if crashtracking_enabled is not None:
-        receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
+    receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = (
+        "true" if crashtracker_config.errors_intake_enabled else "false"
+    )
 
     # Crashtracker is supported only on Linux and macOS, so we only need to inherit
     # these library path environment variables.
@@ -162,6 +175,36 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     return config, receiver_config, metadata
 
 
+def _unhandled_exception_reporter(
+    exc_type: type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
+) -> None:
+    try:
+        if is_available and is_started() and exc_type is not None and issubclass(exc_type, Exception):
+            frames = []
+            if exc_traceback is not None:
+                for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
+                    frames.append(
+                        {
+                            "function": name,
+                            "file": filename,
+                            "line": str(lineno),
+                        }
+                    )
+                # Reverse so the innermost (most recent) frame is first
+                frames.reverse()
+
+            module = getattr(exc_type, "__module__", None)
+            qualname = exc_type.__qualname__
+            if module and module != "builtins":
+                exception_type = f"{module}.{qualname}"
+            else:
+                exception_type = qualname
+            exception_message = str(exc_value) if exc_value is not None else None
+            crashtracker_report_unhandled_exception(exception_type, exception_message, frames)
+    except Exception:
+        log.debug("Failed to report unhandled exception to crashtracker", exc_info=True)
+
+
 def is_started() -> bool:
     if not is_available:
         return False
@@ -180,12 +223,28 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             log.error("Failed to start crashtracker: failed to construct crashtracker configuration")
             return False
 
-        # TODO: Add this back in post Code Freeze (need to update config registry)
-        # crashtracker_init(
-        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
-        # )
-
+        # If the stack profiler's SIGSEGV/SIGBUS recovery handler is already
+        # installed (i.e. the profiler started before crashtracking), momentarily
+        # uninstall it so the crashtracker records the real underlying handler as
+        # its "previous" rather than the profiler's handler. We reinstall the
+        # profiler's handler on top afterwards, yielding a linear handler chain
+        # (profiler -> crashtracker -> default) with no cycle. We only touch the
+        # stack module if it is already imported: importing it here would load the
+        # native extension and install signal handlers even when profiling is off.
+        stack_mod = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        if stack_mod is not None:
+            try:
+                stack_mod.uninstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
         crashtracker_init(config, receiver_config, metadata)
+        excepthook.register(_unhandled_exception_reporter)
+
+        if stack_mod is not None:
+            try:
+                stack_mod.reinstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after

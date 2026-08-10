@@ -17,13 +17,24 @@ Version: 8e11af2 (0.39.1)
 License: Copyright (c) 2020, Datadog <info@datadoghq.com>
 
 Notes:
-  `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
-  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
+  `dogstatsd/__init__.py` includes a copy of the datadogpy license.
+  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies.
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
   `datadog/util/format.py` was copied to `dogstatsd/format.py`
-  version fixed to 8e11af2
   removed type imports
   removed unnecessary compat utils
+  container.py local patches vs upstream 0.52.1:
+    - class renamed Cgroup → ContainerID (base.py compat)
+    - _read_cgroup_path: returns raw container ID without ci- prefix, for
+      backward compatibility with Agents older than 7.51; upstream returns
+      ci-<id>. Upstream PR pending to land this fix in datadogpy.
+    - _get_cgroup_from_inode: lstrip("/") instead of != "/" check, to prevent
+      os.path.join from discarding the mount prefix for absolute node paths.
+      Upstream PR pending to land this fix in datadogpy.
+    - _get_cgroup_from_inode: wrapped in try/except for safety.
+    - __init__: tries _read_cgroup_path first, uses inode only as fallback
+      when path returns None and not in host namespace. Upstream checks
+      namespace first and skips _read_cgroup_path entirely when not host.
 
 
 debtcollector
@@ -67,31 +78,19 @@ Notes:
   - [06/2025] Added specifiers.py code to the already vendored packaging module
 
 
-ply
+python-jsonpath
 ---------
 
-Source: https://github.com/dabeaz/ply
-Version: 3.11
-License: BSD-3-Clause
+Source: https://github.com/jg-rp/python-jsonpath
+Version: 2.2.1
+License: MIT
 
 Notes:
-  - jsonpath-ng dependency
-    Did a "pip install jsonpath-ng"
-    Then went and looked at the contents of the ply packages
-    yacc.py and lex.py files here.
-    Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
-
-
-jsonpath-ng
----------
-
-Source: https://github.com/h2non/jsonpath-ng
-Version: 1.6.1
-License: Apache License 2.0
-
-Notes:
-  - Copied ply into vendors as well.
-    Changed "-" to "_" as was causing errors when importing.
+  - Used by botocore payload tagging. Replaced jsonpath-ng, which required ply
+    (end-of-life 12/2025, CVE-2025-56005); both were removed.
+  - Copied from the python_jsonpath-2.2.1-py3-none-any.whl wheel. No runtime
+    dependencies; the optional regex/iregexp_check imports are guarded upstream.
+  - Didn't copy: cli.py, __main__.py. Rewrote "from jsonpath.x" imports as relative.
 
 
 xmltodict

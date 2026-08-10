@@ -1,5 +1,6 @@
 AArch
 adk
+agentic
 agentless
 aiobotocore
 aiohttp
@@ -9,6 +10,7 @@ aiopg
 aioredis
 algolia
 algoliasearch
+allocator
 analytics
 anthropic
 Anthropic
@@ -29,6 +31,7 @@ async
 asyncio
 asyncpg
 attrs
+auth
 autodetected
 autoinstrumentation
 Autoinstrumentation
@@ -115,9 +118,11 @@ embeddings
 Enablement
 enqueue
 enqueuer
+enqueuing
 entrypoint
 entrypoints
 env
+envier
 eol
 eventbridge
 exec
@@ -171,6 +176,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
@@ -220,6 +226,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarded
 onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
@@ -276,6 +283,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+Realtime
 reentrant
 redis
 rediscluster
@@ -287,6 +295,7 @@ respawn
 riotfile
 rlocation
 RLock
+rollout
 rowcount
 rq
 runnable
@@ -316,6 +325,7 @@ statsd
 stderr
 stdout
 setuptools
+Str
 stringable
 struct
 structlog
@@ -391,3 +401,4 @@ anyio
 ddsketch
 werkzeug
 wrapt
+uv

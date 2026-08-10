@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds span ``metadata`` to the data exposed to the span processor
+    registered with ``LLMObs.enable(span_processor=...)`` or ``LLMObs.register_processor(...)``.
+    Previously only ``input`` and ``output`` were exposed; the processor can now read and
+    modify ``metadata`` to redact or remove sensitive values that integrations record there.

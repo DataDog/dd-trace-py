@@ -30,6 +30,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import Block_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
@@ -130,7 +131,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 )
                 response.content = content
                 response["Content-Length"] = len(content.encode())
-            utils._after_request_tags(pin, ctx.span, request, response)
+            utils._after_request_tags(pin, span_from_context(ctx), request, response)
             return response
 
         try:
@@ -141,16 +142,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 uri = utils.get_request_uri(request)
                 if uri is not None and query:
                     uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
 
+                # The listener pulls ``request_path_params`` itself via ``utils._request_path_params(request)``.
                 core.dispatch(
-                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri)
                 )
                 core.dispatch("django.start_response.post", ("Django",))
 

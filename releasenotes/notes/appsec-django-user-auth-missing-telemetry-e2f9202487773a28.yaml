@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    appsec: Adds telemetry metrics ``instrum.user_auth.missing_user_login`` and
+    ``instrum.user_auth.missing_user_id`` when Django auth events cannot resolve
+    the expected identity fields, enabling detection of misconfigured user model
+    field mappings.

@@ -1,3 +1,6 @@
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import pytest
 
 from ddtrace.internal.products import Product
@@ -103,7 +106,7 @@ def test_product_manager_start():
     assert a.started
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_product_manager_restart():
     import os
 
@@ -152,6 +155,120 @@ def test_product_manager_restart():
         os._exit(0)
 
     os.waitpid(pid, 0)
+
+
+def _make_entry_point(name, dist_name, module_path, product_obj):
+    ep = MagicMock()
+    ep.name = name
+    ep.value = f"{module_path}:module"
+    ep.dist = MagicMock()
+    ep.dist.metadata = {"Name": dist_name}
+    ep.load.return_value = product_obj
+    return ep
+
+
+def test_load_products_trusted():
+    product = BaseProduct()
+    ep = _make_entry_point("tracer", "ddtrace", "ddtrace._trace.product", product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "tracer" in manager.__products__
+
+
+def test_load_products_trusted_mixed_case_dist():
+    product = BaseProduct()
+    ep = _make_entry_point("tracer", "DDTrace", "ddtrace._trace.product", product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "tracer" in manager.__products__
+
+
+def test_load_products_untrusted_dist():
+    product = BaseProduct()
+    ep = _make_entry_point("evil", "evil-package", "ddtrace._trace.product", product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "evil" not in manager.__products__
+
+
+def test_load_products_untrusted_dist_with_ddtrace_prefix():
+    """A package named 'ddtrace-evil' must not be treated as trusted (exact match only)."""
+    product = BaseProduct()
+    ep = _make_entry_point("evil", "ddtrace-evil", "ddtrace._trace.product", product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "evil" not in manager.__products__
+
+
+def test_load_products_spoofed_dist_name():
+    """A package that sets metadata Name='ddtrace' but ships code outside the ddtrace namespace."""
+    product = BaseProduct()
+    ep = _make_entry_point("evil", "ddtrace", "evil_package.product", product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "evil" not in manager.__products__
+
+
+def test_load_products_no_dist_metadata():
+    """When dist is present but None, trust relies solely on the module path."""
+    product = BaseProduct()
+    ep = _make_entry_point("tracer", "ddtrace", "ddtrace._trace.product", product)
+    ep.dist = None
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "tracer" in manager.__products__
+
+
+def test_load_products_no_dist_attribute():
+    """When EntryPoint.dist is absent (Python < 3.10), trust relies solely on the module path."""
+    product = BaseProduct()
+    ep = _make_entry_point("tracer", "ddtrace", "ddtrace._trace.product", product)
+    del ep.dist
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "tracer" in manager.__products__
+
+
+def test_load_products_no_dist_attribute_untrusted_module():
+    """When EntryPoint.dist is absent and the module path is outside ddtrace, reject."""
+    product = BaseProduct()
+    ep = _make_entry_point("evil", "ddtrace", "evil_package.product", product)
+    del ep.dist
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=[ep]):
+        manager._load_products()
+
+    assert "evil" not in manager.__products__
 
 
 def test_product_manager_is_enabled():

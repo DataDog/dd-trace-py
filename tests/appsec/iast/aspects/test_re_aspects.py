@@ -645,6 +645,34 @@ def test_re_finditer_aspect_not_tainted():
         assert not is_pyobject_tainted(i)
 
 
+def test_re_finditer_aspect_is_lazy():
+    # The aspect must not eagerly drain the underlying finditer iterator: consuming a
+    # single match should not force the whole input to be scanned (memory DoS guard).
+    tainted = taint_pyobject(
+        pyobject="a a a a a a",
+        source_name="test_re_finditer_aspect_is_lazy",
+        source_value="a a a a a a",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    consumed = []
+    pattern = re.compile(r"a")
+
+    def spy_finditer(string):
+        # Records how many matches are pulled from the underlying lazy iterator.
+        for match in pattern.finditer(string):
+            consumed.append(match)
+            yield match
+
+    # self (args[0]) is a real Pattern so the aspect instruments it; spy_finditer is
+    # the injected original function whose consumption we observe.
+    res_iterator = re_finditer_aspect(spy_finditer, 1, pattern, tainted)
+    first = next(res_iterator)
+    # Only the first match should have been pulled from the underlying iterator so far.
+    assert len(consumed) == 1
+    assert is_pyobject_tainted(first)
+
+
 def test_re_match_getitem_aspect_tainted_string_re_object():
     tainted_isaac_newton = taint_pyobject(
         pyobject="Isaac Newton, physicist",

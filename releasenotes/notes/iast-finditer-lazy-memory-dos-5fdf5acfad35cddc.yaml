@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Code Security (IAST): This fix resolves an issue where instrumenting ``re.finditer`` eagerly
+    consumed the entire match iterator to taint every match, which removed the laziness of
+    ``re.finditer`` and allowed a request-controlled input with many matches to allocate excess
+    memory. Matches are now tainted lazily as the application iterates over them.

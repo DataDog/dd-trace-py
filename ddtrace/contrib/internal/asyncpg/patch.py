@@ -10,6 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -33,6 +34,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 DBMS_NAME = "postgresql"
+
+_PROTOCOL_METHODS = ("execute", "bind_execute", "query", "bind_execute_many")
 
 
 config._add(
@@ -156,7 +159,7 @@ async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
 
 def _patch(asyncpg: ModuleType) -> None:
     wrap(asyncpg, "connect", _traced_connect(asyncpg))
-    for method in ("execute", "bind_execute", "query", "bind_execute_many"):
+    for method in _PROTOCOL_METHODS:
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
 
@@ -173,9 +176,21 @@ def patch() -> None:
 
 
 def _unpatch(asyncpg: ModuleType) -> None:
-    unwrap(asyncpg, "connect")
-    for method in ("execute", "bind_execute", "query", "bind_execute_many"):
-        unwrap(asyncpg.protocol.Protocol, method)
+    if iswrapped(asyncpg, "connect"):
+        unwrap(asyncpg, "connect")
+    for method in _PROTOCOL_METHODS:
+        # DEV: Use vars(cls) + delattr rather than iswrapped(cls.attr) + unwrap.
+        # iswrapped/getattr access reads the descriptor; under wrapt 2.2.0,
+        # FunctionWrapper.__get__ calls the inner Cython method_descriptor's tp_descr_get
+        # with Py_None instead of NULL, raising:
+        #   TypeError: descriptor 'execute' for 'asyncpg.protocol.protocol.BaseProtocol'
+        #              objects doesn't apply to a 'NoneType' object
+        # vars()/__dict__ lookup and delattr bypass the descriptor entirely.
+        # Using delattr (rather than setattr to the original) also avoids leaving a Cython
+        # descriptor shadow in Protocol.__dict__ that a later patch() would re-wrap instead
+        # of resolving the method naturally via MRO from BaseProtocol.
+        if method in asyncpg.protocol.Protocol.__dict__:
+            delattr(asyncpg.protocol.Protocol, method)
 
 
 def unpatch() -> None:

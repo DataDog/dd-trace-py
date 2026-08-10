@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.contrib.internal.mysqldb.patch import patch
 from ddtrace.contrib.internal.mysqldb.patch import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset

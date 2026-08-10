@@ -78,7 +78,7 @@ MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
 
 
 # for testing tool calls
-def get_current_weather(location: str, unit: str = "fahrenheit") -> dict:
+def get_current_weather(location: str, unit: str = "fahrenheit") -> dict[str, object]:
     """Mock weather function for tool testing."""
     return {
         "location": location,

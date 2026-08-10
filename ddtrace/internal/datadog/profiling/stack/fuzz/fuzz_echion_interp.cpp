@@ -21,9 +21,10 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     // Point interpreters.head into the fuzz buffer so for_each_interp
     // reads interpreter nodes from fuzzer-controlled memory.
-    _PyRuntimeState runtime;
-    std::memset(&runtime, 0, sizeof(runtime));
+    _PyRuntimeState runtime{};
     uintptr_t p0 = addr_from_u64(load_u64_le(data, size, 0));
+
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
     runtime.interpreters.head = reinterpret_cast<PyInterpreterState*>(p0);
 
     size_t interp_count = 0;

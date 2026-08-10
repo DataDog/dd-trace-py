@@ -3,14 +3,13 @@
 An API to provide atexit functionalities
 """
 
-from __future__ import absolute_import
-
 import atexit
 import logging
 import signal
 import threading
 import typing
 
+from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.utils import signals
 
 
@@ -31,10 +30,7 @@ def _make_safe_wrapper(func: typing.Callable) -> typing.Callable:
         try:
             func(*args, **kwargs)
         except Exception:
-            # Lazy import to avoid circular dependencies at module load time.
-            from ddtrace import config
-
-            if config._raise:
+            if _native_config.get_raise():
                 raise
 
     return _wrapped
@@ -73,16 +69,16 @@ def register_on_exit_signal(f: typing.Callable) -> None:
         try:
             f()
         except Exception:
-            # Lazy import to avoid circular dependencies at module load time.
-            from ddtrace import config
-
-            if config._raise:
+            if _native_config.get_raise():
                 raise
 
     if threading.current_thread() is threading.main_thread():
         try:
             signals.handle_signal(signal.SIGTERM, handle_exit)
-            signals.handle_signal(signal.SIGINT, handle_exit)
+            # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
+            # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
+            if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+                signals.handle_signal(signal.SIGINT, handle_exit)
         except Exception:
             # We catch a general exception here because we don't know
             # what might go wrong, but we don't want to stop

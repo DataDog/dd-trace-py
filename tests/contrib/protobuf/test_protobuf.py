@@ -132,7 +132,7 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
     # Deserialize
     with tracer.trace("other_message.deserialize") as span:
         span.context.sampling_priority = AUTO_KEEP
-        other_message.ParseFromString(bytes_data)
+        result = other_message.ParseFromString(bytes_data)
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"
 
@@ -150,6 +150,7 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
     assert tags[SCHEMA_TAGS.SCHEMA_ID] == OTHER_MESSAGE_SCHEMA_ID
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+    assert isinstance(result, int)
 
 
 def test_advanced_schema_deserialize(protobuf, tracer, test_spans):

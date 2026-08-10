@@ -1,0 +1,3 @@
+features:
+  - |
+    profiling: The fast stack profiler optimisation is now enabled by default.

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Added a ``sample_rate`` argument to ``LLMObs.enable()`` to configure the proportion of
+    LLMObs traces to sample (between ``0.0`` and ``1.0``) in code. This takes precedence over the
+    ``DD_LLMOBS_SAMPLE_RATE`` environment variable.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes a race condition where extra service names could be silently dropped from
+    Remote Configuration ``/v0.7/config`` payloads in multi-threaded applications (e.g. uWSGI).

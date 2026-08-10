@@ -56,13 +56,13 @@ cdef class _SamplerState:
 # to share sampler state, because the profiler is process scoped, not thread scoped
 cdef _SamplerState _state = None
 
-# Reentrancy guard: _collect_exception can trigger EXCEPTION_HANDLED callbacks
+# Reentrancy guard: _collect_exception can trigger RAISE callbacks
 # (via str(exc_value) raising, or ddup internals). Without this guard,
 # the callback would recurse.
 cdef bint _collecting = False
 
 
-cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object exc_traceback) except *:
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame) except *:
     if not ddup.is_available:
         return
 
@@ -87,38 +87,61 @@ cdef void _collect_exception(_SamplerState state, object exc_type, object exc_va
     thread = _current_thread()
     handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
 
-    handle.push_pytraceback(exc_traceback)
+    handle.push_pyframes(frame)
     handle.push_monotonic_ns(time.monotonic_ns())
 
     handle.flush_sample()
 
 
-cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
-    """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
+cpdef void _on_exception(object code, int instruction_offset, object exception):
+    """sys.monitoring.RAISE callback — HOT PATH."""
     global _collecting
 
     if _collecting:
         return
 
-    cdef _SamplerState state = _state
-    if state is None:
+    # Skip control-flow exceptions (iterator/generator termination).
+    if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
         return
 
-    state.counter += 1
-
-    if state.counter < state.next_sample:
-        return
-
-    state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
-    state.counter = 0
-
-    # If an exception ever leaks from _collect_exception, this will silently
-    # disable sys.monitoring. Guard against that and against reentrancy
-    # (next_sample == 1 and _collect_exception triggers another
-    # EXCEPTION_HANDLED callback internally).
+    # Set the reentrancy guard before any attribute access on the exception
+    # object. A custom __getattribute__ that raises during the
+    # __traceback__ lookup would fire another RAISE callback; without the
+    # guard that secondary exception could recurse and leak back into user
+    # code, replacing the original exception being raised.
+    cdef _SamplerState state
     _collecting = True
     try:
-        _collect_exception(state, type(exception), exception, exception.__traceback__)
+        # RAISE fires in every frame the exception unwinds through, not just
+        # at the raise site. Before invoking this callback CPython appends
+        # the current frame to exception.__traceback__, so the traceback
+        # length tells us how far the exception has already propagated.
+        # A single entry (tb_next is None) is the raise site; more than one
+        # is a propagation re-raise in an ancestor frame.
+        tb = (<object> exception).__traceback__
+        if tb is None or tb.tb_next is not None:
+            return
+
+        state = _state
+        if state is None:
+            return
+
+        state.counter += 1
+
+        if state.counter < state.next_sample:
+            return
+
+        # sampling_interval=1 means sample every exception. Skip Poisson so
+        # variance cannot insert gaps of 2+.
+        if state.sampling_interval == 1:
+            state.next_sample = 1
+        else:
+            state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
+        state.counter = 0
+
+        # At the raise site the head of the traceback is the raising frame;
+        # its f_back chain is the full Python stack up to the entry point.
+        _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
         LOG.debug("Failed to collect exception")
     finally:
@@ -148,11 +171,11 @@ class ExceptionCollector(collector.Collector):
                 # Claim the tool ID *before* writing _state so that a ValueError
                 # (tool ID already in use) leaves the existing _state untouched.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
-                    sys.monitoring.events.EXCEPTION_HANDLED,
-                    _on_exception_handled,
+                    sys.monitoring.events.RAISE,
+                    _on_exception,
                 )
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
@@ -181,7 +204,7 @@ class ExceptionCollector(collector.Collector):
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,
-                sys.monitoring.events.EXCEPTION_HANDLED,
+                sys.monitoring.events.RAISE,
                 None,
             )
         except Exception:

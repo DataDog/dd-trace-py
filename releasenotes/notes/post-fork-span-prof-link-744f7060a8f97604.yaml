@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Profiling: This fixes a bug where uploaded profiles would not have a linked span post fork

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    remoteconfig: Fixed a configuration being reported as ``acknowledged`` before
+    the product received it. The state is now set to ``acknowledged`` only after the
+    configuration has been delivered to the product, and to ``error`` only when the
+    payload is malformed and cannot be deserialized.

@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
 from unittest.mock import patch
 
 # Path is also used in test_env_tags_non_empty_in_online_mode for get_workspace_path mock
 import pytest
 
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
+from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestSession
+from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
 
 
@@ -67,10 +70,34 @@ class TestSessionManagerProviderSelection:
         assert not isinstance(sm.api_client, CachedFileDataProvider)
 
     def test_uses_cached_file_provider_when_manifest_set(self, monkeypatch, tmp_path):
-        """With a valid manifest, CachedFileDataProvider is used and APIClient is not."""
+        """With a valid manifest, reads come from CachedFileDataProvider."""
         opt_dir = _make_manifest_dir(tmp_path)
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient"),
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            sm = SessionManager(session=_make_session())
+
+        assert isinstance(sm.api_client, CachedFileDataProvider)
+        # Manifest mode without payload-files mode still has a network, so a real client is kept for coverage uploads
+        # (CachedFileDataProvider cannot upload). See test_coverage_report_upload_in_manifest_mode below.
+        assert sm.coverage_upload_client is not None
+
+    def test_no_coverage_upload_client_in_payload_files_mode(self, monkeypatch, tmp_path):
+        """Bazel writes payloads to files and has no network: nothing to upload coverage through."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+        monkeypatch.setenv("TEST_UNDECLARED_OUTPUTS_DIR", str(output_dir))
 
         env = MockDefaults.test_environment()
 
@@ -83,10 +110,33 @@ class TestSessionManagerProviderSelection:
             sm = SessionManager(session=_make_session())
 
         mock_api_client_cls.assert_not_called()
-        assert isinstance(sm.api_client, CachedFileDataProvider)
+        assert sm.coverage_upload_client is None
 
-    def test_connector_is_noop_in_manifest_mode(self, monkeypatch, tmp_path):
-        """In manifest mode the connector setup must be NoOpBackendConnectorSetup."""
+    def test_coverage_report_upload_in_manifest_mode(self, monkeypatch, tmp_path):
+        """An xdist worker reusing its controller's manifest must still upload its coverage report over HTTP."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        env = MockDefaults.test_environment()
+        capture = CoverageReportUploadCapture()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            mock_api_client_cls.return_value = mock_api_client_settings(coverage_upload_capture=capture)
+            sm = SessionManager(session=_make_session())
+
+            assert sm.upload_coverage_report(b"TN:\nend_of_record\n", "lcov") is True
+
+        assert len(capture.upload_calls) == 1
+        assert capture.upload_calls[0]["endpoint"] == "/api/v2/cicovreprt"
+
+    def test_connector_is_real_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode the network is available; connector must NOT be NoOp."""
         opt_dir = _make_manifest_dir(tmp_path)
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
@@ -100,6 +150,28 @@ class TestSessionManagerProviderSelection:
         ):
             sm = SessionManager(session=_make_session())
 
+        assert not isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
+        assert isinstance(sm.connector_setup, BackendConnectorAgentlessSetup)
+
+    def test_connector_is_noop_in_payload_files_mode(self, monkeypatch, tmp_path):
+        """In Bazel payload-files mode there is no network; connector must be NoOp."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+        monkeypatch.setenv("TEST_UNDECLARED_OUTPUTS_DIR", str(output_dir))
+
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            mock_api_client_cls.return_value = mock_api_client_settings()
+            sm = SessionManager(session=_make_session())
+
         assert isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
 
 
@@ -109,7 +181,7 @@ class TestSessionManagerProviderSelection:
 
 
 class TestUploadGitDataSkipping:
-    def _build_sm_with_mocked_api(self, monkeypatch, env: dict) -> SessionManager:
+    def _build_sm_with_mocked_api(self, monkeypatch, env: dict[str, str]) -> SessionManager:
         with (
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
@@ -163,10 +235,7 @@ class TestUploadGitDataSkipping:
 
         sm = self._build_sm_with_mocked_api(monkeypatch, env)
 
-        mock_git_instance = Mock()
-        mock_git_instance.get_latest_commits.return_value = []
-        mock_git_instance.get_filtered_revisions.return_value = []
-        mock_git_instance.pack_objects.return_value = iter([])
+        mock_git_instance = get_mock_git_instance()
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git_instance) as mock_git_cls,
@@ -301,22 +370,52 @@ class TestEnvTagsStripping:
 # ---------------------------------------------------------------------------
 
 
-class TestSkippingForcedOffInManifestMode:
-    def test_skipping_disabled_in_manifest_mode(self, monkeypatch, tmp_path):
-        """Even if the cached settings file enables skipping, manifest mode forces it off."""
+class TestBazelProviderFallbackWithGeneratedManifest:
+    """The "manifest mode implies Bazel" heuristic must not apply to a manifest we generated ourselves."""
+
+    @staticmethod
+    def _env_tags_without_ci_provider() -> dict[str, str]:
+        from ddtrace.testing.internal.env_tags import get_env_tags
+
+        with (
+            patch("ddtrace.testing.internal.env_tags.ci.get_ci_tags", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_git_command", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_dd_variables", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.git.get_git_head_tags_from_git_command", return_value={}),
+            patch("ddtrace.testing.internal.env_tags.get_workspace_path", return_value=Path("/workspace")),
+        ):
+            return get_env_tags()
+
+    def test_external_manifest_falls_back_to_bazel(self, monkeypatch, tmp_path):
+        opt_dir = _make_manifest_dir(tmp_path)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        assert self._env_tags_without_ci_provider()["ci.provider.name"] == "bazel"
+
+    def test_generated_manifest_does_not_fall_back_to_bazel(self, monkeypatch, tmp_path):
+        """A plain `pytest -n auto` run on a machine with no CI provider must not report itself as Bazel."""
+        generated_dir = tmp_path / f"{XDIST_MANIFEST_DIR_PREFIX}{os.getpid()}_abc"
+        generated_dir.mkdir()
+        (generated_dir / "manifest.txt").write_text("version = 1\n")
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(generated_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+
+        assert "ci.provider.name" not in self._env_tags_without_ci_provider()
+
+
+class TestSkippingInManifestMode:
+    def _write_settings(self, cache_dir: Path, tests_skipping: bool, itr_enabled: bool) -> None:
         import json
 
-        opt_dir = _make_manifest_dir(tmp_path)
-        # Write settings with skipping_enabled=True
-        cache_dir = opt_dir / "cache" / "http"
-        cache_dir.mkdir(parents=True)
+        cache_dir.mkdir(parents=True, exist_ok=True)
         (cache_dir / "settings.json").write_text(
             json.dumps(
                 {
                     "data": {
                         "attributes": {
-                            "tests_skipping": True,
-                            "itr_enabled": True,
+                            "tests_skipping": tests_skipping,
+                            "itr_enabled": itr_enabled,
                             "require_git": False,
                             "code_coverage": False,
                             "known_tests_enabled": False,
@@ -333,6 +432,30 @@ class TestSkippingForcedOffInManifestMode:
                 }
             )
         )
+
+    def test_skipping_enabled_from_cache_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode, skipping_enabled comes from the cached settings file."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=True, itr_enabled=True)
+
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            sm = SessionManager(session=_make_session())
+
+        assert sm.settings.skipping_enabled is True
+        assert sm.settings.itr_enabled is True
+
+    def test_skipping_disabled_when_cache_says_disabled(self, monkeypatch, tmp_path):
+        """When cached settings has skipping disabled it stays disabled in manifest mode."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=False, itr_enabled=False)
 
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)

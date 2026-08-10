@@ -23,17 +23,25 @@ from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 @pytest.fixture(autouse=True)
 def _restore_instrumenter_globals():
     """Save and restore module-level singletons and config to prevent cross-test contamination."""
-    from ddtrace.internal.settings._config import config as tracer_config
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
     saved_registry = _instrumenter_mod._registry
     saved_instance = _instrumenter_mod._instrumenter_instance
+    saved_lazy_hooks = _instrumenter_mod._lazy_module_hooks.copy()
+    saved_lazy_targets = {
+        module_name: target_names.copy() for module_name, target_names in _instrumenter_mod._lazy_module_targets.items()
+    }
     saved_global_registry = _registry_mod._global_registry
-    saved_sca_enabled = tracer_config._sca_enabled
+    saved_sca_enabled = appsec_telemetry_config.SCA_ENABLED
     yield
     _instrumenter_mod._registry = saved_registry
     _instrumenter_mod._instrumenter_instance = saved_instance
+    _instrumenter_mod._lazy_module_hooks.clear()
+    _instrumenter_mod._lazy_module_hooks.update(saved_lazy_hooks)
+    _instrumenter_mod._lazy_module_targets.clear()
+    _instrumenter_mod._lazy_module_targets.update(saved_lazy_targets)
     _registry_mod._global_registry = saved_global_registry
-    tracer_config._sca_enabled = saved_sca_enabled
+    appsec_telemetry_config.SCA_ENABLED = saved_sca_enabled
 
 
 # ---------------------------------------------------------------------------
@@ -128,9 +136,9 @@ class TestSCADetectionHookIntegration:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        tracer_config._sca_enabled = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         # Pre-populate a dependency with registered CVE
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
@@ -243,9 +251,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        tracer_config._sca_enabled = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()
@@ -297,9 +305,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        tracer_config._sca_enabled = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()
@@ -339,6 +347,107 @@ class TestCallerInfoToReachedArray:
         assert reached[0]["path"] == "test_module"
         assert reached[0]["symbol"] == "target_func"
         assert reached[0]["line"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test: pending lazy instrumentation state
+# ---------------------------------------------------------------------------
+
+
+class TestLazyInstrumentationState:
+    def _clear_lazy_state(self):
+        registry = _registry_mod.get_global_registry()
+        registry.clear()
+        _instrumenter_mod._lazy_module_hooks.clear()
+        _instrumenter_mod._lazy_module_targets.clear()
+        from ddtrace.internal.module import ModuleWatchdog
+
+        ModuleWatchdog.install()
+        instance = ModuleWatchdog._instance
+        if instance is not None:
+            instance._hook_map.clear()
+        return registry, instance
+
+    def test_repeated_unresolved_target_update_reuses_lazy_hook(self):
+        registry, instance = self._clear_lazy_state()
+        target = {
+            "target": "unimported_test_module:function",
+            "dependency_name": "testpkg",
+            "cve_ids": ["CVE-TEST"],
+        }
+
+        for _ in range(100):
+            _instrumenter_mod.apply_instrumentation_updates([target])
+
+        assert len(registry._targets) == 1
+        assert len(_instrumenter_mod._lazy_module_hooks) == 1
+        assert _instrumenter_mod._lazy_module_targets == {"unimported_test_module": {"unimported_test_module:function"}}
+        assert instance is not None
+        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
+
+    def test_unresolved_targets_in_same_module_share_lazy_hook(self):
+        registry, instance = self._clear_lazy_state()
+        targets = [
+            {
+                "target": f"unimported_test_module:function_{i}",
+                "dependency_name": "testpkg",
+                "cve_ids": [f"CVE-TEST-{i}"],
+            }
+            for i in range(100)
+        ]
+
+        _instrumenter_mod.apply_instrumentation_updates(targets)
+
+        assert len(registry._targets) == 100
+        assert len(_instrumenter_mod._lazy_module_hooks) == 1
+        assert len(_instrumenter_mod._lazy_module_targets["unimported_test_module"]) == 100
+        assert instance is not None
+        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
+
+    def test_incremental_updates_preserve_unresolved_lazy_targets(self):
+        registry, instance = self._clear_lazy_state()
+
+        _instrumenter_mod.apply_instrumentation_updates(
+            [
+                {
+                    "target": f"first_unimported_module_{i}:function",
+                    "dependency_name": "testpkg",
+                    "cve_ids": [f"CVE-FIRST-{i}"],
+                }
+                for i in range(3)
+            ]
+        )
+
+        _instrumenter_mod.apply_instrumentation_updates(
+            [
+                {
+                    "target": "current_unimported_module:function",
+                    "dependency_name": "testpkg",
+                    "cve_ids": ["CVE-CURRENT"],
+                }
+            ]
+        )
+
+        assert set(registry._targets) == {
+            "first_unimported_module_0:function",
+            "first_unimported_module_1:function",
+            "first_unimported_module_2:function",
+            "current_unimported_module:function",
+        }
+        assert _instrumenter_mod._lazy_module_targets == {
+            "first_unimported_module_0": {"first_unimported_module_0:function"},
+            "first_unimported_module_1": {"first_unimported_module_1:function"},
+            "first_unimported_module_2": {"first_unimported_module_2:function"},
+            "current_unimported_module": {"current_unimported_module:function"},
+        }
+        assert instance is not None
+        assert set(instance._hook_map) == {
+            "first_unimported_module_0",
+            "first_unimported_module_1",
+            "first_unimported_module_2",
+            "current_unimported_module",
+        }
+        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +520,7 @@ class TestForkCallbackOrdering:
             reset_calls.append("registry_reset")
 
         with (
-            patch("ddtrace.internal.sca.product.tracer_config") as mock_config,
+            patch("ddtrace.internal.sca.product.appsec_telemetry_config") as mock_config,
             patch(
                 "ddtrace.appsec.sca._instrumenter._reset_after_fork",
                 side_effect=track_reset,
@@ -424,7 +533,7 @@ class TestForkCallbackOrdering:
             patch("ddtrace.internal.sca.product._load_and_instrument") as mock_load,
             patch("ddtrace.internal.sca.product.stop"),
         ):
-            mock_config._sca_enabled = True  # Must be True or restart() returns early
+            mock_config.SCA_ENABLED = True  # Must be True or restart() returns early
             restart()
 
         # Both resets should have been called

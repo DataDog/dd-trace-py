@@ -78,6 +78,41 @@ Release notes should be written from the user's perspective and clearly explain 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
 At this time, do not use the merge queue option.
 
+Merging Pull Requests from Forks
+---------------------------------
+
+Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
+directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
+branch in this repository can start GitLab, but it does not trigger the required System Tests
+workflow; that requires a pull request owned by this repository.
+
+If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
+access to credentials. The reviewer owns that trust decision. Follow this process:
+
+#. Complete the normal code review on the original fork PR. Before mirroring, you should be willing
+   to merge its exact current head commit as long as the final CI checks pass.
+#. Review everything the internal CI pipeline might execute with extra scrutiny. This includes
+   workflow definitions, scripts, tests, build and install configuration, dependency changes,
+   network calls, artifact uploads, and code that accesses credentials or changes permissions.
+   Involve the relevant code owners or security reviewers when appropriate.
+#. Immediately before mirroring, verify that the original PR's head SHA is still the SHA you
+   reviewed. If it changed, review the updates and repeat this check.
+#. Push that exact reviewed head commit to a new branch in this repository, e.g.
+   ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``. The branch name does not
+   need to match the contributor's branch.
+#. Open a draft shadow PR from that branch into ``main``. Its title must follow `Conventional
+   Commits <https://www.conventionalcommits.org/en/v1.0.0/>`_ and end with ``[DO NOT MERGE]``, for
+   example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. State in its description that
+   the shadow PR exists only to run CI and must not be merged.
+#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
+   it does not mean both PRs run in the same context or establish that the code is safe. That
+   assurance comes from the review before mirroring.
+#. Once the checks are green, verify that the original PR's head SHA still matches the tested
+   shadow PR, then comment ``/merge`` on the *original* fork PR.
+#. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
+
+Never mirror speculative or partially reviewed code merely to obtain CI results.
+
 Backporting
 -----------
 
@@ -156,6 +191,34 @@ call is ``add_integration``, which generates telemetry data about the integratio
 
 Read the docstrings in ``ddtrace/internal/telemetry/writer.py`` for more comprehensive usage information
 about Instrumentation Telemetry.
+
+Configuration Registry
+----------------------
+
+When you add a new ``DD_*`` or ``OTEL_*`` environment variable to ddtrace, you must also register it in
+two places.
+
+**1. Local registry** (``supported-configurations.json``)
+
+Add an entry for the new variable following the existing schema, then regenerate the generated module::
+
+    python scripts/supported_configurations.py
+
+Stage and commit both ``supported-configurations.json`` and
+``ddtrace/internal/settings/_supported_configurations.py``. The pre-commit hook will catch any mismatch
+before commit, and the CI ``check`` job will enforce it on every PR.
+
+**2. Central Configuration Registry** (FPD)
+
+The key must also be added to the `Datadog Configuration Registry <https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations>`_
+by an **internal contributor**. If the key already exists with the same settings (default value, type)
+because another tracer language already registered it, this step can be skipped. If the existing entry's
+data doesn't match (e.g. different type or default), create a new implementation version in the registry
+and reference that version's letter in ``supported-configurations.json``.
+
+Not adding the config and implementation details to the central registry will cause the
+``validate_supported_configurations_v2_local_file`` GitLab CI job to fail, displaying the missing keys
+in its output. A Datadog maintainer must add the key to the registry before the PR can merge.
 
 .. toctree::
     :hidden:

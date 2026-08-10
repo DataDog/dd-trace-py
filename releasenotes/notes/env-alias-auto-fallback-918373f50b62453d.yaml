@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    settings: Legacy environment variable names registered as aliases in the
+    configuration registry now also work when set via local or fleet stable
+    config files, not just shell environment variables. #17958

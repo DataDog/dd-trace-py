@@ -5,6 +5,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _sanitize_span_event_depth
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -200,6 +201,128 @@ def test_messages_tool_results_missing_required_fields():
         Messages([{"content": "test", "tool_results": [{"result": 123}]}])
 
 
+def test_messages_with_audio_parts():
+    """Test that messages can include audio parts with inline base64 content."""
+    messages = Messages(
+        [
+            {
+                "content": "Here is the audio.",
+                "role": "user",
+                "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Here is the audio.",
+            "role": "user",
+            "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_audio_parts_attachment_key():
+    """Test that an audio part may reference an offloaded attachment instead of inline content."""
+    messages = Messages(
+        [{"content": "", "role": "user", "audio_parts": [{"mime_type": "audio/mp3", "attachment_key": "abc123"}]}]
+    )
+    expected = [
+        {"content": "", "role": "user", "audio_parts": [{"mime_type": "audio/mp3", "attachment_key": "abc123"}]}
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_audio_parts_invalid():
+    """Test that audio_parts raise errors when malformed."""
+    # audio_parts not a list
+    with pytest.raises(TypeError, match="audio_parts must be a list"):
+        Messages([{"content": "test", "audio_parts": {"mime_type": "audio/wav", "content": "AAAA"}}])
+
+    # each audio_part must be a dict
+    with pytest.raises(TypeError, match="Each audio_part must be a dictionary"):
+        Messages([{"content": "test", "audio_parts": ["not-a-dict"]}])
+
+    # missing mime_type
+    with pytest.raises(TypeError, match="AudioPart mime_type must be a non-empty string"):
+        Messages([{"content": "test", "audio_parts": [{"content": "AAAA"}]}])
+
+    # neither content nor attachment_key
+    with pytest.raises(TypeError, match="AudioPart must have either 'content' or 'attachment_key'"):
+        Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav"}]}])
+
+    # both content and attachment_key (backend expects exactly one)
+    with pytest.raises(TypeError, match="AudioPart must have only one of 'content' or 'attachment_key', not both"):
+        Messages(
+            [{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA", "attachment_key": "k"}]}]
+        )
+
+    # invalid content type
+    with pytest.raises(TypeError, match="AudioPart content must be a base64-encoded string"):
+        Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": 123}]}])
+
+
+def test_messages_with_image_parts():
+    """Test that messages can include image parts with inline base64 content."""
+    messages = Messages(
+        [
+            {
+                "content": "Here is the image.",
+                "role": "user",
+                "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Here is the image.",
+            "role": "user",
+            "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_image_parts_attachment_key():
+    """Test that an image part may reference an offloaded attachment instead of inline content."""
+    messages = Messages(
+        [{"content": "", "role": "user", "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}]}]
+    )
+    expected = [
+        {"content": "", "role": "user", "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}]}
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_image_parts_invalid():
+    """Test that image_parts raise errors when malformed."""
+    # image_parts not a list
+    with pytest.raises(TypeError, match="image_parts must be a list"):
+        Messages([{"content": "test", "image_parts": {"mime_type": "image/png", "content": "AAAA"}}])
+
+    # each image_part must be a dict
+    with pytest.raises(TypeError, match="Each image_part must be a dictionary"):
+        Messages([{"content": "test", "image_parts": ["not-a-dict"]}])
+
+    # missing mime_type
+    with pytest.raises(TypeError, match="ImagePart mime_type must be a non-empty string"):
+        Messages([{"content": "test", "image_parts": [{"content": "AAAA"}]}])
+
+    # neither content nor attachment_key
+    with pytest.raises(TypeError, match="ImagePart must have either 'content' or 'attachment_key'"):
+        Messages([{"content": "test", "image_parts": [{"mime_type": "image/png"}]}])
+
+    # both content and attachment_key (backend expects exactly one)
+    with pytest.raises(TypeError, match="ImagePart must have only one of 'content' or 'attachment_key', not both"):
+        Messages(
+            [{"content": "test", "image_parts": [{"mime_type": "image/png", "content": "AAAA", "attachment_key": "k"}]}]
+        )
+
+    # invalid content type
+    with pytest.raises(TypeError, match="ImagePart content must be a base64-encoded string"):
+        Messages([{"content": "test", "image_parts": [{"mime_type": "image/png", "content": 123}]}])
+
+
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]
@@ -376,6 +499,13 @@ class TestAnnotateLLMObsSpanData:
             assert meta[LLMOBS_STRUCT.METADATA] == {"temperature": 0.5}
             assert meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] == tools
 
+    def test_metadata_keys_are_stringified(self, llmobs):
+        """Non-string metadata keys are coerced to strings (MLOB-7618)."""
+        with llmobs.task(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metadata={42: "a", 2.5: "b", True: "c", None: "d"})
+            metadata = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA]
+            assert metadata == {"42": "a", "2.5": "b", "True": "c", "None": "d"}
+
     def test_merges_metadata_metrics_tags_across_calls(self, llmobs):
         """metadata, metrics, and tags accumulate rather than overwrite across multiple annotate calls."""
         with llmobs.task(name="test_span") as span:
@@ -389,6 +519,33 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
             assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
+
+
+class TestSanitizeSpanEventDepth:
+    """Non-string mapping keys are stringified so the msgpack meta_struct intake path
+    does not drop the span (MLOB-7618).
+    """
+
+    def test_stringifies_top_level_non_string_keys(self):
+        assert _sanitize_span_event_depth({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
+            "metadata": {"5": "a", "2.5": "b", "None": "c"}
+        }
+        assert _sanitize_span_event_depth({"metadata": {True: "x", False: "y"}}) == {
+            "metadata": {"True": "x", "False": "y"}
+        }
+
+    def test_stringifies_nested_non_string_keys(self):
+        sanitized = _sanitize_span_event_depth({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
+        assert sanitized == {"metadata": {"outer": {"3": {"4": [{"5": "v"}]}}}}
+
+    def test_string_keyed_structures_pass_through_unchanged(self):
+        original = {"metadata": {"temperature": 0.5, "nested": {"k": [1, 2, 3]}}}
+        assert _sanitize_span_event_depth(original) == original
+
+    def test_does_not_mutate_input(self):
+        original = {"metadata": {1: "a"}}
+        _sanitize_span_event_depth(original)
+        assert original == {"metadata": {1: "a"}}  # original keys untouched
 
 
 class TestTraceIdNormalization:

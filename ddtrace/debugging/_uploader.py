@@ -108,7 +108,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         self._flush_full = False
 
-    def info_check(self, agent_info: Optional[dict]) -> bool:
+    def info_check(self, agent_info: Optional[dict[str, Any]]) -> bool:
         if agent_info is None:
             # Agent is unreachable
             return False
@@ -118,24 +118,27 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             log.debug("Unsupported Datadog agent detected. Please upgrade to 7.49.0.")
             return False
 
-        endpoints = set(agent_info.get("endpoints", []))
+        # Agent /info entries may or may not carry a leading slash depending on
+        # the agent version, so normalize before matching (see remoteconfig).
+        endpoints = {endpoint.lstrip("/") for endpoint in agent_info.get("endpoints", [])}
 
         logs_track = self._tracks[SignalTrack.LOGS]
         snapshot_track = self._tracks[SignalTrack.SNAPSHOT]
         logs_track.enabled = True
         snapshot_track.enabled = True
 
-        if "/debugger/v2/input" in endpoints:
+        if "debugger/v2/input" in endpoints:
             log.debug("Detected /debugger/v2/input endpoint")
             logs_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
-        elif "/debugger/v1/diagnostics" in endpoints:
+        elif "debugger/v1/diagnostics" in endpoints:
             log.debug("Detected /debugger/v1/diagnostics endpoint fallback")
             logs_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
         else:
             logs_track.enabled = False
             snapshot_track.enabled = False
+            self._throttle_agent_check()
             log.warning(
                 UNSUPPORTED_AGENT,
                 extra={
@@ -180,6 +183,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
     def reset(self) -> None:
         """Reset the buffer on fork."""
+        super().reset()
         for track in self._tracks.values():
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
@@ -208,7 +212,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             except Exception:
                 log.debug("Cannot upload payload", exc_info=True)
 
-    def online(self) -> None:
+    def _flush(self) -> None:
         """Upload the buffer content to the agent."""
         if self._flush_full:
             # We received the signal to flush a full buffer
@@ -221,6 +225,9 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             if track.queue.count:
                 self._flush_track(track)
 
+    def online(self) -> None:
+        self._flush()
+
         if not self._tracks[SignalTrack.SNAPSHOT].enabled or not self._tracks[SignalTrack.LOGS].enabled:
             # If the tracks are not enabled, we raise an exception to
             # transition back to the agent check state in case we detect an
@@ -228,7 +235,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             msg = "Debugger tracks not enabled"
             raise ValueError(msg)
 
-    on_shutdown = online
+    def on_shutdown(self) -> None:  # type: ignore[override]
+        self._flush()
 
     @classmethod
     def get_collector(cls) -> Optional[SignalCollector]:

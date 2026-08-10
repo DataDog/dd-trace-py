@@ -4,6 +4,7 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 
 from bytecode import Bytecode
+from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -91,19 +92,18 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     last_lineno = None
     instrs = set()
     for i, instr in enumerate(code):
-        try:
-            if instr.lineno == last_lineno:
-                continue
-            last_lineno = instr.lineno
-            # Some lines might be implemented across multiple instruction
-            # offsets, and sometimes a NOP is used as a placeholder. We skip
-            # those to avoid duplicate injections.
-            if instr.lineno == lineno:
-                locs.appendleft((i, instr.name))
-                instrs.add(instr.name)
-        except AttributeError:
+        if not isinstance(instr, Instr):
             # pseudo-instruction (e.g. label)
-            pass
+            continue
+        if instr.lineno == last_lineno:
+            continue
+        last_lineno = instr.lineno
+        # Some lines might be implemented across multiple instruction
+        # offsets, and sometimes a NOP is used as a placeholder. We skip
+        # those to avoid duplicate injections.
+        if instr.lineno == lineno:
+            locs.appendleft((i, instr.name))
+            instrs.add(instr.name)
 
     if not locs:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
@@ -119,8 +119,8 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
         # just a placeholder.
         locs = deque((i, instr) for i, instr in locs if instr != "NOP")
 
-    for i, instr in locs:
-        if instr.startswith("END_"):
+    for i, opname in locs:
+        if opname.startswith("END_"):
             # This is the end of a block, e.g. a for loop. We have already
             # instrumented the block on entry, so we skip instrumenting the
             # end as well.
@@ -140,20 +140,26 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
     """
     locs: deque[int] = deque()
     for i, instr in enumerate(code):
+        if not isinstance(instr, Instr):
+            # pseudo-instruction (e.g. label)
+            continue
         try:
             # DEV: We look at the expected opcode pattern to match the injected
             # hook and we also test for the expected opcode arguments
+            _hook_instr = code[i + _INJECT_HOOK_OPCODE_POS]
+            _arg_instr = code[i + _INJECT_ARG_OPCODE_POS]
+            _window = [code[_] for _ in range(i, i + len(_INJECT_HOOK_OPCODES))]
             if (
                 instr.lineno == line
-                and code[i + _INJECT_HOOK_OPCODE_POS].arg == hook  # bound methods don't like identity comparisons
-                and code[i + _INJECT_ARG_OPCODE_POS].arg is arg
-                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES
+                and isinstance(_hook_instr, Instr)
+                and _hook_instr.arg == hook  # bound methods don't like identity comparisons
+                and isinstance(_arg_instr, Instr)
+                and _arg_instr.arg is arg
+                and all(isinstance(_c, Instr) for _c in _window)
+                and [_c.name for _c in _window if isinstance(_c, Instr)] == _INJECT_HOOK_OPCODES
             ):
                 locs.appendleft(i)
-        except AttributeError:
-            # pseudo-instruction (e.g. label)
-            pass
-        except IndexError:
+        except (AttributeError, IndexError):
             pass
 
     if not locs:

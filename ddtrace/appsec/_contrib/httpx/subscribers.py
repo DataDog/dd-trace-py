@@ -7,6 +7,7 @@ from typing import Optional
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -31,6 +32,10 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         asm_context = _get_asm_context()
         if asm_context is None:
             return
+
+        # Own the SSRF subcontext on this outer request context so the inner send's SSRF_REQ and
+        # the final SSRF_RES (dispatched on this context in on_ended) share one subcontext.
+        open_rasp_subcontext_scope()
 
         analyze_body = should_analyze_body_response(asm_context)
         ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)

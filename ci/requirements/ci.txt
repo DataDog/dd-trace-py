@@ -421,9 +421,9 @@ dulwich==0.24.10 \
     --hash=sha256:f7bfa9f0bfae57685754b163eef6641609047460939d28052e3beeb63efa6795 \
     --hash=sha256:fbf94fa73211d2f029751a72e1ca3a2fd35c6f5d9bb434acdf10a4a79ca322dd
     # via reno
-filelock==3.19.1 \
-    --hash=sha256:66eda1888b0171c998b35be2bcc0f6d75c388a7ce20c3f3f37aa8e96c2dddf58 \
-    --hash=sha256:d38e30481def20772f5baf097c122c3babc4fcdb7e14e57049eb9d88c6dc017d
+filelock==3.29.4 \
+    --hash=sha256:10cdb3656fc44541cdf30652a93fb10ec6b05325620eb316bd26893e4201538a \
+    --hash=sha256:dac1648087d5115554850d113e7dd8c83ab2d38e3435dde2d4f163847e57b767
     # via
     #   cibuildwheel
     #   virtualenv
@@ -730,9 +730,9 @@ rich==14.2.0 \
     #   hatch
     #   riot
     #   twine
-riot==0.20.1 \
-    --hash=sha256:b2b2fc2d86c5554074b1585fbc055f549b576a102e766476ef0d3c02c3eafed5 \
-    --hash=sha256:cb411ab8026e962ab20b133075625241cc0113ec356e15cd8a84ecb14a48ba76
+riot==0.22.0 \
+    --hash=sha256:8acd845bbdec248a21521aad1db9cb5323be8c6e2b4928509eb2025153252ada \
+    --hash=sha256:c92493dc906a7adf111efcefc30c4a21d67d2a6b00cae2bcc9c83237ca308b0b
     # via -r ci/requirements/ci.in
 secretstorage==3.3.3 \
     --hash=sha256:2403533ef369eca6d2ba81718576c5e0f564d5cca1b58f73a8b23e7d4eeebd77 \
@@ -803,9 +803,9 @@ uv==0.9.25 \
     --hash=sha256:e47a9da2ddd33b5e7efb8068a24de24e24fd0d88a99e0c4a7e2328424783eab8 \
     --hash=sha256:ea26319abf9f5e302af0d230c0f13f02591313e5ffadac34931f963ef4d7833d
     # via hatch
-virtualenv==20.26.6 \
-    --hash=sha256:280aede09a2a5c317e409a00102e7077c6432c5a38f0ef938e643805a7ad2c48 \
-    --hash=sha256:7345cc5b25405607a624d8418154577459c3e0277f5466dd79c49d5e492995f2
+virtualenv==20.39.1 \
+    --hash=sha256:a00332e0b089ba64edefbf94ef34e6db33f45fe5184df0652cf0b754dcd36190 \
+    --hash=sha256:c551ea1072d7717a273dd9a4a0adad8f45571af134b0f63a12430e85f6ac1c08
     # via
     #   hatch
     #   riot

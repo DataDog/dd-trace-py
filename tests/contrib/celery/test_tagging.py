@@ -72,10 +72,6 @@ def test_redis_task(traced_redis_celery_app, tracer):
     ):
         t = multiply.delay(4, 4)
         assert t.get(timeout=2) == 16
-
-        # wait for spans to be received
-        time.sleep(3)
-
         assert_traces(tracer, "multiply", t, 6379)
 
 
@@ -89,15 +85,24 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app, tracer):
     ):
         t = add.delay(4, 4)
         assert t.get(timeout=30) == 8
-
-        # wait for spans to be received
-        time.sleep(3)
-
         assert_traces(tracer, "add", t, 5672)
 
 
+def _wait_for_traces(tracer, expected_traces, timeout=10.0, interval=0.1):
+    container = TracerSpanContainer(tracer)
+    deadline = time.monotonic() + timeout
+    traces = []
+    while time.monotonic() < deadline:
+        traces.extend(container.pop_traces())
+        if len(traces) >= expected_traces:
+            break
+        time.sleep(interval)
+    traces.extend(container.pop_traces())
+    return traces
+
+
 def assert_traces(tracer, task_name, task, port):
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = _wait_for_traces(tracer, expected_traces=2)
 
     assert 2 == len(traces)
     assert 1 == len(traces[0])
@@ -158,10 +163,4 @@ def test_list_broker_urls(list_broker_celery_app, tracer):
     ):
         t = list_broker_celery_app.tasks["tests.contrib.celery.test_tagging.subtract"].delay(10, 3)
         assert t.get(timeout=2) == 7
-
-        # Allow time for the publish span to be recorded
-        time.sleep(3)
-
-        # assert_traces is assumed to be a helper function that checks that the
-        # span has the expected values (e.g. target port is 6379 for BROKER_URL)
         assert_traces(tracer, "subtract", t, 6379)

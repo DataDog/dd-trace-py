@@ -10,7 +10,9 @@ def post_preload() -> None:
 
 
 def enabled() -> bool:
-    return config.enabled
+    # TODO: remove bool() cast once envier mypy plugin resolves config
+    # attributes to their declared types
+    return bool(config.enabled)
 
 
 def start() -> None:

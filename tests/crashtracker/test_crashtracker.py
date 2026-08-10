@@ -512,6 +512,64 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         assert "string_at" in json.dumps(message["experimental"])
 
 
+code_all_threads = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ctypes
+import sys
+import threading
+import time
+
+import ddtrace.auto
+
+_hold = threading.Event()
+
+def _set_os_thread_name(name: str) -> None:
+    # Crashtracker reads Linux task comm; set it explicitly (not only Thread.name).
+    libc = ctypes.CDLL("libc.so.6")
+    libc.pthread_self.restype = ctypes.c_void_p
+    libc.pthread_setname_np.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    libc.pthread_setname_np.restype = ctypes.c_int
+    libc.pthread_setname_np(libc.pthread_self(), name.encode("utf-8", "replace"))
+
+
+def _worker(name: str) -> None:
+    _set_os_thread_name(name)
+    _hold.wait()
+
+for i in range(3):
+    threading.Thread(target=_worker, args=(f"test_thread_{i}",), daemon=False).start()
+
+time.sleep(0.1)
+
+ctypes.string_at(0)
+sys.exit(-1)
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_all_threads(run_python_code_in_subprocess):
+    service = "test_crashtracker_all_threads"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(code_all_threads, env=env)
+
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11
+
+        _ping = utils.get_crash_ping(client, service=service)
+
+        report = utils.get_crash_report(client, service=service)
+
+        assert b"test_thread_0" in report["body"]
+        assert b"test_thread_1" in report["body"]
+        assert b"test_thread_2" in report["body"]
+        assert b"string_at" in report["body"]
+
+
 # Subprocess code for test_crashtracker_native_extension_crash.
 #
 # Using C++ means the symbol is name-mangled in the binary
@@ -560,7 +618,6 @@ sys.exit(-1)
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(not shutil.which("g++"), reason="g++ required to compile the native extension")
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
     import json
 
@@ -621,6 +678,9 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import config_str
+
     service = "test_crashtracker_set_tag_profiler_config"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -639,7 +699,8 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         report = utils.get_crash_report(client, service=service)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
-        profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
+
+        profiler_config = config_str(profiling_config)
         assert profiler_config.encode() in report["body"]
 
 
@@ -969,3 +1030,42 @@ def test_crashtracker_receiver_env_inheritance():
 
     # Clean up
     os.environ.pop(test_env_key, None)
+
+
+unhandled_exception_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace.auto
+
+class CustomError(Exception):
+    pass
+
+raise CustomError("crashtracker_unhandled_test_message")
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_unhandled_exception"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        _stdout, stderr, exitcode, _ = run_python_code_in_subprocess(unhandled_exception_code, env=env)
+
+        # The process should exit with code 1, not a signal
+        assert exitcode == 1
+        assert b"CustomError" in stderr
+        assert b"crashtracker_unhandled_test_message" in stderr
+
+        report = utils.get_crash_report(client, service=service)
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+
+        error = message["error"]
+        error_str = json.dumps(error)
+        # The exception is defined in __main__
+        assert "__main__.CustomError" in error_str
+        assert "crashtracker_unhandled_test_message" in error_str

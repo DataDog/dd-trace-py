@@ -1,14 +1,14 @@
+# Policy for: create-pull-request in .github/workflows/generate-package-versions.yml
 issuer: https://token.actions.githubusercontent.com
 
 subject: repo:DataDog/dd-trace-py:ref:refs/heads/main
 
 claim_pattern:
   event_name: (workflow_dispatch|schedule)
-  ref: refs/heads/main
-  ref_protected: "true"
   job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/generate-package-versions\.yml@refs/heads/main
+  ref: refs/heads/main
+  repository: DataDog/dd-trace-py
 
 permissions:
   contents: write
   pull_requests: write
-

@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "id": "vuln-001",
+      "id": "GHSA-652x-xj99-gmcc",
       "targets": ["requests.sessions:Session.send"],
       "lang": "python",
       "dependency_name": "requests",

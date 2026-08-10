@@ -53,6 +53,14 @@ class CrashtrackingConfig(DDConfig):
 
     enabled = DDConfig.d(bool, _derive_crashtracking_enabled)
 
+    errors_intake_enabled = DDConfig.v(
+        bool,
+        "errors_intake_enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to send crash reports to the errors intake.",
+    )
+
     debug_url = DDConfig.v(
         t.Optional[str],
         "debug_url",
@@ -132,6 +140,22 @@ class CrashtrackingConfig(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to wait for the crashtracking receiver",
+    )
+
+    collect_all_threads = DDConfig.v(
+        bool,
+        "collect_all_threads",
+        default=True,
+        help_type="Boolean",
+        help="Whether to collect stack traces from all threads when a crash is handled.",
+    )
+
+    max_threads = DDConfig.v(
+        int,
+        "max_threads",
+        default=128,
+        help_type="Integer",
+        help="Maximum number of threads to collect stack traces for when collect_all_threads is enabled.",
     )
 
 

@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: Each uploaded profile now exposes the effective profiler configuration
+    under ``info.profiler.settings`` on the upload event, so profiles can be filtered
+    by individual settings.

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ai_guard: Added opt-in evaluation of streamed OpenAI Chat Completions and Responses
+    via ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` (default off); streams are buffered
+    and evaluated before any chunk is delivered, raising ``AIGuardAbortError`` on a block.

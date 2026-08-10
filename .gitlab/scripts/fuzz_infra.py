@@ -31,6 +31,12 @@ PROJECT_NAME = "dd-trace-py"
 FUZZ_TYPE = "libfuzzer"
 MAX_PKG_NAME_LENGTH = 50
 
+# Transient buildkit/registry/network errors are common in CI (e.g. the
+# buildkit daemon not being up yet). Retry the affected commands a few times
+# with linear backoff before giving up.
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 10
+
 
 @dataclass(frozen=True)
 class Config:
@@ -92,12 +98,60 @@ def get_package_name(binary_name: str, py_version_compact: str) -> str:
     return f"{prefix}-{suffix}"
 
 
-def run_command(cmd: list[str], capture_output: bool = True, inp: str | None = None):
-    """Run *cmd* and raise on non-zero exit."""
+def run_command(
+    cmd: list[str],
+    capture_output: bool = True,
+    inp: str | None = None,
+    retries: int = 0,
+    retry_backoff: int = RETRY_BACKOFF_SECONDS,
+):
+    """Run *cmd* and raise on non-zero exit.
+
+    If *retries* > 0, a non-zero exit is retried up to *retries* times with
+    linear backoff. Use this for commands that intermittently fail on transient
+    buildkit/registry/network errors in CI; leave it at 0 for deterministic
+    commands where a failure is a real failure.
+    """
     print(f"+ {' '.join(cmd)}")
-    if capture_output:
-        return subprocess.run(cmd, check=True, capture_output=True, text=True, input=inp)
-    return subprocess.run(cmd, check=True, text=True, input=inp)
+    attempt = 0
+    while True:
+        try:
+            if capture_output:
+                return subprocess.run(cmd, check=True, capture_output=True, text=True, input=inp)
+            return subprocess.run(cmd, check=True, text=True, input=inp)
+        except subprocess.CalledProcessError as exc:
+            if attempt >= retries:
+                raise
+            attempt += 1
+            wait = retry_backoff * attempt
+            # stderr is only captured when capture_output is True; otherwise it
+            # has already been streamed to the log.
+            details = f"\n{exc.stderr}" if exc.stderr else ""
+            print(
+                f"Command failed (exit {exc.returncode}), retrying in {wait}s "
+                f"[attempt {attempt}/{retries}]: {' '.join(cmd)}{details}",
+                file=sys.stderr,
+            )
+            time.sleep(wait)
+
+
+def ensure_builder() -> None:
+    """Make sure the buildx builder (buildkitd) is up before building.
+
+    In CI the buildkit daemon occasionally isn't ready when the first build
+    runs, producing transient errors such as:
+
+        dial unix /run/.../buildkitd.sock: connect: no such file or directory
+        failed to list workers: ... error reading server preface
+
+    Bootstrapping with retries confirms the daemon is reachable (and gives it
+    time to come up) before any expensive build is attempted.
+    """
+    run_command(
+        ["docker", "buildx", "inspect", "--bootstrap"],
+        capture_output=False,
+        retries=MAX_RETRIES,
+    )
 
 
 def get_fuzzydog_token() -> str:
@@ -144,6 +198,7 @@ def build_and_push_compiled_image(config: Config) -> str:
             ".",
         ],
         capture_output=False,
+        retries=MAX_RETRIES,
     )
     return metadata_file
 
@@ -176,6 +231,7 @@ def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
         ],
         capture_output=False,
         inp=dockerfile_content,
+        retries=MAX_RETRIES,
     )
     return metadata_file
 
@@ -184,6 +240,7 @@ def sign_image(image_ref: str, metadata_file: str) -> None:
     """Sign the pushed image via ddsign."""
     run_command(
         ["ddsign", "sign", image_ref, "--docker-metadata-file", metadata_file],
+        retries=MAX_RETRIES,
     )
 
 
@@ -195,6 +252,7 @@ def replicate_image(image_ref: str, metadata_file: str) -> None:
     image_with_digest = f"{image_ref}@{digest}"
     run_command(
         ["ddsign", "replicate", "--to", "us1.ddbuild.io", image_with_digest],
+        retries=MAX_RETRIES,
     )
 
 
@@ -231,6 +289,7 @@ def extract_manifest(config: Config) -> list[FuzzBinary]:
             ".",
         ],
         capture_output=False,
+        retries=MAX_RETRIES,
     )
     manifest_file = os.path.join(output_dir, "fuzz_binaries.txt")
     with open(manifest_file) as f:
@@ -269,6 +328,7 @@ def start_fuzzers(config: Config, binaries: list[FuzzBinary]) -> None:
                 "--repository-url",
                 REPOSITORY_URL,
             ],
+            retries=MAX_RETRIES,
         )
 
 
@@ -276,6 +336,10 @@ def main() -> None:
     config = Config.from_env()
     os.environ["FUZZYDOG_AUTH_TOKEN"] = get_fuzzydog_token()
     print("FUZZYDOG_AUTH_TOKEN acquired from vault")
+
+    # 0. Make sure the buildx builder (buildkitd) is up before any build, to
+    #    avoid transient "buildkitd.sock: connect: no such file" failures.
+    ensure_builder()
 
     # 1. Extract the manifest (primes Docker build cache).
     binaries = extract_manifest(config)

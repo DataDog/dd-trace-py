@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: A bug where the Profiler could crash when Python's fault handler utility was enabled
+    has been fixed.

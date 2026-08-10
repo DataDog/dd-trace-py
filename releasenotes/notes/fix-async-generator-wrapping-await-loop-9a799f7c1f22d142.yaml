@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Resolves an issue where wrapping an async generator on Python 3.11 through 3.14 raises a
+    ``TypeError: object NoneType can't be used in 'await' expression`` error. 
+    This occurs when the generator body awaits a coroutine that suspends to the event loop before its first ``yield``.
+    Python 3.9 and 3.10 are not affected.

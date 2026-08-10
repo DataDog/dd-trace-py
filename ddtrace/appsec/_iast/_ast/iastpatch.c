@@ -250,7 +250,7 @@ static int
 str_in_list(const char* needle, const char** list, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
-        if (strncmp(needle, list[i], strlen(list[i])) == 0) {
+        if (list[i] && strncmp(needle, list[i], strlen(list[i])) == 0) {
             return 1;
         }
     }
@@ -332,12 +332,14 @@ static char**
 get_list_from_env(const char* env_var_name, size_t* count)
 {
     const char* env_value = getenv(env_var_name);
-    static char** modules_list = NULL;
+    char** modules_list = NULL;
     size_t count_tmp = 0;
     if (env_value && env_value[0] != '\0') {
         char* env_copy = strdup(env_value);
-        if (!env_copy)
+        if (!env_copy) {
+            PyErr_NoMemory();
             return NULL;
+        }
         char* token = strtok(env_copy, ",");
         while (token) {
             count_tmp++;
@@ -352,14 +354,22 @@ get_list_from_env(const char* env_var_name, size_t* count)
                 return NULL;
             }
             env_copy = strdup(env_value);
-            if (!env_copy)
+            if (!env_copy) {
+                free(modules_list);
+                PyErr_NoMemory();
                 return NULL;
+            }
             count_tmp = 0;
             token = strtok(env_copy, ",");
             while (token) {
                 char* dup = strdup(token);
                 if (!dup) {
+                    for (size_t j = 0; j < count_tmp; j++) {
+                        free(modules_list[j]);
+                    }
+                    free(modules_list);
                     free(env_copy);
+                    PyErr_NoMemory();
                     return NULL;
                 }
                 for (char* p = dup; *p; p++) {
@@ -408,7 +418,12 @@ init_globals(void)
         return -1;
     }
 
-    builtin_count = (size_t)PyTuple_Size(builtin_names);
+    /* PyTuple_Size returns -1 on error; guard before casting to size_t */
+    Py_ssize_t builtin_count_s = PyTuple_Size(builtin_names);
+    if (builtin_count_s < 0) {
+        return -1;
+    }
+    builtin_count = (size_t)builtin_count_s;
     builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
     builtins_denylist = (char**)malloc(builtins_denylist_count * sizeof(char*));
@@ -416,11 +431,19 @@ init_globals(void)
         PyErr_NoMemory();
         return -1;
     }
+    /* Initialize all entries to NULL so str_in_list never reads garbage */
+    memset(builtins_denylist, 0, builtins_denylist_count * sizeof(char*));
+
     /* Copy static stdlib names */
     for (i = 0; i < static_stdlib_denylist_count; i++) {
         char* dup = strdup(static_stdlib_denylist[i]);
-        if (!dup)
+        if (!dup) {
+            PyErr_NoMemory();
+            free_list(builtins_denylist, builtins_denylist_count);
+            builtins_denylist = NULL;
+            builtins_denylist_count = 0;
             return -1;
+        }
         for (char* p = dup; *p; p++) {
             *p = tolower(*p);
         }
@@ -430,17 +453,23 @@ init_globals(void)
     /* Copy built-in module names */
     for (size_t i = 0; i < builtin_count; i++) {
         PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
-        if (PyUnicode_Check(item)) {
+        if (item && PyUnicode_Check(item)) {
             const char* s = PyUnicode_AsUTF8(item);
             if (s) {
                 char* dup = strdup(s);
-                if (!dup)
+                if (!dup) {
+                    PyErr_NoMemory();
+                    free_list(builtins_denylist, builtins_denylist_count);
+                    builtins_denylist = NULL;
+                    builtins_denylist_count = 0;
                     return -1;
+                }
                 for (char* p = dup; *p; p++) {
                     *p = tolower(*p);
                 }
                 builtins_denylist[static_stdlib_denylist_count + i] = dup;
             }
+            /* NULL entries left as NULL (from memset above) when s is NULL */
         }
     }
 
@@ -528,22 +557,27 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 int
 build_list_from_env(const char* env_var_name)
 {
-    size_t count = 0;
-    char** result_list = get_list_from_env(env_var_name, &count);
-    if (result_list == NULL) {
-        return 0;
-    }
-
+    char*** destination;
+    size_t* destination_count;
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        user_allowlist = result_list;
-        user_allowlist_count = count;
+        destination = &user_allowlist;
+        destination_count = &user_allowlist_count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        user_denylist = result_list;
-        user_denylist_count = count;
+        destination = &user_denylist;
+        destination_count = &user_denylist_count;
     } else {
-        free_list(result_list, count);
         return -1;
     }
+
+    size_t count = 0;
+    char** result_list = get_list_from_env(env_var_name, &count);
+    if (result_list == NULL && PyErr_Occurred()) {
+        return -1;
+    }
+
+    free_list(*destination, *destination_count);
+    *destination = result_list;
+    *destination_count = count;
 
     return 0;
 }
@@ -556,10 +590,13 @@ py_build_list_from_env(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
     int result = build_list_from_env(env_var_name);
-    if (result >= 0) {
-        Py_RETURN_TRUE;
+    if (result < 0) {
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+        Py_RETURN_FALSE;
     }
-    Py_RETURN_FALSE;
+    Py_RETURN_TRUE;
 }
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */

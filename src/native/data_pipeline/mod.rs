@@ -3,8 +3,10 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
+mod agent_response;
 mod exceptions;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
@@ -15,11 +17,11 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder>,
+    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
-    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder> {
+    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder<ForkSafeRuntime>> {
         self.builder
             .as_mut()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -150,6 +152,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_client_side_stats_obfuscation();
+        Ok(slf.into())
+    }
+
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
@@ -179,6 +186,35 @@ impl TraceExporterBuilderPy {
         headers: Vec<(String, String)>,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_metrics_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_metrics_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_metrics_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn enable_otel_trace_semantics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_otel_trace_semantics();
+        Ok(slf.into())
+    }
+
+    /// Select the OTLP export protocol: `http/json` or `http/protobuf`. Any other value raises
+    /// `ValueError`.
+    fn set_otlp_protocol(mut slf: PyRefMut<'_, Self>, protocol: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_protocol(
+            protocol
+                .parse()
+                .map_err(|e: String| PyValueError::new_err(e))?,
+        );
         Ok(slf.into())
     }
 
@@ -216,7 +252,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter<NativeCapabilities>>,
+    inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
 }
 
 #[pymethods]
@@ -244,6 +280,21 @@ impl TraceExporterPy {
         })
     }
 
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        Ok(())
+    }
+
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
         if let Some(exporter) = self.inner.take() {
             exporter
@@ -263,19 +314,12 @@ impl TraceExporterPy {
     }
 }
 
-impl Drop for TraceExporterPy {
-    fn drop(&mut self) {
-        if let Some(exporter) = self.inner.take() {
-            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
-        }
-    }
-}
-
 #[pymodule]
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
+    agent_response::register_agent_response(m)?;
 
     Ok(())
 }

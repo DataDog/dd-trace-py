@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
-from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
@@ -15,7 +15,9 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV0
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.trace import Span
-from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+
+
+MAX_META_TAG_VALUE_LENGTH = 5000
 
 
 @pytest.fixture
@@ -262,6 +264,58 @@ def test_build_payload_with_filtered_spans():
             os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
+def test_ci_visibility_encoder_truncates_event_meta_string_values():
+    long_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    exact_value = "y" * MAX_META_TAG_VALUE_LENGTH
+    unicode_value = "é" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    span = Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    span._set_attribute(EVENT_TYPE, "test")
+    span.set_tag(SESSION_ID, "123")
+    span.set_tag(MODULE_ID, "456")
+    span.set_tag(SUITE_ID, "789")
+    span.set_tag("long_meta", long_value)
+    span.set_tag("exact_meta", exact_value)
+    span.set_tag("unicode_meta", unicode_value)
+    span._set_attribute("numeric_metric", 42)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    event_content = decoded[b"events"][0][b"content"]
+    meta = event_content[b"meta"]
+
+    assert meta[b"long_meta"] == ("x" * MAX_META_TAG_VALUE_LENGTH).encode()
+    assert meta[b"exact_meta"] == exact_value.encode()
+    assert meta[b"unicode_meta"] == ("é" * MAX_META_TAG_VALUE_LENGTH).encode()
+    assert event_content[b"test_session_id"] == 123
+    assert event_content[b"test_module_id"] == 456
+    assert event_content[b"test_suite_id"] == 789
+    assert b"test_session_id" not in meta
+    assert event_content[b"metrics"][b"numeric_metric"] == 42
+
+
+def test_ci_visibility_encoder_truncates_payload_metadata_without_mutating_stored_metadata():
+    long_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"long": long_value})
+    encoder.set_metadata("test", {"long": long_value})
+    encoder.put([Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")])
+
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    expected = ("m" * MAX_META_TAG_VALUE_LENGTH).encode()
+
+    assert decoded[b"metadata"][b"*"][b"long"] == expected
+    assert decoded[b"metadata"][b"test"][b"long"] == expected
+    assert encoder._metadata["*"]["long"] == long_value
+    assert encoder._metadata["test"]["long"] == long_value
+
+
 def test_build_payload_all_spans_filtered():
     """Test _build_payload when all spans get filtered out."""
     traces = [
@@ -453,245 +507,6 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
 
     encoded_traces = encoder.encode()
     assert encoded_traces == [], "Expected empty list when payload is None"
-
-
-class PytestEncodingTestCase(PytestTestCaseBase):
-    def test_event_payload(self):
-        """Test that a pytest test case will generate a test event, but with:
-        - test_session_id, test_module_id, test_suite_id moved from meta to event content dictionary
-        - `type` set as 'test' in both meta and outermost event dictionary
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            def test_ok():
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
-        for span in spans:
-            if span.get_tag("type") == "test":
-                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
-        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
-        ci_agentless_encoder.put(spans)
-        encoded_traces = ci_agentless_encoder.encode()
-        assert encoded_traces, "Expected encoded traces but got empty list"
-        [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_span = next(s for s in spans if s.get_tag("type") == "test")
-        given_test_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test")
-        expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_test_span._get_str_attributes().items())
-        }
-        expected_meta.update({b"_dd.origin": b"ciapp-test"})
-        expected_meta.pop(b"test_session_id")
-        expected_meta.pop(b"test_suite_id")
-        expected_meta.pop(b"test_module_id")
-        expected_meta.pop(b"itr_correlation_id")
-        expected_metrics = {
-            "{}".format(key).encode("utf-8"): value
-            for key, value in sorted(given_test_span._get_numeric_attributes().items())
-        }
-        expected_test_event = {
-            b"content": {
-                b"duration": given_test_span.duration_ns,
-                b"error": given_test_span.error,
-                b"meta": expected_meta,
-                b"metrics": expected_metrics,
-                b"name": given_test_span.name.encode("utf-8"),
-                b"parent_id": 1,
-                b"resource": given_test_span.resource.encode("utf-8"),
-                b"service": given_test_span.service.encode("utf-8"),
-                b"span_id": given_test_span.span_id,
-                b"start": given_test_span.start_ns,
-                b"test_module_id": int(given_test_span.get_tag("test_module_id")),
-                b"test_session_id": int(given_test_span.get_tag("test_session_id")),
-                b"test_suite_id": int(given_test_span.get_tag("test_suite_id")),
-                b"trace_id": given_test_span._trace_id_64bits,
-                b"type": given_test_span.span_type.encode("utf-8"),
-                b"itr_correlation_id": given_test_span.get_tag("itr_correlation_id").encode("utf-8"),
-            },
-            b"type": given_test_span.span_type.encode("utf-8"),
-            b"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION,
-        }
-        assert given_test_event == expected_test_event
-
-    def test_suite_event_payload(self):
-        """Test that a pytest test case will generate a test suite event, but with:
-        - test_session_id, test_suite_id moved from meta to event content dictionary
-        - trace_id, parent_id, span_id are removed
-        - `type` set as 'test_suite_end'
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            def test_ok():
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
-        for span in spans:
-            if span.get_tag("type") == "test_suite_end":
-                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
-        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
-        ci_agentless_encoder.put(spans)
-        encoded_traces = ci_agentless_encoder.encode()
-        assert encoded_traces, "Expected encoded traces but got empty list"
-        [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_suite_span = next(s for s in spans if s.get_tag("type") == "test_suite_end")
-        given_test_suite_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_suite_end")
-        expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_test_suite_span._get_str_attributes().items())
-        }
-        expected_meta.update({b"_dd.origin": b"ciapp-test"})
-        expected_meta.pop(b"test_session_id")
-        expected_meta.pop(b"test_suite_id")
-        expected_meta.pop(b"test_module_id")
-        expected_meta.pop(b"itr_correlation_id")
-        expected_metrics = {
-            "{}".format(key).encode("utf-8"): value
-            for key, value in sorted(given_test_suite_span._get_numeric_attributes().items())
-        }
-        expected_test_suite_event = {
-            b"content": {
-                b"duration": given_test_suite_span.duration_ns,
-                b"error": given_test_suite_span.error,
-                b"meta": expected_meta,
-                b"metrics": expected_metrics,
-                b"name": given_test_suite_span.name.encode("utf-8"),
-                b"resource": given_test_suite_span.resource.encode("utf-8"),
-                b"service": given_test_suite_span.service.encode("utf-8"),
-                b"start": given_test_suite_span.start_ns,
-                b"test_module_id": int(given_test_suite_span.get_tag("test_module_id")),
-                b"test_session_id": int(given_test_suite_span.get_tag("test_session_id")),
-                b"test_suite_id": int(given_test_suite_span.get_tag("test_suite_id")),
-                b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
-                b"itr_correlation_id": given_test_suite_span.get_tag("itr_correlation_id").encode("utf-8"),
-            },
-            b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
-            b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
-        }
-        assert given_test_suite_event == expected_test_suite_event
-
-    def test_module_event_payload(self):
-        """Test that a pytest test case will generate a test module event, but with:
-        - test_session_id, test_module_id moved from meta to event content dictionary
-        - trace_id, parent_id, span_id removed
-        - `type` set as 'test_module_end'
-        """
-        package_a_dir = self.testdir.mkpydir("test_package_a")
-        os.chdir(str(package_a_dir))
-        with open("test_a.py", "w+") as fd:
-            fd.write(
-                """def test_ok():
-                assert True"""
-            )
-        self.testdir.chdir()
-        self.inline_run("--ddtrace")
-        spans = self.pop_spans()
-        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
-        ci_agentless_encoder.put(spans)
-        encoded_traces = ci_agentless_encoder.encode()
-        assert encoded_traces, "Expected encoded traces but got empty list"
-        [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_module_span = next(s for s in spans if s.get_tag("type") == "test_module_end")
-        given_test_module_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_module_end")
-        expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_test_module_span._get_str_attributes().items())
-        }
-        expected_meta.update({b"_dd.origin": b"ciapp-test"})
-        expected_meta.pop(b"test_session_id")
-        expected_meta.pop(b"test_module_id")
-        expected_metrics = {
-            "{}".format(key).encode("utf-8"): value
-            for key, value in sorted(given_test_module_span._get_numeric_attributes().items())
-        }
-        expected_test_module_event = {
-            b"content": {
-                b"duration": given_test_module_span.duration_ns,
-                b"error": given_test_module_span.error,
-                b"meta": expected_meta,
-                b"metrics": expected_metrics,
-                b"name": given_test_module_span.name.encode("utf-8"),
-                b"resource": given_test_module_span.resource.encode("utf-8"),
-                b"service": given_test_module_span.service.encode("utf-8"),
-                b"start": given_test_module_span.start_ns,
-                b"test_session_id": int(given_test_module_span.get_tag("test_session_id")),
-                b"test_module_id": int(given_test_module_span.get_tag("test_module_id")),
-                b"type": given_test_module_span.get_tag("type").encode("utf-8"),
-            },
-            b"type": given_test_module_span.get_tag("type").encode("utf-8"),
-            b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
-        }
-        assert given_test_module_event == expected_test_module_event
-
-    def test_session_event_payload(self):
-        """Test that a pytest test case will generate a test session event, but with:
-        - test_session_id moved from meta to event content dictionary
-        - trace_id, parent_id, span_id removed
-        - `type` set as 'test_session_end'
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            def test_ok():
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
-        # Clear xdist worker env vars so the encoder doesn't treat this as an xdist worker
-        # (which would filter out session spans). The outer xdist worker sets PYTEST_XDIST_WORKER
-        # but the inner inline_run is not an xdist worker session.
-        self.monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
-        self.monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
-        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
-        ci_agentless_encoder.put(spans)
-        encoded_traces = ci_agentless_encoder.encode()
-        assert encoded_traces, "Expected encoded traces but got empty list"
-        [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_session_span = next(s for s in spans if s.get_tag("type") == "test_session_end")
-        given_test_session_event = next(
-            e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_session_end"
-        )
-        expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_test_session_span._get_str_attributes().items())
-        }
-        expected_meta.update({b"_dd.origin": b"ciapp-test"})
-        expected_meta.pop(b"test_session_id")
-        expected_metrics = {
-            "{}".format(key).encode("utf-8"): value
-            for key, value in sorted(given_test_session_span._get_numeric_attributes().items())
-        }
-        expected_test_session_event = {
-            b"content": {
-                b"duration": given_test_session_span.duration_ns,
-                b"error": given_test_session_span.error,
-                b"meta": expected_meta,
-                b"metrics": expected_metrics,
-                b"name": given_test_session_span.name.encode("utf-8"),
-                b"resource": given_test_session_span.resource.encode("utf-8"),
-                b"service": given_test_session_span.service.encode("utf-8"),
-                b"start": given_test_session_span.start_ns,
-                b"test_session_id": int(given_test_session_span.get_tag("test_session_id")),
-                b"type": given_test_session_span.get_tag("type").encode("utf-8"),
-            },
-            b"type": given_test_session_span.get_tag("type").encode("utf-8"),
-            b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
-        }
-        assert given_test_session_event == expected_test_session_event
 
 
 def test_get_parent_session_with_parent_id():

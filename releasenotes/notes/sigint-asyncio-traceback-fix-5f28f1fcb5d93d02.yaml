@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes a bug where running ``ddtrace-run`` caused a traceback on keyboard interrupt.

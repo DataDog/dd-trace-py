@@ -8,7 +8,7 @@ from typing import Optional
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import _APM_ENABLED_METRIC_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -28,7 +28,9 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
+from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -50,6 +52,15 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         processed.
         """
         pass
+
+
+class _NoopTraceProcessor(TraceProcessor):
+    """Default slot occupant in ``SpanAggregator``'s chain. Lets products (LLMObs, ...)
+    swap in their processor via a single attribute write instead of rebuilding the chain.
+    """
+
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+        return trace
 
 
 class SpanProcessor(metaclass=abc.ABCMeta):
@@ -150,8 +161,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
             if self.apm_opt_out:
                 for span in trace:
-                    if span._local_root_value is None:
-                        span._set_attribute(MK_APM_ENABLED, 0)
+                    span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
@@ -189,7 +199,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _: Span) -> None:
+    def on_span_start(self, span: Span) -> None:
         pass
 
     def on_span_finish(self, span: Span) -> None:
@@ -239,7 +249,8 @@ class TraceTagsProcessor(TraceProcessor):
         for span in spans_to_tag:
             span._update_tags_from_context()
             self._set_git_metadata(span)
-            span._set_attribute("language", "python")
+            if not config._otel_trace_semantics_enabled:
+                span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
@@ -271,6 +282,20 @@ class _Trace:
             self.spans[:] = [s for s in self.spans if s.duration_ns is None]
             self.num_finished = 0
         return finished
+
+
+def _resolve_apm_trace_agentless() -> bool:
+    """Whether the APM trace writer should run in agentless mode.
+
+    Falls back (returns False with a warning) when agentless is requested but ``DD_API_KEY``
+    is unset.
+    """
+    if not config._trace_agentless_enabled:
+        return False
+    if not config._dd_api_key:
+        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
+        return False
+    return True
 
 
 class SpanAggregator(SpanProcessor):
@@ -309,7 +334,11 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
-        self.writer = create_trace_writer(response_callback=self._agent_response_callback)
+        self.llmobs_processor: TraceProcessor = _NoopTraceProcessor()
+        self.writer = create_trace_writer(
+            response_callback=self._agent_response_callback,
+            agentless=_resolve_apm_trace_agentless(),
+        )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
@@ -385,7 +414,12 @@ class SpanAggregator(SpanProcessor):
         for tp in chain(
             self.dd_processors,
             self.user_processors,
-            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+            [
+                self.sampling_processor,
+                self.llmobs_processor,
+                self.tags_processor,
+                self.service_name_processor,
+            ],
         ):
             try:
                 spans = tp.process_trace(spans) or []
@@ -400,18 +434,19 @@ class SpanAggregator(SpanProcessor):
             sampling_priority = root_span.context.sampling_priority
             sampling_mechanism = root_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
 
-            log.debug(
-                self.SPAN_FINISH_DEBUG_MESSAGE,
-                len(spans),
-                num_buffered,
-                num_finished - len(spans),
-                num_buffered - num_finished,
-                spans[0].trace_id,
-                spans[0].name,
-                sampling_priority,
-                sampling_mechanism,
-                should_partial_flush,
-            )
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(
+                    self.SPAN_FINISH_DEBUG_MESSAGE,
+                    len(spans),
+                    num_buffered,
+                    num_finished - len(spans),
+                    num_buffered - num_finished,
+                    spans[0].trace_id,
+                    spans[0].name,
+                    sampling_priority,
+                    sampling_mechanism,
+                    should_partial_flush,
+                )
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
@@ -474,12 +509,46 @@ class SpanAggregator(SpanProcessor):
                 )
             self._span_metrics[metric_name] = defaultdict(int)
 
+    def configure_agentless_writer(self, enable: bool) -> bool:
+        """
+        Swap the writer to AgentlessTraceWriter if needed. Returns True if a swap occurred, otherwise False.
+        """
+        if isinstance(self.writer, LogWriter):
+            # perf: LogWriter is chosen by create_trace_writer regardless of agentless configs; skip the swap early.
+            return False
+        if enable and isinstance(self.writer, AgentlessTraceWriter):
+            return False
+        if not enable and not isinstance(self.writer, AgentlessTraceWriter):
+            return False
+
+        old_writer = self.writer
+        try:
+            self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+        except Exception:
+            log.error(
+                "Failed to create %s APM trace writer; writer swap aborted.",
+                "agentless" if enable else "agent-based",
+                exc_info=True,
+            )
+            return False
+        try:
+            old_writer.flush_queue()
+            old_writer.stop()
+        except ServiceStatusError:
+            pass  # writer was never started; nothing to stop
+        except Exception:
+            log.warning(
+                "Failed to flush and stop previous APM trace writer while configuring agentless writer", exc_info=True
+            )
+        return True
+
     def reset(
         self,
         user_processors: Optional[list[TraceProcessor]] = None,
         compute_stats: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
         """
@@ -494,7 +563,7 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats

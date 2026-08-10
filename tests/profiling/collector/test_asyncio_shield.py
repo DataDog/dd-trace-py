@@ -96,7 +96,7 @@ def test_asyncio_shield() -> None:
 
     if len(exceptions) > 0:
         pprof_utils.print_all_samples(profile)
-        for e in exceptions:
-            print(e)
+        for exc in exceptions:
+            print(exc)
 
         raise exceptions[0]

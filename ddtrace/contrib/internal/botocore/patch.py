@@ -9,10 +9,17 @@ from typing import Union  # noqa:F401
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
+import botocore.parsers
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+
+# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# urllib3-layer subscriber to skip its own injection during AWS calls. See the
+# ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -28,11 +35,14 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
+from ddtrace.propagation.http import HTTPPropagator
 
+from .services.bedrock import _resolve_inference_profile_in_progress
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -96,6 +106,98 @@ def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
         return {}
 
 
+_DD_BEFORE_SIGN_HANDLER_UID = "datadog-before-sign-inject"
+
+
+def _inject_trace_headers_handler(request, **kwargs):
+    """Inject propagation headers into the AWSRequest at botocore ``before-sign``.
+
+    Injecting before signing makes the headers part of the SigV4 canonical
+    request (injecting later, at the urllib3 layer, breaks strict-signature
+    endpoints). Shared injection body; never registered directly — each
+    integration registers an owner-gated wrapper (see
+    ``_botocore_before_sign_handler`` / ``_aiobotocore_before_sign_handler``).
+    Does NOT touch ``_http_propagation_suppressed``; see its ownership
+    contract in ddtrace/_trace/subscribers/http_client.py.
+    """
+    if not config.botocore["distributed_tracing"]:
+        return
+
+    # Skip presigned-URL/POST signing modes (signature_version ends in
+    # `-query` / contains `presign-post`): SigV4 query auth bakes the
+    # signed-header list into the URL, so injecting here would force every
+    # consumer of that URL to replay the headers or hit SignatureDoesNotMatch.
+    # isinstance(str) guards Config(signature_version=botocore.UNSIGNED), where
+    # before-sign still fires but signature_version is the UNSIGNED sentinel
+    # (not a str), so .endswith would crash.
+    signature_version = kwargs.get("signature_version")
+    if isinstance(signature_version, str) and (
+        signature_version.endswith("-query") or "presign-post" in signature_version
+    ):
+        return
+
+    # AIDEV-NOTE: Uses the global tracer's current_span() because the before-sign
+    # event hands us the AWSRequest, not the client, so there's no Pin to read here.
+    span = ddtrace.tracer.current_span()
+    if span is None:
+        return
+
+    propagation_headers: dict[str, str] = {}
+    try:
+        HTTPPropagator.inject(span.context, propagation_headers)
+    except Exception:
+        log.debug("dd-trace-py: HTTPPropagator.inject failed in before-sign handler", exc_info=True)
+        return
+
+    for header_name, header_value in propagation_headers.items():
+        # Don't clobber a header the application set explicitly.
+        if header_name in request.headers:
+            continue
+        request.headers[header_name] = header_value
+
+
+def _botocore_before_sign_handler(request, **kwargs):
+    """Before-sign handler for botocore clients; gates on botocore's own patch
+    state so a retained registration goes inert once botocore is unpatched,
+    even if aiobotocore stays patched (the asymmetric-unpatch case — gating on
+    "either integration" would resurrect the SigV4 mismatch).
+    """
+    if not getattr(botocore.client, "_datadog_patch", False):
+        return
+    _inject_trace_headers_handler(request, **kwargs)
+
+
+# AIDEV-NOTE: Also imported by ddtrace.contrib.internal.aiobotocore.patch;
+# rename in lockstep. Each integration passes its own owner-gated handler.
+def _ensure_before_sign_handler(client, handler) -> bool:
+    """Register ``handler`` for ``before-sign`` on this client's emitter, once.
+    Returns True if the handler is in place (already or newly registered).
+
+    Client-level (not Session.__init__) on purpose: botocore copies a Session's
+    handlers onto a client at creation time, so a handler added later never
+    reaches an already-built client. Registering per-client at the first traced
+    call covers clients created before ``patch()`` ran.
+
+    The return value gates urllib3-layer suppression in the caller: if
+    registration fails the handler can't inject pre-signing, so the caller must
+    NOT suppress (else propagation is dropped at every layer). The sentinel is
+    set only on success, so a failed attempt is retried on the next call.
+    """
+    if getattr(client, "_dd_before_sign_registered", False):
+        return True
+    try:
+        client.meta.events.register(
+            "before-sign",
+            handler,
+            unique_id=_DD_BEFORE_SIGN_HANDLER_UID,
+        )
+    except Exception:
+        log.warning("dd-trace-py: failed to register botocore before-sign handler", exc_info=True)
+        return False
+    client._dd_before_sign_registered = True
+    return True
+
+
 # Botocore default settings
 config._add(
     "botocore",
@@ -106,6 +208,9 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "bedrock_resolve_inference_profile": asbool(
+            env.get("DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE", default=False)
+        ),
         "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
@@ -155,6 +260,10 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
+        # The before-sign handler is registered per-client on its own emitter
+        # (see _ensure_before_sign_handler). We don't unregister from every
+        # client that ever made a call; instead _inject_trace_headers_handler
+        # self-gates on patch state, so any retained registration goes inert.
 
 
 def patch_submodules(submodules: Union[list[str], bool]) -> None:
@@ -169,6 +278,10 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
+
+    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
+    if _resolve_inference_profile_in_progress.get():
+        return original_func(*args, **kwargs)
     with (
         core.context_with_data(
             "botocore.instrumented_lib_function",
@@ -176,7 +289,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
             pin=pin,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return original_func(*args, **kwargs)
 
@@ -185,6 +298,16 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
+
+    # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
+    # application-inference-profile ARN, so it doesn't emit a stray span. Still suppress
+    # urllib3-layer propagation injection so headers aren't added post-signing.
+    if _resolve_inference_profile_in_progress.get():
+        token = _http_propagation_suppressed.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
@@ -214,13 +337,32 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
-    return patching_fn(
-        original_func=original_func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        function_vars=function_vars,
-    )
+    # Suppress the urllib3-layer injection for this AWS call so trace headers are
+    # not injected post-signing. Three cases:
+    #   - distributed_tracing off: opt-out — suppress so no headers go out at any
+    #     layer (skip registering the handler, which would no-op anyway).
+    #   - on + handler registered: it injected pre-signing, so urllib3 must not
+    #     re-inject post-signing.
+    #   - on + registration failed: the handler can't inject, so do NOT suppress;
+    #     let urllib3 inject as a fallback rather than drop propagation entirely.
+    # Suppression is set/reset only on this path, so the contextvar stays owned
+    # here and early-return paths can't leak it.
+    token = None
+    if not config.botocore["distributed_tracing"]:
+        token = _http_propagation_suppressed.set(True)
+    elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
+        token = _http_propagation_suppressed.set(True)
+    try:
+        return patching_fn(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            function_vars=function_vars,
+        )
+    finally:
+        if token is not None:
+            _http_propagation_suppressed.reset(token)
 
 
 def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
@@ -244,7 +386,7 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
 
     core.dispatch(
         "botocore.prep_context_injection.post",
-        [ctx, cloud_service, schematization_function, injection_function, trace_operation],
+        (ctx, cloud_service, schematization_function, injection_function, trace_operation),
     )
 
 
@@ -272,9 +414,9 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
-        core.dispatch("botocore.patched_api_call.started", [ctx])
+        core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
@@ -283,14 +425,14 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_api_call.exception",
-                [
+                (
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx.span.resource].is_error_code,
-                ],
+                    config.botocore.operations[span_from_context(ctx).resource].is_error_code,
+                ),
             )
             raise
         else:
-            core.dispatch("botocore.patched_api_call.success", [ctx, result])
+            core.dispatch("botocore.patched_api_call.success", (ctx, result))
             return result

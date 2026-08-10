@@ -5,12 +5,15 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
+from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.vendor.debtcollector import deprecate
 
 
 @dataclass(frozen=True)
@@ -29,10 +32,18 @@ class ManagedPrompt:
     id: str
     version: str
     label: Optional[str]
-    source: Literal["registry", "cache", "fallback"]
+    source: Literal["registry", "cache", "fallback", "ff", "resolve"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "label":
+            deprecate(  # type: ignore[no-untyped-call]
+                prefix="The 'label' property of ManagedPrompt is deprecated",
+                category=DDTraceDeprecationWarning,
+            )
+        return object.__getattribute__(self, name)
 
     def format(self, **variables: str) -> Union[str, list[Message]]:
         """
@@ -49,9 +60,12 @@ class ManagedPrompt:
         Returns:
             str (for text templates) or list[Message] (for chat templates)
         """
+        rendered: Union[str, list[Message]]
         if isinstance(self.template, str):
-            return safe_substitute(self.template, variables)
-        return render_chat(self.template, variables)
+            rendered = safe_substitute(self.template, variables)
+        else:
+            rendered = render_chat(self.template, variables)
+        return attach_prompt(rendered, self.to_annotation_dict(**variables))
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:
         """
@@ -70,8 +84,9 @@ class ManagedPrompt:
         }
         if variables:
             result["variables"] = variables
-        if self.label:
-            result["label"] = self.label
+        label = object.__getattribute__(self, "label")
+        if label:
+            result["label"] = label
         if self._uuid:
             result["prompt_uuid"] = self._uuid
         if self._version_uuid:
@@ -85,14 +100,15 @@ class ManagedPrompt:
         return result
 
     def __repr__(self) -> str:
-        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={self.label!r}, source={self.source!r})"
+        label = object.__getattribute__(self, "label")
+        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={label!r}, source={self.source!r})"
 
     def _serialize(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
             "version": self.version,
-            "label": self.label,
+            "label": object.__getattribute__(self, "label"),
             "source": self.source,
             "template": self.template,
             "_uuid": self._uuid,
@@ -116,7 +132,7 @@ class ManagedPrompt:
         """Create a copy with a different source. Used internally for caching."""
         if self.source == source:
             return self
-        return replace(self, source=source)
+        return replace(self, source=source, label=object.__getattribute__(self, "label"))
 
     @classmethod
     def from_fallback(

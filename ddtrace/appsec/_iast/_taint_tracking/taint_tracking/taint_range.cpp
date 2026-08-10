@@ -4,6 +4,17 @@
 
 namespace py = pybind11;
 
+static PyObject*
+new_reference(PyObject* object)
+{
+#if PY_VERSION_HEX >= 0x030A0000
+    return Py_NewRef(object);
+#else
+    Py_INCREF(object);
+    return object;
+#endif
+}
+
 void
 TaintRange::reset()
 {
@@ -142,7 +153,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
     if (!taint_engine_context) {
         // Return the original object unchanged if context is not initialized
         if (nargs >= 1) {
-            return args[0];
+            return new_reference(args[0]);
         }
         PyErr_SetString(PyExc_RuntimeError, "IAST not initialized");
         return nullptr;
@@ -150,7 +161,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
 
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
-    PyObject* pyobject_n = nullptr;
+    py::object pyobject_n;
 
     if (nargs == 6) {
         PyObject* tainted_object = args[0];
@@ -158,10 +169,10 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         size_t context_id = PyLong_AsSize_t(ctx_obj);
         const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
-            return tainted_object;
+            return new_reference(tainted_object);
         }
 
-        pyobject_n = new_pyobject_id(tainted_object);
+        pyobject_n = py::reinterpret_steal<py::object>(new_pyobject_id(tainted_object));
         PyObject* len_pyobject_py = args[1];
 
         const long len_pyobject = PyLong_AsLong(len_pyobject_py);
@@ -171,7 +182,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
                 const auto source = Source(source_name, source_value, source_origin);
                 const auto range = safe_allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
-                result = set_ranges(pyobject_n, ranges, tx_map);
+                result = set_ranges(pyobject_n.ptr(), ranges, tx_map);
                 if (not result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
@@ -187,7 +198,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         return nullptr;
     }
 
-    return pyobject_n;
+    return pyobject_n.release().ptr();
 }
 
 std::pair<TaintRangeRefs, bool>
@@ -262,13 +273,22 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 }
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input)
+api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id)
 {
     if (!taint_engine_context) {
         return {};
     }
 
-    const auto tx_map = safe_get_tainted_object_map(string_input.ptr());
+    // With a context_id the lookup is restricted to that request's slot so
+    // a taint from a concurrent request cannot bleed into the answer. Without
+    // a context_id (caller has no active request) the multi-slot resolver is
+    // used to locate the map that owns the object.
+    TaintedObjectMapTypePtr tx_map;
+    if (context_id.has_value()) {
+        tx_map = safe_get_tainted_object_map_by_ctx_id(*context_id);
+    } else {
+        tx_map = safe_get_tainted_object_map(string_input.ptr());
+    }
 
     if (not tx_map or tx_map->empty()) {
         return {};
@@ -282,13 +302,18 @@ api_get_ranges(const py::handle& string_input)
 }
 
 void
-api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2)
+api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional<size_t> context_id)
 {
     if (!taint_engine_context) {
         return;
     }
 
-    const auto tx_map = safe_get_tainted_object_map(str_1.ptr());
+    // With a context_id both the source read and the derived write are pinned
+    // to the active request's slot, matching the scoped get_ranges() read path
+    // so a concurrent request's stale entry cannot capture the copy. Without a
+    // context_id the multi-slot resolver locates the map that owns the source.
+    const auto tx_map = context_id.has_value() ? safe_get_tainted_object_map_by_ctx_id(*context_id)
+                                               : safe_get_tainted_object_map(str_1.ptr());
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -309,13 +334,17 @@ inline void
 api_copy_and_shift_ranges_from_strings(py::handle& str_1,
                                        py::handle& str_2,
                                        const int offset,
-                                       const int new_length = -1)
+                                       const int new_length,
+                                       std::optional<size_t> context_id)
 {
     if (!taint_engine_context) {
         return;
     }
 
-    const auto tx_map = safe_get_tainted_object_map(str_1.ptr());
+    // See api_copy_ranges_from_strings: context_id scopes both read and write to
+    // the active slot to keep parity with the scoped get_ranges() read path.
+    const auto tx_map = context_id.has_value() ? safe_get_tainted_object_map_by_ctx_id(*context_id)
+                                               : safe_get_tainted_object_map(str_1.ptr());
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;
@@ -443,15 +472,21 @@ pyexport_taintrange(py::module& m)
 
     // m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&api_set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a, "contextid"_a);
-    m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
+    m.def(
+      "copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a, "context_id"_a = std::nullopt);
     m.def("copy_and_shift_ranges_from_strings",
           &api_copy_and_shift_ranges_from_strings,
           "str_1"_a,
           "str_2"_a,
           "offset"_a,
-          "new_length"_a = -1);
+          "new_length"_a = -1,
+          "context_id"_a = std::nullopt);
 
-    m.def("get_ranges", &api_get_ranges, "string_input"_a, py::return_value_policy::take_ownership);
+    m.def("get_ranges",
+          &api_get_ranges,
+          "string_input"_a,
+          "context_id"_a = std::nullopt,
+          py::return_value_policy::take_ownership);
 
     m.def("get_range_by_hash",
           &get_range_by_hash,

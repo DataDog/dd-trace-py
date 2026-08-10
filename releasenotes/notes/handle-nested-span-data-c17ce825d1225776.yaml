@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where spans with very large JSON depth nested fields
+    were being submitted but dropped by Datadog. The LLM Observability integration now detects nested fields
+    that exceed the allowed depth and stringifies them, ensuring spans will not be dropped due to JSON depth limits in Datadog.

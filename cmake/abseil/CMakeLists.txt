@@ -43,10 +43,12 @@ set(ABSL_ENABLE_INSTALL
 set(FETCHCONTENT_UPDATES_DISCONNECTED
     ON
     CACHE BOOL "" FORCE)
+# Pin to the immutable commit SHA backing tag 20250127.1 rather than the tag name, so a retagged or compromised upstream
+# tag cannot silently inject different build code during a source/wheel build (supply-chain hardening).
 FetchContent_Declare(
     absl
     GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-    GIT_TAG 20250127.1
+    GIT_TAG d9e4955c65cd4367dd6bf46f4ccb8cd3d100540b # tag 20250127.1
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(absl)

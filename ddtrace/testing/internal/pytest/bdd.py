@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-import sys
 import typing as t
 
 import pytest
 
 import ddtrace
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
 
@@ -19,7 +19,6 @@ if t.TYPE_CHECKING:
     from pytest_bdd.parser import Scenario
     from pytest_bdd.parser import Step
 
-    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 
 FRAMEWORK = "pytest_bdd"
 STEP_KIND = "pytest_bdd.step"
@@ -29,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class BddTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
+    def __init__(self, main_plugin: TestOptPluginProtocol) -> None:
         self.main_plugin = main_plugin
         self.framework_version = self._get_framework_version()
 
@@ -123,11 +122,7 @@ class BddTestOptPlugin:
     ) -> None:
         span = getattr(step_func, "_datadog_span", None)
         if span is not None:
-            if hasattr(exception, "__traceback__"):
-                tb = exception.__traceback__
-            else:
-                # PY2 compatibility workaround
-                _, _, tb = sys.exc_info()
+            tb = exception.__traceback__
             if step_func_args:
                 step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
                 span.set_tag(TestTag.PARAMETERS, step_func_args_json)

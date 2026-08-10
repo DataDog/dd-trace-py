@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: The Profiler now flushes the last profile on ``SIGINT`` and ``SIGTERM`` signals.

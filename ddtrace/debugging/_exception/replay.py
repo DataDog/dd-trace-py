@@ -7,11 +7,11 @@ from types import TracebackType
 import typing as t
 import uuid
 
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
-from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
@@ -231,7 +231,7 @@ def can_capture(span: Span) -> bool:
     # marked, we return the mark.
     root = span._local_root
     if root is None:
-        return False
+        return False  # type: ignore[unreachable]
 
     info_captured = root.get_tag(CAPTURE_TRACE_TAG)
 
@@ -256,7 +256,7 @@ def can_capture(span: Span) -> bool:
 def get_snapshot_count(span: Span) -> int:
     root = span._local_root
     if root is None:
-        return 0
+        return 0  # type: ignore[unreachable]
 
     if (count := root.get_metric(SNAPSHOT_COUNT_TAG)) is None:
         return 0

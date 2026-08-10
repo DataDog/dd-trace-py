@@ -1,36 +1,108 @@
+# --- has_listeners microbenchmark ---
+has_listeners_no_listeners:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+has_listeners_with_listeners:
+  listeners: 10
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+
+# --- dispatch: listener count sweep ---
 core_dispatch_no_listeners:
   listeners: 0
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
+core_dispatch_1_listener:
+  listeners: 1
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
 core_dispatch_listeners:
   listeners: 10
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
+core_dispatch_50_listeners:
+  listeners: 50
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+
+# --- dispatch: empty args tuple ---
+core_dispatch_no_args_no_listeners:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+core_dispatch_no_args_listeners:
+  listeners: 10
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+
+# --- dispatch: exception path (listeners raise, config._raise=False) ---
+core_dispatch_exception_no_listeners:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: true
+core_dispatch_exception_listeners:
+  listeners: 10
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: true
+
+# --- dispatch_with_results: listener count sweep ---
 core_dispatch_with_results_no_listeners:
   listeners: 0
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
+core_dispatch_with_results_1_listener:
+  listeners: 1
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
 core_dispatch_with_results_listeners:
   listeners: 10
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
+core_dispatch_with_results_50_listeners:
+  listeners: 50
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+
+# --- context_with_data ---
 context_with_data_no_listeners:
   listeners: 0
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
 context_with_data_listeners:
   listeners: 10
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
+
+# --- context item get/set ---
 set_item:
   listeners: 0
   set_item_count: 100
   get_item_exists: false
+  listener_raises: false
 get_item_missing:
   listeners: 0
   set_item_count: 0
   get_item_exists: false
+  listener_raises: false
 get_item_exists:
   listeners: 0
   set_item_count: 0
   get_item_exists: true
+  listener_raises: false

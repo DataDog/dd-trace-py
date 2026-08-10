@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for an optional ``version`` (string) field on each tool definition dictionary passed to ``LLMObs.annotate()`` via the ``tool_definitions`` parameter.

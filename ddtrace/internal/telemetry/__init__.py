@@ -16,6 +16,9 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -45,8 +48,19 @@ def get_config(
     if isinstance(envs, str):
         envs = [envs]
 
+    # Expand with registered aliases of the canonical name (envs[0]) so all
+    # config sources (LOCAL_CONFIG, env, FLEET_CONFIG) honor legacy renames.
+    canonical = envs[0]
+    aliases = CONFIGURATION_ALIASES.get(canonical, [])
+    if aliases:
+        envs += [a for a in aliases if a not in envs]
+
     effective_val = default
     telemetry_name = envs[0]
+    # Configurations marked ``sensitive: true`` in the registry are excluded from
+    # configuration telemetry, regardless of which source supplies the value.
+    if telemetry_name in SENSITIVE_CONFIGURATIONS:
+        report_telemetry = False
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
 
@@ -121,12 +135,17 @@ def report_configuration(config: DDConfig) -> None:
 
         env_name = e.full_name
 
+        # Configurations marked ``sensitive: true`` in the registry are excluded
+        # from configuration telemetry.
+        if env_name in SENSITIVE_CONFIGURATIONS:
+            continue
+
         # Get the item value recursively
         env_val = config
         for p in name.split("."):
             env_val = getattr(env_val, p)
 
-        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id)
+        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id(env_name))
 
 
 def _invalid_otel_config(otel_env):
@@ -206,5 +225,6 @@ def _hiding_otel_config(otel_env, dd_env):
 
 
 # TODO: Remove this once the telemetry feature is refactored to a better design
+report_configuration(appsec_telemetry_config)
 report_configuration(agent_config)
 report_configuration(process_tags_config)

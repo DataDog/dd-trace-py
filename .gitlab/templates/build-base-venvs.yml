@@ -10,7 +10,20 @@ build_base_venvs:
     PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
+    # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
+    SCCACHE_BUCKET: 'dd-trace-py-builds'
+    SCCACHE_S3_KEY_PREFIX: 'sccache'
+    SCCACHE_REGION: 'us-east-1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+    # Pin resources and disable the VPA. This job compiles every native
+    # extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12, set above) whenever
+    # the ext_cache is cold (e.g. a newly added Python version), which peaks
+    # well above the ~5Gi the VPA otherwise tunes it down to and gets OOMKilled.
+    # Matches the resource requests used by the native package build jobs.
+    KUBERNETES_CPU_REQUEST: '6'
+    KUBERNETES_MEMORY_REQUEST: '10Gi'
+    KUBERNETES_MEMORY_LIMIT: '10Gi'
+    DD_DISABLE_VPA: 'true'
     # Disable link time optimization settings to improve build times, the impact will be larger binary sizes
     CARGO_PROFILE_RELEASE_LTO: 'off'
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
@@ -19,7 +32,7 @@ build_base_venvs:
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
     echo "NIGHTLY_BUILD: {nightly_build}"
-    if [[ {unpin_dependencies} == "true" ]]
+    if [[ "{unpin_dependencies}" == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
@@ -28,10 +41,11 @@ build_base_venvs:
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
+    when: always
     paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
+      - core.*
       - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/test/test_*
+      - .riot/venv_*

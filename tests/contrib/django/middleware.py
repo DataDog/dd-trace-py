@@ -52,6 +52,34 @@ def fn2_middleware(get_response):
     return mw
 
 
+try:
+    from asgiref.sync import iscoroutinefunction as is_asgi_coroutine_function
+    from django.utils.decorators import sync_and_async_middleware
+
+    @sync_and_async_middleware
+    def fn_middleware_with_process_exception(get_response):
+        """Function middleware that exposes a Django process_exception hook."""
+
+        if is_asgi_coroutine_function(get_response):
+
+            async def mw(request):
+                return await get_response(request)
+
+        else:
+
+            def mw(request):
+                return get_response(request)
+
+        def process_exception(request, exception):
+            return HttpResponse("caught", status=200)
+
+        mw.process_exception = process_exception
+        return mw
+
+except ImportError:
+    pass
+
+
 def empty_middleware(get_response):
     """Empty function middleware for regression testing."""
 

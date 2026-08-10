@@ -55,8 +55,16 @@ class TestProviderInitializationShutdown:
 
     def test_provider_initialization(self, provider, evaluation_context):
         """Provider should initialize without errors."""
+        # Pre-load config so initialize() takes the fast path (no blocking wait)
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
         # Should not raise
         provider.initialize(evaluation_context)
+
+    def test_provider_accepts_legacy_initialization_timeout_kwarg(self):
+        """Existing callers can still pass initialization_timeout after async initialization."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            DataDogProvider(initialization_timeout=0.1)
 
     def test_provider_shutdown(self, provider):
         """Provider should shutdown without errors."""

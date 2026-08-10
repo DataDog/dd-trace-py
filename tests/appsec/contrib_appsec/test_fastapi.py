@@ -130,6 +130,8 @@ class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
         "/",
         "/asm/{param_int:int}/{param_str:str}",
         "/asm/",
+        "/files/{file_path:path}",
+        "/multi-param/{first}.{last}/",
         "/new_service/{service_name:str}",
         "/login/",
         "/login_sdk/",

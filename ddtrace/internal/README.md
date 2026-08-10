@@ -20,8 +20,6 @@ object that implements the product protocol. This consists of a Python object
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
-| `post_preload() -> None` | A function with the logic required to finish initialization after the library preload stage |
->>>>>>> origin/main
 
 The product object needs to be made available to the Python plugin system by
 defining an entry point in the `project.entry-points.'ddtrace.products'` section
@@ -61,6 +59,7 @@ The `RCCallback` abstract base class is defined in
 ```python
 from ddtrace.internal.remoteconfig import RCCallback, Payload
 from typing import Sequence
+
 
 class MyProductCallback(RCCallback):
     def __call__(self, payloads: Sequence[Payload]) -> None:
@@ -214,6 +213,7 @@ def start():
     # 2. Advertise the product to the agent so it starts sending configuration.
     remoteconfig_poller.enable_product("MY_PRODUCT")
 
+
 def stop(join=False):
     # 1. Stop requesting configuration from the agent.
     remoteconfig_poller.disable_product("MY_PRODUCT")
@@ -239,3 +239,172 @@ does not yet want the agent to push configuration can call
 5. **Always pair register with unregister**: Call `unregister_callback()` (and
    `disable_product()` if applicable) in your product's `stop()` to release
    resources and stop advertising the product to the agent.
+
+
+## Fork Safety
+
+`ddtrace` runs in applications that use `os.fork()` — web servers (Gunicorn,
+uWSGI), multiprocessing workers, test runners (pytest-xdist), and third-party
+SDKs (e.g. Stripe's Python client under gevent). Getting fork wrong causes
+duplicate traces, deadlocks, or silent data loss, so the internal machinery has
+a deliberate fork-safety protocol.
+
+### The `forksafe` module
+
+`ddtrace.internal.forksafe` is the single registration point for all fork
+hooks. It wraps `os.register_at_fork()` and exposes three ordered registries:
+
+| Registry | When it runs | Typical use |
+|----------|-------------|-------------|
+| `_registry_before_fork` | In the parent, before `fork()` | Flush state, acquire no new locks, stop threads |
+| `_registry` (`after_in_child`) | In the child, after `fork()` | Reinitialize resources that cannot be shared |
+| `_registry_after_parent` | In the parent, after `fork()` | Resume any work paused in `before_fork` |
+
+Use the helpers to register hooks:
+
+```python
+from ddtrace.internal import forksafe
+
+forksafe.register_before_fork(my_before_hook)
+forksafe.register(my_after_child_hook)  # after_in_child
+forksafe.register_after_parent(my_after_parent_hook)
+```
+
+**Keep hooks non-blocking.** By the time a hook registered *after*
+`ddtrace.internal.threads._before_fork` runs, all periodic threads have already
+been stopped, so there are no locks held by those threads to worry about. (Hooks
+registered *before* that point run while periodic threads may still be active,
+so they must not assume threads have stopped.) The concern is speed: a hook that
+blocks
+delays the moment the child process becomes ready. Many parent processes (e.g.
+pre-fork web servers) wait with a bounded timeout for a signal from the child
+confirming it has started successfully. A slow hook can exhaust that timeout,
+causing the parent to treat the child as failed even though nothing went wrong.
+
+### `PeriodicThread` fork protocol (`_threads.cpp`)
+
+`PeriodicThread` (the C extension backing `ddtrace.internal.periodic`)
+**guarantees fork safety** through a two-phase protocol: all active periodic
+threads are stopped before the fork, then automatically restarted in both the
+parent and the child afterwards.
+
+**Phase 1 — before fork**
+
+Every active `PeriodicThread` is stopped cleanly. Critically, the `on_shutdown`
+callback is suppressed during this stop so that writers do not flush their
+queues into the child — flushing would duplicate traces already buffered in
+the parent.
+
+> **Important:** `_before_fork` calls `join()` on every active worker with no
+> timeout. Blocking operations in a `periodic()` callback are fine, but they
+> must use their own timeouts — an unbounded block will prevent `fork()` from
+> returning until the operation completes, which can hang pre-fork servers.
+
+**Phase 2 — after fork**
+
+Both the parent and the child call `_after_fork()` on every thread. In the
+child, restart is controlled by the `__autorestart__` attribute (default
+`True`): threads that leave it `True` are restarted transparently; threads that
+set it to `False` remain stopped and must arrange their own re-initialization
+(see `NativeWriter` below).
+
+In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
+`ThreadRestartTimer.set()`, which schedules a deferred restart. The actual
+`_after_fork(force=True)` calls happen later, coalesced across repeated rapid
+forks. Parent-side periodic workers are therefore not immediately active after
+`fork()` returns; components that rely on parent-side metrics or flushing
+immediately after a fork should account for this delay.
+
+The default `__autorestart__ = True` means that for most `PeriodicService`
+subclasses **no fork-specific code is required** — the protocol handles
+everything automatically.
+
+**Periodic threads must not synchronize with each other.** Because all
+periodic threads are stopped before the fork while holding their own internal
+locks, any attempt to acquire a second thread's lock from within a fork hook
+(or from within the thread's own shutdown path) risks a lock-ordering deadlock.
+Periodic threads are therefore not allowed to synchronize among themselves;
+each thread's lock must be acquired only by that thread and by the fork
+machinery in a well-defined order.
+
+### Adding new fork hooks
+
+- Register via `forksafe` — never call `os.register_at_fork()` directly.
+- Keep hooks **non-blocking** and **side-effect free** where possible.
+- If your component owns a `PeriodicService` **and has an explicit child
+  reinitialization path** (e.g. a `_child_after_fork` hook that recreates the
+  service), set `__autorestart__ = False` to suppress the automatic restart of
+  the inherited worker. Do not set this without a matching reinitialization
+  path — the service will be left marked as running with no active worker.
+- Never call `flush_queue()` or perform I/O in an after-child hook; flush only
+  in after-parent hooks or at clean shutdown.
+
+
+## The `sys.monitoring` Multiplexer
+
+`sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs,
+and only one tool may own a given event at a time. Since multiple ddtrace
+sub-systems may need PY_START/PY_RETURN/PY_UNWIND/LINE events on overlapping
+code objects, `ddtrace.internal.monitoring` claims a single tool ID on behalf
+of all of them and fans events out to per-code-object handlers.
+
+
+### The `MonitoringEventHandler` Interface
+
+Sub-systems implement `MonitoringEventHandler` and override only the methods
+they need. The multiplexer inspects which methods are overridden and enables
+only the corresponding events for that handler, so an unused hook costs
+nothing:
+
+```python
+from ddtrace.internal import monitoring
+
+
+class MyHandler(monitoring.MonitoringEventHandler):
+    def on_py_start(self, code, instruction_offset): ...
+
+    def on_py_line(self, code, line_number):
+        # Return sys.monitoring.DISABLE to vote for disabling LINE events at
+        # this location; the multiplexer only forwards DISABLE to CPython
+        # once every handler registered for this code object agrees.
+        return None
+```
+
+Register and unregister with the handler instance itself as the key:
+
+```python
+handler = MyHandler()
+monitoring.register(code, handler)
+...
+monitoring.unregister(code, handler)
+```
+
+> [!WARNING]
+> Do not call `register()` or `unregister()` from inside a handler method —
+> doing so mutates the handler list while it is being iterated.
+
+### Local vs. Global Events
+
+All events multiplexed here (`PY_START`, `PY_RETURN`, `PY_UNWIND`, `LINE`) are
+enabled **locally**, per code object, via `set_local_events()` — never
+globally. This keeps monitoring overhead confined to the code objects that
+actually have handlers registered.
+
+### `DISABLE` and `refresh()`
+
+A `DISABLE` returned from `on_py_line()` is sticky in CPython until the local
+event set changes or `restart_events()` resets it. Because `restart_events()`
+is global and would clear other tools' disabled-event state too, the
+multiplexer instead re-arms a code object's own local events by toggling them
+off and back on (see `_rearm_local_events()`), which is exactly what
+`register()` does automatically when a new LINE handler is added for code that
+already had one. Call `monitoring.refresh(code)` directly if you need to
+re-arm LINE events for a code object without changing its registered
+handlers.
+
+### Error Isolation
+
+An exception raised by a handler is logged and does not propagate to CPython,
+and does not count as a vote to disable LINE events — a single failing
+handler must not silence monitoring for everyone else registered on the same
+code object.

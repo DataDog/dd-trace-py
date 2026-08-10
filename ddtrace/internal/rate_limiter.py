@@ -1,5 +1,3 @@
-from __future__ import division
-
 from dataclasses import dataclass
 from dataclasses import field
 import random

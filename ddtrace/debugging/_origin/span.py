@@ -2,11 +2,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import current_thread
 from time import monotonic_ns
-from types import FrameType
 from types import FunctionType
 from types import MethodType
 import typing as t
 import uuid
+import weakref
 
 import ddtrace
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -21,18 +21,11 @@ from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
 log = get_logger(__name__)
-
-
-def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
-    _frame: t.Optional[FrameType] = frame
-    while _frame is not None:
-        yield _frame
-        _frame = _frame.f_back
 
 
 @dataclass
@@ -182,8 +175,11 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: list = []
-    _lock = Lock()
+    # Weak references so that functions defined dynamically (e.g. inner
+    # functions created afresh on every call) don't get leaked while this
+    # product is disabled and views are only pending instrumentation.
+    _pending: "weakref.WeakSet[FunctionType]" = weakref.WeakSet()
+    _lock = RLock()
 
     @classmethod
     def instrument_view(cls, f: t.Union[FunctionType, MethodType]) -> None:
@@ -197,7 +193,7 @@ class SpanCodeOriginProcessorEntry:
             if cls._instance is None:
                 # Entry span code origin is not enabled, so we defer the
                 # instrumentation
-                cls._pending.append(f)
+                cls._pending.add(f)
                 return
 
         _f = t.cast(FunctionType, f)
@@ -214,8 +210,9 @@ class SpanCodeOriginProcessorEntry:
             cls._instance = cls()
 
             # Instrument the pending views
-            while cls._pending:
-                cls.instrument_view(cls._pending.pop())
+            pending, cls._pending = list(cls._pending), weakref.WeakSet()
+            for f in pending:
+                cls.instrument_view(f)
 
         # Register code origin for span with the snapshot uploader
         cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)

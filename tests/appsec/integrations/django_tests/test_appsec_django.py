@@ -10,10 +10,12 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
+from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
@@ -131,6 +133,93 @@ def test_request_userblock_403(client, test_spans, tracer):
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "application/json"
+
+
+def _get_user_auth_metrics(test_agent_session, telemetry_writer):
+    """Flush the native worker and return the appsec-namespace user_auth generate-metrics series."""
+    telemetry_writer.periodic(force_flush=True)
+    return [
+        series
+        for series in test_agent_session.get_metrics()
+        if series.get("namespace") == TELEMETRY_NAMESPACE.APPSEC.value
+        and series["metric"].startswith("instrum.user_auth.")
+    ]
+
+
+def _assert_user_auth_metrics(test_agent_session, telemetry_writer, event_type, expected_metric_names):
+    metrics = _get_user_auth_metrics(test_agent_session, telemetry_writer)
+    assert {m["metric"] for m in metrics} == expected_metric_names
+    assert len(metrics) == len(expected_metric_names), metrics
+    for metric in metrics:
+        assert "framework:django" in metric["tags"]
+        assert f"event_type:{event_type}" in metric["tags"]
+        assert len(metric["tags"]) == 2
+    # The previous in-process aggregator returned and cleared metrics on each flush; the test
+    # agent instead accumulates every flushed series for the session, so clear it here to keep
+    # each flow's assertion scoped to the metrics that that flow emitted.
+    test_agent_session.clear()
+
+
+@pytest.mark.django_db
+def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer, test_agent_session):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    User.objects.create_user(username="fred", password="secret")
+
+    # Drain telemetry queued during setup so the first assertion only sees the login flow.
+    telemetry_writer.periodic(force_flush=True)
+    test_agent_session.clear()
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
+                # Default Django User exposes `pk`/`id` and `get_username()`,
+                # so absent field names would fall back to real identity data. To exercise
+                # missing data without mocks or a custom user model, point ddtrace at
+                # real fields that are blank by default. Empty strings short-circuit those
+                # fallbacks and are treated as missing identity values.
+                _user_model_login_field="first_name",
+                _user_model_name_field="last_name",
+            )
+        ),
+        update_django_config(),
+    ):
+        assert not client.login(username="fred", password="wrong")
+        _assert_user_auth_metrics(
+            test_agent_session,
+            telemetry_writer,
+            "login_failure",
+            {"instrum.user_auth.missing_user_login"},
+        )
+
+        response = client.get("/appsec/signup/?login=john&pwd=secret")
+        assert response.status_code == 200
+        _assert_user_auth_metrics(
+            test_agent_session,
+            telemetry_writer,
+            "signup",
+            {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
+        )
+
+        assert client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        _assert_user_auth_metrics(
+            test_agent_session,
+            telemetry_writer,
+            "login_success",
+            {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
+        )
+
+        response = client.get("/")
+        assert response.status_code == 200
+        _assert_user_auth_metrics(
+            test_agent_session,
+            telemetry_writer,
+            "authenticated_request",
+            {"instrum.user_auth.missing_user_id"},
+        )
 
 
 @pytest.mark.django_db
@@ -253,9 +342,14 @@ def test_django_authenticated_request_tags_session_id(client, test_spans, tracer
         assert response.status_code == 200
 
         request_span = test_spans.find_span(name="django.request")
-        assert request_span.get_tag(user.SESSION_ID) == session_key
         if mode == LOGIN_EVENTS_MODE.IDENT:
+            assert request_span.get_tag(user.SESSION_ID) == session_key
             assert request_span.get_tag(user.ID)
+        else:
+            # in anonymization mode the session id (a session cookie token for default backends)
+            # must be hashed before being exported as a tag
+            assert request_span.get_tag(user.SESSION_ID) == _hash_user_id(session_key)
+            assert request_span.get_tag(user.SESSION_ID) != session_key
 
 
 @pytest.mark.django_db

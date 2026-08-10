@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.21.0",
+#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -30,6 +30,19 @@ import typing as t
 MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+def _get_bool_env(name: str) -> str:
+    """Return "true"/"false" for a boolean environment variable.
+
+    The result is interpolated verbatim into generated shell snippets, so it must never carry
+    anything the shell could expand. Only a case-insensitive "true" enables the flag; anything else
+    is treated as false.
+    """
+    value = os.getenv(name, "").lower()
+    if value not in ("", "true", "false"):
+        LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
+    return "true" if value == "true" else "false"
 
 
 @dataclass
@@ -60,6 +73,7 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
+    skip_pip_cache: bool = False
 
     python_versions: t.Optional[set[str]] = None
 
@@ -91,7 +105,10 @@ class JobSpec:
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
 
-        services = set(self.services or [])
+        # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
+        # some services depend on others being ready first (e.g. azureeventhubsemulator
+        # depends on azurite), and the wait script checks readiness in argument order.
+        services = list(dict.fromkeys(self.services or []))
         if services:
             lines.append("  services:")
 
@@ -102,13 +119,13 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for = services.copy()
+        wait_for = list(services)
         if self.snapshot:
-            wait_for.add("testagent")
+            wait_for.append("testagent")
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
-        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
+        _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
@@ -126,10 +143,11 @@ class JobSpec:
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
-        lines.append("  cache:")
-        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-        lines.append("    paths:")
-        lines.append("      - .cache")
+        if not self.skip_pip_cache:
+            lines.append("  cache:")
+            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -594,33 +612,33 @@ def gen_pre_checks() -> None:
 
     check(
         name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        command="scripts/lint style",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h", "scripts/lint"},
     )
     check(
         name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        command="scripts/lint typing",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini", "scripts/lint"},
     )
     check(
         name="Spelling",
-        command="hatch run lint:spelling",
+        command="scripts/lint spelling",
         paths={"*"},
     )
     check(
         name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
+        command="scripts/lint security",
+        paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
+        command="scripts/lint riot",
+        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
+        paths={"docker*", "tests/snapshots/*", "scripts/lint"},
     )
     check(
         name="Run scripts/*.py tests",
@@ -629,13 +647,26 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        command="scripts/lint suitespec-check",
         paths={"*"},
     )
     check(
         name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
-        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+        command="scripts/lint error-log-check",
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
+    )
+    check(
+        name="Check profiling native coverage",
+        command="scripts/lint profiling-native-check",
+        paths={
+            ".gitlab-ci.yml",
+            "ddtrace/internal/datadog/profiling/*",
+            "ddtrace/profiling/*",
+            "scripts/check_profiling_native_coverage.py",
+            "scripts/gen_gitlab_config.py",
+            "scripts/lint",
+            "src/native/*",
+        },
     )
     check(
         name="Check project dependencies",
@@ -654,8 +685,8 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Hook tests",
-        command="scripts/run-hook-tests",
-        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+        command="scripts/lint hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
     if not checks:
         return
@@ -701,7 +732,7 @@ def gen_cached_testrunner() -> None:
         f.write(
             template(
                 "cached-testrunner",
-                current_month=datetime.datetime.now().month,
+                current_week=datetime.datetime.now().isocalendar().week,
                 testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )
@@ -730,8 +761,8 @@ def gen_build_base_venvs() -> None:
             template(
                 "build-base-venvs",
                 python_versions=python_versions_str,
-                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
-                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
+                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
 
@@ -811,18 +842,19 @@ def template(name: str, **params):
     return "\n" + template_path.read_text().format(**params).strip() + "\n"
 
 
-has_error = False
+if __name__ == "__main__":
+    has_error = False
 
-LOGGER.info("Configuration generation steps:")
-for name, func in dict(globals()).items():
-    if name.startswith("gen_"):
-        desc = func.__doc__.splitlines()[0]
-        try:
-            start = time()
-            func()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
-        except Exception as e:
-            LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
-            has_error = True
+    LOGGER.info("Configuration generation steps:")
+    for name, func in dict(globals()).items():
+        if name.startswith("gen_"):
+            desc = func.__doc__.splitlines()[0]
+            try:
+                start = time()
+                func()
+                LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
+            except Exception as e:
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
 
-sys.exit(has_error)
+    sys.exit(has_error)

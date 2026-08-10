@@ -1,11 +1,16 @@
 from collections import Counter
+import functools
+import pickle
+import threading
+from types import ModuleType
 
+import cloudpickle
 import pytest
 
 from ddtrace.internal import forksafe
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_forksafe():
     import os
 
@@ -34,7 +39,7 @@ def test_forksafe():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_registry():
     """This verifies that registered hooks are called after a fork.
 
@@ -82,7 +87,7 @@ def test_registry():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_duplicates():
     import os
 
@@ -117,7 +122,7 @@ def test_duplicates():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_method_usage():
     import os
 
@@ -201,7 +206,7 @@ def test_event_basic():
     event.clear()
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_event_fork():
     """Check that a forksafe.Event is reset after a fork().
 
@@ -228,7 +233,7 @@ def test_event_fork():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_double_fork():
     import os
 
@@ -330,3 +335,89 @@ def test_gevent_gunicorn_behaviour():
     gevent.sleep(1)
 
     exit()
+
+
+def test_unregister_unregistered_partial_does_not_crash():
+    class CallableInstance:
+        def __call__(self):
+            pass
+
+    def _hook():
+        pass
+
+    partial_hook = functools.partial(_hook)
+    instance_hook = CallableInstance()
+
+    # Neither was ever registered, so each unregister hits the ValueError
+    # branch and the warning log call must succeed.
+    forksafe.unregister(partial_hook)
+    forksafe.unregister(instance_hook)
+    forksafe.unregister_parent(partial_hook)
+    forksafe.unregister_parent(instance_hook)
+    forksafe.unregister_before_fork(partial_hook)
+    forksafe.unregister_before_fork(instance_hook)
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
+    """A forksafe.Lock must survive (cloud)pickle as a fresh, unlocked lock.
+
+    Ray Serve cloudpickles deployment objects that transitively reference the
+    global ddtrace config, which holds a forksafe.Lock. Without a __reduce__,
+    this fails with "cannot pickle '_thread.lock'" (AIPTS-1715).
+    """
+    lock: threading.Lock = forksafe.Lock()
+    lock.acquire()  # locked in the source process
+
+    data: bytes = serializer.dumps(lock)
+    restored: threading.Lock = serializer.loads(data)
+
+    assert isinstance(restored, forksafe.ResetObject)
+    assert restored.acquire(blocking=False) is True
+    restored.release()
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_event_pickle_roundtrip(serializer: ModuleType) -> None:
+    """A forksafe.Event must survive (cloud)pickle as a fresh, unset event."""
+    event: threading.Event = forksafe.Event()
+    event.set()
+
+    data: bytes = serializer.dumps(event)
+    restored: threading.Event = serializer.loads(data)
+
+    assert isinstance(restored, forksafe.ResetObject)
+    assert restored.is_set() is False
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_global_config_pickle_roundtrip(serializer: ModuleType) -> None:
+    """The global ddtrace config (held by every IntegrationConfig) must be
+    picklable. It transitively holds a forksafe.Lock via the extra-services
+    queue; this is the node that broke Ray Serve cloudpickling (AIPTS-1715).
+
+    As a process-global singleton, it must round-trip to the same instance.
+    """
+    from ddtrace import config
+    from ddtrace.internal.settings._config import Config
+
+    data: bytes = serializer.dumps(config)
+    restored: Config = serializer.loads(data)
+    assert restored is config
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_integration_config_pickle_roundtrip(serializer: ModuleType) -> None:
+    """An IntegrationConfig (e.g. config.fastapi) references the global config
+    singleton; pickling it must not drag in (or fail on) the global config's
+    process-local lock/file handles (AIPTS-1715).
+    """
+    from ddtrace import config
+    from ddtrace.internal.settings._config import IntegrationConfig
+
+    data: bytes = serializer.dumps(config.fastapi)
+    restored: IntegrationConfig = serializer.loads(data)
+    assert restored.integration_name == "fastapi"
+    assert restored.global_config is config

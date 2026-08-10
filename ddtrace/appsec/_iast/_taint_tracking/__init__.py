@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Optional
+
 from ddtrace.appsec._iast._taint_tracking._native import initialize_native_state  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native import reset_native_state  # noqa: F401
@@ -25,10 +28,14 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginTy
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_and_shift_ranges_from_strings  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_ranges_from_strings  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import (
+    copy_and_shift_ranges_from_strings as _native_copy_and_shift_ranges_from_strings,
+)
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import (
+    copy_ranges_from_strings as _native_copy_ranges_from_strings,
+)
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges as _native_get_ranges
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_tainted  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges  # noqa: F401
@@ -40,6 +47,52 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+# AIDEV-NOTE: _get_iast_context_id is imported lazily — a top-level import here
+# circularly bootstraps via _iast_request_context_base -> _taint_tracking._context
+# -> _taint_tracking/__init__.py. The cached module-global avoids the per-call
+# import dance on this hot path.
+_CACHE_GET_IAST_CONTEXT_ID = None
+
+
+def _current_iast_context_id() -> Optional[int]:
+    global _CACHE_GET_IAST_CONTEXT_ID
+    if _CACHE_GET_IAST_CONTEXT_ID is None:
+        from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+
+        _CACHE_GET_IAST_CONTEXT_ID = _get_iast_context_id
+    return _CACHE_GET_IAST_CONTEXT_ID()
+
+
+def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
+    if context_id is None:
+        global _CACHE_GET_IAST_CONTEXT_ID
+        if _CACHE_GET_IAST_CONTEXT_ID is None:
+            from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+
+            _CACHE_GET_IAST_CONTEXT_ID = _get_iast_context_id
+        context_id = _CACHE_GET_IAST_CONTEXT_ID()
+    if context_id is None:
+        return []
+    return _native_get_ranges(string_input, context_id)
+
+
+def copy_ranges_from_strings(str_1: Any, str_2: Any, context_id: Optional[int] = None) -> None:
+    # AIDEV-NOTE: scope the copy to the active request slot to match the scoped
+    # get_ranges() read path; otherwise the native multi-slot resolver may write
+    # the derived taint into a concurrent request's map and the scoped read misses it.
+    if context_id is None:
+        context_id = _current_iast_context_id()
+    _native_copy_ranges_from_strings(str_1, str_2, context_id)
+
+
+def copy_and_shift_ranges_from_strings(
+    str_1: Any, str_2: Any, offset: int, new_length: int = -1, context_id: Optional[int] = None
+) -> None:
+    if context_id is None:
+        context_id = _current_iast_context_id()
+    _native_copy_and_shift_ranges_from_strings(str_1, str_2, offset, new_length, context_id)
+
 
 __all__ = [
     "OriginType",

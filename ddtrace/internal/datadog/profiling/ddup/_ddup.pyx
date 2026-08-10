@@ -43,8 +43,6 @@ cdef extern from "sample.hpp" namespace "Datadog":
 cdef extern from "ddup_interface.hpp":
     ctypedef struct PyFrameObject:
         pass
-    ctypedef struct PyTracebackObject:
-        pass
 
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
@@ -61,6 +59,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
+    void ddup_set_profiler_settings_json(string_view settings_json)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
@@ -76,13 +75,13 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_heap(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
-    void ddup_push_task_id(Sample *sample, int64_t task_id)
+    void ddup_push_task_id(Sample *sample, uint64_t task_id)
     void ddup_push_task_name(Sample *sample, string_view task_name)
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
@@ -93,7 +92,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_pyframes(Sample *sample, PyFrameObject* frame)
-    void ddup_push_pytraceback(Sample *sample, PyTracebackObject* tb)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
@@ -400,6 +398,10 @@ def start() -> None:
     ddup_start()
 
 
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
 def _get_endpoint(tracer)-> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
@@ -470,9 +472,9 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
-    def push_heap(self, value: int) -> None:
+    def push_heap(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_gputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
@@ -513,21 +515,6 @@ cdef class SampleHandle:
             frame_ptr = <PyFrameObject*>frame_obj
             ddup_push_pyframes(self.ptr, frame_ptr)
 
-    def push_pytraceback(self, object tb) -> None:
-        cdef PyObject* tb_obj
-        cdef PyTracebackObject* tb_ptr
-
-        if self.ptr is not NULL and tb is not None:
-            # Validate that tb is actually a traceback object to avoid crashes
-            # from invalid casts (e.g., if tb contains a non-traceback object)
-            if not isinstance(tb, types.TracebackType):
-                return
-            # In Cython, 'tb' is already a PyObject*. Get the raw pointer.
-            tb_obj = <PyObject*>tb
-            # Cast to PyTracebackObject* - both are just pointers to the same memory
-            tb_ptr = <PyTracebackObject*>tb_obj
-            ddup_push_pytraceback(self.ptr, tb_ptr)
-
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:
             thread_id = thread_id if thread_id is not None else 0
@@ -542,7 +529,7 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
+                ddup_push_task_id(self.ptr, clamp_to_uint64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:

@@ -1,6 +1,7 @@
 from time import monotonic_ns
 import typing as t
 
+from ddtrace.internal import _threads as _threads_mod
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
@@ -162,16 +163,13 @@ def _after_fork_child():
 
     _forking = False
 
-    # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here. _after_fork() (without force=True) respects
-    # __autorestart__: cleanup always runs, but the thread is only restarted
-    # when __autorestart__ is True. This is intentional in the child — threads
-    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
-    # forked workers.
+    # Keep child at-fork work minimal: thread restarts happen asynchronously in
+    # the child so application code can resume immediately after fork. Parent
+    # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Restarting thread %s after fork in child", thread.name)
         try:
-            thread._after_fork()
+            thread._after_fork(force=False)
         except Exception as e:
             log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
     _threads_to_restart_after_fork.clear()
@@ -201,6 +199,10 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
+    # Snapshot pending restarts first so a worker moving pending -> active
+    # concurrently cannot be missed between the two snapshots.
+    pending_threads = getattr(_threads_mod, "_pending_threads", lambda: ())()
+    _threads_to_restart_after_fork.update(pending_threads)
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())

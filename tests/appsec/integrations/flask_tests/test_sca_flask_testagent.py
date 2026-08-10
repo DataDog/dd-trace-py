@@ -6,7 +6,7 @@ Verifies that when DD_APPSEC_SCA_ENABLED=true:
 3. When a vulnerable function is called, reachability metadata is attached
    with the caller info in the reached array.
 
-These tests require requests==2.31.0 (vulnerable to CVE-2024-35195) and
+These tests require requests==2.31.0 (vulnerable to GHSA-652x-xj99-gmcc) and
 use the /sca-test-requests endpoint in tests/appsec/app.py which calls
 requests.Session.send (the instrumented target).
 """
@@ -119,7 +119,6 @@ def _find_all_cve_metadata(events, dep_name, cve_id):
 
 _SCA_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
 }
 
@@ -145,7 +144,9 @@ class TestSCAFlaskTelemetry:
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
         all_deps = _collect_all_deps(events)
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) > 0, (
             f"Expected dependencies with metadata key when SCA enabled. "
             f"Got {len(all_deps)} total deps, none with metadata key. "
@@ -160,7 +161,6 @@ class TestSCAFlaskTelemetry:
             token=iast_test_token,
             port=8051,
             env={
-                "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
                 "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
             },
         ) as context:
@@ -171,7 +171,9 @@ class TestSCAFlaskTelemetry:
 
         events = _get_dependency_events(iast_test_token)
         all_deps = _collect_all_deps(events)
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) == 0, (
             f"Expected no dependencies with metadata key when SCA disabled. "
             f"Got {len(deps_with_metadata_key)} deps with metadata. "
@@ -185,7 +187,7 @@ class TestSCAFlaskTelemetry:
         1. Starts Flask with SCA enabled and requests==2.31.0 (vulnerable)
         2. Hits /sca-test-requests which calls requests.Session.send
         3. Waits for telemetry to flush
-        4. Verifies CVE-2024-35195 appears with reached array containing caller info
+        4. Verifies GHSA-652x-xj99-gmcc appears with reached array containing caller info
         """
         with flask_server(
             appsec_enabled="false",
@@ -210,14 +212,15 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        # Look for CVE-2024-35195 in the requests dependency metadata
-        dep, cve_value = _find_dep_with_cve(events, "requests", "CVE-2024-35195")
+        # Look for GHSA-652x-xj99-gmcc in the requests dependency metadata
+        dep, cve_value = _find_dep_with_cve(events, "requests", "GHSA-652x-xj99-gmcc")
 
         assert dep is not None, (
-            f"CVE-2024-35195 not found in requests dependency metadata. Events: {json.dumps(events, indent=2)[:2000]}"
+            "GHSA-652x-xj99-gmcc not found in requests dependency metadata. "
+            f"Events: {json.dumps(events, indent=2)[:2000]}"
         )
         assert dep["name"] == "requests"
-        assert cve_value["id"] == "CVE-2024-35195"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
         # AIDEV-NOTE: RFC v3 — reached is now an array of {path, method, line} objects.
         assert isinstance(cve_value["reached"], list)
         assert len(cve_value["reached"]) >= 1
@@ -234,7 +237,7 @@ class TestSCAFlaskTelemetry:
         """Same CVE triggered from two different functions — first hit wins (max reached=1).
 
         /sca-test-requests and /sca-test-requests-alt both call
-        requests.Session.send (CVE-2024-35195) but from different functions.
+        requests.Session.send (GHSA-652x-xj99-gmcc) but from different functions.
         Per RFC v3, only the first occurrence is reported in the reached array.
         """
         with flask_server(
@@ -263,9 +266,9 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "GHSA-652x-xj99-gmcc")
         assert len(all_cve_entries) >= 1, (
-            f"Expected at least 1 metadata entry for CVE-2024-35195, got {len(all_cve_entries)}: {all_cve_entries}"
+            f"Expected at least 1 metadata entry for GHSA-652x-xj99-gmcc, got {len(all_cve_entries)}: {all_cve_entries}"
         )
 
         # Per RFC v3, each CVE entry has max 1 reached entry (first hit wins)
@@ -308,8 +311,8 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
-        assert len(all_cve_entries) >= 1, "Expected at least one CVE-2024-35195 metadata entry"
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "GHSA-652x-xj99-gmcc")
+        assert len(all_cve_entries) >= 1, "Expected at least one GHSA-652x-xj99-gmcc metadata entry"
 
         # All entries should have at most 1 reached entry
         for entry in all_cve_entries:
@@ -343,14 +346,14 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        # Look for CVE-2024-35195 registered with reached=[]
-        dep, cve_value = _find_dep_with_cve(events, "requests", "CVE-2024-35195")
+        # Look for GHSA-652x-xj99-gmcc registered with reached=[]
+        dep, cve_value = _find_dep_with_cve(events, "requests", "GHSA-652x-xj99-gmcc")
 
         assert dep is not None, (
-            f"CVE-2024-35195 not found in requests dependency metadata at load time. "
+            f"GHSA-652x-xj99-gmcc not found in requests dependency metadata at load time. "
             f"Events: {json.dumps(events, indent=2)[:2000]}"
         )
-        assert cve_value["id"] == "CVE-2024-35195"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
         assert isinstance(cve_value["reached"], list)
         # reached should be empty — no vulnerable endpoint was called
         assert len(cve_value["reached"]) == 0, (
@@ -360,7 +363,6 @@ class TestSCAFlaskTelemetry:
 
 _SCA_EXTENDED_HEARTBEAT_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
     "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
     # Force the extended-heartbeat payload to fire on every heartbeat tick so we
     # can inspect it within the test's lifetime instead of waiting 24h.
@@ -476,9 +478,9 @@ class TestSCAFlaskExtendedHeartbeat:
             _, flask_client, pid = context
             response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
-            # Wait for at least one extended-heartbeat tick — bounded poll
-            # avoids racing slow-CI startup against a fixed sleep window.
-            events = _wait_for_extended_heartbeat_events(iast_test_token, min_count=1, timeout=20.0)
+            # Wait for a heartbeat tick whose snapshot includes the dependency
+            # deltas emitted after the request.
+            _, events = _wait_for_extended_snapshot_covers_delta(iast_test_token, timeout=20.0)
 
         assert len(events) > 0, "No app-extended-heartbeat events found"
 
@@ -493,7 +495,9 @@ class TestSCAFlaskExtendedHeartbeat:
             f"Expected dependencies in app-extended-heartbeat with SCA enabled, got none. Events: {events[:1]}"
         )
 
-        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        # SCA off serializes metadata as null (bincode payloads can't skip fields), SCA on
+        # serializes it as a list; distinguish on the value, not mere key presence.
+        deps_with_metadata_key = [d for d in all_deps if d.get("metadata") is not None]
         assert len(deps_with_metadata_key) > 0, (
             f"Expected SCA-tracked deps to carry the 'metadata' key in extended heartbeat. Sample deps: {all_deps[:3]}"
         )
@@ -525,16 +529,16 @@ class TestSCAFlaskExtendedHeartbeat:
             # the populated reached entry. Polls instead of sleeping a fixed
             # window so a slow CI runner doesn't miss the post-call tick.
             events, dep, cve_value = _wait_for_cve_reached_in_extended(
-                iast_test_token, "requests", "CVE-2024-35195", timeout=20.0
+                iast_test_token, "requests", "GHSA-652x-xj99-gmcc", timeout=20.0
             )
 
         assert len(events) > 0, "No app-extended-heartbeat events found"
         assert dep is not None, (
-            "CVE-2024-35195 not present in any app-extended-heartbeat dependency metadata. "
+            "GHSA-652x-xj99-gmcc not present in any app-extended-heartbeat dependency metadata. "
             f"Extended events: {json.dumps(events, indent=2)[:2000]}"
         )
         assert dep["name"] == "requests"
-        assert cve_value["id"] == "CVE-2024-35195"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
         assert isinstance(cve_value["reached"], list)
         assert len(cve_value["reached"]) >= 1, (
             f"Expected reached entry in extended heartbeat after vulnerable call, got: {cve_value['reached']}"

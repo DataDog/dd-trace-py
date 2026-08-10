@@ -22,13 +22,18 @@ def test_propagation_mode_configuration():
         config = _database_monitoring.DatabaseMonitoringConfig()
         assert config.propagation_mode == "full"
 
+    # Ensure dynamic_service is a valid injection mode
+    with override_env(dict(DD_DBM_PROPAGATION_MODE="dynamic_service")):
+        config = _database_monitoring.DatabaseMonitoringConfig()
+        assert config.propagation_mode == "dynamic_service"
+
     # Ensure an invalid injection mode raises a ValueError
     with override_env(dict(DD_DBM_PROPAGATION_MODE="notaninjectionmode")):
         with pytest.raises(ValueError) as excinfo:
             _database_monitoring.DatabaseMonitoringConfig()
     assert (
         excinfo.value.args[0] == "Invalid value for environment variable DD_DBM_PROPAGATION_MODE: "
-        "value must be one of ['disabled', 'full', 'service']"
+        "value must be one of ['disabled', 'dynamic_service', 'full', 'service']"
     )
 
 
@@ -122,6 +127,69 @@ def test_dbm_propagation_full_mode():
 
 @pytest.mark.subprocess(
     env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
+    # A local db span started under a remote (distributed) 128-bit context must carry the
+    # remote trace id in its full-mode DBM traceparent. The child span's context is a lazy
+    # copy of the remote parent-context that shares _meta (which holds the extracted W3C
+    # traceparent) by reference, so the remote 128-bit trace id is preserved even though the
+    # child's own context is local (not remote).
+    from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import tracer
+
+    remote_trace_id_hex = "deadbeefdeadbeef1234567890abcdef"  # 128-bit remote trace id
+    remote_ctx = HTTPPropagator.extract(
+        {
+            "traceparent": "00-%s-000000000000000a-01" % remote_trace_id_hex,
+            "tracestate": "dd=s:1;p:000000000000000a",
+        }
+    )
+    assert remote_ctx._is_remote is True
+
+    tracer.context_provider.activate(remote_ctx)
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        # since inject() below will call the sampler we just call the sampler here
+        # so sampling priority will align in the traceparent
+        tracer.sample(dbspan._local_root)
+
+        # the local child adopts the remote 128-bit trace id, but its own context is local
+        assert dbspan.trace_id == int(remote_trace_id_hex, 16)
+        assert dbspan.context._is_remote is False
+
+        # MECHANISM: the local child's context shares the remote context's _meta (which holds
+        # the extracted W3C traceparent) by reference — this is what carries the remote trace
+        # id through to DBM. A copy() that stopped sharing _meta would fail these directly.
+        assert dbspan.context._meta is remote_ctx._meta
+        assert W3C_TRACEPARENT_KEY in dbspan.context._meta
+
+        # full-mode DBM comment carries the remote 128-bit trace id via the traceparent.
+        # Build the expected traceparent from the LITERAL remote id (not read back from
+        # dbspan.context._traceparent, which would make the assertion self-referential).
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
+        expected_traceparent = "00-%s-%016x-%s" % (remote_trace_id_hex, dbspan.span_id, dbspan.context._traceflags)
+        assert (
+            sqlcomment
+            == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+            % (expected_traceparent,)
+        )
+
+        # the injected SQL comment carries the remote 128-bit trace id too
+        new_args, _ = dbm_propagator.inject(dbspan, ("SELECT 1;",), {})
+        injected_sql = new_args[0]
+        assert remote_trace_id_hex in injected_sql
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+
+
+@pytest.mark.subprocess(
+    env=dict(
         DD_DBM_PROPAGATION_MODE="service",
         DD_DBM_INJECT_SQL_BASEHASH="False",
         DD_SERVICE="orders-app",
@@ -190,6 +258,76 @@ def test_dbm_propagating_base_hash_when_activated():
 
         assert dbspan._get_str_attribute(PROPAGATED_HASH) == str(process_tags.base_hash)
         assert ddsh_value == dbspan._get_str_attribute(PROPAGATED_HASH)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_DBM_INJECT_SQL_BASEHASH="True",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_not_propagating_base_hash_in_full_mode():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.compute_base_hash("abc123")
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+
+        original_sql = "SELECT * FROM users"
+        modified_args, _ = dbm_propagator.inject(dbspan, (original_sql,), {})
+        injected_sql = modified_args[0]
+
+        assert "traceparent" in injected_sql
+        assert "ddsh" not in injected_sql
+        assert not dbspan._has_attribute(PROPAGATED_HASH)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="dynamic_service",
+        DD_DBM_INJECT_SQL_BASEHASH="False",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_propagation_dynamic_service_mode():
+    import re
+
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.compute_base_hash("abc123")
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+
+        original_sql = "SELECT * FROM users"
+        modified_args, modified_kwargs = dbm_propagator.inject(dbspan, (original_sql,), {})
+        injected_sql = modified_args[0]
+
+        assert modified_kwargs == {}
+        assert "dddbs='orders-db'" in injected_sql
+        assert "dde='staging'" in injected_sql
+        assert "ddps='orders-app'" in injected_sql
+        assert "ddpv='v7343437-d7ac743'" in injected_sql
+        assert "traceparent" not in injected_sql
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
+
+        match = re.search(r"ddsh='(\d+)'", injected_sql)
+        assert match is not None
+        assert dbspan._has_attribute(PROPAGATED_HASH)
+        assert dbspan._get_str_attribute(PROPAGATED_HASH) == str(process_tags.base_hash)
+        assert match.group(1) == dbspan._get_str_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -299,6 +437,53 @@ def test_dbm_peer_entity_tags():
 
         # ensure that dbm tag is set (required in full mode)
         assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_comment_does_not_reread_peer_service_config_per_span():
+    """Regression test for issue #18800.
+
+    ``_get_dbm_comment`` must use the cached peer-service singleton instead of constructing a
+    fresh ``PeerServiceConfig()`` per DB span. A fresh instance forced a ``_get_config`` read
+    (and a telemetry configuration report) on every query, growing unbounded over the process
+    lifetime. Generating many comments must not re-read the config more than once.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.settings import peer_service
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    # The DBM path must reference the shared module-level singleton.
+    assert _database_monitoring._ps_config is peer_service._ps_config
+
+    # Reset the cache so we can observe how many times the underlying config is read.
+    peer_service._ps_config._set_defaults_enabled = None
+
+    real_get_config = peer_service._get_config
+    calls = []
+
+    def spy_get_config(name, *args, **kwargs):
+        if name == "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED":
+            calls.append(name)
+        return real_get_config(name, *args, **kwargs)
+
+    dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+    with mock.patch.object(peer_service, "_get_config", spy_get_config):
+        for _ in range(25):
+            with tracer.trace("dbname") as dbspan:
+                dbm_propagator._get_dbm_comment(dbspan)
+
+    # The singleton caches after the first resolution, so the per-span path reads it at most once
+    # regardless of how many spans are generated.
+    assert len(calls) <= 1, calls
 
 
 def test_default_sql_injector(caplog):

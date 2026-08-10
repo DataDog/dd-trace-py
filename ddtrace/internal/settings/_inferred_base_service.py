@@ -83,7 +83,7 @@ class PythonDetector:
                     return ServiceMetadata(self.find_nearest_top_level(stripped))
                 except Exception as ex:
                     # Catch any unexpected errors
-                    log.debug("Unexpected error while processing argument: ", arg, "Exception: ", ex)
+                    log.debug("Unexpected error while processing argument: %s Exception: %s", arg, ex)
 
             if has_flag_prefix and arg == "-m":
                 module_flag = True
@@ -207,7 +207,7 @@ def detect_service(args: list[str]) -> Optional[str]:
                 return metadata.name
     except Exception as ex:
         # Catch any unexpected errors to be extra safe
-        log.warning("Unexpected error during inferred base service detection: ", ex)
+        log.warning("Unexpected error during inferred base service detection: %s", ex)
 
     CACHE[cache_key] = None
     return None

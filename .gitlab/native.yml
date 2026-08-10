@@ -15,7 +15,7 @@ include:
       echo -e "\e[0Ksection_end:`date +%s`:cargo_fmt\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_clippy[collapsed=true]\r\e[0Kcargo clippy"
-      cargo clippy -- -D warnings
+      cargo clippy --all-features -- -D warnings
       echo -e "\e[0Ksection_end:`date +%s`:cargo_clippy\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"

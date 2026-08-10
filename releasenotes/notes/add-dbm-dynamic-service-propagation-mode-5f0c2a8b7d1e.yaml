@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Database Monitoring (DBM) propagation supports ``dynamic_service`` as a new
+    ``DD_DBM_PROPAGATION_MODE`` value. Set
+    ``DD_DBM_PROPAGATION_MODE=dynamic_service`` to inject DBM service metadata and
+    the SQL base hash without injecting trace context.

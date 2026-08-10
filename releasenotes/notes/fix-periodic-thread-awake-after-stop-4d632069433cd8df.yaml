@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where calling ``awake()`` on a
+    ``PeriodicThread`` after it had been stopped would block forever.
+    ``awake()`` now returns immediately in that case.

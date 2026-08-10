@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    pydantic_ai: Fixes APM span naming so the operation name is the generic category
+    (``pydantic_ai.tool`` / ``pydantic_ai.agent``) and the resource name is the specific
+    tool or agent name, matching Datadog APM convention. This restores per-tool and
+    per-agent grouping on APM service and resource pages. LLM Observability views are
+    unaffected.

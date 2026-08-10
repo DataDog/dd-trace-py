@@ -1,8 +1,12 @@
 """
 Enabling
 ~~~~~~~~
-The dramatiq integration will trace background tasks as marked by the @dramatiq.actor
-decorator. To trace your dramatiq app, call the patch method::
+The dramatiq integration traces the enqueuing of background tasks. It creates a
+span each time a task is sent to the broker via the ``send()`` or
+``send_with_options()`` methods on an actor. The span measures the duration of the
+enqueue call itself, not the execution time of the background task.
+
+Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     import dramatiq
     from ddtrace import patch

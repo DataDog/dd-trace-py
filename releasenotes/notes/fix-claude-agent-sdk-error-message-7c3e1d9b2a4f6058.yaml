@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue in the Claude Agent SDK integration where a span's
+    error message showed an uncategorized ``unknown`` error category from the upstream Claude Agent SDK
+    instead of a descriptive API error. The integration now surfaces the detailed error message from the
+    assistant message content.

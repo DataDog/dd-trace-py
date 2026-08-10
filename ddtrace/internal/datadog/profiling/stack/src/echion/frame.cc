@@ -8,6 +8,7 @@
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
+#include <limits>
 #endif // PY_VERSION_HEX >= 0x030b0000
 
 // ------------------------------------------------------------------------
@@ -82,21 +83,32 @@ Result<std::reference_wrapper<Frame>>
 Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #endif
 {
+    if (frame_addr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
 #if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
       stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr)) : frame_addr;
+
     if (resolved_addr != frame_addr) {
-        frame_addr = resolved_addr;
+        if (resolved_addr == nullptr) {
+            return ErrorKind::FrameError;
+        }
+
+        // The frame is in the stack chunk, try to copy it into the local frame object.
+        // Note: resolved_addr points into the stack chunk's local buffer and may not be
+        // aligned to alignof(_PyInterpreterFrame). Copy into the aligned local
+        // iframe before accessing any fields to avoid undefined behaviour.
+        std::memcpy(&iframe, resolved_addr, sizeof(iframe));
     } else {
+        // The frame is not in the stack chunk, directly copy the frame object.
         if (copy_type(frame_addr, iframe)) {
             return ErrorKind::FrameError;
         }
-        frame_addr = &iframe;
     }
-    if (frame_addr == NULL) {
-        return ErrorKind::FrameError;
-    }
+    frame_addr = &iframe;
 
 #if PY_VERSION_HEX >= 0x030c0000
 #if PY_VERSION_HEX >= 0x030e0000
@@ -118,6 +130,36 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 #endif // PY_VERSION_HEX >= 0x030c0000
 
+    auto compute_lasti = [](uintptr_t instr_addr, uintptr_t code_obj_addr) -> Result<int> {
+        constexpr uintptr_t code_unit_size = sizeof(_Py_CODEUNIT);
+        constexpr uintptr_t code_unit_alignment = alignof(_Py_CODEUNIT);
+
+        if ((instr_addr % code_unit_alignment) != 0 || (code_obj_addr % code_unit_alignment) != 0) {
+            return ErrorKind::FrameError;
+        }
+
+        const uintptr_t code_start_addr = code_obj_addr + offsetof(PyCodeObject, co_code_adaptive);
+        if ((code_start_addr % code_unit_alignment) != 0) {
+            return ErrorKind::FrameError;
+        }
+
+        if (instr_addr < code_start_addr) {
+            return ErrorKind::FrameError;
+        }
+
+        const uintptr_t delta = instr_addr - code_start_addr;
+        if ((delta % code_unit_size) != 0) {
+            return ErrorKind::FrameError;
+        }
+
+        const uintptr_t lasti_index = delta / code_unit_size;
+        if (lasti_index > static_cast<uintptr_t>(std::numeric_limits<int>::max())) {
+            return ErrorKind::FrameError;
+        }
+
+        return static_cast<int>(lasti_index);
+    };
+
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
     // from the code object, which is a remote address here.  Use offsetof
     // arithmetic instead to avoid dereferencing it.
@@ -129,12 +171,15 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
-    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
-    // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
-    _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
-    const int lasti =
-      static_cast<int>((frame_addr->instr_ptr - code_units) -
-                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
+    // In Python 3.13+, instr_ptr points to the current instruction.
+    // Compute lasti with raw addresses to avoid UB on misaligned fuzzed pointers.
+    auto maybe_lasti =
+      compute_lasti(reinterpret_cast<uintptr_t>(frame_addr->instr_ptr), reinterpret_cast<uintptr_t>(code_obj));
+    if (!maybe_lasti) {
+        return ErrorKind::FrameError;
+    }
+    const int lasti = *maybe_lasti;
+
     auto maybe_frame = Frame::get(echion, code_obj, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
@@ -146,9 +191,13 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
-    const int lasti =
-      static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>(frame_addr->f_code)) -
-                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
+    auto maybe_lasti = compute_lasti(reinterpret_cast<uintptr_t>(frame_addr->prev_instr),
+                                     reinterpret_cast<uintptr_t>(frame_addr->f_code));
+    if (!maybe_lasti) {
+        return ErrorKind::FrameError;
+    }
+    const int lasti = *maybe_lasti;
+
     auto maybe_frame = Frame::get(echion, frame_addr->f_code, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;

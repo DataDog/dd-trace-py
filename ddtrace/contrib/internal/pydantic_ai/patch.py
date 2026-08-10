@@ -28,13 +28,20 @@ def _supported_versions() -> dict[str, str]:
 PYDANTIC_AI_VERSION = parse_version(get_version())
 
 
+def _agent_resource(instance) -> str:
+    return getattr(instance, "name", None) or "Pydantic Agent"
+
+
 def traced_agent_run_stream(func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     integration._run_stream_active = True
     span = integration.trace(
-        "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+        _agent_resource(instance),
+        span_name="pydantic_ai.agent",
+        submit_to_llmobs=True,
+        model=getattr(instance, "model", None),
+        kind="agent",
     )
-    span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
@@ -48,9 +55,12 @@ def traced_agent_iter(func, instance, args, kwargs):
         integration._run_stream_active = False
         return func(*args, **kwargs)
     span = integration.trace(
-        "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+        _agent_resource(instance),
+        span_name="pydantic_ai.agent",
+        submit_to_llmobs=True,
+        model=getattr(instance, "model", None),
+        kind="agent",
     )
-    span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
@@ -88,8 +98,7 @@ async def traced_tool_run(func, instance, args, kwargs, tool_name):
     integration = pydantic_ai._datadog_integration
     resp = None
     try:
-        span = integration.trace("Pydantic Tool", submit_to_llmobs=True, kind="tool")
-        span.name = tool_name
+        span = integration.trace(tool_name, span_name="pydantic_ai.tool", submit_to_llmobs=True, kind="tool")
         resp = await func(*args, **kwargs)
         return resp
     except Exception:

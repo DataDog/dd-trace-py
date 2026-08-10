@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langgraph: Fixes an issue where abandoning a graph stream early (for example, ``break``-ing out of ``astream()`` or ``stream()`` when an ``__interrupt__`` is received in a human-in-the-loop workflow) left the graph's root span unfinished, so the trace failed to assemble and did not appear in Datadog. The root span is now finished when the stream is torn down, so interrupted runs are traced.

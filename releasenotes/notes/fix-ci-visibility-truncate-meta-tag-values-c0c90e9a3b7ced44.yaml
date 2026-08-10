@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Truncates string meta tag values to 5000 characters when encoding test-cycle payloads,
+    preventing rejected payloads caused by tag values that exceed the backend maximum length.

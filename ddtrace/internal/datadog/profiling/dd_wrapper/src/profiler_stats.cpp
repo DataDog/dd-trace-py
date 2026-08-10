@@ -12,6 +12,19 @@ append_to_string(std::string& s, size_t value)
     s.append(buf, ptr);
 }
 
+void
+append_optional_bool(std::string& s, const char* key, const std::optional<bool>& value)
+{
+    if (!value.has_value()) {
+        return;
+    }
+    s += '"';
+    s += key;
+    s += "\": ";
+    s += *value ? "true" : "false";
+    s += ',';
+}
+
 } // namespace
 
 void
@@ -45,12 +58,13 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
-    string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
+    heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
-    // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
+    sample_capture_cpu_time_us = 0;
+    // fast_copy_memory_* static fields are intentionally not reset (see setters).
 }
 
 void
@@ -63,6 +77,59 @@ std::optional<bool>
 Datadog::ProfilerStats::get_fast_copy_memory_enabled() const
 {
     return fast_copy_memory_enabled;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_user_disabled(bool disabled)
+{
+    fast_copy_memory_user_disabled = disabled;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_user_disabled() const
+{
+    return fast_copy_memory_user_disabled;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_capable(bool capable)
+{
+    fast_copy_memory_capable = capable;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_capable() const
+{
+    return fast_copy_memory_capable;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_syscall_fallback(bool fallback)
+{
+    fast_copy_memory_syscall_fallback = fallback;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_syscall_fallback() const
+{
+    return fast_copy_memory_syscall_fallback;
+}
+
+void
+Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
+{
+    if (auto value = other.get_fast_copy_memory_user_disabled()) {
+        set_fast_copy_memory_user_disabled(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_capable()) {
+        set_fast_copy_memory_capable(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_syscall_fallback()) {
+        set_fast_copy_memory_syscall_fallback(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_enabled()) {
+        set_fast_copy_memory_enabled(*value);
+    }
 }
 
 void
@@ -102,18 +169,6 @@ Datadog::ProfilerStats::get_string_table_count() const
 }
 
 void
-Datadog::ProfilerStats::set_string_table_ephemeral_count(size_t count)
-{
-    string_table_ephemeral_count = count;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_ephemeral_count() const
-{
-    return string_table_ephemeral_count;
-}
-
-void
 Datadog::ProfilerStats::set_heap_tracker_size(size_t count)
 {
     heap_tracker_size = count;
@@ -126,9 +181,25 @@ Datadog::ProfilerStats::get_heap_tracker_size() const
 }
 
 void
+Datadog::ProfilerStats::set_heap_tracker_cap_drops(size_t count)
+{
+    heap_tracker_cap_drops = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
+{
+    return heap_tracker_cap_drops;
+}
+
+void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
-    asyncio_task_count = count;
+    // Track the peak (max) asyncio task count observed across sampling cycles
+    // within a profile period
+    if (!asyncio_task_count.has_value() || count > *asyncio_task_count) {
+        asyncio_task_count = count;
+    }
 }
 
 std::optional<size_t>
@@ -147,6 +218,18 @@ std::optional<size_t>
 Datadog::ProfilerStats::get_greenlet_count() const
 {
     return greenlet_count;
+}
+
+void
+Datadog::ProfilerStats::add_sample_capture_cpu_time_us(size_t cpu_time_us)
+{
+    sample_capture_cpu_time_us += cpu_time_us;
+}
+
+size_t
+Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
+{
+    return sample_capture_cpu_time_us;
 }
 
 std::string
@@ -171,13 +254,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += ",";
     }
 
-    auto maybe_string_table_ephemeral_count = get_string_table_ephemeral_count();
-    if (maybe_string_table_ephemeral_count) {
-        internal_metadata_json += R"("string_table_ephemeral_count": )";
-        append_to_string(internal_metadata_json, *maybe_string_table_ephemeral_count);
-        internal_metadata_json += ",";
-    }
-
     internal_metadata_json += R"("sample_count": )";
     append_to_string(internal_metadata_json, sample_count);
     internal_metadata_json += ",";
@@ -193,10 +269,22 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += ",";
     }
 
+    append_optional_bool(internal_metadata_json, "fast_copy_memory_user_disabled", fast_copy_memory_user_disabled);
+    append_optional_bool(internal_metadata_json, "fast_copy_memory_capable", fast_copy_memory_capable);
+    append_optional_bool(
+      internal_metadata_json, "fast_copy_memory_syscall_fallback", fast_copy_memory_syscall_fallback);
+
     auto maybe_heap_tracker_count = get_heap_tracker_size();
     if (maybe_heap_tracker_count) {
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_heap_cap_drops = get_heap_tracker_cap_drops();
+    if (maybe_heap_cap_drops) {
+        internal_metadata_json += R"("heap_tracker_cap_drops": )";
+        append_to_string(internal_metadata_json, *maybe_heap_cap_drops);
         internal_metadata_json += ",";
     }
 
@@ -216,6 +304,10 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("sample_capture_cpu_time_us": )";
+    append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
 
     internal_metadata_json += "}";
 

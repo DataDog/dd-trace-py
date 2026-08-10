@@ -45,7 +45,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.starlette",
-         "_dd.svc_src": "starlette",
+         "_dd.svc_src": "sqlalchemy",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"
@@ -105,7 +105,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.starlette",
-         "_dd.svc_src": "starlette",
+         "_dd.svc_src": "sqlalchemy",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"

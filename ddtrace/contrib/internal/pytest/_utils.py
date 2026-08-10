@@ -1,3 +1,6 @@
+# DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
+# Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
+# the new plugin at ddtrace/testing/internal/pytest/.
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -254,3 +257,8 @@ def get_user_property(report, key, default=None):
 
 excinfo_by_report = {}
 reports_by_item = {}
+
+
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")

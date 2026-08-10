@@ -1,3 +1,6 @@
+# DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
+# Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
+# the new plugin at ddtrace/testing/internal/pytest/.
 """Provides functionality to support the pytest-bdd plugin as part of the ddtrace integration
 
 NOTE: This replaces the previous ddtrace.pytest_bdd plugin.
@@ -10,7 +13,6 @@ implementations will cause errors unless the hookspecs are added by the original
 """
 
 from pathlib import Path
-import sys
 
 import pytest
 
@@ -99,11 +101,7 @@ class _PytestBddSubPlugin:
     def pytest_bdd_step_error(request, feature, scenario, step, step_func, step_func_args, exception):
         span = _extract_span(step_func)
         if span is not None:
-            if hasattr(exception, "__traceback__"):
-                tb = exception.__traceback__
-            else:
-                # PY2 compatibility workaround
-                _, _, tb = sys.exc_info()
+            tb = exception.__traceback__
             step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
                 span.set_tag(test.PARAMETERS, step_func_args_json)

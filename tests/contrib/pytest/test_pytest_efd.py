@@ -19,6 +19,7 @@ from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+from tests.contrib.pytest.test_pytest import _assert_itr_tests_skipping_enabled_tag_propagated
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
 from tests.utils import override_env
 
@@ -336,6 +337,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
         rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         session_span = _get_spans_from_list(spans, "session")[0]
         assert session_span.get_tag("test.status") == "fail"
 

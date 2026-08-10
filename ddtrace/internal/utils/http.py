@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
+from enum import Enum
 from json import loads
 import logging
 import re
@@ -31,6 +32,42 @@ from ddtrace.internal.utils.cache import cached
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
+
+
+class MediaType(Enum):
+    """Body-parsing category for an HTTP ``Content-Type``."""
+
+    JSON = "json"
+    XML = "xml"
+    FORM_URLENCODED = "form_urlencoded"
+    MULTIPART = "multipart"
+    PLAIN = "plain"
+    UNKNOWN = "unknown"
+
+
+def classify_media_type(content_type: Optional[str]) -> MediaType:
+    """Classify a ``Content-Type`` value into a :class:`MediaType` body-parsing category.
+
+    HTTP media types are case-insensitive and may carry parameters such as ``charset``
+    or ``boundary`` (RFC 9110), e.g. ``Application/JSON; charset=utf-8``; the value is
+    normalized to its bare, lowercased media type before matching. Any subtype carrying
+    a ``+json`` structured suffix (e.g. ``application/vnd.api+json``) maps to JSON, and
+    any ``+xml`` suffix maps to XML. An empty or unrecognized value maps to UNKNOWN.
+    """
+    if not content_type:
+        return MediaType.UNKNOWN
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type in ("application/json", "text/json") or media_type.endswith("+json"):
+        return MediaType.JSON
+    if media_type in ("application/xml", "text/xml") or media_type.endswith("+xml"):
+        return MediaType.XML
+    if media_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+        return MediaType.FORM_URLENCODED
+    if media_type == "multipart/form-data":
+        return MediaType.MULTIPART
+    if media_type == "text/plain":
+        return MediaType.PLAIN
+    return MediaType.UNKNOWN
 
 
 if TYPE_CHECKING:
@@ -380,15 +417,17 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> Union[str, dict[str, Any]]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
     from urllib.parse import parse_qs
 
-    def parse_message(msg):
+    def parse_message(msg) -> Union[str, dict[str, Any]]:
+        res: Union[str, dict[str, Any]] = ""
+
         if msg.is_multipart():
-            res: dict[str, list] = {}
+            res = {}
             for part in msg.get_payload():
                 key = part.get_param("name", failobj=part.get_filename(), header="content-disposition")
                 value = parse_message(part)
@@ -396,15 +435,18 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
             res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
             content_type = msg.get("Content-Type")
-            if content_type in ("application/json", "text/json"):
+            # A part with no Content-Type header defaults to text/plain (RFC 2046); a present
+            # but unrecognized value (UNKNOWN) is left unparsed, as before.
+            category = MediaType.PLAIN if content_type is None else classify_media_type(content_type)
+            if category is MediaType.JSON:
                 res = json.loads(msg.get_payload())
-            elif content_type in ("application/xml", "text/xml"):
+            elif category is MediaType.XML:
                 import ddtrace.vendor.xmltodict as xmltodict
 
                 res = xmltodict.parse(msg.get_payload())
-            elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+            elif category is MediaType.FORM_URLENCODED:
                 res = parse_qs(msg.get_payload())
-            elif content_type in ("text/plain", None):
+            elif category is MediaType.PLAIN:
                 res = msg.get_payload()
             else:
                 res = ""
@@ -415,6 +457,7 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
         content_type = headers.get("Content-Type") or headers.get("content-type")
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
+
     return {}
 
 

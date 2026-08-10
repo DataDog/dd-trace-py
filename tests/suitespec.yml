@@ -2,11 +2,13 @@
 components:
   $harness:
     - docker/*
+    - docker-compose.base.yml
+    - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
     - .riot/requirements/*
     - scripts/ddtest
-    - hatch.toml
+    - pyproject.toml
     - tests/conftest.py
     - tests/utils.py
     - tests/__init__.py
@@ -42,6 +44,7 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_service_state.py
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -88,6 +91,7 @@ components:
     - ddtrace/ext/schema.py
   openfeature:
     - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
@@ -153,6 +157,7 @@ suites:
     paths:
       - '@crashtracker'
       - '@core'
+      - '@profiling'
     snapshot: true
   conftest:
     parallelism: 1
@@ -209,6 +214,7 @@ suites:
       - '@contrib'
       - scripts/integration_registry/*
   internal:
+    retry: 2
     venvs_per_job: 2
     paths:
       - '@core'
@@ -217,11 +223,20 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/gen_gitlab_config.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
       - tests/snapshots/tests.internal.*
     snapshot: true
+  wrapping:
+    venvs_per_job: 6
+    paths:
+      - '@core'
+      - '@tracing'
+      - ddtrace/internal/wrapping/*
+      - ddtrace/_trace/tracer.py
+      - tests/wrapping/*
   lib_injection:
     paths:
       - '@bootstrap'
@@ -257,6 +272,9 @@ suites:
       - '@settings'
       - '@profiling'
       - '@vendor'
+      # tests/telemetry runs real django and flask apps; '@contrib' is only shared infrastructure.
+      - '@django'
+      - '@flask'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     snapshot: true
@@ -280,6 +298,17 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
+  tracer-uwsgi:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/uwsgi-app.py
+      - tests/contrib/uwsgi/__init__.py
+    pattern: tracer-uwsgi
   vendor:
     parallelism: 1
     paths:

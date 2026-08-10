@@ -5,6 +5,7 @@
 #include <echion/echion_sampler.h>
 #include <echion/tasks.h>
 
+// NOLINTBEGIN(performance-no-int-to-ptr)
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
@@ -56,3 +57,4 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     g_size = 0;
     return 0;
 }
+// NOLINTEND(performance-no-int-to-ptr)

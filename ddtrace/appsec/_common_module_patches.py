@@ -3,10 +3,12 @@ import json
 import os
 from typing import Iterable
 from typing import Union
+from urllib.parse import urlunparse
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
@@ -30,19 +32,21 @@ _RASP_SYSTEM = "rasp_os.system"
 _RASP_POPEN = "rasp_Popen"
 
 
+def _patch_subprocess(module):
+    # ensure that the subprocess patch is applied even after one click activation
+    subprocess_patch.patch()
+    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+    log.debug("Patching common modules: subprocess_patch")
+
+
 def patch_common_modules():
     global _is_patched
 
-    @ModuleWatchdog.after_module_imported("subprocess")
-    def _(module):
-        # ensure that the subprocess patch is applied even after one click activation
-        subprocess_patch.patch()
-        subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-        subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
-        log.debug("Patching common modules: subprocess_patch")
-
     if _is_patched:
         return
+
+    ModuleWatchdog.register_module_hook("subprocess", _patch_subprocess)
 
     try_wrap_function_wrapper(
         "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request_6D4E8B2A1F095C73
@@ -69,6 +73,7 @@ def unpatch_common_modules():
         return
 
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
@@ -76,14 +81,14 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
-    try_unwrap("_io", "BytesIO.read")
-    try_unwrap("_io", "StringIO.read")
+    core.reset_listeners("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
 
     unpatch_stripe_for_appsec()
 
     subprocess_patch.unpatch()
     subprocess_patch.del_str_callback(_RASP_SYSTEM)
     subprocess_patch.del_lst_callback(_RASP_POPEN)
+    ModuleWatchdog.unregister_module_hook("subprocess", _patch_subprocess)
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
@@ -289,6 +294,8 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         if valid_url and url and (ctx := _get_asm_context()):
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+                # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
+                open_rasp_subcontext_scope()
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
@@ -335,7 +342,15 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
     full_url = core.find_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
-    if do_rasp:
+    if not do_rasp:
+        return original_request_callable(*args, **kwargs)
+    core.discard_item("full_url")
+    # Run this outgoing request in its own core context so concurrent urllib3 requests each get a
+    # distinct subcontext (shared only by this request's SSRF_REQ + SSRF_RES). When an outer client
+    # (e.g. requests) already owns a scope, open_rasp_subcontext_scope finds it (walks up) and
+    # reuses it. Dropping this context releases the holder, so no explicit close is needed.
+    with core.context_with_data("rasp.ssrf.urllib3"):
+        open_rasp_subcontext_scope()
         use_body = core.find_item("use_body", False)
         method = args[1] if len(args) > 1 else kwargs.get("method", None)
         body = args[3] if len(args) > 3 else kwargs.get("body", None)
@@ -353,25 +368,30 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         env.downstream_requests += 1
-        core.discard_item("full_url")
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-    response = original_request_callable(*args, **kwargs)
+        # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
+        # out in http.client.HTTPConnection.getresponse (wrapped by `wrapped_response`), which
+        # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
+        # subcontext. Re-inspecting here would double-call the WAF.
+        return original_request_callable(*args, **kwargs)
+
+
+def _urllib3_absolute_url(instance, path: str) -> str:
     try:
-        if do_rasp and response.__class__.__name__ == "BaseHTTPResponse" and 300 <= response.status < 400:
-            # api10 for redirected response status and headers in urllib3
-            addresses = {
-                "DOWN_RES_STATUS": str(response.status),
-                "DOWN_RES_HEADERS": response.headers,
-            }
-            call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-    except Exception:
-        pass  # nosec
-    return response
+        port = getattr(instance, "port", None)
+        netloc = "{}:{}".format(instance.host, port) if port and port not in (80, 443) else str(instance.host)
+        return urlunparse((instance.scheme, netloc, path, "", "", ""))
+    except Exception:  # nosec
+        return path
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
+    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
+    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
+    if isinstance(full_url, str) and full_url.startswith("/") and instance is not None:
+        # PoolManager passes a relative URI; rebuild the absolute URL so SSRF/API10 sees the host.
+        full_url = _urllib3_absolute_url(instance, full_url)
     if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:
@@ -401,6 +421,8 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         if valid_url and url and (ctx := _get_asm_context()):
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+                # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
+                open_rasp_subcontext_scope()
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)
@@ -423,7 +445,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     return original_request_callable(*args, **kwargs)
 
 
-def wrapped_system_5542593D237084A7(command: str) -> None:
+def wrapped_system_5542593D237084A7(command: Union[str, bytes]) -> None:
     """
     wrapper for os.system function
     """
@@ -449,7 +471,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
-def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[list[str], str, bytes]) -> None:
     """
     listener for subprocess.Popen class
     """
@@ -462,8 +484,13 @@ def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
             return
 
         if in_asm_context():
+            command: list[Union[str, bytes]] = []
+            if isinstance(arg_list, list):
+                command.extend(arg_list)
+            else:
+                command.append(arg_list)
             res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list if isinstance(arg_list, list) else [arg_list]},
+                {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
                 crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )

@@ -9,6 +9,7 @@ from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -36,7 +37,7 @@ def dsm_aiokafka_send_start(
     if not dsm_processor:
         return
 
-    span = span_ctx.span
+    span = span_from_context(span_ctx)
 
     payload_size = 0
     payload_size += _calculate_byte_size(value)
@@ -48,7 +49,10 @@ def dsm_aiokafka_send_start(
         header_dict = {}
     payload_size += _calculate_byte_size(header_dict)
 
+    cluster_id = core.find_item("kafka_cluster_id")
     edge_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
+    if cluster_id:
+        edge_tags.append(f"kafka_cluster_id:{cluster_id}")
     ctx = dsm_processor.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
     dsm_headers: dict[str, str] = {}
@@ -70,8 +74,13 @@ def dsm_aiokafka_send_completed(
 
     if record_metadata is not None:
         reported_offset = record_metadata.offset if isinstance(record_metadata.offset, int) else -1
+        cluster_id = core.find_item("kafka_cluster_id")
         dsm_processor.track_kafka_produce(
-            record_metadata.topic, record_metadata.partition, reported_offset, time.time()
+            record_metadata.topic,
+            record_metadata.partition,
+            reported_offset,
+            time.time(),
+            cluster_id=cluster_id,
         )
 
 
@@ -88,7 +97,7 @@ def dsm_aiokafka_message_consume(
     if not dsm_processor or not message:
         return
 
-    span = span_ctx.span
+    span = span_from_context(span_ctx)
 
     headers = {
         key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val)
@@ -96,6 +105,7 @@ def dsm_aiokafka_message_consume(
         if val is not None
     }
     group = instance._group_id
+    cluster_id = core.find_item("kafka_cluster_id")
 
     payload_size = 0
     payload_size += _calculate_byte_size(message.value)
@@ -103,16 +113,22 @@ def dsm_aiokafka_message_consume(
     payload_size += _calculate_byte_size(headers)
 
     ctx = DsmPathwayCodec.decode(headers, dsm_processor)
-    ctx.set_checkpoint(
-        ["direction:in", f"group:{group}", f"topic:{message.topic}", "type:kafka"], payload_size=payload_size, span=span
-    )
+    edge_tags = ["direction:in", f"group:{group}", f"topic:{message.topic}", "type:kafka"]
+    if cluster_id:
+        edge_tags.append(f"kafka_cluster_id:{cluster_id}")
+    ctx.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
     if instance._enable_auto_commit:
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset + 1) if isinstance(message.offset, int) else -1
         dsm_processor.track_kafka_commit(
-            instance._group_id, message.topic, message.partition, reported_offset, time.time()
+            instance._group_id,
+            message.topic,
+            message.partition,
+            reported_offset,
+            time.time(),
+            cluster_id=cluster_id,
         )
 
 
@@ -136,6 +152,7 @@ def dsm_aiokafka_message_commit(instance: "GroupCoordinator", args: Any, kwargs:
 
     offsets = get_argument_value(args, kwargs, 1, "offsets", optional=True)
     if offsets:
+        cluster_id = core.find_item("kafka_cluster_id")
         for tp, offset in offsets.items():
             # offset can be either an int or a tuple of (offset, metadata)
             if isinstance(offset, int):
@@ -144,7 +161,14 @@ def dsm_aiokafka_message_commit(instance: "GroupCoordinator", args: Any, kwargs:
                 reported_offset = offset[0]
             else:
                 reported_offset = -1
-            dsm_processor.track_kafka_commit(instance.group_id, tp.topic, tp.partition, reported_offset, time.time())
+            dsm_processor.track_kafka_commit(
+                instance.group_id,
+                tp.topic,
+                tp.partition,
+                reported_offset,
+                time.time(),
+                cluster_id=cluster_id,
+            )
 
 
 if config._data_streams_enabled:

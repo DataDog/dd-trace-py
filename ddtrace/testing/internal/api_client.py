@@ -221,7 +221,9 @@ class APIClient:
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 
-    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
+    def get_test_management_properties(
+        self, statuses: t.Optional[tuple[str, ...]] = None
+    ) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -230,18 +232,22 @@ class APIClient:
         )
 
         try:
-            commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
-            commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
+            attributes: dict[str, t.Any] = {
+                "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+            }
+            if statuses is not None:
+                attributes["statuses"] = list(statuses)
+            else:
+                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
+                commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
+                attributes["commit_message"] = commit_message
+                attributes["sha"] = commit_sha
 
-            request_data = {
+            request_data: dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "commit_message": commit_message,
-                        "sha": commit_sha,
-                    },
+                    "attributes": attributes,
                 }
             }
 
@@ -268,17 +274,16 @@ class APIClient:
 
             for module_name, module_data in modules.items():
                 module_ref = ModuleRef(module_name)
-                suites = module_data["suites"]
-                for suite_name, suite_data in suites.items():
+                for suite_name, suite_data in module_data["suites"].items():
                     suite_ref = SuiteRef(module_ref, suite_name)
-                    tests = suite_data["tests"]
-                    for test_name, test_data in tests.items():
+                    for test_name, test_data in suite_data["tests"].items():
                         test_ref = TestRef(suite_ref, test_name)
-                        properties = test_data.get("properties", {})
+                        props = test_data.get("properties", {})
                         test_properties[test_ref] = TestProperties(
-                            quarantined=properties.get("quarantined", False),
-                            disabled=properties.get("disabled", False),
-                            attempt_to_fix=properties.get("attempt_to_fix", False),
+                            quarantined=props.get("quarantined", False),
+                            disabled=props.get("disabled", False),
+                            attempt_to_fix=statuses is not None or props.get("attempt_to_fix", False),
+                            active=props.get("active", False),
                         )
 
         except Exception as e:
@@ -412,6 +417,13 @@ class APIClient:
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
+        # The skippable-tests endpoint can be slow on the first call for dd-trace-py (backend computes the list on
+        # demand), so give it a longer timeout than the global default while the proper per-endpoint timeout lands.
+        _extend_timeout = self.service == "dd-trace-py"
+        if _extend_timeout:
+            _prev_timeout = self.connector.conn.timeout
+            self.connector.conn.close()
+            self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
@@ -420,6 +432,10 @@ class APIClient:
             log.warning("Error getting skippable tests from API: %s", e)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
+        finally:
+            if _extend_timeout:
+                self.connector.conn.close()
+                self.connector.conn.timeout = _prev_timeout
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()

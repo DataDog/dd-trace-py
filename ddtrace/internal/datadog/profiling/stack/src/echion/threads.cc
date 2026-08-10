@@ -4,12 +4,25 @@
 
 #include <echion/echion_sampler.h>
 
+#include "dd_wrapper/include/defer.hpp"
+
 #include <algorithm>
 #include <optional>
+#include <string_view>
+
+void
+ThreadInfo::reset_cycle_state() noexcept
+{
+    current_tasks.clear();
+    current_greenlets.clear();
+}
 
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
+    // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
+    reset_cycle_state();
+
     unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
@@ -234,7 +247,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
+        // Must match _task.task_object_address() so lock and stack samples correlate.
+        auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
         auto& stack = stack_info->stack;
 
         // Safety: prevent infinite loops from cycles in task chain maps
@@ -245,15 +260,19 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
             auto& task = current_task.get();
 
-            // Look up the pre-computed coroutine stack for this task
+            // Look up the pre-computed coroutine stack for this task.
+            // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
+            // python_stack must be appended before coroutine frames.
+            // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
+            // This preserves the previous max_frames truncation behavior while avoiding front insertion.
+            const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
+            size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
-                task_stack_size = it->second.size();
-                for (const Frame& coro_frame : it->second) {
-                    if (stack.size() >= max_frames) {
-                        break;
-                    }
-                    stack.push_back(coro_frame);
+                task_stack = &it->second;
+                task_stack_size = task_stack->size();
+                if (stack.size() < max_frames) {
+                    task_frames_to_push = std::min(task_stack_size, max_frames - stack.size());
                 }
             }
             if (task.is_on_cpu) {
@@ -270,19 +289,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
                                           ? python_stack.size() - upper_python_stack_size - task_stack_size
                                           : 0;
+                // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[frames_to_push - i - 1];
+                    const auto& python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
                     }
-                    stack.push_front(python_frame);
+                    stack.push_back(python_frame);
+                }
+            }
+            if (task_stack != nullptr) {
+                for (size_t i = 0; i < task_frames_to_push; i++) {
+                    stack.push_back((*task_stack)[i]);
                 }
             }
 
-            // Add the task name frame
-            stack.push_back(Frame::get(echion, task.name));
+            // Task labels are rendered separately from frames; do not add a synthetic
+            // frame for the task name here.
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
@@ -611,10 +636,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
                 continue;
             }
 
-            GreenletSnapshot snap;
-            snap.greenlet_id = gid;
-            snap.name = greenlet->name;
-            snap.frame = frame;
+            GreenletSnapshot snap{ gid, greenlet->name, frame, {} };
 
             // Precompute parent chain while we still hold the lock
             auto current_id = gid;
@@ -659,7 +681,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     // copy_type() which returns non-zero on failure.
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
-        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
         auto& stack = stack_info->stack;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
@@ -672,6 +694,68 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
         current_greenlets.push_back(std::move(stack_info));
     }
+
+    // Make sure the on-CPU greenlet is first. render_task_begin reuses the
+    // sample created by render_thread_begin for the first task it renders;
+    // that sample already received push_cputime via render_cpu_time. Tasks
+    // rendered after the first start a new sample and, if on_cpu is true,
+    // push thread_state.cpu_time_ns again, double-counting CPU time.
+    //
+    // unwind_tasks performs the analogous swap on leaf_tasks above. Note that
+    // the "on-CPU" signal differs: asyncio's is_on_cpu is derived from frame
+    // matching during unwind, while a greenlet's on_cpu is set from
+    // snap.frame == Py_None (see the loop above), which is the sentinel
+    // greenlet uses for its currently-running greenlet. If that sentinel
+    // changes, this swap silently no-ops and the over-count returns.
+    //
+    // If no greenlet is on CPU (e.g. all workers are sleeping while the Hub
+    // is running, which is filtered out as a parent), no entry triggers
+    // render_task_begin's push_cputime branch, so order does not matter and
+    // this loop falls through harmlessly. Empty current_greenlets is also
+    // safe (loop body never executes).
+    for (size_t i = 1; i < current_greenlets.size(); i++) {
+        if (current_greenlets[i]->on_cpu) {
+            std::swap(current_greenlets[i], current_greenlets[0]);
+            break;
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+void
+ThreadInfo::render_unwound_stacks(EchionSampler& echion)
+{
+    auto& renderer = echion.renderer();
+
+    // Render in this order of priority
+    // 1. asyncio Tasks stacks (if any)
+    // 2. Greenlets stacks (if any)
+    // 3. The normal thread stack (if no asyncio tasks or greenlets)
+    if (!current_tasks.empty()) {
+        for (auto& task_stack_info : current_tasks) {
+            task_stack_info->task_name.visit_string([&](std::string_view task_name) {
+                renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id);
+            });
+
+            task_stack_info->stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+    } else if (!current_greenlets.empty()) {
+        for (auto& greenlet_stack : current_greenlets) {
+            greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
+                renderer.render_task_begin(task_name, greenlet_stack->on_cpu, greenlet_stack->task_id);
+            });
+
+            auto& stack = greenlet_stack->stack;
+            stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+    } else {
+        python_stack.render(echion);
+        renderer.render_stack_end();
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -679,6 +763,14 @@ Result<void>
 ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
     auto& renderer = echion.renderer();
+
+    // This exit reset complements unwind's entry reset. It covers returns before unwind and exceptions after partial
+    // task or greenlet state has been populated, so no logical snapshot survives the cycle that created it.
+    defer
+    {
+        reset_cycle_state();
+    };
+
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
@@ -690,48 +782,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
     this->unwind(echion, tstate);
-
-    // Render in this order of priority
-    // 1. asyncio Tasks stacks (if any)
-    // 2. Greenlets stacks (if any)
-    // 3. The normal thread stack (if no asyncio tasks or greenlets)
-    if (!current_tasks.empty()) {
-        for (auto& task_stack_info : current_tasks) {
-            auto maybe_task_name = echion.string_table().lookup(task_stack_info->task_name);
-            if (!maybe_task_name) {
-                return ErrorKind::ThreadInfoError;
-            }
-
-            const auto& task_name = maybe_task_name->get();
-            renderer.render_task_begin(task_name, task_stack_info->on_cpu);
-
-            task_stack_info->stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_tasks.clear();
-    } else if (!current_greenlets.empty()) {
-        for (auto& greenlet_stack : current_greenlets) {
-            auto maybe_task_name = echion.string_table().lookup(greenlet_stack->task_name);
-            if (!maybe_task_name) {
-                return ErrorKind::ThreadInfoError;
-            }
-
-            const auto& task_name = maybe_task_name->get();
-            renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
-
-            auto& stack = greenlet_stack->stack;
-            stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_greenlets.clear();
-    } else {
-        python_stack.render(echion);
-        renderer.render_stack_end();
-    }
+    this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
 }

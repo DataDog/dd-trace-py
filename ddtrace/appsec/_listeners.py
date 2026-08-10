@@ -10,6 +10,27 @@ _APPSEC_TO_BE_LOADED = True
 log = get_logger(__name__)
 
 
+def _report_asm_enabled() -> None:
+    """Report the current DD_APPSEC_ENABLED state to instrumentation telemetry.
+
+    ASM enablement can change at runtime (startup product load or a remote-config
+    one-click toggle), so telemetry is refreshed wherever the state changes. The native
+    telemetry worker stores the latest configuration and re-sends it on its heartbeat, so
+    a single change-driven report keeps telemetry in sync.
+    """
+    try:
+        from ddtrace.appsec._constants import APPSEC
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        telemetry_writer.add_configuration(
+            APPSEC.ENV,
+            int(asm_config._asm_enabled),
+            asm_config.asm_enabled_origin,
+        )
+    except Exception:
+        log.debug("Could not report appsec_enabled telemetry config status", exc_info=True)
+
+
 def _abort_appsec(failure_msg: str) -> None:
     """Disable AppSec and prevent it from being enabled through remote configuration
 
@@ -37,6 +58,7 @@ def _abort_appsec(failure_msg: str) -> None:
     disable_appsec_rc()
 
     tracer.configure(appsec_enabled=False)
+    _report_asm_enabled()
 
 
 def disable_appsec(reconfigure_tracer: bool = False) -> None:
@@ -58,6 +80,7 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
     else:
         asm_config._asm_enabled = False
 
+    _report_asm_enabled()
     return
 
 
@@ -74,6 +97,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
     from ddtrace.appsec._contrib.flask import listen as flask_listen
+    from ddtrace.appsec._contrib.openai.handlers import listen as openai_listen
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
@@ -89,6 +113,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         fastapi_listen()
         import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
 
+        openai_listen()
         stripe_listen()
         tornado_listen()
 
@@ -111,6 +136,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     else:
         asm_config._asm_enabled = True
 
+    _report_asm_enabled()
     return True
 
 

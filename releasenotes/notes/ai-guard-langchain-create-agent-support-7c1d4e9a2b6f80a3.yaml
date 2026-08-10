@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ai_guard: add AI Guard support for LangChain 1.0+ agents built with ``create_agent``.

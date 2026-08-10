@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    django: Fixes ``DD_DJANGO_DATABASE_SERVICE`` and ``DD_DJANGO_DATABASE_SERVICE_NAME``,
+    which were previously generated as ``DD_DJANGO-DATABASE_SERVICE`` and
+    ``DD_DJANGO-DATABASE_SERVICE_NAME``. The hyphenated names were invalid POSIX identifiers
+    and unusable from most shells. Hyphens in integration names are now normalized to
+    underscores when building env var names. The old hyphenated names are preserved as
+    aliases for backward compatibility. #17952

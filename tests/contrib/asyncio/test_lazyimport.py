@@ -18,6 +18,7 @@ def test_lazy_import():
     assert tracer.context_provider.active() is None
 
 
+@pytest.mark.skip(reason="wrapt 2.0 now imports asyncio by default")
 @pytest.mark.subprocess()
 def test_asyncio_not_imported_by_auto_instrumentation():
     # Module unloading is not supported for asyncio, a simple workaround

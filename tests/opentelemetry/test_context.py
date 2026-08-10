@@ -102,7 +102,9 @@ def _subprocess_task(parent_span_context, errors):
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+@pytest.mark.subprocess(
+    env={"DD_TRACE_OTEL_ENABLED": "true", "DD_SERVICE": "ddtrace_subprocess_dir"}, ddtrace_run=True, err=None
+)
 def test_otel_trace_across_fork():
     import multiprocessing
 
@@ -127,7 +129,7 @@ def test_otel_trace_across_fork():
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
 @pytest.mark.subprocess(
-    env={"DD_TRACE_OTEL_ENABLED": "true"},
+    env={"DD_TRACE_OTEL_ENABLED": "true", "DD_SERVICE": "ddtrace_subprocess_dir"},
     parametrize={"SAMPLING_DECISION": [MANUAL_KEEP_KEY, MANUAL_DROP_KEY]},
     ddtrace_run=True,
     err=None,

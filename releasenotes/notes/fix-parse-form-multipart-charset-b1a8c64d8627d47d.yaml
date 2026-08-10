@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: Fixes multipart body parts whose ``Content-Type`` header carried parameters being dropped.

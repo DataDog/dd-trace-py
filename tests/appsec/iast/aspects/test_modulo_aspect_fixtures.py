@@ -181,6 +181,42 @@ class TestOperatorModuloReplacement(BaseReplacement):
             ":+-<0>my_code<0>-+:",
         )
 
+    @pytest.mark.subprocess(env={"DD_IAST_ENABLED": "true"}, err=None)
+    def test_modulo_tainted_parameter_with_literal_marker_does_not_abort(self) -> None:
+        from ddtrace.appsec._iast._taint_tracking import get_ranges
+        from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+        from tests.appsec.iast.aspects.aspect_utils import _to_tainted_string_with_origin
+        from tests.appsec.iast.aspects.test_modulo_aspect_fixtures import mod
+        from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+        from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
+        from tests.utils import override_global_config
+
+        # AIDEV-NOTE: literal ":+-" inside tainted content used to be parsed as
+        # an evidence marker by the native modulo aspect, aborting the process.
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_is_testing=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            initialize_native_state()
+            context_id = _start_iast_context_and_oce()
+            assert context_id is not None
+            try:
+                parameter = _to_tainted_string_with_origin(":+-<input1>a::++--b<input1>-+:")
+                result = mod.do_modulo("Hello %s", parameter)
+                ranges = get_ranges(result)
+
+                assert result == "Hello a:+-b"
+                assert len(ranges) == 1
+                assert ranges[0].start == len("Hello ")
+                assert ranges[0].length == len("a:+-b")
+                assert ranges[0].source.name == "input1"
+            finally:
+                _end_iast_context_and_oce()
+
     def test_modulo_when_parameter_value_already_present_in_template_then_range_is_correct(self) -> None:
         self._assert_modulo_result(
             taint_escaped_template="aaaaaa%saaa",

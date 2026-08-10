@@ -1,10 +1,20 @@
 import pylibmc
 
+from ddtrace import config
+from ddtrace.ext import memcached
+from ddtrace.internal.schema import schematize_service_name
+
 from .client import TracedClient
 
 
 # Original Client class
 _Client = pylibmc.Client
+
+
+config._add(
+    "pylibmc",
+    dict(_default_service=schematize_service_name(memcached.SERVICE)),
+)
 
 
 def get_version() -> str:

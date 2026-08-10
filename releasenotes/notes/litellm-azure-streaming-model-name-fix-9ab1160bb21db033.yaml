@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where Azure OpenAI calls through the LiteLLM integration
+    tagged ``model_name`` with the request deployment name (e.g. ``my-deployment``) instead
+    of the canonical model returned by the API (e.g. ``gpt-4o-2024-08-06``). The integration now prefers
+    the response model for the ``azure`` and ``azure_text`` providers.

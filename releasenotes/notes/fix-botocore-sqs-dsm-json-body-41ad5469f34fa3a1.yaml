@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    botocore: Fixes a bug in Data Streams Monitoring where the pathway context of an
+    SQS message was not extracted when the message body was valid JSON, silently
+    breaking the data stream for non-SNS messages with a JSON payload. The ``_datadog``
+    message attribute is now read from the top-level SQS ``MessageAttributes`` first,
+    and the message body is only parsed for SNS-to-SQS notifications.

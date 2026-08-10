@@ -34,10 +34,8 @@ call_original_function(PyObject* orig_function,
     }
     py::args py_args(py_args_list);
 
-    PyObject* kwargs = kwnames_to_kwargs(args, nargs, kwnames);
-    auto res = PyObject_Call(orig_function, py_args.ptr(), kwnames_to_kwargs(args, nargs, kwnames));
-    Py_DECREF(kwargs);
-    return res;
+    py::object kwargs = kwnames_to_kwargs(args, nargs, kwnames);
+    return PyObject_Call(orig_function, py_args.ptr(), kwargs.ptr());
 }
 
 static std::tuple<int, int, PyObject*, PyObject*, PyObject*, PyObject*>
@@ -166,7 +164,13 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
         }
 
         const char* encoding = has_encoding ? PyUnicode_AsUTF8(pyo_encoding) : "utf-8";
+        if (has_encoding && encoding == nullptr) {
+            return nullptr; // PyUnicode_AsUTF8 failed; exception already set
+        }
         const char* errors = has_errors ? PyUnicode_AsUTF8(pyo_errors) : "strict";
+        if (has_errors && errors == nullptr) {
+            return nullptr; // PyUnicode_AsUTF8 failed; exception already set
+        }
         result_o = PyUnicode_Decode(text_raw_bytes, text_raw_bytes_size, encoding, errors);
 
         if (PyErr_Occurred()) {
@@ -194,13 +198,13 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
         } else {
             // Encoding on Bytes or Bytearray: size could change
             const auto len_result_o = PyObject_Length(result_o);
-            PyObject* check_offset = PyObject_Str(text);
+            py::object check_offset = py::reinterpret_steal<py::object>(PyObject_Str(text));
 
-            if (check_offset == nullptr) {
+            if (!check_offset) {
                 PyErr_Clear();
                 set_lengthupdated_ranges(result_o, len_result_o, ranges, tx_map);
             } else {
-                Py_ssize_t offset = PyUnicode_Find(result_o, check_offset, 0, len_result_o, 1);
+                Py_ssize_t offset = PyUnicode_Find(result_o, check_offset.ptr(), 0, len_result_o, 1);
                 if (offset == -1) {
                     PyErr_Clear();
                     set_lengthupdated_ranges(result_o, len_result_o, ranges, tx_map);
@@ -208,7 +212,6 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
                     copy_and_shift_ranges_from_strings(text, result_o, offset, len_result_o, tx_map);
                 }
             }
-            Py_DECREF(check_offset);
         }
         return result_o;
     });

@@ -5,6 +5,9 @@ from hypothesis import strategies as st
 import pytest
 from requests.structures import CaseInsensitiveDict
 
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_DEPTH_NO_LIMIT
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_NO_LIMIT
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_OBJ_MAX_CAPACITY
 from ddtrace.appsec._ddwaf.ddwaf_types import _observator
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 
@@ -92,6 +95,46 @@ def test_limits(obj, res, trunc):
     dd_obj = ddwaf_object(obj, observator=obs, max_objects=1, max_depth=1, max_string_length=2)
     assert dd_obj.struct == res
     assert (obs.string_length, obs.container_size, obs.container_depth) == trunc
+
+
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        ("a\x00b", "a\x00b"),  # embedded NUL, small (inline) string
+        (b"x\x00y\x00z", "x\x00y\x00z"),  # embedded NULs in bytes
+        ("\x00" * 14, "\x00" * 14),  # all NULs, exactly the 14-byte inline boundary
+        ("", ""),  # empty small string
+        ("a\x00" + "b" * 20, "a\x00" + "b" * 20),  # embedded NUL, heap (>14 bytes) string
+    ],
+)
+def test_string_with_embedded_nul(obj, res):
+    # libddwaf 2.0 strings are length-delimited (not NUL-terminated). Reading must preserve
+    # embedded NUL bytes for both the inline "small string" and heap string representations.
+    dd_obj = ddwaf_object(obj)
+    assert dd_obj.struct == res
+
+
+@pytest.mark.parametrize("container", ["list", "dict"])
+def test_large_container_capped_at_uint16(container):
+    # libddwaf 2.0 stores a container's size in a uint16. The builder must cap the number of
+    # elements at DDWAF_OBJ_MAX_CAPACITY (65535) even on the create_without_limits path, and
+    # record the truncation, rather than letting the native size field silently wrap.
+    n = DDWAF_OBJ_MAX_CAPACITY + 2000
+    if container == "list":
+        value = list(range(n))
+    else:
+        value = {str(i): i for i in range(n)}
+    obs = _observator()
+    obj = ddwaf_object(
+        value,
+        observator=obs,
+        max_objects=DDWAF_NO_LIMIT,
+        max_depth=DDWAF_DEPTH_NO_LIMIT,
+        max_string_length=DDWAF_NO_LIMIT,
+    )
+    result = obj.struct
+    assert len(result) == DDWAF_OBJ_MAX_CAPACITY  # capped, not wrapped
+    assert obs.container_size == n  # original size recorded as a truncation
 
 
 def test_vendorized_xmltodict():

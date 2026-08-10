@@ -1,6 +1,6 @@
 ---
 description: dd-trace-py repository structure
-globs: 
+globs: ddtrace/internal/**,ddtrace/internal/periodic.py,ddtrace/internal/threads.py,ddtrace/internal/forksafe.py,ddtrace/internal/_threads.cpp
 alwaysApply: false
 ---
 # Repository Structure
@@ -41,9 +41,14 @@ dd-trace-py/
 │   │   ├── _iast/            # Interactive Application Security Testing
 │   │   ├── _ddwaf/          # Datadog Web Application Firewall
 │   │   ├── _exploit_prevention/ # Runtime exploit prevention
+│   │   ├── ai_guard/         # AI Guard PUBLIC SDK (client + framework plugins)
+│   │   ├── _ai_guard/        # AI Guard internals (core.on listeners + converters)
 │   │   └── trace_utils.py    # AppSec trace enrichment
 │   │
 │   ├── internal/             # Core implementation utilities (private)
+│   │   │                     # ⚠ Read ddtrace/internal/README.md before modifying
+│   │   │                     #   anything here — covers fork safety, PeriodicThread
+│   │   │                     #   protocol, forksafe hook constraints, and lock ordering.
 │   │   ├── ci_visibility/    # Continuous Integration visibility
 │   │   ├── datastreams/      # Data Streams Monitoring
 │   │   ├── telemetry/        # Internal telemetry collection
@@ -130,7 +135,6 @@ dd-trace-py/
 ├── setup.py              # Package build configuration
 ├── pyproject.toml        # Modern Python project configuration
 ├── riotfile.py           # Multi-version testing with Riot
-├── hatch.toml            # Hatch build system configuration
 ├── docker-compose.yml    # Development environment setup
 └── conftest.py           # Global PyTest configuration
 ```
@@ -144,7 +148,7 @@ dd-trace-py/
 ### Core Library (`ddtrace/`)
 - **Main Package**: Contains the primary tracing functionality and public APIs
 - **Contrib**: 100+ integrations with popular Python libraries (Django, Flask, Redis, etc.)
-- **AppSec**: Application security features including IAST and WAF protection
+- **AppSec**: Application security features including IAST, WAF protection, and AI Guard (LLM/agentic workflow safety). See `.cursor/rules/ai-guard.mdc`. Security products stay decoupled from `contrib/` integrations via core events — see `.cursor/rules/isolated-responsibility.mdc`.
 - **Profiling**: Continuous profiling capabilities for CPU, memory, and I/O
 - **Internal**: Implementation details not part of the public API
 
@@ -161,7 +165,7 @@ dd-trace-py/
 
 ### Build & Distribution
 - **Native Code**: C/C++ extensions for performance-critical components
-- **Multiple Build Systems**: Support for setuptools, hatch, and modern Python packaging
+- **Build Systems**: setuptools with native extensions (C/C++/Cython/Rust) and modern Python packaging
 - **Release Management**: Automated release notes and versioning
 
 ### Documentation & Contributing

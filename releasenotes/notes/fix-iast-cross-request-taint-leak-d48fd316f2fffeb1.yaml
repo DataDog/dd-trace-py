@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    IAST: This fix resolves an issue where IAST could report a false positive vulnerability against a request 
+    whose input did not actually contain tainted data. A concurrent or still-open request holding a tainted
+    value could leak its taint into the current request's checks. Queries are now scoped to the calling request's slot.

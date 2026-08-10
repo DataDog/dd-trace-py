@@ -1,10 +1,13 @@
 from collections import Counter
+import sys
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END
 from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
+
+from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 
 from .conftest import State
 
@@ -346,6 +349,170 @@ def test_parentcommand_still_not_marked_as_error(langgraph, test_spans):
     # Verify NO spans have error tags
     for span in spans:
         assert span.get_tag("error.type") is None
+        assert span.error == 0
+
+
+def test_base_exception_in_node_still_emits_root_span(langgraph, test_spans):
+    """DDBlockException (parent of AIGuardAbortError) is a BaseException, not an Exception.
+    The pregel stream generators previously used ``except Exception`` which silently skipped
+    ``span.finish()`` on a block, so the entire trace was dropped. This test pins that fix.
+    """
+    from ddtrace.internal._exceptions import DDBlockException
+
+    def blocking_node(state):
+        raise DDBlockException("block")
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", blocking_node)
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", END)
+    graph = graph_builder.compile()
+
+    with pytest.raises(DDBlockException):
+        graph.invoke({"a_list": [], "which": "a"})
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1, "trace must be emitted even when DDBlockException propagates"
+    resources = [s.resource for s in traces[0]]
+    assert any("LangGraph" in r for r in resources), f"root graph span not found in: {resources}"
+
+
+async def test_base_exception_in_node_still_emits_root_span_async(langgraph, test_spans):
+    """Async variant: ainvoke path uses the astream generator which had the same bug."""
+    from ddtrace.internal._exceptions import DDBlockException
+
+    async def blocking_node_async(state):
+        raise DDBlockException("block")
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", blocking_node_async)
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", END)
+    graph = graph_builder.compile()
+
+    with pytest.raises(DDBlockException):
+        await graph.ainvoke({"a_list": [], "which": "a"})
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1, "trace must be emitted even when DDBlockException propagates (async)"
+    resources = [s.resource for s in traces[0]]
+    assert any("LangGraph" in r for r in resources), f"root graph span not found in: {resources}"
+
+
+def test_stream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Closing a stream early is normal teardown, not a span error.
+
+    The pregel stream generators wrap ``yield`` in a try/except. Catching bare
+    ``BaseException`` would treat the ``GeneratorExit`` raised by ``close()`` (or by
+    a ``break`` followed by GC) as a runtime error. The catch is narrowed to
+    ``(DDBlockException, Exception)`` so normal teardown is left alone.
+    """
+    stream = simple_graph.stream({"a_list": [], "which": "a"})
+    next(stream)  # suspend the generator at a ``yield``
+    stream.close()  # raises GeneratorExit at the suspended ``yield``
+
+    # The span must still be emitted (finished in ``finally``) on early teardown, not just
+    # left unmarked. Asserting emission here guards against the span silently leaking.
+    traces = test_spans.pop_traces()
+    assert len(traces) >= 1, "trace must be emitted even when the stream is closed early"
+    for trace in traces:
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on stream teardown"
+
+
+async def test_astream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Async variant: ``aclose()`` raises GeneratorExit in the astream generator."""
+    stream = simple_graph.astream({"a_list": [], "which": "a"})
+    await stream.__anext__()  # suspend the generator at a ``yield``
+    await stream.aclose()  # raises GeneratorExit at the suspended ``yield``
+
+    traces = test_spans.pop_traces()
+    assert len(traces) >= 1, "trace must be emitted even when the stream is closed early"
+    for trace in traces:
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on astream teardown"
+
+
+@pytest.mark.skipif(
+    LANGGRAPH_VERSION < (0, 3, 21) or sys.version_info < (3, 11),
+    reason="real interrupt() over astream() needs LangGraph 0.3.21+ and Python 3.11+ (async runnable context)",
+)
+async def test_astream_break_on_interrupt_emits_trace(async_interrupt_graph, test_spans):
+    """Breaking out of astream() on ``__interrupt__`` must still emit the trace.
+
+    Reproduces the customer's human-in-the-loop pattern: the consumer stops iterating as soon
+    as the graph interrupts, without draining the stream. The root graph span must still finish
+    (via the wrapper's ``finally``) so the whole trace is not silently dropped.
+    """
+    graph = async_interrupt_graph
+    config = {"configurable": {"thread_id": "interrupt-async"}}
+
+    stream = graph.astream({"a_list": [], "which": "a"}, config=config)
+    saw_interrupt = False
+    async for chunk in stream:
+        # Iterate until the interrupt actually surfaces, then abandon - a bare break on the
+        # first chunk could stop at the wrong point and pass spuriously.
+        if isinstance(chunk, dict) and "__interrupt__" in chunk:
+            saw_interrupt = True
+            break
+    assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+    await stream.aclose()  # deterministic stand-in for the GC finalization a bare break triggers
+
+    spans = test_spans.pop_traces()[0]
+    assert len(spans) > 0
+    assert any("LangGraph" in span.resource for span in spans), [s.resource for s in spans]
+    for span in spans:
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+
+
+@pytest.mark.skipif(
+    LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
+)
+def test_stream_break_on_interrupt_emits_trace(interrupt_graph, test_spans):
+    """Sync variant of the interrupt-abandonment repro (``traced_pregel_stream``)."""
+    graph = interrupt_graph
+    config = {"configurable": {"thread_id": "interrupt-sync"}}
+
+    stream = graph.stream({"a_list": [], "which": "a"}, config=config)
+    saw_interrupt = False
+    for chunk in stream:
+        if isinstance(chunk, dict) and "__interrupt__" in chunk:
+            saw_interrupt = True
+            break
+    assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+    stream.close()  # sync close is deterministic (no event-loop scheduling)
+
+    spans = test_spans.pop_traces()[0]
+    assert len(spans) > 0
+    assert any("LangGraph" in span.resource for span in spans), [s.resource for s in spans]
+    for span in spans:
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+
+
+async def test_astream_break_without_close_emits_trace(simple_graph, test_spans):
+    """Customer path: ``break`` out of astream() with no ``aclose()``. GC finalizes the
+    generator (GeneratorExit) and the wrapper's ``finally`` must still emit the span.
+    """
+    import asyncio
+    import gc
+
+    async def consume():
+        async for _ in simple_graph.astream({"a_list": [], "which": "a"}):
+            break  # abandon without closing
+
+    await consume()
+
+    traces = []
+    for _ in range(10):
+        gc.collect()
+        await asyncio.sleep(0)  # let the event loop run the asyncgen finalizer
+        traces = test_spans.pop_traces()
+        if traces:
+            break
+    assert traces, "trace must be emitted when the stream is abandoned via bare break"
+    for span in traces[0]:
         assert span.error == 0
 
 

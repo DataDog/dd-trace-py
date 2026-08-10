@@ -77,7 +77,7 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
                 continue
 
         detail["_datadog"] = {}
-        core.dispatch("botocore.eventbridge.update_messages", [ctx, None, None, detail["_datadog"], None])
+        core.dispatch("botocore.eventbridge.update_messages", (ctx, None, None, detail["_datadog"], None))
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -91,7 +91,7 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
 
 def update_client_context(ctx: ExecutionContext) -> None:
     trace_headers = {}
-    core.dispatch("botocore.client_context.update_messages", [ctx, None, None, trace_headers, None])
+    core.dispatch("botocore.client_context.update_messages", (ctx, None, None, trace_headers, None))
     client_context_object = {}
     params = ctx["params"]
     if "ClientContext" in params:

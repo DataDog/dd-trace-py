@@ -210,10 +210,10 @@ class DdtraceRunTest(BaseTestCase):
             stderr=subprocess.PIPE,
         )
 
-        p.wait()
+        stdout, stderr = p.communicate()
         assert p.returncode == 0
-        assert p.stdout.read() == b""
-        assert b" 'debug': True" in p.stderr.read()
+        assert stdout == b""
+        assert b" 'debug': True" in stderr
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
@@ -246,19 +246,19 @@ def test_version():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 0
 
-    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
+    assert stdout == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
     p = subprocess.Popen(
         ["ddtrace-run", "--version"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 0
-    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
+    assert stdout == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
 
 def test_bad_executable():
@@ -267,9 +267,8 @@ def test_bad_executable():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    content, _ = p.communicate()
     assert p.returncode == 1
-    content = p.stdout.read()
     assert b"ddtrace-run: failed to bootstrap: args" in content
     assert b"'executable-does-not-exist'" in content
 
@@ -281,10 +280,9 @@ def test_executable_no_perms():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    out, _ = p.communicate()
     assert p.returncode == 1
 
-    out = p.stdout.read()
     assert out.startswith(("ddtrace-run: permission error while launching '%s'" % path).encode("utf-8"))
 
 
@@ -297,7 +295,7 @@ def test_return_code():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
-    p.wait()
+    p.communicate()
 
     assert p.returncode == 4
 
@@ -308,8 +306,7 @@ def test_info_no_configs():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
-    stdout = p.stdout.read()
+    stdout, _ = p.communicate()
     # checks most of the output but some pieces are removed due to the dynamic nature of the output
     expected_strings = [
         b"\x1b[1mTracer Configurations:\x1b[0m",
@@ -364,8 +361,7 @@ def test_info_w_configs():
             stderr=subprocess.PIPE,
         )
 
-    p.wait()
-    stdout = p.stdout.read()
+    stdout, _ = p.communicate()
     # checks most of the output but some pieces are removed due to the dynamic nature of the output
     expected_strings = [
         b"1mTracer Configurations:\x1b[0m",
@@ -399,9 +395,9 @@ def test_no_args():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    p.wait()
+    stdout, _ = p.communicate()
     assert p.returncode == 1
-    assert b"usage:" in p.stdout.read()
+    assert b"usage:" in stdout
 
 
 MODULES_TO_CHECK = ["asyncio"]
@@ -459,6 +455,24 @@ def test_ddtrace_re_module():
             (r"[\s,<>]", None),
         )
     )
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_reprlib_get_ident_picklable():
+    import pickle
+    import reprlib
+
+    assert pickle.dumps(reprlib.get_ident)
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_auto_reprlib_get_ident_picklable():
+    import ddtrace.auto  # noqa
+
+    import pickle
+    import reprlib
+
+    assert pickle.dumps(reprlib.get_ident)
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
@@ -548,3 +562,37 @@ def test_ddtrace_auto_atexit():
 
     assert registered_funcs, "No registered functions"
     assert unregistered_funcs, "No unregistered functions"
+
+
+# Python 3.14 re-raises SIGINT after an uncaught KeyboardInterrupt escapes __main__,
+# so the process exits with signal -2 instead of status 1 (see CPython gh-118260).
+@pytest.mark.subprocess(ddtrace_run=True, status=(1, -2), err=lambda s: "wrap_signals" not in s)
+def test_ddtrace_run_asyncio_sigint():
+    """ddtrace-run should not cause asyncio.run() to produce a traceback on keyboard interrupt."""
+    import asyncio
+    import os
+    import signal
+
+    async def main():
+        asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+        await asyncio.sleep(10)
+
+    asyncio.run(main())
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    status=(1, -2),
+    err=lambda s: "wrap_signals" not in s and "KeyboardInterrupt" in s,
+)
+def test_ddtrace_run_sync_sigint():
+    """ddtrace-run must not swallow SIGINT in plain synchronous code: KeyboardInterrupt should
+    surface normally without a ddtrace-internal `wrap_signals` traceback.
+    """
+    import os
+    import signal
+    import threading
+    import time
+
+    threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+    time.sleep(10)

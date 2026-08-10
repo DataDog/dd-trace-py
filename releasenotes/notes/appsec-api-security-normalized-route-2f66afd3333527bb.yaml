@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    ASM: This introduces the ``_dd.appsec.normalized_route`` span tag for FastAPI
+    and Starlette request spans when API Security is enabled. The tag follows
+    RFC-1103 and provides a per-request, framework-agnostic representation of
+    the matched route — converter types are stripped, multi-parameter URL
+    segments are combined with ``+``, ``path`` catch-all parameters are emitted
+    as a single tail element, and trailing slashes are preserved as declared.
+    Mount-prefixed sub-application routes are reported with their full assembled
+    path.

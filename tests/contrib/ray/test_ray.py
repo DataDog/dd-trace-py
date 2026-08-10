@@ -21,6 +21,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.task_id",
     "meta.ray.submission_id",
     "meta.ray.hostname",
+    "meta.ray.namespace",
+    "meta.ray.gcs_address",
+    "meta.ray.version",
     "meta.ray.pid",
     "meta.tracestate",
     "meta.traceparent",
@@ -37,6 +40,26 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.hostname",
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",
+    "meta.ray.version",
+    "meta.ray.namespace",
+    "meta.ray.gcs_address",
+    "meta.ray.dashboard_url",
+    # Task scheduling-hint tags are function-specific and vary across tests/environments
+    "meta.ray.task.function_module",
+    "meta.ray.task.function_qualname",
+    # Actor-method identity tags are class-specific and may not appear in older snapshots
+    "meta.ray.actor.class_name",
+    "meta.ray.actor.module_name",
+    "meta.ray.actor.method_name",
+    # Ray job-info close-time tags (added by span_manager enhancements)
+    "meta.ray.job.start_time_ms",
+    "meta.ray.job.end_time_ms",
+    "meta.ray.job.driver_node_id",
+    "meta.ray.job.driver_agent_http_address",
+    "meta.ray.job.has_runtime_env",
+    "metrics.ray.job.start_time_ms",
+    "metrics.ray.job.end_time_ms",
+    "metrics.ray.job.has_runtime_env",
 ]
 
 

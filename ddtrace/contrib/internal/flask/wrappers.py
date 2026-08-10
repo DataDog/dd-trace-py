@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.importlib import func_name
 
 
@@ -41,8 +42,9 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
             service=trace_utils.int_service(None, config.flask),
             span_type=span_type,
             tags=tags,
+            integration_config=config.flask,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         if do_dispatch:
             dispatch = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results

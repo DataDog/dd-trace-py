@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    AI Guard: This introduces the ``DD_AI_GUARD_OPENAI_ENABLED`` environment variable
+    (``true`` by default) as a per-provider kill switch. Set it to ``false`` to disable AI
+    Guard auto-instrumentation of the OpenAI SDK without affecting other providers or
+    requiring a tracer version rollback.

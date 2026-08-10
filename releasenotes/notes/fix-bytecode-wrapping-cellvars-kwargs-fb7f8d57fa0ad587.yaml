@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue that could have caused some instrumented code to fail to
+    execute correctly when the original function had keyword arguments passed in
+    as a cell variable.

@@ -99,6 +99,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/images/
+docs/ddtrace-module-dependencies.html
 _readthedocs/
 
 # PyBuilder
@@ -157,6 +159,7 @@ pip_cache_shared_venvs/
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .claude/worktrees/
 
 # oh-my-claudecode
@@ -167,6 +170,11 @@ CLAUDE.local.md
 .riot/envs/
 .riot/.build.lock
 .riot/requirements/*.in
+
+# Riot venvs built inside the testrunner container (see docker-compose.yml
+# RIOT_ENV_BASE_PATH) — kept separate from .riot/venv* to avoid mixing Linux
+# container binaries with host-native (e.g. macOS) venvs on the shared mount.
+.riot/docker/
 
 # Benchmarks
 artifacts/
@@ -218,6 +226,12 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
+# Core dump files
+/core
+/core.[0-9]*
+*.core
+vgcore.*
+
 # Rust build artifacts
 src/native/target*
 
@@ -226,3 +240,7 @@ src/native/target*
 
 # APM AI Toolkit Analysis Logs
 .analysis/
+
+# file created when running scripts/lint
+uv.lock
+.riot/*.installed

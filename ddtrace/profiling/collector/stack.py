@@ -5,6 +5,9 @@ import sys
 from types import ModuleType
 import typing
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
@@ -15,6 +18,13 @@ from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
+
+
+def _link_span(
+    _provider: BaseContextProvider,
+    span: typing.Optional[typing.Union[Context, Span]],
+) -> None:
+    stack.link_span(span)
 
 
 class StackCollector(collector.Collector):
@@ -46,6 +56,12 @@ class StackCollector(collector.Collector):
     def _init(self) -> None:
         _task.initialize_gevent_support()
 
+        # Import _faulthandler BEFORE starting the sampler. This ensures that if
+        # faulthandler.enable was already called (e.g., by pytest), we reinstall
+        # our SIGSEGV handler before sampling begins. Our handler chains to
+        # faulthandler's for non-recovery faults.
+        from ddtrace.profiling import _faulthandler  # noqa: F401
+
         # Start the native stack sampler first. This ensures one_time_setup() runs
         # (which handles any fork that happened since library load) before we
         # register threads and asyncio loops - otherwise those registrations would
@@ -53,6 +69,9 @@ class StackCollector(collector.Collector):
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.set_target_overhead(config.stack.adaptive_sampling_target_overhead)
         stack.set_max_sampling_period(config.stack.adaptive_sampling_max_interval)
+        stack.set_adaptive_sampling_baseline(config.stack.adaptive_sampling_baseline)
+        stack.set_p_stable_window_s(config.stack.adaptive_sampling_p_stable_window_s)
+        stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():
@@ -65,7 +84,7 @@ class StackCollector(collector.Collector):
         # Register the span-link hook only after the sampler has started successfully,
         # so we never leave a stale listener behind if startup fails.
         if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", stack.link_span)
+            core.on("ddtrace.context_provider.activate", _link_span)
 
         # Start native C function call tracking (Python 3.12+ only)
         if sys.version_info >= (3, 12) and config.stack.native_frames:
@@ -96,7 +115,7 @@ class StackCollector(collector.Collector):
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
+            core.reset_listeners("ddtrace.context_provider.activate", _link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

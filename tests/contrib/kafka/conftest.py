@@ -1,3 +1,5 @@
+import time
+
 import confluent_kafka
 from confluent_kafka import KafkaException
 from confluent_kafka import TopicPartition
@@ -13,6 +15,24 @@ from tests.contrib.config import KAFKA_CONFIG
 
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
+
+
+@pytest.fixture(scope="session", autouse=True)
+def kafka_ready():
+    deadline = time.monotonic() + 30
+    last_err = None
+    while time.monotonic() < deadline:
+        try:
+            client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+            metadata = client.list_topics(timeout=2)
+            if metadata.brokers:
+                return
+        except Exception as e:
+            last_err = e
+        time.sleep(0.5)
+    raise RuntimeError("Kafka at {} not ready after 30s: {}".format(BOOTSTRAP_SERVERS, last_err))
+
+
 KEY = "test_key"
 
 
@@ -41,6 +61,18 @@ def kafka_topic(request):
             future.result()
         except KafkaException:
             pass  # The topic likely already exists
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            metadata = client.list_topics(timeout=2)
+            topic_md = metadata.topics.get(topic_name)
+            if topic_md and not topic_md.error:
+                break
+        except KafkaException:
+            pass
+        time.sleep(0.2)
+
     yield topic_name
 
 
@@ -64,6 +96,28 @@ def empty_kafka_topic(request):
         except KafkaException:
             pass  # The topic likely already exists
     yield topic_name
+
+
+@pytest.fixture
+def group_id(kafka_topic):
+    """Unique consumer group ID per test to avoid cross-test rebalancing under xdist."""
+    return kafka_topic
+
+
+@pytest.fixture
+def fresh_consumer(kafka_tracer, empty_kafka_topic, group_id):
+    """Consumer subscribed to a freshly created (empty) topic."""
+    _consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": group_id,
+            "auto.offset.reset": "earliest",
+            "auto.commit.interval.ms": 500,
+        }
+    )
+    _consumer.subscribe([empty_kafka_topic])
+    yield _consumer
+    _consumer.close()
 
 
 @pytest.fixture
@@ -95,11 +149,11 @@ def producer(kafka_tracer):
 
 
 @pytest.fixture
-def consumer(kafka_tracer, kafka_topic):
+def consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "auto.commit.interval.ms": 500,
         }
@@ -114,11 +168,11 @@ def consumer(kafka_tracer, kafka_topic):
 
 
 @pytest.fixture
-def non_auto_commit_consumer(kafka_tracer, kafka_topic):
+def non_auto_commit_consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
         }
@@ -140,11 +194,11 @@ def serializing_producer(kafka_tracer):
 
 
 @pytest.fixture
-def deserializing_consumer(kafka_tracer, kafka_topic):
+def deserializing_consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.DeserializingConsumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "value.deserializer": lambda x, y: x,
         }

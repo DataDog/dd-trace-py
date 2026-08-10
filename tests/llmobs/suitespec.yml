@@ -20,6 +20,8 @@ components:
     - ddtrace/llmobs/*
   mcp:
     - ddtrace/contrib/internal/mcp/*
+  mistralai:
+    - ddtrace/contrib/internal/mistralai/*
   openai:
     - ddtrace/contrib/internal/openai/*
   langgraph:
@@ -105,6 +107,7 @@ suites:
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
   langchain:
+    retry: 2
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -158,6 +161,19 @@ suites:
       - tests/snapshots/tests.contrib.mcp.*
     snapshot: true
     venvs_per_job: 5
+  mistralai:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@mistralai'
+      - '@llmobs'
+      - tests/contrib/mistralai/*
+      - tests/cassettes/mistral/*
+      - tests/snapshots/tests.contrib.mistralai.*
+    snapshot: true
   openai:
     venvs_per_job: 1
     paths:
@@ -185,6 +201,7 @@ suites:
     snapshot: true
     venvs_per_job: 4
   crewai:
+    retry: 2
     parallelism: 3
     paths:
       - '@bootstrap'

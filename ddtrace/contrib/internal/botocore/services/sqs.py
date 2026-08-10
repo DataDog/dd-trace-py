@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
@@ -104,12 +105,12 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
 
         try:
             func_has_run = True
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
             # run the function to extract possible parent context before creating ExecutionContext
             result = original_func(*args, **kwargs)
             core.dispatch(
                 f"botocore.{endpoint_name}.{operation}.post",
-                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
+                (parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json),
             )
         except Exception as e:
             func_run_err = e
@@ -159,20 +160,20 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 pin=pin,
                 integration_config=config.botocore,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
-            core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+            core.dispatch("botocore.patched_sqs_api_call.started", (ctx,))
 
             if should_update_messages:
                 update_messages(ctx, endpoint_service=endpoint_name)
 
             try:
                 if not func_has_run:
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
                     result = original_func(*args, **kwargs)
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", (params, result))
 
-                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
+                core.dispatch("botocore.patched_sqs_api_call.success", (ctx, result))
 
                 if func_run_err:
                     raise func_run_err
@@ -180,12 +181,12 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_sqs_api_call.exception",
-                    [
+                    (
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx.span.resource].is_error_code,
-                    ],
+                        config.botocore.operations[span_from_context(ctx).resource].is_error_code,
+                    ),
                 )
                 raise
     elif func_has_run:

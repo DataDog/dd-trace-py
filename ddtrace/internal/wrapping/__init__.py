@@ -3,28 +3,44 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Generator
+from typing import Iterator
+from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
 from typing import cast
+import weakref
 
 import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.utils.inspection import link_function_to_code
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
 
 
 PY = sys.version_info[:2]
 
+# Maps each wrapped function to its inner copy (the singly-linked list of
+# wrapping layers). WeakKeyDictionary so functions are not kept alive by the
+# registry alone.
+_wrapped: weakref.WeakKeyDictionary[FunctionType, FunctionType] = weakref.WeakKeyDictionary()
+_wrapped_lock = Lock()
+
+# Maps original code objects to the functions that own them. Written by
+# link_function_to_code; read by functions_for_code in inspection.py.
+# WeakValueDictionary so that wrapped ephemeral functions are not kept alive by
+# this mapping alone — inspection.py falls back to gc.get_referrers on a miss.
+_code_to_fn: MutableMapping[CodeType, FunctionType] = weakref.WeakValueDictionary()
+
+
+def link_function_to_code(code: CodeType, function: FunctionType) -> None:
+    """Link a function to its original code object for fast reverse lookup."""
+    _code_to_fn[code] = function
+
 
 class WrappedFunction(Protocol):
     """A wrapped function."""
-
-    __dd_wrapped__: Optional[FunctionType] = None
-    __dd_wrappers__: Optional[dict[Any, Any]] = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         pass
@@ -70,9 +86,10 @@ else:
     )
 
 
-UPDATE_MAP = Assembly()
+_UPDATE_MAP_FAST = Assembly()
+_UPDATE_MAP_DEREF = Assembly()
 if PY >= (3, 12):
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
             load_method         $update
@@ -81,9 +98,17 @@ if PY >= (3, 12):
             pop_top
         """
     )
-
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            copy                1
+            load_method         $update
+            load_deref          {varkwargsname}
+            call                1
+            pop_top
+        """
+    )
 elif PY >= (3, 11):
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
             load_method         $update
@@ -93,9 +118,18 @@ elif PY >= (3, 11):
             pop_top
         """
     )
-
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            copy                1
+            load_method         $update
+            load_deref          {varkwargsname}
+            precall             1
+            call                1
+            pop_top
+        """
+    )
 else:
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             dup_top
             load_attr           $update
@@ -104,6 +138,23 @@ else:
             pop_top
         """
     )
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            dup_top
+            load_attr           $update
+            load_deref          {varkwargsname}
+            call_function       1
+            pop_top
+        """
+    )
+
+
+def _generate_update_map(name: str, code: CodeType, lineno: int) -> Iterator[Any]:
+    """Yield opcodes to call ``dict.update(name)`` where ``name`` may be a cell var."""
+    if PY >= (3, 11) and name in code.co_cellvars:
+        yield from _UPDATE_MAP_DEREF.bind({"varkwargsname": bc.CellVar(name)}, lineno=lineno)  # type: ignore[attr-defined]
+    else:
+        yield from _UPDATE_MAP_FAST.bind({"varkwargsname": name}, lineno=lineno)
 
 
 CALL_RETURN = Assembly()
@@ -136,43 +187,41 @@ else:
 FIRSTLINENO_OFFSET = int(PY >= (3, 11))
 
 
-def generate_posargs(code: CodeType) -> Generator[Instr, None, None]:
+def _load_var(name: str, code: CodeType, lineno: int) -> Instr:
+    """Return the correct load instruction for a function parameter.
+
+    On Python 3.11+, parameters captured by inner closures become cell
+    variables and must be loaded with LOAD_DEREF instead of LOAD_FAST.
+    """
+    if PY >= (3, 11) and name in code.co_cellvars:
+        return Instr("LOAD_DEREF", bc.CellVar(name), lineno=lineno)  # type: ignore[attr-defined]
+    return Instr("LOAD_FAST", name, lineno=lineno)
+
+
+def generate_posargs(code: CodeType) -> Iterator[Any]:
     """Generate the opcodes for building the positional arguments tuple."""
     varnames = code.co_varnames
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
     varargs = bool(code.co_flags & bc.CompilerFlags.VARARGS)
     nargs = code.co_argcount
-    varargsname = varnames[nargs + code.co_kwonlyargcount] if varargs else None
+    varargsname: Optional[str] = varnames[nargs + code.co_kwonlyargcount] if varargs else None
 
     if nargs:  # posargs [+ varargs]
-        yield from (
-            Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
-            if PY >= (3, 11) and argname in code.co_cellvars
-            else Instr("LOAD_FAST", argname, lineno=lineno)
-            for argname in varnames[:nargs]
-        )
+        yield from (_load_var(argname, code, lineno) for argname in varnames[:nargs])
 
         yield Instr("BUILD_TUPLE", nargs, lineno=lineno)
-        if varargs:
-            yield Instr("LOAD_FAST", varargsname, lineno=lineno)
+        if varargsname is not None:
+            yield _load_var(varargsname, code, lineno)
             yield _add(lineno)
 
-    elif varargs:  # varargs
-        yield Instr("LOAD_FAST", varargsname, lineno=lineno)
+    elif varargsname is not None:  # varargs
+        yield _load_var(varargsname, code, lineno)
 
     else:  # ()
         yield Instr("BUILD_TUPLE", 0, lineno=lineno)
 
 
-(PAIR := Assembly()).parse(
-    r"""
-        load_const          {arg}
-        load_fast           {arg}
-    """
-)
-
-
-def generate_kwargs(code: CodeType) -> Generator[Instr, None, None]:
+def generate_kwargs(code: CodeType) -> Iterator[Any]:
     """Generate the opcodes for building the keyword arguments dictionary."""
     flags = code.co_flags
     varnames = code.co_varnames
@@ -181,17 +230,18 @@ def generate_kwargs(code: CodeType) -> Generator[Instr, None, None]:
     varkwargs = bool(flags & bc.CompilerFlags.VARKEYWORDS)
     nargs = code.co_argcount
     kwonlyargs = code.co_kwonlyargcount
-    varkwargsname = varnames[nargs + kwonlyargs + varargs] if varkwargs else None
+    varkwargsname: Optional[str] = varnames[nargs + kwonlyargs + varargs] if varkwargs else None
 
     if kwonlyargs:
         for arg in varnames[nargs : nargs + kwonlyargs]:  # kwargs [+ varkwargs]
-            yield from PAIR.bind({"arg": arg}, lineno=lineno)
+            yield Instr("LOAD_CONST", arg, lineno=lineno)
+            yield _load_var(arg, code, lineno)
         yield Instr("BUILD_MAP", kwonlyargs, lineno=lineno)
-        if varkwargs:
-            yield from UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno)
+        if varkwargsname is not None:
+            yield from _generate_update_map(varkwargsname, code, lineno)
 
-    elif varkwargs:  # varkwargs
-        yield Instr("LOAD_FAST", varkwargsname, lineno=lineno)
+    elif varkwargsname is not None:  # varkwargs
+        yield _load_var(varkwargsname, code, lineno)
 
     else:  # {}
         yield Instr("BUILD_MAP", 0, lineno=lineno)
@@ -230,7 +280,7 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     # Include code for handling free/cell variables, if needed
     if PY >= (3, 11):
         if code.co_cellvars:
-            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]
+            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]  # type: ignore[attr-defined]
 
         if code.co_freevars:
             instrs.insert(0, Instr("COPY_FREE_VARS", len(code.co_freevars), lineno=lineno))
@@ -261,11 +311,12 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
         f.__defaults__,
         f.__closure__,
     )
-    try:
-        wf = cast(WrappedFunction, f)
-        cast(WrappedFunction, wrapped).__dd_wrapped__ = cast(FunctionType, wf.__dd_wrapped__)
-    except AttributeError:
-        pass
+
+    # Carry forward the existing wrapped-function link to the new inner copy.
+    with _wrapped_lock:
+        existing_inner = _wrapped.get(f)
+        if existing_inner is not None:
+            _wrapped[wrapped] = existing_inner
 
     wrapped.__kwdefaults__ = f.__kwdefaults__
 
@@ -282,60 +333,67 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
 
     # Copy over the code attributes
     wrapped_code.argcount = argcount
-    wrapped_code.argnames = code.co_varnames[:nargs]
+    wrapped_code.argnames = list(code.co_varnames[:nargs])
     wrapped_code.filename = code.co_filename
-    wrapped_code.freevars = code.co_freevars
-    wrapped_code.flags = flags
+    wrapped_code.freevars = list(code.co_freevars)
+    wrapped_code.flags = bc.CompilerFlags(flags)
     wrapped_code.kwonlyargcount = kwonlycount
     wrapped_code.name = code.co_name
     wrapped_code.posonlyargcount = code.co_posonlyargcount
     if PY >= (3, 11):
-        wrapped_code.cellvars = code.co_cellvars
+        wrapped_code.cellvars = list(code.co_cellvars)
 
     # Replace the function code with the trampoline bytecode
     f.__code__ = wrapped_code.to_code()
 
-    # DEV: Multiple wrapping is implemented as a singly-linked list via the
-    # __dd_wrapped__ attribute.
-    wf = cast(WrappedFunction, f)
-    wf.__dd_wrapped__ = wrapped
+    # DEV: Multiple wrapping is implemented as a singly-linked list via _wrapped.
+    with _wrapped_lock:
+        _wrapped[f] = wrapped
 
     # Link the original code object to the original function
     link_function_to_code(code, f)
 
-    return wf
+    return cast(WrappedFunction, f)
+
+
+def _unwrap_method(f: Any) -> Any:
+    """Return the underlying function if *f* is a bound or unbound method."""
+    func = getattr(f, "__func__", f)
+    return func
 
 
 def is_wrapped(f: FunctionType) -> bool:
     """Check if a function is wrapped with any wrapper."""
     try:
-        wf = cast(WrappedFunction, f)
-        inner = cast(FunctionType, wf.__dd_wrapped__)
-
-        # Sanity check
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-        return True
-    except AttributeError:
+        with _wrapped_lock:
+            inner = _wrapped.get(_unwrap_method(f))
+    except TypeError:
+        # f is not weakly referenceable (e.g. C method_descriptor)
         return False
+    if inner is None:
+        return False
+    assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+    return True
 
 
 def is_wrapped_with(f: FunctionType, wrapper: Wrapper) -> bool:
     """Check if a function is wrapped with a specific wrapper."""
+    f = cast(FunctionType, _unwrap_method(f))
     try:
-        wf = cast(WrappedFunction, f)
-        inner = cast(FunctionType, wf.__dd_wrapped__)
-
-        # Sanity check
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-
-        if wrapper in f.__code__.co_consts:
-            return True
-
-        # This is not the correct wrapping layer. Try with the next one.
-        return is_wrapped_with(inner, wrapper)
-
-    except AttributeError:
+        with _wrapped_lock:
+            inner = _wrapped.get(f)
+    except TypeError:
         return False
+    if inner is None:
+        return False
+
+    assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+
+    if wrapper in f.__code__.co_consts:
+        return True
+
+    # This is not the correct wrapping layer. Try with the next one.
+    return is_wrapped_with(inner, wrapper)
 
 
 def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
@@ -345,41 +403,52 @@ def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
     this will unwrap the one that uses ``wrapper``. If the function was not
     wrapped with ``wrapper``, it will return the first argument.
     """
-    # DEV: Multiple wrapping layers are singly-linked via __dd_wrapped__. When
-    # we find the layer that needs to be removed we also have to ensure that we
+    # DEV: Multiple wrapping layers are singly-linked via _wrapped. When we
+    # find the layer that needs to be removed we also have to ensure that we
     # update the link at the deletion site if there is a non-empty tail.
-    try:
-        inner = cast(FunctionType, wf.__dd_wrapped__)
-    except AttributeError:
+    f = cast(FunctionType, wf)
+    with _wrapped_lock:
+        inner = _wrapped.get(f)
+    if inner is None:
         # The function is not wrapped so we return it as is.
-        return cast(FunctionType, wf)
+        return f
 
-    # Sanity check
     assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
 
-    if wrapper not in cast(FunctionType, wf).__code__.co_consts:
+    if wrapper not in f.__code__.co_consts:
         # This is not the correct wrapping layer. Try with the next one.
         return unwrap(cast(WrappedFunction, inner), wrapper)
 
-    # Remove the current wrapping layer by moving the next one over the
-    # current one.
-    f = cast(FunctionType, wf)
-    f.__code__ = inner.__code__
-
-    try:
-        # Update the link to the next layer.
-        wf.__dd_wrapped__ = cast(WrappedFunction, inner).__dd_wrapped__  # type: ignore[assignment]
-    except AttributeError:
-        # No more wrapping layers. Restore the original function by removing
-        # this extra attribute.
-        del wf.__dd_wrapped__
+    # Remove the current wrapping layer by moving the next one over the current
+    # one. The code swap and registry update must be atomic: two concurrent
+    # unwrap calls on the same function and wrapper must not both succeed.
+    with _wrapped_lock:
+        f.__code__ = inner.__code__
+        next_inner = _wrapped.get(inner)
+        if next_inner is not None:
+            _wrapped[f] = next_inner
+        else:
+            del _wrapped[f]
 
     return f
 
 
 def get_function_code(f: FunctionType) -> CodeType:
-    return (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__
+    with _wrapped_lock:
+        inner = _wrapped.get(f)
+    return (inner if inner is not None else f).__code__
 
 
 def set_function_code(f: FunctionType, code: CodeType) -> None:
-    (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__ = code  # type: ignore[misc]
+    with _wrapped_lock:
+        inner = _wrapped.get(f)
+    (inner if inner is not None else f).__code__ = code
+
+
+def get_wrapped(f: FunctionType) -> Optional[FunctionType]:
+    """Return the inner bytecode copy of *f* if it is wrapped, else None."""
+    try:
+        with _wrapped_lock:
+            return _wrapped.get(cast(FunctionType, _unwrap_method(f)))
+    except TypeError:
+        return None

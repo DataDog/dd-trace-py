@@ -1,0 +1,6 @@
+fixes:
+  - |
+    azure_cosmos: This change removes the http.status_code tags from Azure CosmosDB spans and replaces them
+    with the use of the db.response.status_code metric. For customers using ddtrace v4.8.0 and relying on
+    the http.status_code tag of cosmosdb.query spans, this is a breaking change. 
+    

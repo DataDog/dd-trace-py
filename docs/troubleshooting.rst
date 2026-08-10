@@ -34,7 +34,7 @@ Failed to send traces... ``ConnectionRefusedError``
 ``Failed to send traces to Datadog Agent...: ConnectionRefusedError(111, 'Connection refused')``
 
 The most common error is a connection error. If you're experiencing a connection error, please make sure you've followed the setup
-for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that 
+for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that
 the Datadog agent is running: https://docs.datadoghq.com/tracing/setup_overview/setup/python/?tab=containers#configure-the-datadog-agent-for-apm
 
 If the above doesn't fix your issue, the Datadog Agent also has a limit to the number of connections it can receive. This
@@ -103,11 +103,11 @@ When installing ddtrace from source locally (e.g. ``pip install -e .``), you may
 CMake errors, or stale native extension issues. Build requires Rust, cmake, Cython, and setuptools-rust—see
 :doc:`build_system` for installation. Run a full clean to remove cached artifacts before reinstalling:
 
-**Preferred: Hatch clean env** (creates a venv with build deps, no global install needed):
+**Preferred: scripts/clean** (creates a venv with build deps via uv, no global install needed):
 
 .. code-block:: bash
 
-    $ hatch run clean:all
+    $ scripts/clean
 
 **Alternative:** The best use case for ``python setup.py clean --all`` is when ddtrace is installed from
 source into a sample app for local dev testing. If your build environment is already installed:
@@ -128,7 +128,7 @@ ModuleNotFoundError when running tests with riot
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
 
 Your base virtual environment was likely created without a package.
-Remove all the ``.riot/venv*``  directories and run the tests without the -s option. 
+Remove all the ``.riot/venv*``  directories and run the tests without the -s option.
 
 ``scripts/ddtest DD_TRACE_AGENT_URL=http://localhost:9126 riot -v run -p3.12 --pass-env <integration_name>``
 

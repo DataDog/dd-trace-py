@@ -87,7 +87,7 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     def _raise_master(*args, **kwargs):
         raise profiler.uwsgi.uWSGIMasterProcess()
 
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
 
     p = profiler.Profiler()
     p.start()
@@ -99,7 +99,7 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p._start_on_fork()
     assert profiler.Profiler._active_instance is p
 
-    p.stop(flush=False)
+    p.stop(flush=False)  # type: ignore[unreachable]
 
 
 def test_uwsgi_worker_blocks_second_profiler_start(
@@ -113,7 +113,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _register_postfork)
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _register_postfork)  # type: ignore[attr-defined]
 
     p1 = profiler.Profiler()
     p1.start()
@@ -123,7 +123,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     assert profiler.Profiler._active_instance is p1
 
     # In workers, check_uwsgi should return normally.
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", lambda *args, **kwargs: None)
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", lambda *args, **kwargs: None)  # type: ignore[attr-defined]
 
     p2 = profiler.Profiler()
     with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
@@ -390,6 +390,11 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
         print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
     except OSError:
         print(f"INFO: Worker {worker_pid} was successfully killed.")
+
+    assert res_pid == parent_pid
+    assert not os.WIFSIGNALED(res_status), (
+        f"uWSGI worker {parent_pid} crashed with signal {os.WTERMSIG(res_status)} and raw wait status {res_status}"
+    )
 
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")

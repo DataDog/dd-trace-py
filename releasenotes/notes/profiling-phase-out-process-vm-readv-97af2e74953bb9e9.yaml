@@ -1,4 +1,0 @@
-features:
-  - |
-    profiling: The Stack Profiler now defaults to using a faster utility for
-    copying memory, reducing the CPU overhead.

@@ -7,10 +7,11 @@ jobs:
   generate-supported-versions:
     name: Generate supported integration versions
     runs-on: ubuntu-22.04
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
     permissions:
       actions: read
-      contents: write
-      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -64,12 +65,66 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - run: python scripts/freshvenvs.py generate
+      - name: Generate supported versions
+        run: python scripts/integration_registry/generate_supported_versions.py
 
-      - name: Generate table
-        run: python scripts/generate_table.py
+      - name: Preview supported versions output
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-      - run: git diff
+          supported_versions = json.loads(Path("supported_versions.json").read_text())
+          print(f"Generated {len(supported_versions)} supported version entries.")
+          print(json.dumps(supported_versions[:3], indent=2))
+          PY
+
+      - name: Preview changes
+        run: git diff
+
+      - name: Prepare generated changes
+        id: patch
+        uses: ./.github/actions/generated-change-patch
+        with:
+          mode: create
+          patch-file: generated.patch
+          profile: supported-versions
+
+      - name: Upload generated changes
+        if: steps.patch.outputs.changed == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: generated-supported-versions
+          path: generated.patch
+          retention-days: 1
+
+  create-pull-request:
+    name: Create pull request
+    needs: generate-supported-versions
+    if: needs.generate-supported-versions.outputs.changed == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download generated changes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: generated-supported-versions
+          path: ${{ runner.temp }}/generated-supported-versions
+
+      - name: Apply and validate generated changes
+        uses: ./.github/actions/generated-change-patch
+        with:
+          mode: apply
+          patch-file: ${{ runner.temp }}/generated-supported-versions/generated.patch
+          profile: supported-versions
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
@@ -83,12 +138,12 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           branch: "update-supported-versions"
-          commit-message: "Update supported versions table"
+          commit-message: "Update supported versions"
           delete-branch: true
           base: main
           title: "chore: update supported versions"
           labels: changelog/no-changelog
           body: |
-            Generates / updates the supported versions table for integrations.
+            Generates / updates the supported versions for integrations.
             This should be tied to releases, or triggered manually.
             Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)

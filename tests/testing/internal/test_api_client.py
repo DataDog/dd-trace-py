@@ -9,6 +9,7 @@ import uuid
 
 import pytest
 
+from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
@@ -23,6 +24,13 @@ from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import mock_backend_connector
+
+
+@pytest.fixture
+def reset_code_coverage_flags_cache():
+    _get_code_coverage_flags.cache_clear()
+    yield
+    _get_code_coverage_flags.cache_clear()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -988,6 +996,99 @@ class TestAPIClientGetTestManagementTests:
             call(ErrorType.BAD_JSON)
         ]
 
+    def test_get_test_management_tests_with_statuses_sends_statuses_not_commit(self, mock_telemetry: Mock) -> None:
+        """ATF-all-flaky mode: request uses statuses instead of commit_message/sha, all tests get attempt_to_fix=True."""  # noqa: E501
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/test/libraries/test-management/tests",
+                response_data=self.RESPONSE_DATA,
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            properties = api_client.get_test_management_properties(statuses=("active", "quarantined", "disabled"))
+
+        # Request must send statuses and omit commit_message/sha
+        assert mock_connector.post_json.call_args_list == [
+            call(
+                "/api/v2/test/libraries/test-management/tests",
+                {
+                    "data": {
+                        "id": "00000000-0000-0000-0000-000000000000",
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "repository_url": "http://github.com/DataDog/some-repo.git",
+                            "statuses": ["active", "quarantined", "disabled"],
+                        },
+                    }
+                },
+                telemetry=mock_telemetry.with_request_metric_names.return_value,
+            )
+        ]
+
+        # All returned tests must have attempt_to_fix=True regardless of the backend value
+        assert properties == {
+            TestRef(SuiteRef(ModuleRef("some_module"), "first.py"), "test_01"): TestProperties(
+                quarantined=True, disabled=False, attempt_to_fix=True
+            ),
+            TestRef(SuiteRef(ModuleRef("some_module"), "second.py"), "test_02"): TestProperties(
+                quarantined=False, disabled=True, attempt_to_fix=True
+            ),
+        }
+
+    def test_get_test_management_tests_with_statuses_does_not_require_commit_data(self, mock_telemetry: Mock) -> None:
+        """ATF-all-flaky mode: statuses path skips commit_message/sha lookup so missing git data is not an error."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/test/libraries/test-management/tests",
+                response_data=self.RESPONSE_DATA,
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                # Only repository_url is needed; commit SHA/message are absent
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            properties = api_client.get_test_management_properties(statuses=("active", "quarantined", "disabled"))
+
+        # No error, request was made
+        assert mock_connector.post_json.called
+        assert api_client.configuration_errors == {}
+        assert len(properties) == 2
+
 
 class TestAPIClientGetKnownCommits:
     def test_get_known_commits(self, mock_telemetry: Mock) -> None:
@@ -1541,8 +1642,16 @@ def mock_post_files_with_error(*args, **kwargs):
 class TestAPIClientUploadCoverageReport:
     """Tests for coverage report upload functionality."""
 
-    def test_upload_coverage_report_success(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
+    def test_upload_coverage_report_success(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        reset_code_coverage_flags_cache,
+    ) -> None:
         """Test successful coverage report upload."""
+        monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "type:unit-tests,jvm-21")
+
         mock_connector = Mock()
 
         mock_connector.post_files.side_effect = mock_post_files_with_telemetry
@@ -1606,6 +1715,7 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["git.repository_url"] == "http://github.com/DataDog/some-repo.git"
         assert event_data["git.commit.sha"] == "abcd1234"
         assert event_data["git.branch"] == "some-branch"
+        assert event_data["report.flags"] == ["type:unit-tests", "jvm-21"]
 
         # Verify success message was logged
         assert "Successfully uploaded coverage report" in caplog.text

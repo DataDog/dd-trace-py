@@ -9,7 +9,6 @@ from ddtrace.testing.internal import git
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
 from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.git import get_pr_base_commit_sha
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.offline_mode import resolve_rlocation
@@ -127,17 +126,6 @@ def get_env_tags() -> dict[str, str]:
     if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):
         merge_tags(tags, git.get_git_head_tags_from_git_command(head_sha))
 
-    # For GitHub Actions: pull_request.base.sha is the HEAD of the base branch, not the merge base.
-    # Compute the true base commit SHA via `git merge-base` when it hasn't already been set by the
-    # CI provider (e.g. GitLab sets CI_MERGE_REQUEST_DIFF_BASE_SHA directly).
-    if not tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
-        base_branch_head_sha = tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
-        pr_head_sha = tags.get(GitTag.COMMIT_HEAD_SHA)
-        if base_branch_head_sha and pr_head_sha:
-            merge_base_sha = get_pr_base_commit_sha(base_branch_head_sha, pr_head_sha)
-            if merge_base_sha:
-                tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base_sha
-
     normalize_git_tags(tags)
 
     if workspace_path := tags.get(CITag.WORKSPACE_PATH):
@@ -151,8 +139,11 @@ def get_env_tags() -> dict[str, str]:
     if job_id := env.get("JOB_ID"):
         tags[CITag.JOB_ID] = job_id
 
-    # Bazel provider fallback (manifest-only mode without payload-files)
-    if offline.manifest_enabled and not tags.get(CITag.PROVIDER_NAME):
+    # Bazel provider fallback (manifest-only mode without payload-files).
+    # AIDEV-NOTE: Only for a manifest an external tool gave us. A manifest we generated ourselves for pytest-xdist
+    # workers carries no information about the environment: inferring "bazel" from it would mislabel every worker
+    # event in a plain `pytest -n auto` run on a machine with no recognized CI provider.
+    if offline.manifest_enabled and not offline.manifest_self_generated and not tags.get(CITag.PROVIDER_NAME):
         tags[CITag.PROVIDER_NAME] = "bazel"
 
     return {k: v for k, v in tags.items() if v}

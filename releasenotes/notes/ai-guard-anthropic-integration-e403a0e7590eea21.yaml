@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    ai_guard: add AI Guard evaluation support to the Anthropic SDK Messages
+    instrumentation. Both non-streaming and streaming requests and
+    non-streaming responses are evaluated through the configured AI Guard
+    client (covering ``Messages.create`` / ``Messages.stream`` and their
+    async and Beta variants), and evaluation is automatically skipped when a
+    framework integration (LangChain) is already evaluating the same call.

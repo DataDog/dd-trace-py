@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    runtime metrics: Fixes an issue where runtime metrics were missing
+    container and orchestrator tags (such as ``pod_name``) on hosts using
+    cgroup v2.

@@ -1,7 +1,6 @@
 import os
 
 import botocore
-import mock
 import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
@@ -10,7 +9,7 @@ from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
 
@@ -86,36 +85,7 @@ def bedrock_client_proxy(boto3):
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
 def bedrock_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
-    LLMObs.disable()
-    with override_global_config(
-        {
-            "_llmobs_ml_app": "<ml-app-name>",
-            "_dd_api_key": "<not-a-real-key>",
-        }
-    ):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        LLMObs._instance._llmobs_span_writer.stop()
-        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
-        yield LLMObs
-    LLMObs.disable()
-
-
-@pytest.fixture
-def bedrock_agents_llmobs(tracer, llmobs_span_writer):
-    """LLMObs fixture for bedrock_agents tests.
-
-    Keeps the real ``TestLLMObsSpanWriter`` (instead of a mock) because the
-    bedrock_agents integration synthesizes span events without a backing APM
-    span — the enqueued events are not derivable from ``meta_struct`` and must
-    be read out of the writer via ``llmobs_events``.
-    """
     LLMObs.disable()
     with override_global_config(
         {
@@ -124,15 +94,24 @@ def bedrock_agents_llmobs(tracer, llmobs_span_writer):
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
-        LLMObs._instance._llmobs_span_writer.stop()
-        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+        install_mock_llmobs_writer(tracer)
         yield LLMObs
     LLMObs.disable()
 
 
 @pytest.fixture
-def llmobs_events(llmobs_span_writer):
-    return llmobs_span_writer.events
+def bedrock_agents_llmobs(tracer, monkeypatch):
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        install_mock_llmobs_writer(tracer)
+        yield LLMObs
+    LLMObs.disable()
 
 
 @pytest.fixture

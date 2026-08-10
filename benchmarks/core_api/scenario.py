@@ -13,13 +13,19 @@ class CoreAPIScenario(bm.Scenario):
     listeners: int
     set_item_count: int
     get_item_exists: bool
+    listener_raises: bool  # whether registered listeners raise exceptions
 
     def run(self):
-        # Activate a number of no-op listeners for known events
         for _ in range(self.listeners):
+            if self.listener_raises:
 
-            def listener(*_):
-                pass
+                def listener(*_):
+                    raise ValueError("benchmark listener exception")
+
+            else:
+
+                def listener(*_):
+                    pass
 
             core.on(CUSTOM_EVENT_NAME, listener)
             core.on("context.started.with_data", listener)
@@ -27,6 +33,16 @@ class CoreAPIScenario(bm.Scenario):
 
         if self.get_item_exists:
             core.set_item("key", "value")
+
+        def has_listeners(loops):
+            """Measure the cost of core.has_listeners"""
+            for _ in range(loops):
+                core.has_listeners(CUSTOM_EVENT_NAME)
+
+        def core_dispatch_no_args(loops):
+            """Measure dispatch cost with an empty args tuple"""
+            for _ in range(loops):
+                core.dispatch(CUSTOM_EVENT_NAME, ())
 
         def core_dispatch(loops):
             """Measure the cost to dispatch an event on the hub"""
@@ -59,7 +75,11 @@ class CoreAPIScenario(bm.Scenario):
             for _ in range(loops):
                 core.find_item("key")
 
-        if "core_dispatch_with_results" in self.scenario_name:
+        if "has_listeners" in self.scenario_name:
+            yield has_listeners
+        elif "core_dispatch_no_args" in self.scenario_name:
+            yield core_dispatch_no_args
+        elif "core_dispatch_with_results" in self.scenario_name:
             yield core_dispatch_with_results
         elif "core_dispatch" in self.scenario_name:
             yield core_dispatch

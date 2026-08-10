@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where `_dd.svc_src` was incorrectly set in some cases.

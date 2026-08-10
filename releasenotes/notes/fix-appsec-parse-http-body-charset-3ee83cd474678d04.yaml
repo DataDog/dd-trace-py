@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: Fixes body inspection silently skipping requests whose
+    ``Content-Type`` header carried a parameter (most commonly
+    ``charset=utf-8``).

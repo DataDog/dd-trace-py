@@ -1,0 +1,3 @@
+fixes:
+  - |
+    IAST: A crash that could happen at interpreter teardown has been fixed.

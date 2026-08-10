@@ -15,6 +15,7 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -29,6 +30,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
@@ -40,6 +42,10 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
+from ddtrace.contrib.internal.ray.constants import DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR
+from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -58,10 +64,12 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
@@ -75,6 +83,8 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.trace import tracer
@@ -114,9 +124,6 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._self_span.set_exc_info(*sys.exc_info())
             self._finish_spans()
             raise
-
-    # PY2 Support
-    next = __next__
 
     def close(self):
         if getattr(self.__wrapped__, "close", None):
@@ -183,7 +190,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
-    ctx.span = span
+    store_span_on_context(ctx, span)
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for inferred proxy finish
@@ -200,7 +207,7 @@ def _finish_span(
     Finish the span in the context.
     If no span is present, do nothing.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     if not span:
         return
 
@@ -377,10 +384,10 @@ def _on_inferred_proxy_finish(ctx):
     if (
         inferred_proxy_span
         and inferred_proxy_finish_callback
-        and ctx.span
-        and ctx.span.parent_id == inferred_proxy_span.span_id
+        and span_from_context(ctx)
+        and span_from_context(ctx).parent_id == inferred_proxy_span.span_id
     ):
-        ctx.span._on_finish_callbacks.append(inferred_proxy_finish_callback)
+        span_from_context(ctx)._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -388,9 +395,15 @@ def _on_traced_request_context_started_flask(ctx):
     if not current_span:
         return
 
-    ctx.span = current_span
+    store_span_on_context(ctx, current_span)
     flask_config = ctx.get_item("flask_config")
-    _set_flask_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
+    flask_request = ctx.get_item("flask_request")
+    _set_flask_request_tags(flask_request, current_span, flask_config)
+    # The active span here is flask.application. Also update the outer request
+    # span before start_response so timed-out workers keep the route resource.
+    req_span = ctx.find_item("req_span")
+    if req_span is not None and req_span is not current_span:
+        _set_flask_request_route_tags(flask_request, req_span)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -516,14 +529,7 @@ def _set_flask_request_tags(request, span, flask_config):
         if span.name.split(".")[-1] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
-            span._set_attribute(FLASK_ENDPOINT, request.endpoint)
-
-        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
-            span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+        _set_flask_request_route_tags(request, span)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -533,6 +539,26 @@ def _set_flask_request_tags(request, span, flask_config):
             trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
+
+
+def _set_flask_request_route_tags(request, span):
+    try:
+        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
+        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+            span.resource = " ".join((request.method, request.endpoint))
+            span._set_attribute(FLASK_ENDPOINT, request.endpoint)
+
+        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+            span.resource = " ".join((request.method, request.url_rule.rule))
+            span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            # Side-channel tag for backend resource remapping; resource itself stays app-local.
+            if request.script_root:
+                span._set_attribute(
+                    FLASK_RESOURCE_FULL,
+                    " ".join((request.method, request.script_root + request.url_rule.rule)),
+                )
+    except Exception:
+        log.debug('failed to set route tags for "flask.request" span', exc_info=True)
 
 
 def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
@@ -576,7 +602,7 @@ def _cookies_from_response_headers(response_headers):
 
 
 def _on_flask_render(template, flask_config):
-    span = core.get_span()
+    span = span_bus.get_span()
     if not span:
         return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
@@ -623,8 +649,8 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    before_request_tags(ctx.get_item("pin"), span_from_context(ctx), request)
+    span_from_context(ctx)._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -634,29 +660,40 @@ def _on_web_request_final_tags(span):
         _set_inferred_proxy_tags(span, None)
 
 
+def _django_request_path_params(request):
+    from ddtrace.contrib.internal.django.utils import _request_path_params
+
+    return _request_path_params(request)
+
+
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
-    span = ctx.span
+    span = span_from_context(ctx)
     after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
+    # Forward request_path_params alongside route so AppSec normalized-route listeners can consult the matched
+    # parameter map to resolve optional regex groups (RFC-1103 rule 6).
+    trace_utils.set_http_meta(
+        span,
+        ctx.get_item("integration_config"),
+        route=span.get_tag("http.route"),
+        request_path_params=_django_request_path_params(request),
+    )
     _set_inferred_proxy_tags(span, None)
 
 
-def _on_django_start_response(
-    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[dict[str, str]]
-):
+def _on_django_start_response(ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str):
     parsed_query = request.GET
     body = extract_body(request)
     remake_body(request)
 
     trace_utils.set_http_meta(
-        ctx.span,
+        span_from_context(ctx),
         ctx.get_item("integration_config"),
         method=request.method,
         query=query,
         raw_uri=uri,
-        request_path_params=path,
+        request_path_params=_django_request_path_params(request),
         parsed_query=parsed_query,
         request_body=body,
         request_cookies=request.COOKIES,
@@ -670,7 +707,7 @@ def _on_django_cache(
     try:
         rowcount = ctx.get_item("rowcount")
         if rowcount is not None:
-            ctx.span._set_attribute(db.ROWCOUNT, rowcount)
+            span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
     finally:
         _finish_span(ctx, exc_info)
 
@@ -678,13 +715,13 @@ def _on_django_cache(
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
-            ctx.span._ignore_exception(exc)
+            span_from_context(ctx)._ignore_exception(exc)
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
-        ctx.span._set_attribute(tk, tv)
-    _set_url_tag(django_config, ctx.span, url, query)
+        span_from_context(ctx)._set_attribute(tk, tv)
+    _set_url_tag(django_config, span_from_context(ctx), url, query)
 
 
 def _on_django_after_request_headers_post(
@@ -710,17 +747,23 @@ def _on_django_after_request_headers_post(
         request_headers=request_headers,
         response_headers=response_headers,
         request_cookies=request.COOKIES,
-        request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        peer_ip=core.get_item("http.request.remote_ip"),
+        request_path_params=_django_request_path_params(request),
+        peer_ip=core.find_item("remote_addr"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
+        route=span.get_tag("http.route"),
     )
 
 
 def _on_botocore_patched_api_call_started(ctx):
     from ddtrace._trace.utils_botocore.span_tags import set_botocore_patched_api_call_span_tags
 
-    span = ctx.span
+    span = span_from_context(ctx)
     set_botocore_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
@@ -740,7 +783,7 @@ def _on_botocore_patched_api_call_started(ctx):
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
     from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 
-    span = ctx.span
+    span = span_from_context(ctx)
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
 
@@ -754,7 +797,7 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 def _on_botocore_patched_api_call_success(ctx, response):
     from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 
-    span = ctx.span
+    span = span_from_context(ctx)
 
     set_botocore_response_metadata_tags(span, response)
 
@@ -776,7 +819,7 @@ def _on_botocore_trace_context_injection_prepared(
 ):
     endpoint_name = ctx.get_item("endpoint_name")
     if cloud_service is not None:
-        span = ctx.span
+        span = span_from_context(ctx)
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
         schematize_kwargs = dict[str, Any](cloud_provider="aws", cloud_service=cloud_service)
         if endpoint_name != "lambda":
@@ -792,22 +835,22 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: dict, record, inje
     if inject_trace_context:
         if "_datadog" not in data_obj:
             data_obj["_datadog"] = {}
-        HTTPPropagator.inject(ctx.span.context, data_obj["_datadog"])
+        HTTPPropagator.inject(span_from_context(ctx).context, data_obj["_datadog"])
 
 
 def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
-    context = span.context if span else ctx.span.context
+    context = span.context if span else span_from_context(ctx).context
     HTTPPropagator.inject(context, trace_data)
 
 
 def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __):
-    context = span.context if span else ctx.span.context
+    context = span.context if span else span_from_context(ctx).context
     HTTPPropagator.inject(context, trace_data["_datadog"])
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = ctx.span
+    span = span_from_context(ctx)
     integration = ctx.get_item("bedrock_integration")
     integration._tag_proxy_request(ctx)
 
@@ -819,7 +862,7 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
-    span = ctx.span
+    span = span_from_context(ctx)
     span.set_exc_info(*exc_info)
     model_name = ctx.get_item("model_name")
     integration = ctx.get_item("bedrock_integration")
@@ -830,7 +873,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
 
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
-    span = ctx.span
+    span = span_from_context(ctx)
     if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
 
@@ -838,7 +881,7 @@ def _propagate_context(ctx, headers):
 def _after_job_execution(ctx, job_failed, span_tags):
     """sets job.status and job.origin span tags after job is performed"""
     # get_status() returns None when ttl=0
-    span = ctx.span
+    span = span_from_context(ctx)
     if span:
         if job_failed:
             span.error = 1
@@ -858,19 +901,19 @@ def _on_botocore_bedrock_process_response_converse(
     result: list[dict[str, Any]],
 ):
     ctx.get_item("bedrock_integration").llmobs_set_tags(
-        ctx.span,
+        span_from_context(ctx),
         args=[ctx],
         kwargs={},
         response=result,
     )
-    ctx.span.finish()
+    span_from_context(ctx).finish()
 
 
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: dict[str, Any],
 ) -> None:
-    with ctx.span as span:
+    with span_from_context(ctx) as span:
         model_name = ctx.get_item("model_name")
         integration = ctx.get_item("bedrock_integration")
         if "embed" in model_name:
@@ -905,11 +948,11 @@ def _on_botocore_kinesis_getrecords_post(
 
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
+        span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, args, instance, query):
-    span = ctx.span
+    span = span_from_context(ctx)
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
         span._set_attribute(redisx.ARGS_LEN, len(args))
@@ -922,7 +965,7 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, a
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
+        span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def _on_test_visibility_enable(config) -> None:
@@ -960,7 +1003,7 @@ def _set_azure_function_tags(span, azure_functions_config, function_name, trigge
 
 
 def _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count):
-    span = ctx.span
+    span = span_from_context(ctx)
     span._set_attribute(MESSAGING_DESTINATION_NAME, entity_name)
     span._set_attribute(MESSAGING_OPERATION, operation)
     span._set_attribute(MESSAGING_SYSTEM, system)
@@ -976,7 +1019,7 @@ def _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualifi
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
-    span = ctx.span
+    span = span_from_context(ctx)
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
     span.resource = f"{req.method} {path}"
@@ -992,7 +1035,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
-    span = ctx.span
+    span = span_from_context(ctx)
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
@@ -1003,7 +1046,7 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
 
 
 def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
-    span = ctx.span
+    span = span_from_context(ctx)
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
@@ -1020,7 +1063,7 @@ def _on_azure_functions_message_trigger_span_modifier(
     message_id,
     batch_count,
 ):
-    span = ctx.span
+    span = span_from_context(ctx)
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
     _set_azure_messaging_tags(
         ctx,
@@ -1036,7 +1079,7 @@ def _on_azure_functions_message_trigger_span_modifier(
 def _on_azure_message_modifier(
     ctx, azure_config, operation, system, entity_name, fully_qualified_namespace, message_id, batch_count
 ):
-    span = ctx.span
+    span = span_from_context(ctx)
     span._set_attribute(COMPONENT, azure_config.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -1190,7 +1233,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
     """
     Handle websocket receive message events.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     integration_config = ctx.get_item("integration_config")
 
     span._set_attribute(COMPONENT, integration_config.integration_name)
@@ -1201,8 +1244,8 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 
     span._set_attribute(websocket.MESSAGE_FRAMES, 1)
 
-    if hasattr(ctx, "parent") and ctx.parent.span:
-        handshake_span = ctx.parent.span
+    if hasattr(ctx, "parent") and span_from_context(ctx.parent):
+        handshake_span = span_from_context(ctx.parent)
         link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
 
         _add_websocket_span_pointer_attributes(
@@ -1221,7 +1264,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
     """
     Handle websocket send message events.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     integration_config = ctx.get_item("integration_config")
 
     span._set_attribute(COMPONENT, integration_config.integration_name)
@@ -1231,8 +1274,8 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
 
     span._set_attribute(websocket.MESSAGE_FRAMES, 1)
 
-    if hasattr(ctx, "parent") and ctx.parent.span:
-        handshake_span = ctx.parent.span
+    if hasattr(ctx, "parent") and span_from_context(ctx.parent):
+        handshake_span = span_from_context(ctx.parent)
         link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
 
         _add_websocket_span_pointer_attributes(
@@ -1246,7 +1289,7 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
     """
     Handle websocket close message events.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     integration_config = ctx.get_item("integration_config")
 
     span._set_attribute(COMPONENT, integration_config.integration_name)
@@ -1258,8 +1301,8 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
 
     _set_websocket_close_tags(span, message)
 
-    if hasattr(ctx, "parent") and ctx.parent.span:
-        handshake_span = ctx.parent.span
+    if hasattr(ctx, "parent") and span_from_context(ctx.parent):
+        handshake_span = span_from_context(ctx.parent)
         link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
 
         _add_websocket_span_pointer_attributes(
@@ -1275,7 +1318,7 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     """
     Handle websocket disconnect message events.
     """
-    span = ctx.span
+    span = span_from_context(ctx)
     integration_config = ctx.get_item("integration_config")
 
     span._set_attribute(COMPONENT, integration_config.integration_name)
@@ -1283,8 +1326,8 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
 
     _set_websocket_close_tags(span, message)
 
-    if hasattr(ctx, "parent") and ctx.parent.span:
-        handshake_span = ctx.parent.span
+    if hasattr(ctx, "parent") and span_from_context(ctx.parent):
+        handshake_span = span_from_context(ctx.parent)
         link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
 
         _add_websocket_span_pointer_attributes(
@@ -1327,12 +1370,13 @@ def _on_aiokafka_send_start(
     ctx: core.ExecutionContext,
     partition: Optional[int],
 ) -> None:
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
     span._set_attribute(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span._set_attribute(PARTITION, partition or -1)
+    if partition is not None:
+        span._set_attribute(PARTITION, partition)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
@@ -1344,8 +1388,18 @@ def _on_aiokafka_send_start(
 
 
 def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    record_metadata: Optional[Any],
 ) -> None:
+    span = span_from_context(ctx)
+    if span is not None and record_metadata is not None:
+        partition = getattr(record_metadata, "partition", None)
+        offset = getattr(record_metadata, "offset", None)
+        if isinstance(partition, int):
+            span._set_attribute(PARTITION, partition)
+        if isinstance(offset, int):
+            span._set_attribute(MESSAGE_OFFSET, offset)
     _finish_span(ctx, exc_info)
 
 
@@ -1356,7 +1410,7 @@ def _on_aiokafka_getone_message(
     message: Optional[Any],
     err: Optional[BaseException],
 ) -> None:
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span.start_ns = start_ns
     span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
@@ -1364,7 +1418,6 @@ def _on_aiokafka_getone_message(
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
-        message_offset = message.offset or -1
         topic = str(message.topic)
         span._set_attribute(TOPIC, topic)
         span._set_attribute(TOMBSTONE, str(message.value is None))
@@ -1372,8 +1425,10 @@ def _on_aiokafka_getone_message(
         if isinstance(message_key, str):
             span.set_tag(MESSAGE_KEY, message_key)
 
-        span._set_attribute(PARTITION, message.partition or -1)
-        span._set_attribute(MESSAGE_OFFSET, message_offset)
+        if message.partition is not None:
+            span._set_attribute(PARTITION, message.partition)
+        if message.offset is not None:
+            span._set_attribute(MESSAGE_OFFSET, message.offset)
 
     if err is not None:
         span.set_exc_info(type(err), err, err.__traceback__)
@@ -1384,7 +1439,7 @@ def _on_aiokafka_getmany_message(
     ctx: core.ExecutionContext,
     messages: Optional[dict[Any, list[Any]]],
 ) -> None:
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -1421,9 +1476,50 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
+    trace_headers: dict[str, str] = {}
+    HTTPPropagator.inject(span.context, trace_headers)
+
+    invocation_metadata = list(grpc_context.invocation_metadata())
+    invocation_metadata.extend(trace_headers.items())
+    grpc_context._invocation_metadata = invocation_metadata
+
+
+def _on_ray_serve_request_metadata_inject(ctx: core.ExecutionContext, request_metadata: Any) -> None:
+    span = span_from_context(ctx)
+    if span is None or request_metadata is None:
+        return
+
+    grpc_context = getattr(request_metadata, "grpc_context", None)
+    if getattr(request_metadata, "is_grpc_request", False) and grpc_context is not None:
+        _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+    else:
+        headers: dict[str, str] = {}
+        HTTPPropagator.inject(span.context, headers)
+        setattr(request_metadata, DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR, headers)
+
+
+def _on_ray_serve_grpc_context_inject(ctx: core.ExecutionContext, grpc_context: Any) -> None:
+    span = span_from_context(ctx)
+    if span is None or grpc_context is None:
+        return
+
+    _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+
+
+def _on_ray_serve_deployment_resource_set(
+    ctx: core.ExecutionContext, deployment_name: str, endpoint_name: Optional[str]
+) -> None:
+    if endpoint_name is None:
+        return
+
+    span = span_from_context(ctx)
+    span.resource = f"ServeDeployment:{deployment_name}.{endpoint_name}"
+
+
 def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
@@ -1433,7 +1529,7 @@ def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
 
 def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
@@ -1454,13 +1550,13 @@ def _on_pubsub_send_complete(
     message_id: Optional[str],
 ) -> None:
     if message_id is not None:
-        ctx.span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+        span_from_context(ctx)._set_attribute(MESSAGING_MESSAGE_ID, message_id)
     _finish_span(ctx, exc_info)
 
 
 def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
-    span = ctx.span
+    span = span_from_context(ctx)
     message = ctx.get_item("message")
 
     _set_pubsub_receive_attributes(
@@ -1484,7 +1580,7 @@ def _on_mlflow_new_run(
     parent_run_id: str,
     active_run_spans,
 ):
-    span = ctx.span
+    span = span_from_context(ctx)
 
     span._set_attribute(_HOSTNAME_KEY, get_hostname())
     span._set_attribute(COMPONENT, config.mlflow.integration_name)
@@ -1598,7 +1694,7 @@ class _AzureCosmosRequestLike(Protocol):
 def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
     _start_span(ctx)
 
-    span = ctx.span
+    span = span_from_context(ctx)
     client = ctx.get_item("client")
     request_params = ctx.get_item("request_params")
     request = ctx.get_item("request")
@@ -1632,7 +1728,7 @@ def _set_azure_cosmos_request_tags(
     if parsed.path:
         resource_link = parsed.path
 
-    span.resource = request_params.operation_type + " " + resource_link
+    span.resource = request_params.operation_type + " " + _normalize_cosmos_resource_uri(resource_link)
     if (
         request_params.operation_type == "Create"
         and request_params.resource_type == "dbs"
@@ -1656,7 +1752,7 @@ def _set_azure_cosmos_request_tags(
 def _on_azure_cosmos_request_finish(
     ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
 ):
-    span = ctx.span
+    span = span_from_context(ctx)
     sub_status = ctx.get_item("sub_status_code")
     _, exception, _ = exc_info
 
@@ -1668,9 +1764,138 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
         status_code = getattr(exception, "status_code", None)
         if status_code:
-            span._set_attribute(http.STATUS_CODE, status_code)
+            span._set_attribute(db.STATUS_CODE, str(status_code))
 
     _finish_span(ctx, exc_info)
+
+
+def _get_ray_serve_request_span_type(request_meta: Any) -> Optional[str]:
+    if request_meta is None or getattr(request_meta, "is_http_request", False):
+        return SpanTypes.HTTP
+    if getattr(request_meta, "is_grpc_request", False):
+        return SpanTypes.GRPC
+    return SpanTypes.RAY
+
+
+def _on_ray_assign_request(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+
+    span_type = _get_ray_serve_request_span_type(request_meta)
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if request_meta is not None:
+        span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+    is_streaming = ctx.get_item("is_streaming")
+    if is_streaming is not None:
+        span._set_attribute("ray.serve.is_streaming", is_streaming)
+
+    handle_source = ctx.get_item("handle_source")
+    if handle_source:
+        span._set_attribute("ray.serve.handle_source", handle_source)
+
+
+def _set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
+    """Set tag when within limits, otherwise redact oversized values."""
+    if sys.getsizeof(tag_value) > MAX_SPAN_META_VALUE_LEN:
+        span._set_attribute(tag_name, "<redacted>")
+    else:
+        span._set_attribute(tag_name, tag_value)
+
+
+def _on_ray_deployment_remote(ctx: core.ExecutionContext) -> None:
+    deployment_name = ctx.get_item("deployment_name")
+    app_name = ctx.get_item("app_name")
+    resource = f"ServeDeployment:{deployment_name}.remote" if deployment_name is not None else "deployment.remote"
+
+    span = _start_span(ctx, resource=resource, span_type=SpanTypes.RAY)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if app_name:
+        span._set_attribute(RAY_APP_NAME, app_name)
+
+    if config.ray.trace_args_kwargs:
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_ARGS, ctx.get_item("deployment_args"))
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_KWARGS, ctx.get_item("deployment_kwargs"))
+
+
+def _on_ray_handle_request_with_rejection_start(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+    span_type = _get_ray_serve_request_span_type(request_meta)
+
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+
+
+def _on_ray_handle_request_with_rejection_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        span = span_from_context(ctx)
+
+        request_meta = ctx.get_item("request_meta")
+        if request_meta is not None:
+            span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+        replica_id = ctx.get_item("replica_id")
+        if replica_id is not None:
+            span._set_attribute("ray.serve.replica_id", replica_id)
+
+        request_rejected = ctx.get_item("ray_serve_request_rejected")
+        if request_rejected:
+            span.error = 1
+            span._set_attribute(ERROR_MSG, "Ray Serve request rejected by replica capacity check")
+    finally:
+        _finish_span(ctx, exc_info)
+
+
+def _on_proxy_request_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        response_status = ctx.get_item("response_status")
+        span = span_from_context(ctx)
+        if response_status is None or span is None:
+            return
+
+        proxy_request = ctx.get_item("proxy_request") or ctx.get_item("request_item")
+        request_type = getattr(proxy_request, "request_type", None)
+        request_method = getattr(proxy_request, "method", None)
+        request_route = ctx.get_item("matched_route") or getattr(proxy_request, "route_path", None)
+        status_code = getattr(response_status, "code", None)
+
+        span._set_attribute(COMPONENT, config.ray.integration_name)
+        if request_type is not None:
+            span._set_attribute("ray.serve.request.type", request_type)
+
+        if request_type == "http":
+            trace_utils.set_http_meta(
+                span,
+                config.ray,
+                method=request_method,
+                route=request_route,
+                status_code=status_code,
+            )
+        elif request_type == "grpc":
+            grpc_status = str(status_code)
+            span._set_attribute("grpc.status.code", grpc_status)
+            if getattr(response_status, "is_error", False):
+                span.error = 1
+                span._set_attribute(ERROR_TYPE, grpc_status)
+                error_message = getattr(response_status, "message", "")
+                if error_message:
+                    span._set_attribute(ERROR_MSG, error_message)
+    finally:
+        _finish_span(ctx, exc_info)
 
 
 def listen():
@@ -1768,6 +1993,18 @@ def listen():
     core.on("mlflow.end.step", _on_mlflow_end_step)
     core.on("mlflow.log", _on_mlflow_log)
 
+    # ray serve listener
+    core.on("ray.serve.request.metadata.inject", _on_ray_serve_request_metadata_inject)
+    core.on("ray.serve.grpc.context.inject", _on_ray_serve_grpc_context_inject)
+    core.on("ray.serve.deployment.resource.set", _on_ray_serve_deployment_resource_set)
+
+    core.on("context.started.ray.assign.request", _on_ray_assign_request)
+    core.on("context.started.ray.deployment.remote", _on_ray_deployment_remote)
+    core.on("context.started.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_start)
+
+    core.on("context.ended.ray.proxy.request", _on_proxy_request_end)
+    core.on("context.ended.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_end)
+
     for context_name in (
         # web frameworks
         "cherrypy.request",
@@ -1830,6 +2067,8 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "mlflow.run",
+        "ray.proxy.request",
+        "ray.serve.deployment",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1869,6 +2108,9 @@ def listen():
         "aiokafka.getmany",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
+        "ray.assign.request",
+        "ray.deployment.remote",
+        "ray.serve.deployment",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

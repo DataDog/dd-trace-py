@@ -1,12 +1,22 @@
+import abc
+import contextvars
 from enum import Enum
+import sys
 from typing import Any
+from typing import Iterable
 from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
+
+# Mirror of ddtrace._trace.provider.ActiveTrace (a Span or a Context).
+ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
@@ -78,6 +88,8 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
+        collect_all_threads: bool,
+        max_threads: int,
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
@@ -111,6 +123,11 @@ def crashtracker_on_fork(
 ) -> None: ...
 def crashtracker_status() -> CrashtrackerStatus: ...
 def crashtracker_receiver() -> None: ...
+def crashtracker_report_unhandled_exception(
+    exception_type: Optional[str],
+    exception_message: Optional[str],
+    frames: list[dict[str, Optional[str]]],
+) -> None: ...
 
 class PyTracerMetadata:
     """
@@ -157,6 +174,19 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.platform == "linux":
+    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+        """
+        Update the OTel thread context from the active span and its local root span.
+        :param span: The active span.
+        :param local_root: The root span of the local trace chunk.
+        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def detach_otel_thread_context() -> None:
+        """Detach the OTel thread context from the current thread."""
+        ...
+
 class SharedRuntime:
     """
     SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
@@ -181,14 +211,211 @@ class SharedRuntime:
                 If None, waits indefinitely.
         """
         ...
+    def shutdown_in_thread(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+        The code is run in a separate thread to bypass a stale thread local storage.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
     def debug(self) -> str:
         """Returns a string representation of the runtime. Should only be used for debugging."""
+        ...
+
+class TelemetryWorker:
+    """Native instrumentation-telemetry worker.
+
+    Wraps a ``Full``-flavor telemetry worker spawned on the shared
+    :class:`SharedRuntime`. The worker runs on the
+    shared runtime (no dedicated Python thread) and is reset on fork by the
+    runtime's fork hooks, preserving root-only app-started/app-closing.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        service: str,
+        env: Optional[str],
+        app_version: Optional[str],
+        language_name: str,
+        language_version: str,
+        tracer_version: str,
+        runtime_id: str,
+        runtime_name: Optional[str],
+        runtime_version: Optional[str],
+        process_tags: Optional[str],
+        hostname: str,
+        os: Optional[str],
+        os_version: Optional[str],
+        architecture: Optional[str],
+        kernel_name: Optional[str],
+        kernel_release: Optional[str],
+        kernel_version: Optional[str],
+        container_id: Optional[str],
+        endpoint_url: str,
+        api_key: Optional[str],
+        session_id: str,
+        parent_session_id: Optional[str],
+        root_session_id: Optional[str],
+        heartbeat_interval_secs: float,
+        extended_heartbeat_interval_secs: float,
+        debug_enabled: bool,
+        emit_app_lifecycle: bool = ...,
+        endpoints_message_limit: int = ...,
+        test_session_token: Optional[str] = ...,
+        install_id: Optional[str] = ...,
+        install_type: Optional[str] = ...,
+        install_time: Optional[str] = ...,
+    ) -> "TelemetryWorker":
+        """Build and spawn the worker on ``runtime``.
+
+        :param endpoint_url: BASE url. Agent: e.g. ``"http://host:8126"`` (the
+            ``/telemetry/proxy/api/v2/apmtelemetry`` path is appended). Agentless:
+            the intake base url (the ``/api/v2/apmtelemetry`` path is appended).
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path); when ``None`` the worker
+            POSTs through the agent proxy.
+        :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
+            schedules heartbeats/flushes but emits neither ``app-started`` nor
+            ``app-closing`` — only the root process emits them. Defaults to ``True``.
+        :param endpoints_message_limit: most endpoints serialized into one
+            ``app-endpoints`` payload; the rest stay queued for the following payloads,
+            which are flagged ``is_first: false``. Defaults to unlimited.
+        :raises ValueError: on an invalid endpoint or if the worker cannot be spawned.
+        """
+        ...
+    def start(self) -> None:
+        """Send the app-started lifecycle event. Call ONCE, on the origin process only."""
+        ...
+    def stop(self, send_app_closing: bool) -> None:
+        """Flush and shut the worker down, waiting briefly for it to drain.
+
+        :param send_app_closing: when ``True`` emit the app-closing event
+            (origin only); when ``False`` just force a final data flush.
+        """
+        ...
+    def flush(self) -> None:
+        """Force a data flush. Does not emit any lifecycle event. Non-blocking."""
+        ...
+    def add_configuration(
+        self, name: str, value: Optional[str], origin: "ConfigurationOrigin", config_id: Optional[str], seq_id: int
+    ) -> None:
+        """Queue a configuration change.
+
+        :param origin: a :class:`ConfigurationOrigin` (e.g. ``ConfigurationOrigin.env_var``).
+        """
+        ...
+    def add_integration(
+        self,
+        name: str,
+        version: Optional[str],
+        enabled: bool,
+        compatible: Optional[bool],
+        auto_enabled: Optional[bool],
+        error: Optional[str] = None,
+    ) -> None:
+        """Track a patch/integration outcome (app-integrations-change).
+
+        :param error: failure detail when patching failed (None when it succeeded).
+        """
+        ...
+    def add_dependency(
+        self,
+        name: str,
+        version: Optional[str],
+        metadata: Optional[list[tuple[str, str]]],
+    ) -> None:
+        """Report a loaded dependency (app-dependencies-loaded / app-started).
+
+        :param metadata: optional SCA metadata as ``(type, value)`` pairs, where ``value``
+            is an opaque stringified-JSON payload (per the ``dependency_metadata`` telemetry
+            schema), passed through verbatim. Pass ``None`` to omit the field (SCA disabled),
+            or ``[]`` to emit an empty array (SCA enabled, no findings).
+        """
+        ...
+    def add_log(
+        self, identifier: int, message: str, level: "LogLevel", stack_trace: Optional[str], tags: Optional[str]
+    ) -> None:
+        """Queue a (pre-formatted, pre-deduped) log.
+
+        :param identifier: the Python-computed dedup key (passed through as-is).
+        :param level: a :class:`LogLevel` (``LogLevel.ERROR``/``WARN``/``DEBUG``).
+        :param tags: a pre-formatted tag string (e.g. ``"k:v,k2:v2"``) or ``None``.
+        """
+        ...
+    def register_metric_context(
+        self,
+        namespace: "MetricNamespace",
+        name: str,
+        metric_type: "MetricType",
+        tags: list[str],
+        common: bool,
+    ) -> "MetricContext":
+        """Register a metric context and return an opaque handle for :meth:`add_point`.
+
+        Call ONCE per unique ``(namespace, name, type, tags)`` — the caller caches the
+        returned handle; registering the same metric twice creates a duplicate context.
+        The handle is only valid for this worker instance.
+
+        :param namespace: a :class:`MetricNamespace`.
+        :param metric_type: a :class:`MetricType`. ``MetricType.rate`` aggregates
+            as a count sum; the backend divides by the flush interval.
+        :param tags: a list of ``"key:value"`` strings.
+        """
+        ...
+    def add_point(self, context: "MetricContext", value: float) -> None:
+        """Add ``value`` to a context returned by :meth:`register_metric_context`.
+
+        For contexts registered *with* tags. Use :meth:`add_point_with_tags` for untagged
+        contexts whose tags vary per point.
+        """
+        ...
+    def add_point_with_tags(self, context: "MetricContext", value: float, tags: list[str]) -> None:
+        """Add ``value`` to an untagged context with ``tags`` (``"k:v"`` strings) on the point."""
+        ...
+    def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
+        """Record a product enable/disable change (app-product-change).
+
+        :param product: e.g. ``mlobs``, ``dynamic_instrumentation``,
+            ``profiler``, ``appsec`` (any string is accepted as the product name).
+        """
+        ...
+    def add_endpoint(
+        self,
+        method: str,
+        path: str,
+        operation_name: Optional[str],
+        resource_name: Optional[str],
+        request_body_type: Optional[list[str]] = None,
+        response_body_type: Optional[list[str]] = None,
+        response_code: Optional[list[int]] = None,
+    ) -> None:
+        """Report an instrumented endpoint (ASM app-endpoints).
+
+        :param method: HTTP method (unknown methods map to ``"*"``; empty => unset).
+        :param path: request path; empty => unset.
+        :param request_body_type: declared request media types (API Security inventory).
+        :param response_body_type: declared response media types (API Security inventory).
+        :param response_code: declared response status codes (API Security inventory).
+        """
         ...
 
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
     """
+
+    def set_telemetry_handle(self, worker: Optional["TelemetryWorker"] = None) -> None:
+        """
+        Report the exporter's ``trace_api.*`` health metrics through an existing
+        instrumentation-telemetry worker instead of a dedicated one.
+        """
+        ...
 
     def __init__(self):
         """
@@ -345,6 +572,11 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
+        """
+        Obfuscate client side stats buckets in the client instead of in the agent.
+        """
         ...
     def enable_telemetry(
         self,
@@ -366,17 +598,46 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP/JSON endpoint for trace export.
+        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
         """
         ...
+    def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
+        """
+        Select the OTLP export protocol: "http/json" or "http/protobuf".
+        Any other value raises ValueError.
+        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        """
+        ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
         Set additional HTTP headers for OTLP trace export requests.
         :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace-metrics export.
+        When set, client-computed span stats are exported as the traces.span.sdk.metrics.duration
+        OTLP histogram to this endpoint instead of the Datadog agent /v0.6/stats endpoint.
+        Requires stats computation to be enabled via enable_stats.
+        :param url: The full URL of the OTLP metrics endpoint (e.g. "http://localhost:4318/v1/metrics").
+        """
+        ...
+    def set_otlp_metrics_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace-metrics export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
+        """
+        Enable OTel trace semantics, which does not add DD-specific per-span attributes
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload. Driven by the
+        DD_TRACE_OTEL_SEMANTICS_ENABLED environment variable.
         """
         ...
     def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
@@ -400,6 +661,13 @@ class TraceExporterBuilder:
         Should only be used for debugging.
         """
         ...
+
+class AgentResponse:
+    """Sampling-rate response from the Datadog agent after a successful trace export."""
+
+    rate_by_service: Mapping[str, float]
+
+    def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
 
 class AgentError(Exception):
     """
@@ -558,7 +826,7 @@ class ffe:
         @property
         def do_log(self) -> bool: ...
         @property
-        def extra_logging(self) -> Optional[dict[str, str]]: ...
+        def serial_id(self) -> Optional[int]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -604,6 +872,8 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    _parent: Optional[Any]  # parent Span, or None for a root span
+    _parent_context: Optional[Any]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
@@ -646,6 +916,19 @@ class SpanData:
     def _has_links(self) -> bool: ...
     def _has_events(self) -> bool: ...
 
+    # Attribute API
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+    def _set_attributes(self, attrs: dict[str, Union[str, int, float]]) -> None: ...
+    def _has_attribute(self, key: str) -> bool: ...
+    def _remove_attribute(self, key: str) -> None: ...
+    def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]: ...
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+    def _get_numeric_attribute(self, key: str) -> Optional[Union[int, float]]: ...
+    def _get_attributes(self) -> Mapping[str, Union[str, int, float]]: ...
+    def _get_str_attributes(self) -> Mapping[str, str]: ...
+    def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
+    def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+
 class SpanEvent:
     name: str
     time_unix_nano: int  # u64 in Rust; always non-negative
@@ -681,6 +964,39 @@ class SpanLink:
     def __repr__(self) -> str: ...
     def __reduce__(self) -> tuple: ...
 
+class ResultType:
+    value: int
+    name: str
+    RESULT_OK: "ResultType"
+    RESULT_EXCEPTION: "ResultType"
+    RESULT_UNDEFINED: "ResultType"
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def __int__(self) -> int: ...
+
+class EventResult:
+    response_type: Any
+    value: Any
+    exception: Any
+    def __init__(
+        self,
+        response_type: Any = None,
+        value: Any = None,
+        exception: Any = None,
+    ) -> None: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+
+class EventResultDict(dict):
+    def __missing__(self, key: Any) -> EventResult: ...
+    def __getattr__(self, name: str) -> EventResult: ...
+
+def has_listeners(event_id: str) -> bool: ...
+def on(event_id: str, callback: Any, name: Any = None) -> None: ...
+def reset(event_id: Optional[str] = None, callback: Optional[Any] = None) -> None: ...
+def dispatch(event_id: str, args: Optional[tuple] = None, allow_raise: bool = False) -> None: ...
+def dispatch_with_results(event_id: str, args: Optional[tuple] = None) -> EventResultDict: ...
 def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
 def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
@@ -698,3 +1014,484 @@ class config:
     def set_128_bit_trace_id_enabled(val: bool) -> None:
         """Set whether 128-bit trace ID generation is enabled."""
         ...
+    @staticmethod
+    def get_raise() -> bool:
+        """Return whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+    @staticmethod
+    def set_raise(val: bool) -> None:
+        """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+
+# -----------------------------------------------------------------------------
+# Remote configuration
+# -----------------------------------------------------------------------------
+
+class MetricNamespace:
+    tracers: "MetricNamespace"
+    profilers: "MetricNamespace"
+    rum: "MetricNamespace"
+    appsec: "MetricNamespace"
+    ide_plugins: "MetricNamespace"
+    live_debugger: "MetricNamespace"
+    iast: "MetricNamespace"
+    general: "MetricNamespace"
+    telemetry: "MetricNamespace"
+    apm: "MetricNamespace"
+    sidecar: "MetricNamespace"
+    civisibility: "MetricNamespace"
+    mlobs: "MetricNamespace"
+    ddtraceapi: "MetricNamespace"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricType:
+    gauge: "MetricType"
+    count: "MetricType"
+    rate: "MetricType"
+    distribution: "MetricType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricContext:
+    """Opaque handle for a registered metric context.
+
+    Returned by :meth:`TelemetryWorker.register_metric_context` and passed to
+    :meth:`TelemetryWorker.add_point`. Valid only for the worker that produced it.
+    """
+
+    ...
+
+class ConfigurationOrigin:
+    env_var: "ConfigurationOrigin"
+    otel_env_var: "ConfigurationOrigin"
+    code: "ConfigurationOrigin"
+    dd_config: "ConfigurationOrigin"
+    remote_config: "ConfigurationOrigin"
+    default: "ConfigurationOrigin"
+    local_stable_config: "ConfigurationOrigin"
+    fleet_stable_config: "ConfigurationOrigin"
+    calculated: "ConfigurationOrigin"
+    unknown: "ConfigurationOrigin"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class LogLevel:
+    ERROR: "LogLevel"
+    WARN: "LogLevel"
+    DEBUG: "LogLevel"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigProduct:
+    """A remote-config product. One class attribute per libdatadog product.
+
+    Constructed natively; compare/hash by variant. ``str()`` yields the wire
+    name (e.g. ``"ASM_FEATURES"``); ``int()`` yields the discriminant.
+    """
+
+    AgentConfig: "RemoteConfigProduct"
+    AgentTask: "RemoteConfigProduct"
+    ApmTracing: "RemoteConfigProduct"
+    Asm: "RemoteConfigProduct"
+    AsmData: "RemoteConfigProduct"
+    AsmDd: "RemoteConfigProduct"
+    AsmFeatures: "RemoteConfigProduct"
+    FfeFlags: "RemoteConfigProduct"
+    LiveDebugging: "RemoteConfigProduct"
+    LiveDebuggingSymbolDb: "RemoteConfigProduct"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigCapabilities:
+    """A remote-config capability bit. One class attribute per libdatadog
+    capability; ``int()`` yields the bit position the client encodes.
+    """
+
+    AsmActivation: "RemoteConfigCapabilities"
+    AsmIpBlocking: "RemoteConfigCapabilities"
+    AsmDdRules: "RemoteConfigCapabilities"
+    AsmExclusions: "RemoteConfigCapabilities"
+    AsmRequestBlocking: "RemoteConfigCapabilities"
+    AsmResponseBlocking: "RemoteConfigCapabilities"
+    AsmUserBlocking: "RemoteConfigCapabilities"
+    AsmCustomRules: "RemoteConfigCapabilities"
+    AsmCustomBlockingResponse: "RemoteConfigCapabilities"
+    AsmTrustedIps: "RemoteConfigCapabilities"
+    AsmApiSecuritySampleRate: "RemoteConfigCapabilities"
+    ApmTracingSampleRate: "RemoteConfigCapabilities"
+    ApmTracingLogsInjection: "RemoteConfigCapabilities"
+    ApmTracingHttpHeaderTags: "RemoteConfigCapabilities"
+    ApmTracingCustomTags: "RemoteConfigCapabilities"
+    AsmProcessorOverrides: "RemoteConfigCapabilities"
+    AsmCustomDataScanners: "RemoteConfigCapabilities"
+    AsmExclusionData: "RemoteConfigCapabilities"
+    ApmTracingEnabled: "RemoteConfigCapabilities"
+    ApmTracingDataStreamsEnabled: "RemoteConfigCapabilities"
+    AsmRaspSqli: "RemoteConfigCapabilities"
+    AsmRaspLfi: "RemoteConfigCapabilities"
+    AsmRaspSsrf: "RemoteConfigCapabilities"
+    AsmRaspShi: "RemoteConfigCapabilities"
+    AsmRaspXxe: "RemoteConfigCapabilities"
+    AsmRaspRce: "RemoteConfigCapabilities"
+    AsmRaspNosqli: "RemoteConfigCapabilities"
+    AsmRaspXss: "RemoteConfigCapabilities"
+    ApmTracingSampleRules: "RemoteConfigCapabilities"
+    CsmActivation: "RemoteConfigCapabilities"
+    AsmAutoUserInstrumMode: "RemoteConfigCapabilities"
+    AsmEndpointFingerprint: "RemoteConfigCapabilities"
+    AsmSessionFingerprint: "RemoteConfigCapabilities"
+    AsmNetworkFingerprint: "RemoteConfigCapabilities"
+    AsmHeaderFingerprint: "RemoteConfigCapabilities"
+    AsmTruncationRules: "RemoteConfigCapabilities"
+    AsmRaspCmdi: "RemoteConfigCapabilities"
+    ApmTracingEnableDynamicInstrumentation: "RemoteConfigCapabilities"
+    ApmTracingEnableExceptionReplay: "RemoteConfigCapabilities"
+    ApmTracingEnableCodeOrigin: "RemoteConfigCapabilities"
+    ApmTracingEnableLiveDebugging: "RemoteConfigCapabilities"
+    AsmDdMulticonfig: "RemoteConfigCapabilities"
+    AsmTraceTaggingRules: "RemoteConfigCapabilities"
+    AsmExtendedDataCollection: "RemoteConfigCapabilities"
+    ApmTracingMulticonfig: "RemoteConfigCapabilities"
+    FfeFlagConfigurationRules: "RemoteConfigCapabilities"
+    DdDataStreamsTransactionExtractors: "RemoteConfigCapabilities"
+    LlmObsActivation: "RemoteConfigCapabilities"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class RemoteConfigChange:
+    """A single remote-config change handed to Python.
+
+    ``content`` is the raw unparsed config bytes for an add/update, or ``None``
+    to signal a removal.
+    """
+
+    @property
+    def path(self) -> str: ...
+    @property
+    def product(self) -> RemoteConfigProduct: ...
+    @property
+    def config_id(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def version(self) -> int: ...
+    @property
+    def content(self) -> Optional[bytes]: ...
+
+class RemoteConfigReader:
+    """Consumer side of the cross-process broadcast (forked children).
+
+    Reads the manifest + contents the origin publishes to shared memory and
+    diffs successive snapshots into changes.
+    """
+
+    def wait_for_change(self, timeout_ms: int) -> bool:
+        """Block until the origin notifies or ``timeout_ms`` elapses.
+
+        Returns ``True`` if woken by a notification, ``False`` on timeout. On
+        Linux this is a futex wait on the manifest generation word; elsewhere it
+        polls.
+        """
+        ...
+    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+        """Return the changes since the last read (removals first).
+
+        ``enabled_products`` are the wire names the caller currently subscribes
+        to; configs for other products are withheld so they are re-emitted once
+        their product is enabled.
+        """
+        ...
+    def reset(self) -> None:
+        """Forget delivered state so the next ``read()`` returns the full snapshot."""
+        ...
+
+class RemoteConfigClient:
+    """Native single-target remote config client (origin process).
+
+    Children consume published configs via :class:`RemoteConfigReader` instead.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        agent_url: str,
+        tracer_version: str,
+        client_id: str,
+        runtime_id: str,
+        service: str,
+        env: str,
+        app_version: str,
+        language: Optional[str] = None,
+        tags: Optional[list[tuple[str, str]]] = None,
+        process_tags: Optional[list[tuple[str, str]]] = None,
+        timeout_ms: int = 5000,
+        test_session_token: Optional[str] = None,
+    ) -> "RemoteConfigClient": ...
+    def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
+        """Add capabilities the client advertises to the agent."""
+        ...
+    def update_capabilities(
+        self,
+        mask: list[RemoteConfigCapabilities],
+        capabilities: list[RemoteConfigCapabilities],
+    ) -> None:
+        """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        ...
+    def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
+        """Perform a single fetch against the agent and return the per-poll changes."""
+        ...
+    def set_config_state(self, path: str, error: Optional[str] = None) -> None:
+        """Acknowledge (``error=None``) or report an error for an applied config."""
+        ...
+    def get_client_id(self) -> str:
+        """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def enable_shared_memory(self) -> None:
+        """Enable cross-process broadcast. Call on the origin before forking."""
+        ...
+    def make_reader(self) -> RemoteConfigReader:
+        """Create a reader over the inherited broadcast segments (forked child)."""
+        ...
+
+# -----------------------------------------------------------------------------
+# HTTP client
+# -----------------------------------------------------------------------------
+
+class HttpResponse:
+    """An HTTP response. Immutable; safe to share across threads."""
+
+    @property
+    def status_code(self) -> int: ...
+    @property
+    def headers(self) -> list[tuple[str, str]]:
+        """Response headers as a list preserving insertion order and duplicates.
+
+        Multiple ``Set-Cookie`` headers, for example, are kept as distinct
+        list entries.
+        """
+        ...
+    def body(self) -> bytes:
+        """Return the response body as ``bytes``.
+
+        Responses are not decompressed regardless of ``Content-Encoding``.
+        Repeated calls return the same ``bytes`` object (memoized).
+        """
+        ...
+    def header(self, name: str) -> Optional[str]:
+        """Case-insensitive header lookup; returns the first matching value."""
+        ...
+
+_HTTPClientT = TypeVar("_HTTPClientT", bound="HTTPClient")
+
+class HTTPClient:
+    """A pooled, base-URL HTTP client.
+
+    Construct with a base URL; request methods take a relative path joined onto
+    it. ``headers`` are default headers merged into every request (per-request
+    headers override by name). The GIL is released for the duration of every
+    HTTP I/O call, and instances are safe to share across threads (connections
+    are pooled internally).
+
+    ``runtime`` is a :class:`SharedRuntime`. Application code should use
+    :class:`ddtrace.internal.http_client.HTTPClient`, a subclass that injects the
+    process-wide runtime automatically:
+
+        >>> from ddtrace.internal.http_client import HTTPClient
+        >>> client = HTTPClient("http://localhost:8126", headers=[("Datadog-Meta-Lang", "python")])
+        >>> info = client.get("/info").body()
+
+    ``base_url`` is ``scheme://host[:port][/prefix]`` (``http`` / ``https``) or
+    ``unix:///path/to.sock``. For UDS the request host is fixed to ``localhost``.
+
+    Behavioral notes:
+
+    - Redirects are followed automatically (up to 10).
+    - ``HTTP_PROXY`` / ``HTTPS_PROXY`` / ``NO_PROXY`` environment variables are
+      honored.
+    - Response bodies are not decompressed; ``Content-Encoding`` is preserved
+      verbatim.
+    """
+
+    def __new__(
+        cls: type[_HTTPClientT],
+        base_url: str,
+        *,
+        runtime: SharedRuntime,
+        timeout_ms: int = 2000,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        max_retries: int = 0,
+        retry_initial_delay_ms: int = 100,
+        retry_jitter: bool = True,
+        treat_http_errors_as_errors: bool = True,
+    ) -> _HTTPClientT:
+        """Build a client bound to ``runtime``.
+
+        :param max_retries: number of retries after the first attempt (``0`` =
+            no retry). libdd retries all non-``InvalidConfig`` errors including
+            4xx/5xx; combine with ``treat_http_errors_as_errors=False`` for
+            "no retry on 4xx".
+        :param retry_initial_delay_ms: backoff before the first retry (doubles
+            each subsequent retry). Only applies when ``max_retries > 0``.
+        :param retry_jitter: randomize the backoff delay. Only applies when
+            ``max_retries > 0``.
+        :param treat_http_errors_as_errors: when ``True`` (default), HTTP 4xx/5xx
+            raise :class:`RequestFailedError`; when ``False`` they are returned
+            as regular :class:`HttpResponse` objects.
+        """
+        ...
+    def get(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def head(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def delete(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def post(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def put(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def patch(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+
+class HttpClientError(Exception):
+    """Base class for all native HTTP client errors.
+
+    Catch this to handle any failure from an :class:`HTTPClient` request. The
+    granular subclasses are :class:`ConnectionFailedError`,
+    :class:`TimedOutError`, :class:`RequestFailedError`,
+    :class:`InvalidConfigError`, and :class:`HttpIoError`.
+
+    Subclassable from Python:
+
+        >>> class MyError(HttpClientError): ...
+
+    Example exception handling:
+
+        >>> try:
+        ...     resp = client.send(req)
+        ... except TimedOutError:
+        ...     ...  # retry or surface
+        ... except ConnectionFailedError as e:
+        ...     ...  # cannot reach server
+        ... except RequestFailedError as e:
+        ...     status = e.status  # int
+        ...     body = e.body  # str (lossy-UTF-8 decoded by libdd)
+        ... except HttpClientError:
+        ...     ...  # fall-through
+    """
+
+class ConnectionFailedError(HttpClientError):
+    """TCP/socket connection to the server could not be established."""
+
+class TimedOutError(HttpClientError):
+    """The request exceeded its configured timeout."""
+
+class RequestFailedError(HttpClientError):
+    """The server returned an HTTP 4xx/5xx status code.
+
+    Only raised when ``treat_http_errors_as_errors=True`` (the default).
+    """
+
+    status: int
+    body: str  # NOTE: binary bodies are lossy-UTF-8 decoded; not byte-perfect.
+
+class InvalidConfigError(HttpClientError):
+    """The client/request configuration was invalid (e.g. zero timeout,
+    both body and multipart parts set on the same request).
+    """
+
+class HttpIoError(HttpClientError):
+    """An I/O error occurred during the request (truncated response,
+    connection reset, etc.).
+    """
+
+def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
+
+DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
+
+class BaseContextProvider(abc.ABC):
+    """A ``ContextProvider`` is an interface that provides the blueprint
+    for a callable class, capable to retrieve the current active
+    ``Context`` instance. Context providers must inherit this class
+    and implement:
+    * the ``active`` method, that returns the current active ``Context``
+    * the ``activate`` method, that sets the current active ``Context``
+
+    NOTE: at runtime this is a plain pyclass, not an ``abc.ABCMeta`` type --
+    direct instantiation still raises (via a ``__new__`` that always errors),
+    but incomplete subclasses aren't rejected at class-definition time, only
+    when the unimplemented ``_has_active_context``/``active`` are called.
+    Declared as ``abc.ABC`` here so type checkers keep flagging both cases the
+    same as they did before this class moved to Rust.
+    """
+
+    @abc.abstractmethod
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    @abc.abstractmethod
+    def active(self) -> Optional[ActiveTrace]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]: ...
+
+class DefaultContextProvider(BaseContextProvider):
+    """Context provider that retrieves contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
+    """
+
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    def active(self) -> Optional[ActiveTrace]: ...
+    def _update_active(self, span: Span) -> Optional[ActiveTrace]: ...

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    datastreams: Demotes the ``retry limit exceeded submitting pathway stats`` log
+    from ``ERROR`` to ``WARNING`` and removes the multi-line traceback from the
+    record. This message fires when the processor cannot reach the agent within
+    its 1-second timeout; the dropped 10 seconds of DSM data is auto-recovered on
+    the next flush.

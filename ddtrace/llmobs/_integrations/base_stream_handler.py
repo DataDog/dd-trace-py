@@ -50,6 +50,15 @@ class BaseStreamHandler(ABC):
         if self.primary_span:
             self.primary_span.set_exc_info(*sys.exc_info())
 
+    def start_stream(self):
+        """Hook called once on iteration entry, before any chunk is pulled.
+
+        Default is a no-op. Override to attach setup that must run lazily
+        (only when the caller starts iterating, not at wrapper construction).
+        Pairs with :meth:`finalize_stream`.
+        """
+        pass
+
     @abstractmethod
     def finalize_stream(self, exception=None):
         """
@@ -134,8 +143,19 @@ class TracedStream(wrapt.ObjectProxy):
         self._self_handler = handler
         self._self_on_stream_created = on_stream_created
         self._self_stream_iter = self.__wrapped__
+        # AIDEV-NOTE: tracks whether ``handler.start_stream()`` has fired.
+        # Guards against double-firing when both ``__iter__`` and ``__next__``
+        # are used on the same stream, and ensures the hook does not run on
+        # a stream that is constructed but never consumed.
+        self._self_started = False
+
+    def _ensure_started(self):
+        if not self._self_started:
+            self._self_started = True
+            self._self_handler.start_stream()
 
     def __iter__(self):
+        self._ensure_started()
         exc = None
         try:
             for chunk in self._self_stream_iter:
@@ -149,6 +169,7 @@ class TracedStream(wrapt.ObjectProxy):
             self._self_handler.finalize_stream(exc)
 
     def __next__(self):
+        self._ensure_started()
         try:
             chunk = self._self_stream_iter.__next__()
             self._self_handler.process_chunk(chunk, self._self_stream_iter)
@@ -209,8 +230,16 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         self._self_handler = handler
         self._self_on_stream_created = on_stream_created
         self._self_async_stream_iter = self.__wrapped__
+        # AIDEV-NOTE: see ``TracedStream._self_started`` for rationale.
+        self._self_started = False
+
+    def _ensure_started(self):
+        if not self._self_started:
+            self._self_started = True
+            self._self_handler.start_stream()
 
     async def __aiter__(self):
+        self._ensure_started()
         exc = None
         try:
             async for chunk in self._self_async_stream_iter:
@@ -224,6 +253,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             self._self_handler.finalize_stream(exc)
 
     async def __anext__(self):
+        self._ensure_started()
         try:
             chunk = await self._self_async_stream_iter.__anext__()
             await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)

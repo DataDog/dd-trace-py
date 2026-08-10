@@ -1,11 +1,36 @@
 #include <echion/echion_sampler.h>
 #include <echion/tasks.h>
 
-#include <echion/echion_sampler.h>
+#include <echion/long.h>
 
 #include <array>
 #include <stack>
+#include <utility>
 #include <vector>
+
+namespace {
+Result<TaskName>
+read_task_name(PyObject* task_name)
+{
+#if PY_VERSION_HEX >= 0x030c0000
+    // CPython stores the default asyncio task name as a PyLong and formats
+    // "Task-N" lazily. Keep the integer in the task snapshot and format the
+    // label only when rendering the sample, instead of adding high-cardinality
+    // default names to the global StringTable.
+    auto maybe_long = pylong_to_llong(task_name);
+    if (maybe_long) {
+        return TaskName::from_asyncio_task_id(static_cast<std::uint64_t>(*maybe_long));
+    }
+#endif
+
+    auto maybe_unicode = pyunicode_to_utf8(task_name);
+    if (!maybe_unicode) {
+        return ErrorKind::PyUnicodeError;
+    }
+
+    return TaskName::from_literal(std::move(*maybe_unicode));
+}
+} // namespace
 
 Result<GenInfo::Ptr>
 GenInfo::create(PyObject* gen_addr)
@@ -144,12 +169,12 @@ TaskInfo::create_impl(EchionSampler& echion, TaskObj* task_addr, size_t recursio
         return ErrorKind::TaskInfoGeneratorError;
     }
 
-    auto maybe_name = echion.string_table().key(task.task_name, StringTag::TaskName);
+    auto maybe_name = read_task_name(task.task_name);
     if (!maybe_name) {
         return ErrorKind::TaskInfoError;
     }
 
-    auto task_name = *maybe_name;
+    auto task_name = std::move(*maybe_name);
     auto task_loop = task.task_loop;
 
     TaskInfo::Ptr task_waiter = nullptr;
@@ -161,8 +186,11 @@ TaskInfo::create_impl(EchionSampler& echion, TaskObj* task_addr, size_t recursio
         }
     }
 
-    return std::make_unique<TaskInfo>(
-      reinterpret_cast<PyObject*>(task_addr), task_loop, std::move(*maybe_coro), task_name, std::move(task_waiter));
+    return std::make_unique<TaskInfo>(reinterpret_cast<PyObject*>(task_addr),
+                                      task_loop,
+                                      std::move(*maybe_coro),
+                                      std::move(task_name),
+                                      std::move(task_waiter));
 }
 
 // When uvloop.run() is used, the top-level Task contains a wrapper coroutine
@@ -235,7 +263,7 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
-        auto new_frames = unwind_frame(echion, frame, stack, 1);
+        auto new_frames = unwind_frame(echion, frame, stack, echion.seen_frames_scratch(), 1);
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could

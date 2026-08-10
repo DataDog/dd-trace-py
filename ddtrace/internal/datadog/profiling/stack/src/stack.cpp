@@ -1,5 +1,6 @@
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "origin_task_links.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -7,22 +8,32 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <cmath>
+#include <string_view>
+#include <utility>
+
 using namespace Datadog;
 
 static PyObject*
 stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
-    static const char* const_kwlist[] = { "min_interval", NULL };
+    static const char* const_kwlist[] = { "min_interval", nullptr };
     static char** kwlist = const_cast<char**>(const_kwlist);
     double min_interval_s = g_default_sampling_period_s;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kwlist, &min_interval_s)) {
-        return NULL; // If an error occurs during argument parsing
+        return nullptr; // If an error occurs during argument parsing
     }
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
+        // Enable only after start() succeeds so one_time_setup() has completed
+        // before executor work can mutate the origin-task map.
+        Py_BEGIN_ALLOW_THREADS;
+        OriginTaskLinks::get_instance().enable();
+        Py_END_ALLOW_THREADS;
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -32,11 +43,24 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 PyCFunction stack_start = cast_to_pycfunction(stack_start_impl);
 
 static PyObject*
+stack_is_origin_task_linking_enabled(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (OriginTaskLinks::get_instance().is_enabled()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    Sampler::get().stop();
-
     Py_BEGIN_ALLOW_THREADS; // Release GIL
+
+    // Disable origin-task linking before stopping the sampler so in-flight
+    // executor workers cannot re-populate the map during shutdown.
+    OriginTaskLinks::get_instance().disable_and_reset();
+
+    Sampler::get().stop();
 
     // Explicitly clear ThreadSpanLinks. The memory should be cleared up
     // when the program exits as ThreadSpanLinks is a static singleton instance.
@@ -45,7 +69,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     ThreadSpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
-    // Sampler at the beginning of this function.
+    // Sampler above.
     ProfilerState::get().native_call_registry.reset();
 
     Py_END_ALLOW_THREADS; // Re-acquire GIL
@@ -60,7 +84,7 @@ stack_set_interval(PyObject* self, PyObject* args)
     (void)self;
     double new_interval;
     if (!PyArg_ParseTuple(args, "d", &new_interval)) {
-        return NULL; // If an error occurs during argument parsing
+        return nullptr; // If an error occurs during argument parsing
     }
     Sampler::get().set_interval(new_interval);
     Py_RETURN_NONE;
@@ -79,7 +103,7 @@ stack_thread_register(PyObject* self, PyObject* args)
     const char* name;
 
     if (!PyArg_ParseTuple(args, "KKs", &id, &native_id, &name)) {
-        return NULL;
+        return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
@@ -96,12 +120,13 @@ stack_thread_unregister(PyObject* self, PyObject* args)
     uint64_t id;
 
     if (!PyArg_ParseTuple(args, "K", &id)) {
-        return NULL;
+        return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
     ThreadSpanLinks::get_instance().unlink_span(id);
+    OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -119,16 +144,16 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     PyThreadState* state = PyThreadState_Get();
 
     if (!state) {
-        return NULL;
+        return nullptr;
     }
 
     thread_id = state->thread_id;
 
-    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", NULL };
+    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", nullptr };
     static char** kwlist = const_cast<char**>(const_kwlist);
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKz", kwlist, &span_id, &local_root_span_id, &span_type)) {
-        return NULL;
+        return nullptr;
     }
 
     // From Python, span_type is a string or None, and when given None, it is passed as a nullptr.
@@ -147,6 +172,106 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
 
 static PyObject*
+stack_unlink_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &expected_span_id)) {
+        return nullptr;
+    }
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_clear_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+    if (!state) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+// Records the asyncio task that offloaded work to the current (worker) thread.
+// The thread id is derived from the calling thread's state (this runs on the
+// worker thread), matching how stack_link_span_impl resolves it.
+static PyObject*
+stack_link_origin_task_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t task_id = 0;
+    const char* task_name = nullptr;
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    static const char* const_kwlist[] = { "task_id", "task_name", nullptr };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "K|z", kwlist, &task_id, &task_name)) {
+        return nullptr;
+    }
+
+    // Format "z" yields nullptr when the optional arg is omitted or None.
+    Py_BEGIN_ALLOW_THREADS;
+    OriginTaskLinks::get_instance().link_origin_task(
+      thread_id, task_id, task_name ? std::string(task_name) : std::string());
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_origin_task = cast_to_pycfunction(stack_link_origin_task_impl);
+
+static PyObject*
+stack_unlink_origin_task(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    OriginTaskLinks::get_instance().unlink_origin_task(thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
 {
     (void)self;
@@ -154,7 +279,7 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     PyObject* loop;
 
     if (!PyArg_ParseTuple(args, "lO", &thread_id, &loop)) {
-        return NULL;
+        return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
@@ -172,7 +297,7 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     PyObject* asyncio_eager_tasks;
 
     if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
-        return NULL;
+        return nullptr;
     }
 
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
@@ -187,7 +312,7 @@ stack_link_tasks(PyObject* self, PyObject* args)
     PyObject *parent, *child;
 
     if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
-        return NULL;
+        return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
@@ -204,7 +329,7 @@ stack_weak_link_tasks(PyObject* self, PyObject* args)
     PyObject *parent, *child;
 
     if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
-        return NULL;
+        return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
@@ -220,7 +345,7 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
     int do_adaptive_sampling = false;
 
     if (!PyArg_ParseTuple(args, "|p", &do_adaptive_sampling)) {
-        return NULL;
+        return nullptr;
     }
 
     Sampler::get().set_adaptive_sampling(do_adaptive_sampling);
@@ -234,7 +359,7 @@ stack_set_target_overhead(PyObject* Py_UNUSED(self), PyObject* args)
     double target_overhead;
 
     if (!PyArg_ParseTuple(args, "d", &target_overhead)) {
-        return NULL;
+        return nullptr;
     }
 
     // Convert from percentage (0-100) to fraction (0-1)
@@ -249,10 +374,52 @@ stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
     unsigned int max_interval_us;
 
     if (!PyArg_ParseTuple(args, "I", &max_interval_us)) {
-        return NULL;
+        return nullptr;
     }
 
     Sampler::get().set_max_sampling_period(max_interval_us);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_adaptive_sampling_baseline(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double baseline_core_pct;
+
+    if (!PyArg_ParseTuple(args, "d", &baseline_core_pct)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_baseline_core_pct(baseline_core_pct);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_window_s(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int window_s;
+
+    if (!PyArg_ParseTuple(args, "I", &window_s)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_p_stable_window_s(window_s);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_percentile(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double percentile;
+
+    if (!PyArg_ParseTuple(args, "d", &percentile)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_p_stable_percentile(percentile);
 
     Py_RETURN_NONE;
 }
@@ -263,7 +430,7 @@ stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
     unsigned int max_threads;
 
     if (!PyArg_ParseTuple(args, "I", &max_threads)) {
-        return NULL;
+        return nullptr;
     }
 
     Sampler::get().set_max_threads_per_sample(max_threads);
@@ -294,20 +461,20 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     PyObject* frame;
 
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
-        return NULL;
+        return nullptr;
 
-    auto& sampler = Sampler::get();
-    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
-    if (!maybe_greenlet_name) {
-        // We failed to get this task but we keep going
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
-        return NULL;
+    Py_ssize_t name_size = 0;
+    const char* name_data = PyUnicode_AsUTF8AndSize(name, &name_size);
+    if (name_data == nullptr || name_size < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name");
+        return nullptr;
     }
 
-    auto greenlet_name = *maybe_greenlet_name;
+    auto greenlet_name = TaskName::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
 
+    auto& sampler = Sampler::get();
     Py_BEGIN_ALLOW_THREADS;
-    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, std::move(greenlet_name), frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -318,7 +485,7 @@ untrack_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t greenlet_id;
     if (!PyArg_ParseTuple(args, "l", &greenlet_id))
-        return NULL;
+        return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().untrack_greenlet(greenlet_id);
@@ -333,7 +500,7 @@ link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
     uintptr_t parent, child;
 
     if (!PyArg_ParseTuple(args, "ll", &child, &parent))
-        return NULL;
+        return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().link_greenlets(parent, child);
@@ -349,7 +516,7 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     PyObject* frame;
 
     if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &frame))
-        return NULL;
+        return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().update_greenlet_frame(greenlet_id, frame);
@@ -490,13 +657,13 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // Import sys.monitoring
     PyObject* sys_mod = PyImport_ImportModule("sys");
     if (!sys_mod) {
-        return NULL;
+        return nullptr;
     }
 
     PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
     Py_DECREF(sys_mod);
     if (!monitoring) {
-        return NULL;
+        return nullptr;
     }
 
     // Cache the DISABLE sentinel
@@ -504,7 +671,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         g_disable_sentinel = PyObject_GetAttrString(monitoring, "DISABLE");
         if (!g_disable_sentinel) {
             Py_DECREF(monitoring);
-            return NULL;
+            return nullptr;
         }
     }
 
@@ -513,13 +680,13 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         PyObject* id_obj = PyObject_GetAttrString(monitoring, "PROFILER_ID");
         if (!id_obj) {
             Py_DECREF(monitoring);
-            return NULL;
+            return nullptr;
         }
         g_tool_id = static_cast<int>(PyLong_AsLong(id_obj));
         Py_DECREF(id_obj);
         if (g_tool_id == -1 && PyErr_Occurred()) {
             Py_DECREF(monitoring);
-            return NULL;
+            return nullptr;
         }
     }
 
@@ -530,14 +697,14 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     if (!result) {
         if (!PyErr_ExceptionMatches(PyExc_ValueError)) {
             Py_DECREF(monitoring);
-            return NULL;
+            return nullptr;
         }
         PyErr_Clear();
 
         PyObject* current_name = PyObject_CallMethod(monitoring, "get_tool", "i", g_tool_id);
         if (!current_name) {
             Py_DECREF(monitoring);
-            return NULL;
+            return nullptr;
         }
 
         const char* name = PyUnicode_AsUTF8(current_name);
@@ -547,7 +714,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         if (!is_ours) {
             Py_DECREF(monitoring);
             PyErr_SetString(PyExc_RuntimeError, "sys.monitoring PROFILER_ID is already claimed by another tool");
-            return NULL;
+            return nullptr;
         }
     } else {
         Py_DECREF(result);
@@ -558,7 +725,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     if (!events) {
         cleanup_native_monitoring(monitoring, false);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
 
     PyObject* call_event = PyObject_GetAttrString(events, "CALL");
@@ -566,7 +733,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     if (!call_event) {
         cleanup_native_monitoring(monitoring, false);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
 
     // set_events(g_tool_id, CALL)
@@ -575,7 +742,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         cleanup_native_monitoring(monitoring, false);
         Py_DECREF(call_event);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
 
@@ -584,22 +751,22 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // leave already-seen call sites permanently disabled, and any new C call
     // sites sharing those code-object/offset pairs would never fire the
     // callback. This is a no-op on the first start (nothing is disabled yet).
-    result = PyObject_CallMethod(monitoring, "restart_events", NULL);
+    result = PyObject_CallMethod(monitoring, "restart_events", nullptr);
     if (!result) {
         cleanup_native_monitoring(monitoring, true);
         Py_DECREF(call_event);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
 
     // Create the handler function object
-    PyObject* handler = PyCFunction_New(&native_call_handler_def, NULL);
+    PyObject* handler = PyCFunction_New(&native_call_handler_def, nullptr);
     if (!handler) {
         cleanup_native_monitoring(monitoring, true);
         Py_DECREF(call_event);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
 
     // register_callback(g_tool_id, CALL, handler)
@@ -610,7 +777,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     if (!result) {
         cleanup_native_monitoring(monitoring, true);
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
     Py_DECREF(monitoring);
@@ -627,20 +794,20 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     PyObject* sys_mod = PyImport_ImportModule("sys");
     if (!sys_mod) {
-        return NULL;
+        return nullptr;
     }
 
     PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
     Py_DECREF(sys_mod);
     if (!monitoring) {
-        return NULL;
+        return nullptr;
     }
 
     // set_events(g_tool_id, 0) - disable all events
     PyObject* result = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
     if (!result) {
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
 
@@ -648,14 +815,14 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     PyObject* events = PyObject_GetAttrString(monitoring, "events");
     if (!events) {
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
 
     PyObject* call_event = PyObject_GetAttrString(events, "CALL");
     Py_DECREF(events);
     if (!call_event) {
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
 
     // register_callback(g_tool_id, CALL, None)
@@ -663,7 +830,7 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     Py_DECREF(call_event);
     if (!result) {
         Py_DECREF(monitoring);
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
 
@@ -671,7 +838,7 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     result = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
     Py_DECREF(monitoring);
     if (!result) {
-        return NULL;
+        return nullptr;
     }
     Py_DECREF(result);
     g_tool_id = -1;
@@ -682,22 +849,95 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
+}
+
+static PyObject*
+stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Pause the sampling thread and wait for any in-flight sample to complete.
+    // Returns True  if the sampler was paused successfully.
+    // Returns False if the sampler was not running (nothing to pause).
+    // Returns None  if the sampler is running but timed out waiting for it to
+    //               reach a safe pause point; the caller must NOT swap signal
+    //               handlers in this case to avoid a race with safe_memcpy.
+    switch (Sampler::get().pause()) {
+        case PauseResult::Paused:
+            Py_RETURN_TRUE;
+        case PauseResult::NotRunning:
+            Py_RETURN_FALSE;
+        case PauseResult::Timeout:
+        default:
+            Py_RETURN_NONE;
+    }
+}
+
+static PyObject*
+stack_resume_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().resume();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 {
     int enabled = 1;
 
     if (!PyArg_ParseTuple(args, "|p", &enabled)) {
-        return NULL;
+        return nullptr;
     }
 
     if (Sampler::get().is_running()) {
         PyErr_SetString(PyExc_RuntimeError, "set_fast_copy must be called before the sampler is started");
-        return NULL;
+        return nullptr;
     }
 
-    set_fast_copy_enabled(static_cast<bool>(enabled));
+    const bool want = static_cast<bool>(enabled);
+    if (!want) {
+        fast_copy_user_disabled = true;
+    }
+    set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
+    // previous handlers. Call this before letting another component (e.g.,
+    // faulthandler) install its own handler so it doesn't record ours as its
+    // previous handler (which would create a signal-handler cycle).
+    // Follow with stack_reinstall_segv_handler to reinstall on top.
+    if (fast_copy_active) {
+        uninstall_segv_handler();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
+    // This is used to reclaim the handler after another component (e.g., Python's
+    // faulthandler module) overwrites it. Our handler chains to the previous one
+    // for non-recovery faults, so both systems coexist correctly.
+    if (fast_copy_active) {
+        init_segv_catcher();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
 }
 
 static PyObject*
@@ -712,9 +952,48 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     Py_RETURN_FALSE;
 }
 
+static PyObject*
+stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double seconds_value = 0.0;
+
+    if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_fast_copy_warmup_seconds must be called before the sampler is started");
+        return NULL;
+    }
+
+    Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
+    { "is_origin_task_linking_enabled",
+      stack_is_origin_task_linking_enabled,
+      METH_NOARGS,
+      "Return whether OriginTaskLinks is enabled (stack sampler has been started)" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },
@@ -722,6 +1001,19 @@ static PyMethodDef stack_methods[] = {
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "unlink_span",
+      stack_unlink_span,
+      METH_VARARGS,
+      "Clear the span linked to the current thread if its ID matches the expected span ID" },
+    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "link_origin_task",
+      reinterpret_cast<PyCFunction>(stack_link_origin_task),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link the originating asyncio task to the current (executor worker) thread" },
+    { "unlink_origin_task",
+      stack_unlink_origin_task,
+      METH_NOARGS,
+      "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
@@ -742,6 +1034,18 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_sampling_period,
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
+    { "set_adaptive_sampling_baseline",
+      stack_set_adaptive_sampling_baseline,
+      METH_VARARGS,
+      "Set absolute overhead floor for adaptive sampling in core-percent units (1 = 0.01 core = 10 mcores)" },
+    { "set_p_stable_window_s",
+      stack_set_p_stable_window_s,
+      METH_VARARGS,
+      "Set rolling window duration in seconds for p_stable percentile computation" },
+    { "set_p_stable_percentile",
+      stack_set_p_stable_percentile,
+      METH_VARARGS,
+      "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
@@ -750,13 +1054,43 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "fast_copy_memory_active",
+      stack_fast_copy_memory_active,
+      METH_NOARGS,
+      "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_set_fast_copy_warmup_seconds",
+      stack_set_fast_copy_warmup_seconds,
+      METH_VARARGS,
+      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "uninstall_segv_handler",
+      stack_uninstall_segv_handler,
+      METH_NOARGS,
+      "Remove SIGSEGV handler before another component installs its own" },
+    { "reinstall_segv_handler",
+      stack_reinstall_segv_handler,
+      METH_NOARGS,
+      "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
+    // Sampling pause/resume for safe signal handler swapping
+    { "pause_sampling",
+      stack_pause_sampling,
+      METH_NOARGS,
+      "Pause sampling thread and wait for in-flight sample to complete" },
+    { "resume_sampling", stack_resume_sampling, METH_NOARGS, "Resume a paused sampling thread" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,
       METH_NOARGS,
       "Start sys.monitoring-based native call tracking" },
     { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
-    { NULL, NULL, 0, NULL }
+    { "_native_call_registry_size",
+      stack_native_call_registry_size,
+      METH_NOARGS,
+      "Return the native call monitoring registry size" },
+    { nullptr, nullptr, 0, nullptr }
 };
 
 PyMODINIT_FUNC
@@ -764,12 +1098,12 @@ PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
 {
     PyObject* m;
     static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, stack_methods, NULL, NULL, NULL, NULL
+        PyModuleDef_HEAD_INIT, "_stack", nullptr, -1, stack_methods, nullptr, nullptr, nullptr, nullptr
     };
 
     m = PyModule_Create(&moduledef);
     if (!m)
-        return NULL;
+        return nullptr;
 
     return m;
 }

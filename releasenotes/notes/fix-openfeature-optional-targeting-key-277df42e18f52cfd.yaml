@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    openfeature: Fixes targeting key handling in the OpenFeature provider. ``None`` targeting key
+    is now correctly passed to the native evaluator instead of being coerced to empty string.
+    Flags that don't require a targeting key (static, rule-based) now evaluate successfully
+    without one, matching the Datadog provider spec. Additionally, the Rust binding now
+    correctly maps ``TargetingKeyMissing`` errors from libdatadog instead of returning
+    a generic error code.

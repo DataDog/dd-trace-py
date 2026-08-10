@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    AppSec: Detect OpenAI LLM usage within API endpoints. When AppSec is enabled and an OpenAI
+    ``chat.completions``, ``completions``, or ``responses`` call is made during a web request,
+    the WAF address ``server.business_logic.llm.event`` is emitted with the provider and model
+    name. This enables WAF rules to tag the trace with ``appsec.events.llm.call.provider`` and
+    ``appsec.events.llm.call.model``, surfacing LLM-backed endpoints in the API Endpoint Catalog.
+    Supports both sync and async OpenAI clients, Azure OpenAI (``engine`` kwarg), and streaming.
+    Only the first LLM call per request is recorded (endpoint-level detection, not per-invocation).

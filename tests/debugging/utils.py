@@ -39,14 +39,7 @@ def compile_template(*args):
 
 
 def compile_capture_expressions(exprs):
-    return {
-        "capture_expressions": [
-            CaptureExpression(
-                name=expr["name"], expr=DDRedactedExpression.compile(expr["expr"]), limits=DEFAULT_CAPTURE_LIMITS
-            )
-            for expr in exprs
-        ],
-    }
+    return {"capture_expressions": [CaptureExpression.parse(expr) for expr in exprs]}
 
 
 def ddexpr(json, dsl="test"):

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: When a tool definition with a ``version`` field is set on a parent LLM span via ``tool_definitions``, the resolved tool version is now also written onto the corresponding child tool span as ``meta.tool.version``. This allows the LLM Observability UI to aggregate tool version counts and filter tool spans by version without correlating to the parent LLM span.

@@ -4,6 +4,7 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics
@@ -102,7 +103,8 @@ class TestLLMObsLiteLLM:
     def test_completion_with_tools(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         if stream and n > 1:
             pytest.skip(
-                "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
+                "Streamed responses with multiple completions and tool calls are not supported: "
+                "see open issue https://github.com/BerriAI/litellm/issues/8977"
             )
         with request_vcr.use_cassette(get_cassette_name(stream, n, tools=True)):
             messages = [{"content": "What is the weather like in San Francisco, CA?", "role": "user"}]
@@ -726,6 +728,8 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("gpt-4o", False, False, False),
         # non-OpenAI models are unaffected
         ("anthropic/claude-3", False, True, False),
+        ("openrouter/openai/gpt-4o", False, True, False),
+        ("openrouter/openai/gpt-oss-120b", False, True, False),
     ],
 )
 def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
@@ -833,6 +837,22 @@ def test_shadow_tags_completion_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.total_tokens") == 10
 
 
+def test_azure_shadow_tags_use_response_model(tracer):
+    """For azure provider, shadow model_name uses the response model, not the deployment name."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "gpt-4o-2024-08-06")
+        integration._set_apm_shadow_tags(span, ["azure/my_deployment_name"], {}, response=None, operation="chat")
+
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-2024-08-06"
+
+
 def test_shadow_tags_completion_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from litellm usage to APM span."""
     from unittest.mock import MagicMock
@@ -854,3 +874,209 @@ def test_shadow_tags_completion_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 7
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 4
+
+
+# --- Azure streaming model name tests ---
+
+
+def test_stream_handler_captures_chunk_model():
+    """Stream handler records the first non-empty chunk.model as response_model."""
+    from collections import defaultdict
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
+
+    handler = BaseLiteLLMStreamHandler.__new__(BaseLiteLLMStreamHandler)
+    handler.chunks = defaultdict(list)
+    handler.spans = []
+
+    chunk = MagicMock()
+    chunk.model = "gpt-4o-2024-08-06"
+    chunk.choices = []
+    chunk.usage = None
+
+    handler._process_chunk(chunk)
+    assert handler.response_model == "gpt-4o-2024-08-06"
+
+    # Second chunk does not override the first captured model.
+    chunk2 = MagicMock()
+    chunk2.model = "different-model"
+    chunk2.choices = []
+    chunk2.usage = None
+    handler._process_chunk(chunk2)
+    assert handler.response_model == "gpt-4o-2024-08-06"
+
+
+def test_stream_handler_skips_empty_chunk_model():
+    """Stream handler ignores chunks with no model field."""
+    from collections import defaultdict
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
+
+    handler = BaseLiteLLMStreamHandler.__new__(BaseLiteLLMStreamHandler)
+    handler.chunks = defaultdict(list)
+    handler.spans = []
+
+    empty_chunk = MagicMock()
+    empty_chunk.model = None
+    empty_chunk.choices = []
+    empty_chunk.usage = None
+    handler._process_chunk(empty_chunk)
+    assert not getattr(handler, "response_model", None)
+
+
+def test_azure_streaming_model_name_uses_response_model(tracer):
+    """For azure provider, _llmobs_set_tags prefers the litellm.response.model span tag."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "gpt-4o-2024-08-06")
+        integration._llmobs_set_tags(span, ["azure/my_deployment_name"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o-2024-08-06"
+
+
+def test_azure_non_streaming_model_name_uses_response_model(tracer):
+    """For azure provider, _llmobs_set_tags prefers response.model on non-streaming responses."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    response = MagicMock()
+    response.model = "gpt-4o-2024-08-06"
+    response.usage.prompt_tokens = 5
+    response.usage.completion_tokens = 3
+    response.usage.total_tokens = 8
+
+    with tracer.trace("litellm.request") as span:
+        integration._llmobs_set_tags(span, ["azure/my_deployment_name"], {}, response=response, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o-2024-08-06"
+
+
+def test_non_azure_streaming_model_name_unchanged(tracer):
+    """For non-azure providers, model_name is not overridden and litellm.response.model is not set."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["openai/gpt-4o"] = ("gpt-4o", "openai")
+
+    with tracer.trace("litellm.request") as span:
+        integration._llmobs_set_tags(span, ["openai/gpt-4o"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o"
+    assert span.get_tag("litellm.response.model") is None
+
+
+def test_azure_ai_model_name_unchanged(tracer):
+    """azure_ai provider is not affected — its response.model is 'azure_ai/<deployment>' and must not be preferred."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure_ai/my_deployment"] = ("my_deployment", "azure_ai")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "azure_ai/my_deployment")
+        integration._llmobs_set_tags(span, ["azure_ai/my_deployment"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "my_deployment"
+
+
+@pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+@pytest.mark.parametrize("positional_model", [False, True])
+def test_azure_streaming_completion_e2e(
+    litellm, request_vcr, litellm_llmobs, test_spans, consume_stream, positional_model, monkeypatch
+):
+    """End-to-end: azure streaming via litellm.completion tags the canonical response model,
+    not the deployment name. Exercises the stream handler -> litellm.response.model tag -> override.
+    Covers the model passed both as a keyword and positionally (the positional form is not present
+    in kwargs, so provider detection must read it from args).
+    """
+    monkeypatch.setenv("AZURE_API_KEY", "<not-a-real-key>")
+    monkeypatch.setenv("AZURE_API_BASE", "https://test-azure.openai.azure.com")
+    monkeypatch.setenv("AZURE_API_VERSION", "2024-12-01-preview")
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with request_vcr.use_cassette("completion_azure_stream.yaml"):
+        if positional_model:
+            resp = litellm.completion(
+                "azure/gpt-5.2_2025-12-11", messages=messages, stream=True, stream_options={"include_usage": True}
+            )
+        else:
+            resp = litellm.completion(
+                model="azure/gpt-5.2_2025-12-11",
+                messages=messages,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+        consume_stream(resp, 1)
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert spans[0].get_tag("litellm.response.model") == "gpt-5.2-2025-12-11"
+    meta = _get_llmobs_data_metastruct(spans[0]).get("meta", {})
+    assert meta.get("model_name") == "gpt-5.2-2025-12-11"
+    assert meta.get("model_name") != "gpt-5.2_2025-12-11"
+    assert meta.get("model_provider") == "azure"
+
+
+def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_spans):
+    """OpenRouter cost (usage.cost) captured through litellm is surfaced on the span's cost metrics.
+
+    OpenRouter returns the billed cost in every response; the litellm integration should emit it as
+    ``total_cost`` (plus ``input_cost``/``output_cost`` when they reconcile). Note: the
+    ``openrouter/openai/*`` model string is the case where litellm may defer to the openai
+    integration via ``_has_downstream_openai_span`` — this test also documents whether a span is
+    emitted at all for that route.
+    """
+    with request_vcr.use_cassette("completion_openrouter.yaml"):
+        litellm.completion(
+            model="openrouter/openai/gpt-oss-120b",
+            messages=[{"content": "What is the capital of France?", "role": "user"}],
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    metrics = get_llmobs_metrics(spans[0])
+    assert "total_cost" in metrics
+    assert metrics["total_cost"] > 0
+    if "input_cost" in metrics or "output_cost" in metrics:
+        assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+
+def test_completion_openrouter_byok_cost(litellm, request_vcr, litellm_llmobs, test_spans):
+    """OpenRouter BYOK (bring-your-own-key) upstream cost is surfaced on the span's cost metrics.
+
+    With BYOK, OpenRouter bills ``usage.cost=0`` (the customer pays the provider directly with their
+    own key) and reports the real provider cost under ``usage.cost_details.upstream_inference_cost``,
+    flagged by ``usage.is_byok=True``. The integration should surface that upstream cost as
+    ``total_cost`` rather than the billed 0.
+    """
+    with request_vcr.use_cassette("completion_openrouter_byok.yaml"):
+        resp = litellm.completion(
+            model="openrouter/anthropic/claude-opus-5",
+            messages=[{"content": "What is the capital of France?", "role": "user"}],
+        )
+
+    assert _get_attr(resp.usage, "is_byok", None) is True
+    assert _get_attr(resp.usage, "cost", None) == 0
+    cost_details = _get_attr(resp.usage, "cost_details", {})
+    assert _get_attr(cost_details, "upstream_inference_cost", 0) > 0
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    metrics = get_llmobs_metrics(spans[0])
+    # BYOK bills cost=0; the upstream inference cost must still be surfaced as a non-zero total_cost.
+    assert metrics["total_cost"] > 0
+    if "input_cost" in metrics or "output_cost" in metrics:
+        assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

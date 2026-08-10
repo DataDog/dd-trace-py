@@ -77,6 +77,15 @@ class ProfilerState
     Profile profile_state{};
     bool timeline_enabled{ false };
 
+    // Snapshot of the profiler's user-facing configuration, stored as a
+    // compact JSON object (e.g. `{"dd.profiling.enabled": true, ...}`).
+    // Uploaded via the `info` channel of the libdatadog exporter, which the
+    // backend auto-indexes for filtering profiles by configuration. Lives on
+    // ProfilerState (not on the per-profile ProfilerStats) because it is
+    // process-global static configuration; ProfilerStats is std::swap-ped on
+    // every upload in UploaderBuilder::build, which would drop the value.
+    std::string profiler_settings_info_json;
+
     // ========================================================================
     // Native call tracking state
     // ========================================================================

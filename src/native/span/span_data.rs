@@ -1,13 +1,15 @@
 use pyo3::{
     types::{
-        PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyList, PyListMethods as _,
-        PyMapping, PyTuple,
+        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
+        PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
+        PyString, PyStringMethods as _, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
+use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
-use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
@@ -25,29 +27,64 @@ use super::{SpanEvent, SpanLink};
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    pub data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    pub name: PyBackedString,
+    pub service: PyBackedString,
+    pub resource: PyBackedString,
+    pub span_type: PyBackedString,
+    pub trace_id: u128,
+    pub span_id: u64,
+    pub parent_id: u64,
+    pub start: i64,
+    /// `None` means "not finished" (duration not yet set). Internal only — the
+    /// Python-facing `duration`/`duration_ns` getters surface this as `None`/seconds.
+    pub duration: Option<i64>,
+    pub error: i32,
+    pub span_links: Vec<NativeSpanLink<PyTraceData>>,
+    pub span_events: Vec<NativeSpanEvent<PyTraceData>>,
     pub span_api: PyBackedString,
+    /// Unified attribute storage — source of truth for all tag/metric attributes.
+    /// `meta` and `metrics` are left empty in the native span; they are materialized
+    /// from this map at encode time (currently by the Python encoder via the bulk read
+    /// accessors `_get_str_attributes` / `_get_numeric_attributes`).
+    pub(crate) attributes: AttributeMap,
     /// Lazy Python int cache for the `trace_id` getter.
-    /// Populated on first read; invalidated on every write to `data.trace_id`.
-    /// `data.trace_id` is always the source of truth.
+    /// Populated on first read; invalidated on every write to `trace_id`.
+    /// `trace_id` is always the source of truth.
     pub _trace_id_py: Option<Py<PyAny>>,
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
+    /// The parent `Span` (a `SpanData` subclass), or `None` for a root span.
+    /// Set from Python during span creation; read natively by the context
+    /// provider when walking the ancestor chain in `_update_active`.
+    pub _parent: Option<Py<PyAny>>,
+    /// The parent `Context` this span was created under, or `None`.
+    /// Held as `Py<PyAny>` because `Context` is still a pure-Python class.
+    pub _parent_context: Option<Py<PyAny>>,
 }
 
 impl SpanData {
-    /// Set `data.trace_id` and invalidate `_trace_id_py`.
+    /// Set `trace_id` and invalidate `_trace_id_py`.
     ///
-    /// **All writes to `data.trace_id` must go through this method** to keep `_trace_id_py`
+    /// **All writes to `trace_id` must go through this method** to keep `_trace_id_py`
     /// consistent. Bypassing it leaves a stale cached Python int that silently returns the
     /// old value on the next `span.trace_id` read.
     #[inline(always)]
     pub fn set_trace_id_native(&mut self, id: u128) {
-        self.data.trace_id = id;
+        self.trace_id = id;
         self._trace_id_py = None;
     }
+
+    /// Setdefault helper for `_set_default_attributes`: insert one key/value pair only if
+    /// the key is not already present in either meta or metrics.
+    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
+        if !self.has_attribute(k) {
+            let _ = self.set_attribute(k, v);
+        }
+    }
 }
+
+const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
 
 #[pyo3::pymethods]
 impl SpanData {
@@ -91,23 +128,23 @@ impl SpanData {
         match service {
             Some(obj) => span.set_service(obj),
             // Directly set py_none to avoid creating a bound None and going through extraction
-            None => span.data.service = PyBackedString::py_none(py),
+            None => span.service = PyBackedString::py_none(py),
         }
         // Set resource to the provided value, or default to name if None
         // Use clone_ref for efficient refcount increment with Python token
         match resource {
             Some(obj) => span.set_resource(obj),
-            None => span.data.resource = span.data.name.clone_ref(py),
+            None => span.resource = span.name.clone_ref(py),
         }
-        span.data.r#type = span_type
+        span.span_type = span_type
             .map(|obj| extract_backed_string_or_none(obj))
             .unwrap_or_else(|| PyBackedString::py_none(py));
         // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
-        span.data.parent_id = parent_id
+        span.parent_id = parent_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or(0);
         // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
-        span.data.start = match start {
+        span.start = match start {
             None => wall_clock_ns(), // Common case: native time capture
             Some(obj) => {
                 // start is in seconds (float or int), convert to nanoseconds
@@ -117,10 +154,9 @@ impl SpanData {
                     .unwrap_or_else(|_| wall_clock_ns()) // Invalid value: fall back to current time
             }
         };
-        // Set duration to -1 (our sentinel for "not set")
-        span.data.duration = -1;
+        // duration defaults to None ("not finished") via Default — no init needed.
         // Initialize span_id from parameter or generate random
-        span.data.span_id = span_id
+        span.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or_else(crate::rand::rand64bits);
         // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
@@ -173,116 +209,110 @@ impl SpanData {
     #[inline(always)]
     fn get_name<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         // Use as_py to handle both stored (zero-copy) and static (interned) strings
-        self.data.name.as_py(py)
+        self.name.as_py(py)
     }
 
     #[setter]
     #[inline(always)]
     fn set_name(&mut self, name: &Bound<'_, PyAny>) {
-        self.data.name = extract_backed_string_or_default(name);
+        self.name = extract_backed_string_or_default(name);
     }
 
     #[getter]
     #[inline(always)]
     fn get_service<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
         // Return None for Python None, otherwise return the string (stored or interned)
-        if self.data.service.is_py_none(py) {
+        if self.service.is_py_none(py) {
             None
         } else {
-            Some(self.data.service.as_py(py))
+            Some(self.service.as_py(py))
         }
     }
 
     #[setter]
     #[inline(always)]
     fn set_service(&mut self, service: &Bound<'_, PyAny>) {
-        self.data.service = extract_backed_string_or_none(service);
+        self.service = extract_backed_string_or_none(service);
     }
 
     #[getter]
     #[inline(always)]
     fn get_resource<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         // Use as_py to handle both stored (zero-copy) and static (interned) strings
-        self.data.resource.as_py(py)
+        self.resource.as_py(py)
     }
 
     #[setter]
     #[inline(always)]
     fn set_resource(&mut self, resource: &Bound<'_, PyAny>) {
-        self.data.resource = extract_backed_string_or_default(resource);
+        self.resource = extract_backed_string_or_default(resource);
     }
 
     #[getter]
     #[inline(always)]
     fn get_span_type<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        if self.data.r#type.is_py_none(py) {
+        if self.span_type.is_py_none(py) {
             None
         } else {
-            Some(self.data.r#type.as_py(py))
+            Some(self.span_type.as_py(py))
         }
     }
 
     #[setter]
     #[inline(always)]
     fn set_span_type(&mut self, span_type: &Bound<'_, PyAny>) {
-        self.data.r#type = extract_backed_string_or_none(span_type);
+        self.span_type = extract_backed_string_or_none(span_type);
     }
 
-    // start_ns property (maps to self.data.start)
+    // start_ns property (maps to self.start)
     #[getter]
     #[inline(always)]
     fn get_start_ns(&self) -> i64 {
-        self.data.start
+        self.start
     }
 
     #[setter]
     #[inline(always)]
     fn set_start_ns(&mut self, value: &Bound<'_, PyAny>) {
-        self.data.start = extract_i64_or_default(value);
+        self.start = extract_i64_or_default(value);
     }
 
-    // duration_ns property (maps to self.data.duration)
-    // Returns None if duration is -1 (our sentinel for "not set"), else returns the value
+    // duration_ns property (maps to self.duration)
+    // Returns None if duration is not set, else returns the value
     #[getter]
     #[inline(always)]
     fn get_duration_ns(&self) -> Option<i64> {
-        if self.data.duration == -1 {
-            None
-        } else {
-            Some(self.data.duration)
-        }
+        self.duration
     }
 
     #[setter]
     #[inline(always)]
     fn set_duration_ns(&mut self, value: Option<&Bound<'_, PyAny>>) {
-        self.data.duration = match value {
-            None => -1,
-            Some(obj) => obj
-                .extract::<i64>()
+        self.duration = value.and_then(|obj| {
+            obj.extract::<i64>()
                 .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
-                .unwrap_or(-1),
-        };
+                .ok()
+        });
     }
 
     // error property
     #[getter]
     #[inline(always)]
     fn get_error(&self) -> i32 {
-        self.data.error
+        self.error
     }
 
     #[setter]
     #[inline(always)]
     fn set_error(&mut self, value: &Bound<'_, PyAny>) {
-        self.data.error = extract_i32_or_default(value);
+        self.error = extract_i32_or_default(value);
     }
 
     // span_id property
     #[getter]
     #[inline(always)]
     fn get_span_id(&self) -> u64 {
-        self.data.span_id
+        self.span_id
     }
 
     #[setter]
@@ -290,7 +320,7 @@ impl SpanData {
     fn set_span_id(&mut self, value: &Bound<'_, PyAny>) {
         // Extract u64, silently ignore invalid types (keep existing value)
         if let Ok(id) = value.extract::<u64>() {
-            self.data.span_id = id;
+            self.span_id = id;
         }
     }
 
@@ -299,10 +329,10 @@ impl SpanData {
     #[inline(always)]
     fn get_trace_id<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyAny> {
         // Lazy-init: create the Python int on first read, reuse on subsequent reads.
-        // Invalidated (set to None) on every write to data.trace_id.
-        // data.trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
+        // Invalidated (set to None) on every write to trace_id.
+        // trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
         if self._trace_id_py.is_none() {
-            let val = self.data.trace_id;
+            let val = self.trace_id;
             // SAFETY: u128 can always be converted to a Python int
             self._trace_id_py = Some(
                 val.into_pyobject(py)
@@ -329,55 +359,51 @@ impl SpanData {
     #[inline(always)]
     #[allow(non_snake_case)]
     fn get__trace_id_64bits(&self) -> u64 {
-        (self.data.trace_id & 0xFFFF_FFFF_FFFF_FFFF) as u64
+        (self.trace_id & 0xFFFF_FFFF_FFFF_FFFF) as u64
     }
 
     // finished property (native for performance - avoids Python property hop)
     #[getter]
     #[inline(always)]
     fn get_finished(&self) -> bool {
-        self.data.duration != -1
+        self.duration.is_some()
     }
 
-    // start property - converts start_ns (nanoseconds) to seconds
+    // start property - converts start (nanoseconds) to seconds
     #[getter]
     #[inline(always)]
     fn get_start(&self) -> f64 {
-        self.data.start as f64 / 1e9
+        self.start as f64 / 1e9
     }
 
     #[setter]
     #[inline(always)]
     fn set_start(&mut self, value: &Bound<'_, PyAny>) {
         // Convert seconds to nanoseconds
-        self.data.start = value
+        self.start = value
             .extract::<f64>()
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(0);
     }
 
-    // duration property - converts duration_ns (nanoseconds) to seconds
-    // Returns None if duration is -1 (not set), else returns seconds as f64
+    // duration property - converts duration (nanoseconds) to seconds
+    // Returns None if duration is not set, else returns seconds as f64
     #[getter]
     #[inline(always)]
     fn get_duration(&self) -> Option<f64> {
-        if self.data.duration == -1 {
-            None
-        } else {
-            Some(self.data.duration as f64 / 1e9)
-        }
+        self.duration.map(|d| d as f64 / 1e9)
     }
 
     #[setter]
     #[inline(always)]
     fn set_duration(&mut self, value: &Bound<'_, PyAny>) {
         // Convert seconds to nanoseconds
-        self.data.duration = value
+        self.duration = value
             .extract::<f64>()
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
-            .unwrap_or(-1);
+            .ok();
     }
 
     // parent_id property
@@ -385,19 +411,19 @@ impl SpanData {
     #[getter]
     #[inline(always)]
     fn get_parent_id(&self) -> Option<u64> {
-        if self.data.parent_id == 0 {
+        if self.parent_id == 0 {
             None
         } else {
-            Some(self.data.parent_id)
+            Some(self.parent_id)
         }
     }
 
     #[setter]
     #[inline(always)]
     fn set_parent_id(&mut self, value: Option<&Bound<'_, PyAny>>) {
-        self.data.parent_id = match value {
+        self.parent_id = match value {
             None => 0,
-            Some(obj) => obj.extract::<u64>().unwrap_or(self.data.parent_id),
+            Some(obj) => obj.extract::<u64>().unwrap_or(self.parent_id),
         };
     }
 
@@ -414,6 +440,311 @@ impl SpanData {
         self.span_api = extract_backed_string_or_default(value);
     }
 
+    // _parent property — the parent Span, or None for a root span.
+    #[getter(_parent)]
+    #[inline(always)]
+    fn get_parent<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._parent.as_ref().map(|p| p.bind(py).clone())
+    }
+
+    #[setter(_parent)]
+    #[inline(always)]
+    fn set_parent(&mut self, value: &Bound<'_, PyAny>) {
+        // None → no parent; any other value is stored as-is.
+        self._parent = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+
+    // _parent_context property — the parent Context, or None.
+    #[getter(_parent_context)]
+    #[inline(always)]
+    fn get_parent_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._parent_context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    #[setter(_parent_context)]
+    #[inline(always)]
+    fn set_parent_context(&mut self, value: &Bound<'_, PyAny>) {
+        self._parent_context = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+
+    // ── Attribute API (meta / metrics) ──────────────────────────────────────
+
+    /// Set a tag/metric on the span. Stores the value in the unified `attributes` map,
+    /// preserving the original Python type (str → Str, int/bool → Int, float → Float).
+    ///
+    /// Special case: `http.status_code` is always coerced to a string so the trace agent
+    /// can compute HTTP metrics from the meta tag.
+    ///
+    /// Supported value types: str, int, float. Other types are coerced on a best-effort
+    /// basis (bytes → UTF-8 decoded str, oversized ints → str, arbitrary objects → str).
+    #[pyo3(name = "_set_attribute")]
+    fn set_attribute(
+        &mut self,
+        key: &Bound<'_, PyAny>,
+        value: &Bound<'_, PyAny>,
+    ) -> pyo3::PyResult<()> {
+        let Ok(key_str) = key.cast::<PyString>() else {
+            return Ok(());
+        };
+        let attr_key = AttrKey::new(key_str.clone().unbind());
+
+        // http.status_code must always be a string in meta.
+        // Fast path: typed contract is `str`, so most callers already pass a PyString.
+        // Only fall back to str() for non-string inputs (e.g. an int 200).
+        if key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY {
+            let s = if let Ok(s) = value.cast::<PyString>() {
+                s.clone()
+            } else {
+                let Ok(s) = value.str() else {
+                    return Ok(());
+                };
+                s
+            };
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(s.unbind()));
+            return Ok(());
+        }
+
+        // str → Str
+        if let Ok(s) = value.cast::<PyString>() {
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(s.clone().unbind()));
+            return Ok(());
+        }
+
+        // float → Float (drop NaN/Inf)
+        // Check before int because some types (e.g. numpy.float64) implement __float__
+        // but not __index__, so PyFloat succeeds and PyInt would fail.
+        if let Ok(f) = value.cast::<PyFloat>() {
+            let n = f.value();
+            if n.is_nan() || n.is_infinite() {
+                return Ok(());
+            }
+            self.attributes.insert(attr_key, AttributeValue::Float(n));
+            return Ok(());
+        }
+
+        // int (catches bool and numpy.int* via __index__) → Int.
+        // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
+        // type implementing __index__. Python ints that overflow i64 fall through
+        // to the str() fallback below.
+        if let Ok(n) = value.extract::<i64>() {
+            self.attributes.insert(attr_key, AttributeValue::Int(n));
+            return Ok(());
+        }
+
+        // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
+        if let Ok(b) = value.cast::<PyBytes>() {
+            let decoded = String::from_utf8_lossy(b.as_bytes());
+            let py_str = PyString::new(key.py(), &decoded);
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(py_str.unbind()));
+            return Ok(());
+        }
+
+        // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
+        let Ok(s) = value.str() else {
+            return Ok(());
+        };
+        self.attributes
+            .insert(attr_key, AttributeValue::Str(s.unbind()));
+        Ok(())
+    }
+
+    /// Set multiple attributes from a dict/mapping, routing each value via `_set_attribute`.
+    ///
+    /// Accepts any Python dict (fast path) or any object that implements the mapping protocol
+    /// (e.g. `collections.OrderedDict`, `types.MappingProxyType`). If the argument supports
+    /// neither, the call is a no-op. Invalid value types follow the same coercion rules as
+    /// `_set_attribute`.
+    #[pyo3(name = "_set_attributes")]
+    fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+        if let Ok(d) = attrs.cast_exact::<PyDict>() {
+            for (k, v) in d.iter() {
+                let _ = self.set_attribute(&k, &v);
+            }
+        } else if let Ok(m) = attrs.cast::<PyMapping>() {
+            if let Ok(items) = m.items() {
+                for item in items.iter() {
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
+                    let _ = self.set_attribute(&k, &v);
+                }
+            }
+        }
+        // Not a dict or mapping — bail silently.
+        Ok(())
+    }
+
+    /// Return True if the span has an attribute with the given key.
+    #[pyo3(name = "_has_attribute")]
+    fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
+        let Ok(k) = key.cast::<PyString>() else {
+            return false;
+        };
+        let Ok(k_str) = k.to_str() else {
+            return false;
+        };
+        self.attributes.contains_key(k_str)
+    }
+
+    /// Remove an attribute by key.
+    #[pyo3(name = "_remove_attribute")]
+    fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
+        let Ok(k) = key.cast::<PyString>() else {
+            return;
+        };
+        let Ok(k_str) = k.to_str() else {
+            return;
+        };
+        self.attributes.remove(k_str);
+    }
+
+    /// Return the raw stored value for the given key, or None if not found.
+    /// Returns the natural Python type: str for Str, int for Int, float for Float.
+    #[pyo3(name = "_get_attribute")]
+    fn get_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        Some(self.attributes.get(k_str)?.as_py(py))
+    }
+
+    /// Return the string attribute for the given key, or None if not a Str variant.
+    #[pyo3(name = "_get_str_attribute")]
+    fn get_str_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        match self.attributes.get(k_str)? {
+            AttributeValue::Str(s) => Some(s.bind(py).clone().into_any()),
+            _ => None,
+        }
+    }
+
+    /// Return the numeric attribute for the given key, or None if not a numeric variant.
+    /// Returns int for Int values and float for Float values, preserving the original type.
+    #[pyo3(name = "_get_numeric_attribute")]
+    fn get_numeric_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        match self.attributes.get(k_str)? {
+            AttributeValue::Int(i) => {
+                Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any())
+            }
+            AttributeValue::Float(f) => {
+                Some(f.into_pyobject(py).expect("f64 into_pyobject").into_any())
+            }
+            AttributeValue::Str(_) => None,
+        }
+    }
+
+    /// Return all attributes merged into a single dict.
+    /// Values are the natural Python type (str, int, or float).
+    /// Used by callers that propagate span attributes (e.g. parent-span copy).
+    #[pyo3(name = "_get_attributes")]
+    fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, v) in &self.attributes {
+            d.set_item(k.as_bound(py), v.as_py(py))?;
+        }
+        Ok(d)
+    }
+
+    /// Return all Str-variant attributes as a Python dict snapshot.
+    /// Used by the Python encoder to build the v0.4 `meta` dict.
+    /// Note: Int values with abs > 2^53 are NOT folded in here; the encoder
+    /// is responsible for moving them from metrics to meta at encode time.
+    #[pyo3(name = "_get_str_attributes")]
+    fn get_str_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, v) in &self.attributes {
+            if let AttributeValue::Str(s) = v {
+                d.set_item(k.as_bound(py), s.bind(py))?;
+            }
+        }
+        Ok(d)
+    }
+
+    /// Return all numeric (Int and Float) attributes as a Python dict snapshot.
+    /// Int values are returned as Python int; Float values as Python float.
+    /// Used by the Python encoder to build the v0.4 `metrics` dict.
+    /// Note: the encoder is responsible for moving Int values with abs > 2^53
+    /// out of metrics and into meta as strings before serialization.
+    #[pyo3(name = "_get_numeric_attributes")]
+    fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, v) in &self.attributes {
+            match v {
+                AttributeValue::Int(i) => {
+                    d.set_item(k.as_bound(py), *i)?;
+                }
+                AttributeValue::Float(f) => {
+                    d.set_item(k.as_bound(py), *f)?;
+                }
+                AttributeValue::Str(_) => {}
+            }
+        }
+        Ok(d)
+    }
+
+    /// Apply setdefault semantics from a Python dict/mapping: for each key/value pair,
+    /// if the key is not already present in either meta or metrics, insert it
+    /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
+    ///
+    /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
+    /// Used by callers that previously called `_update_tags_from_context`.
+    /// Callers handle any locking on the source dict themselves.
+    #[pyo3(name = "_set_default_attributes")]
+    fn set_default_attributes(&mut self, values: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+        if let Ok(d) = values.cast_exact::<PyDict>() {
+            for (k, v) in d.iter() {
+                self.set_default_attribute_entry(&k, &v);
+            }
+        } else if let Ok(m) = values.cast::<PyMapping>() {
+            if let Ok(items) = m.items() {
+                for item in items.iter() {
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
+                    self.set_default_attribute_entry(&k, &v);
+                }
+            }
+        }
+        // Not a dict or mapping — bail silently.
+        Ok(())
+    }
     // meta_struct methods
 
     fn _set_struct_tag(
@@ -516,16 +847,11 @@ impl SpanData {
         let native_link = build_native_link(trace_id, span_id, tracestate, flags, attrs);
 
         if is_span_pointer {
-            self.data.span_links.push(native_link);
+            self.span_links.push(native_link);
         } else {
-            match self
-                .data
-                .span_links
-                .iter()
-                .position(|l| l.span_id == span_id)
-            {
-                Some(idx) => self.data.span_links[idx] = native_link,
-                None => self.data.span_links.push(native_link),
+            match self.span_links.iter().position(|l| l.span_id == span_id) {
+                Some(idx) => self.span_links[idx] = native_link,
+                None => self.span_links.push(native_link),
             }
         }
         Ok(())
@@ -557,7 +883,7 @@ impl SpanData {
                 }
             }
         };
-        self.data.span_events.push(NativeSpanEvent {
+        self.span_events.push(NativeSpanEvent {
             name,
             time_unix_nano,
             attributes: attrs,
@@ -567,8 +893,7 @@ impl SpanData {
 
     /// Materialize all stored links back to PyO3 SpanLink objects.
     fn _get_links(&self, py: Python<'_>) -> PyResult<Vec<Py<SpanLink>>> {
-        self.data
-            .span_links
+        self.span_links
             .iter()
             .map(|l| native_span_link_to_py(py, l))
             .collect()
@@ -576,19 +901,18 @@ impl SpanData {
 
     /// Materialize all stored events back to PyO3 SpanEvent objects.
     fn _get_events(&self, py: Python<'_>) -> PyResult<Vec<Py<SpanEvent>>> {
-        self.data
-            .span_events
+        self.span_events
             .iter()
             .map(|e| native_span_event_to_py(py, e))
             .collect()
     }
 
     fn _has_links(&self) -> bool {
-        !self.data.span_links.is_empty()
+        !self.span_links.is_empty()
     }
 
     fn _has_events(&self) -> bool {
-        !self.data.span_events.is_empty()
+        !self.span_events.is_empty()
     }
 
     // --- Cyclic GC support ---
@@ -608,28 +932,38 @@ impl SpanData {
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
         }
+        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
+        // can reach back to the span through the Context. Both must be visited
+        // so the cyclic GC can collect a finished trace.
+        if let Some(p) = &self._parent {
+            visit.call(p)?;
+        }
+        if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
         // Atomic types can't form cycles, but visit them for correct refcount
         // accounting.
         self.span_api.traverse(&visit)?;
-        self.data.service.traverse(&visit)?;
-        self.data.name.traverse(&visit)?;
-        self.data.resource.traverse(&visit)?;
-        self.data.r#type.traverse(&visit)?;
-        // The libdatadog Span struct also holds `meta`, `metrics` (HashMaps of
-        // PyBackedString) and `span_links`, `span_events` (Vecs of native
-        // structs whose attributes are HashMap<PyBackedString, ...>). Currently
-        // `meta`/`metrics` are not written from Rust (the Python subclass
-        // stores them in __slots__), and link/event attribute values are
-        // primitives or PyBackedStrings. Visit conservatively.
-        for link in self.data.span_links.iter() {
+        self.service.traverse(&visit)?;
+        self.name.traverse(&visit)?;
+        self.resource.traverse(&visit)?;
+        self.span_type.traverse(&visit)?;
+        // `self.attributes` is the unified tag/metric store.
+        // Keys hold `Py<PyString>`; Str values hold `Py<PyString>`. Int/Float
+        // variants are primitive Rust types with no Python references.
+        for (k, v) in self.attributes.iter() {
+            k.traverse(&visit)?;
+            v.traverse(&visit)?;
+        }
+        for link in self.span_links.iter() {
             link.tracestate.traverse(&visit)?;
             for (k, v) in link.attributes.iter() {
                 k.traverse(&visit)?;
                 v.traverse(&visit)?;
             }
         }
-        for event in self.data.span_events.iter() {
+        for event in self.span_events.iter() {
             event.name.traverse(&visit)?;
             for (k, v) in event.attributes.iter() {
                 k.traverse(&visit)?;
@@ -646,11 +980,12 @@ impl SpanData {
     }
 
     fn __clear__(&mut self) {
-        // Drop every owned Python reference so CPython can break cycles.
-        self._trace_id_py = None;
-        self.meta_struct = None;
-        self.span_api = crate::py_string::PyBackedString::default();
-        self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
+        // Reset to Default to drop every owned Python reference so CPython can break
+        // cycles. Assigning the whole struct is correct-by-construction: it cannot drift
+        // out of sync with __traverse__ when fields are added. `Default` is a valid state
+        // (duration -> None = "not finished"); the object is garbage being collected, so
+        // resetting scalars and freeing collection buffers here is harmless.
+        *self = Self::default();
     }
 }
 

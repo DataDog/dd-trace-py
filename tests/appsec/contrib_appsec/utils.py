@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import json
 import sys
@@ -19,8 +20,43 @@ from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+@contextlib.contextmanager
+def mock_metric_points():
+    """Intercept telemetry metric points across all metric types.
+
+    The telemetry writer inlines its four ``add_*_metric`` methods (there is no shared
+    ``_add_metric_point`` seam anymore), so patch each of them and expose a combined
+    ``call_args_list`` of ``((metric_type, namespace, name, value, tags), {})`` tuples — the
+    shape the assertions in this module expect (``metric_type`` is the plain string used by
+    the writer: ``"count"``/``"gauge"``/``"rate"``/``"distribution"``).
+    """
+    from unittest.mock import MagicMock
+    from unittest.mock import patch as mock_patch
+
+    import ddtrace.internal.telemetry
+
+    writer = ddtrace.internal.telemetry.telemetry_writer
+    combined = MagicMock()
+    combined.call_args_list = []
+
+    def recorder(metric_type):
+        def _record(namespace, name, value=1, tags=None):
+            combined.call_args_list.append(((metric_type, namespace, name, value, tags), {}))
+
+        return _record
+
+    with (
+        mock_patch.object(writer, "add_count_metric", side_effect=recorder("count")),
+        mock_patch.object(writer, "add_gauge_metric", side_effect=recorder("gauge")),
+        mock_patch.object(writer, "add_rate_metric", side_effect=recorder("rate")),
+        mock_patch.object(writer, "add_distribution_metric", side_effect=recorder("distribution")),
+    ):
+        yield combined
 
 
 SECID: str = "[security_response_id]"
@@ -228,18 +264,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert triggers is not None, "no appsec struct in root span"
 
     def test_simple_attack_timeout(self, interface: Interface, entry_span, get_entry_span_metric):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         with (
             override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             query_params = urlencode({"q": "1"})
@@ -251,8 +278,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 entry_span()._get_numeric_attributes(),
             )
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if args[2] == "waf.requests"
             ]
             assert len(args_list) == 1
@@ -275,13 +302,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             interface.client.get("/")
             collection = endpoint_collection.endpoints
             assert collection, f"no collection {collection}"
-            for ep in collection:
+            # Iterate over a snapshot: the requests issued in the loop can
+            # register new endpoints, mutating the live set mid-iteration.
+            for ep in list(collection):
                 assert ep.method
                 # path could be empty, but must be a string
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
+                # Skip Flask's per-app auto /static/ rule — 404s for fake filenames.
+                if ep.method not in ("GET", "*", "POST") or "/static/" in ep.path:
                     continue
                 found.add(ep.path)
                 uri = self.endpoint_path_to_uri(ep.path)
@@ -360,18 +390,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
     def test_truncation_telemetry(self, interface: Interface, get_entry_span_metric):
         from unittest.mock import ANY
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(dict(_asm_enabled=True)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             body: dict[str, Any] = {"val": "x" * 5000}
@@ -383,15 +405,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             assert self.status(response) == 200
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if "truncated" in args[2] or args[2] == "waf.requests"
             ]
             assert args_list == [
-                ("distributions", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
                 (
                     "count",
@@ -524,6 +546,80 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
             else:
                 assert path_params is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("uri", "expected"),
+        [
+            ("/asm/137/abc/", "/asm/{param_int}/{param_str}/"),
+            ("/asm/137/abc", "/asm/{param_int}/{param_str}"),
+            ("/", "/"),
+            # Multi-param-in-segment: rule 5 combines names with `+`.
+            ("/multi-param/john.doe/", "/multi-param/{first+last}/"),
+            # `:path` catch-all: rule 5 catch-all exception emits a single tail element regardless of slashes matched.
+            ("/files/some/deep/path", "/files/{file_path}"),
+        ],
+    )
+    @pytest.mark.xfail_interface("tornado", skip=True)
+    def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
+        # RFC-1103: when API Security is active, every request span carrying http.route also carries
+        # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
+        # ASM enablement, libddwaf availability, and `_api_security_enabled`. With ASM disabled (this test) the
+        # feature is inactive and the tag must be absent.
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            if asm_enabled:
+                assert tag == expected, f"normalized_route tag mismatch: {tag!r} != {expected!r}"
+            else:
+                assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
+
+    @pytest.mark.xfail_interface("tornado", skip=True)
+    def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
+        # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
+        # feature is independently disabled — in that configuration the normalized route tag must still be absent.
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag is None, f"normalized_route should be unset when API Security is disabled, got {tag!r}"
+
+    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    def test_normalized_route_survives_request_span_name_override(
+        self, interface: Interface, entry_span, get_entry_span_tag
+    ):
+        # Regression: framework scoping must not depend on the default span name. Customers can override
+        # `request_span_name` via integration config; with the gate keyed on IntegrationConfig.integration_name (read
+        # from the request execution context), the tag must still be emitted even when the span is renamed.
+        #
+        # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
+        # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
+        # ``test_normalized_route`` against the regular span name.
+        #
+        # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
+        # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Skipped on Tornado: ``execute()`` hard-codes the span name via
+        # ``schematize_url_operation("tornado.request", ...)`` and does not read
+        # ``config.tornado.request_span_name``, so the span name can't be overridden by integration config.
+        # Normalized-route emission is still verified by ``test_normalized_route``.
+        custom_name = "custom.framework.request"
+        with (
+            override_global_config(dict(_asm_enabled=True)),
+            override_config(interface.name, {"request_span_name": custom_name}),
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            # Verify the override actually took effect — otherwise this test would silently pass even if the gating
+            # hadn't been fixed.
+            assert entry_span().name == custom_name, f"span was not renamed: {entry_span().name!r}"
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag == "/asm/{param_int}/{param_str}/", (
+                f"normalized_route tag mismatch under custom request_span_name: {tag!r}"
+            )
 
     def test_useragent(self, interface: Interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True)):
@@ -1028,10 +1124,34 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             (json.dumps(LARGE_BODY), "application/json", "tst-037-003"),
+            # HTTP media types are case-insensitive (RFC 9110): mixed-case must still be parsed/blocked
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "Application/JSON", "tst-037-003"),
+            # Content-Type parameters (e.g. charset) must not skip body inspection
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json; charset=utf-8", "tst-037-003"),
+            # structured-suffix JSON types (application/*+json, e.g. RFC 7807) must be parsed
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/vnd.api+json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
                 "text/xml",
+                "tst-037-003",
+            ),
+            # mixed-case xml must still be parsed/blocked
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "Text/XML",
+                "tst-037-003",
+            ),
+            # structured-suffix XML types (application/*+xml) must be parsed
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "application/atom+xml",
+                "tst-037-003",
+            ),
+            # xml Content-Type parameters (e.g. charset) must not skip body inspection
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "text/xml; charset=utf-8",
                 "tst-037-003",
             ),
             # form body must be blocked
@@ -1039,6 +1159,14 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             (
                 '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
                 'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
+            # mixed-case Content-Type on a multipart inner part must still be parsed
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: Application/JSON\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
                 "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
@@ -1064,9 +1192,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "json",
             "text_json",
             "json_large",
+            "json_mixed_case_content_type",
+            "json_charset_param_content_type",
+            "json_structured_suffix_content_type",
             "xml",
+            "xml_mixed_case_content_type",
+            "xml_structured_suffix_content_type",
+            "xml_charset_param_content_type",
             "form",
             "form_multipart",
+            "form_multipart_mixed_case_part",
             "form_multipart_duplicate_keys",
             "text",
             "no_attack",
@@ -1330,20 +1465,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     ):
         import base64
         import gzip
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(
                 dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
             ),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             response = interface.client.post(
@@ -1384,9 +1511,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                             else api[0] == expected[0]
                             for expected in expected_value
                         ), (api, name, expected_value)
-                telemetry_calls = {
-                    (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-                }
+                telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
                 assert (
                     "count",
                     "appsec.api_security.request.schema",
@@ -1685,11 +1810,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         action_level,
         status_expected,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
         from ddtrace.appsec._constants import APPSEC
-        import ddtrace.internal.telemetry
 
         def validate_top_function(trace):
             # Validate that the stack trace contains an expected function near the top.
@@ -1715,7 +1836,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             override_global_config(
                 dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
@@ -1725,9 +1846,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), entry_span)
                 assert self.check_for_stack_trace(entry_span)
@@ -1923,11 +2042,6 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         status_code,
         user_id,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         if not USER_SDK_V2:
             raise pytest.skip("SDK v2 not available")
 
@@ -1939,7 +2053,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     _auto_user_instrumentation_enabled=True,
                 )
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            mock_metric_points() as telemetry_mock,
         ):
             self.update_tracer(interface)
             metadata = json.dumps(
@@ -1967,9 +2081,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
             assert self.status(response) == status_code
             assert get_entry_span_tag("http.status_code") == str(status_code)
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.call_args_list}
             if status_code == 401:
                 assert get_entry_span_tag("appsec.events.users.login.failure.track") == "true"
                 if user_id:

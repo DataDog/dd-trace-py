@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_reg
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -78,7 +79,7 @@ def _supported_versions() -> dict[str, str]:
     return {"google.cloud.pubsub_v1": ">=2.10.0"}
 
 
-def _traced_subscribe_callback(callback, project_id, subscription_id, message):
+def _traced_subscribe_callback(callback, project_id, subscription_id, subscription, message):
     propagated_context = None
     if config.google_cloud_pubsub.distributed_tracing_enabled and message.attributes:
         ctx = HTTPPropagator.extract(dict(message.attributes))
@@ -97,7 +98,8 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         project_id=project_id,
         subscription_id=subscription_id,
         message=message,
-    ):
+    ) as ctx:
+        core.dispatch("google_cloud_pubsub.receive.pre", (subscription, message, span_from_context(ctx)))
         callback(message)
 
 
@@ -222,6 +224,7 @@ def _traced_publish(func, instance, args, kwargs):
         topic_id=topic_id,
         publish_kwargs=kwargs,
     ) as ctx:
+        core.dispatch("google_cloud_pubsub.send.pre", (args, kwargs, span_from_context(ctx)))
         try:
             result = func(*args, **kwargs)
         except BaseException as e:
@@ -243,6 +246,6 @@ def _traced_subscribe(func, instance, args, kwargs):
     subscription = get_argument_value(args, kwargs, 0, "subscription")
     callback = get_argument_value(args, kwargs, 1, "callback")
     project_id, subscription_id = parse_resource_path(subscription)
-    traced_callback = partial(_traced_subscribe_callback, callback, project_id, subscription_id)
+    traced_callback = partial(_traced_subscribe_callback, callback, project_id, subscription_id, subscription)
     args, kwargs = set_argument_value(args, kwargs, 1, "callback", traced_callback)
     return func(*args, **kwargs)

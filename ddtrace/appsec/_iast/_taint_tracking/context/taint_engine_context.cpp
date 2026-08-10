@@ -137,6 +137,10 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
         return nullptr;
     }
 
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
+
     // 1) Direct text objects
     if (is_text(obj)) {
         auto map = get_tainted_object_map_from_pyobject(obj);
@@ -197,6 +201,62 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
     }
 
     return nullptr;
+}
+
+bool
+TaintEngineContext::is_object_tainted_in_map(PyObject* obj, const TaintedObjectMapTypePtr& map_ptr)
+{
+    if (!obj || !map_ptr) {
+        return false;
+    }
+
+    // Direct (single) object: check membership against this map only.
+    const auto is_tainted = [&map_ptr](PyObject* candidate) -> bool {
+        if (!candidate) {
+            return false;
+        }
+        const auto& to_initial = get_tainted_object(candidate, map_ptr);
+        return to_initial && !to_initial->get_ranges().empty();
+    };
+
+    // 1) Direct text objects
+    if (is_text(obj)) {
+        return is_tainted(obj);
+    }
+
+    // 2) Containers: list or tuple -> iterate each element
+    if (PyList_Check(obj)) {
+        const Py_ssize_t n = PyList_GET_SIZE(obj);
+        for (Py_ssize_t i = 0; i < n; ++i) {
+            if (is_tainted(PyList_GET_ITEM(obj, i))) { // borrowed ref
+                return true;
+            }
+        }
+        return false;
+    }
+    if (PyTuple_Check(obj)) {
+        const Py_ssize_t n = PyTuple_GET_SIZE(obj);
+        for (Py_ssize_t i = 0; i < n; ++i) {
+            if (is_tainted(PyTuple_GET_ITEM(obj, i))) { // borrowed ref
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 3) Dictionaries: iterate over values
+    if (PyDict_Check(obj)) {
+        PyObject *key, *value;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(obj, &pos, &key, &value)) { // borrowed refs
+            if (is_tainted(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    return is_tainted(obj);
 }
 
 TaintedObjectMapTypePtr
@@ -317,6 +377,9 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
 {
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
     const auto cap = request_context_slots.size();
     if (ctx_id >= cap) {
         return nullptr;
@@ -351,12 +414,29 @@ pyexport_taint_engine_context(py::module& m)
         return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr;
     });
 
-    m.def("is_in_taint_map", [](py::object tainted_obj) {
-        if (!taint_engine_context)
-            return false;
-        auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
-        return map_ptr != nullptr;
-    });
+    m.def(
+      "is_in_taint_map",
+      [](py::object tainted_obj, std::optional<size_t> context_id) {
+          if (!taint_engine_context)
+              return false;
+          if (TaintEngineContext::is_shutting_down())
+              return false;
+          if (context_id.has_value()) {
+              // Request-scoped check: only consult the calling request's slot.
+              const auto map_ptr = taint_engine_context->get_tainted_object_map_by_ctx_id(*context_id);
+              if (!map_ptr || map_ptr->empty()) {
+                  return false;
+              }
+              // Container-aware: scan list/tuple/dict contents against this map,
+              // matching the traversal behavior of the no-context path below.
+              return TaintEngineContext::is_object_tainted_in_map(tainted_obj.ptr(), map_ptr);
+          }
+          // No active request: scan every slot to locate the owning map.
+          const auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
+          return map_ptr != nullptr;
+      },
+      "tainted_obj"_a,
+      "context_id"_a = std::nullopt);
 
     m.def("debug_context_array_size", [] {
         if (!taint_engine_context)

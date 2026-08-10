@@ -62,6 +62,7 @@ class TaintEngineContext
 
     // Lifecycle control: mark the context as shutting down to prevent further access.
     static void set_shutting_down(bool v);
+    static bool is_shutting_down() { return shutting_down.load(std::memory_order_acquire); }
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
@@ -76,6 +77,11 @@ class TaintEngineContext
     // itself (no container traversal). This contains the original logic of
     // get_tainted_object_map prior to adding container-aware behavior.
     TaintedObjectMapTypePtr get_tainted_object_map_from_pyobject(PyObject* tainted_object);
+
+    // Container-aware membership check scoped to a single map. Mirrors the
+    // list/tuple/dict traversal of get_tainted_object_map, but only consults
+    // the provided map_ptr instead of scanning all active slots.
+    static bool is_object_tainted_in_map(PyObject* obj, const TaintedObjectMapTypePtr& map_ptr);
 
     //    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*>
     //    objects);

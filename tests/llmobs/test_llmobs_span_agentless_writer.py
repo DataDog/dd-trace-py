@@ -31,6 +31,17 @@ def test_writer_start(mock_writer_logs):
     llmobs_span_writer.stop()
 
 
+def test_additional_headers(mock_writer_logs):
+    with mock.patch.dict(os.environ, {"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "Authorization:Bearer-custom-token"}):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    assert llmobs_span_writer._headers["Authorization"] == "Bearer-custom-token"
+
+
+def test_no_additional_headers_by_default(mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    assert "Authorization" not in llmobs_span_writer._headers
+
+
 def test_buffer_limit(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     for _ in range(1001):
@@ -134,6 +145,18 @@ def test_send_completion_bad_api_key(mock_writer_logs):
         b'{"errors":["Forbidden"]}',
         extra={"send_to_telemetry": False},
     )
+
+
+@mock.patch("ddtrace.llmobs._writer.get_connection")
+def test_send_payload_uses_configured_timeout(mock_get_connection, mock_writer_logs):
+    """Regression: _send_payload must open the connection with the writer's configured
+    timeout (self._timeout), not get_connection's DEFAULT_TIMEOUT (2.0s).
+    """
+    mock_get_connection.return_value.getresponse.return_value.status = 200
+    llmobs_span_writer = LLMObsSpanWriter(1, 5.0, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    llmobs_span_writer.enqueue(_completion_event())
+    llmobs_span_writer.periodic()
+    mock_get_connection.assert_called_once_with(llmobs_span_writer._intake, timeout=5.0)
 
 
 def test_send_completion_no_api_key(mock_writer_logs):

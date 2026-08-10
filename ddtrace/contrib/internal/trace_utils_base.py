@@ -7,6 +7,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -71,6 +72,10 @@ def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str)
 # Possible User Agent header.
 USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 
+# Datadog scan/test markers, tagged unconditionally so the API endpoint
+# reducer can keep scan/test traffic out of the API inventory.
+SECURITY_TESTING_HEADERS = ("x-datadog-endpoint-scan", "x-datadog-security-test")
+
 
 def _get_request_header_user_agent(headers: Mapping[str, str], headers_are_case_sensitive: bool = False) -> str:
     """Get user agent from request headers
@@ -86,6 +91,19 @@ def _get_request_header_user_agent(headers: Mapping[str, str], headers_are_case_
         if user_agent:
             return user_agent
     return ""
+
+
+def _store_security_testing_headers(
+    headers: Mapping[str, str], span: Span, headers_are_case_sensitive: bool = False
+) -> None:
+    """Tag SECURITY_TESTING_HEADERS on the span, regardless of integration config."""
+    for header_name in SECURITY_TESTING_HEADERS:
+        if not headers_are_case_sensitive:
+            value = headers.get(header_name)
+        else:
+            value = _get_header_value_case_insensitive(headers, header_name)
+        if value is not None:
+            span._set_attribute(_normalize_tag_name("request", header_name), value)
 
 
 def set_user(
@@ -107,7 +125,7 @@ def set_user(
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
     if span is None:
-        span = core.get_root_span()
+        span = span_bus.get_root_span()
     if span:
         if user_id:
             str_user_id = str(user_id)

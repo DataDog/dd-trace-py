@@ -3,11 +3,21 @@
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageReportEncoder
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityCoverageReportClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
+
+
+@pytest.fixture
+def reset_code_coverage_flags_cache():
+    _get_code_coverage_flags.cache_clear()
+    yield
+    _get_code_coverage_flags.cache_clear()
 
 
 class TestCIVisibilityRecorderCoverageUpload:
@@ -177,8 +187,10 @@ class TestCIVisibilityRecorderCoverageUpload:
 
         assert result is False
 
-    def test_upload_coverage_report_event_data_structure(self):
+    def test_upload_coverage_report_event_data_structure(self, monkeypatch, reset_code_coverage_flags_cache):
         """Test that event data is structured correctly."""
+        monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "type:unit-tests,jvm-21")
+
         mock_response = Mock(status=200)
         self.mock_writer._put.return_value = mock_response
 
@@ -200,6 +212,7 @@ class TestCIVisibilityRecorderCoverageUpload:
         assert '"type": "coverage_report"' in encoded_str
         assert '"format": "lcov"' in encoded_str
         assert '"timestamp": 1234567890123' in encoded_str  # milliseconds
+        assert '"report.flags": ["type:unit-tests", "jvm-21"]' in encoded_str
         assert '"service": "test-service"' not in encoded_str
         assert '"env": "test-env"' not in encoded_str
 

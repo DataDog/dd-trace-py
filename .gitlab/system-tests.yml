@@ -7,7 +7,7 @@
   stage: system-tests
   id_tokens:
     DD_STS_OIDC_TOKEN:
-      aud: rapid-seceng-sit
+      aud: dd-sts
   variables:
     TEST_LIBRARY: python
     KUBERNETES_CPU_REQUEST: "4"
@@ -27,7 +27,7 @@
               - "cp312-cp312"
               - "cp313-cp313"
               - "cp314-cp314"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   before_script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:system_deps\r\e[0KInstalling system dependencies"

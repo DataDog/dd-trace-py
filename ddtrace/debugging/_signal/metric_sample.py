@@ -11,6 +11,7 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
@@ -21,13 +22,17 @@ from ddtrace.internal.metrics import Metrics
 class MetricSample(LogSignal):
     """Wrapper for making a metric sample"""
 
+    __default_timing__ = ProbeEvalTiming.ENTRY
+
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
 
     def enter(self, scope: Mapping[str, Any]) -> None:
-        self.sample(scope)
+        if self._timing is ProbeEvalTiming.ENTRY:
+            self.sample(scope)
 
     def exit(self, retval: Any, exc_info: ExcInfoType, duration: int, scope: Mapping[str, Any]) -> None:
-        self.sample(scope)
+        if self._timing is ProbeEvalTiming.EXIT:
+            self.sample(scope)
 
     def line(self, scope: Mapping[str, Any]) -> None:
         self.sample(scope)

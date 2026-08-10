@@ -3,6 +3,7 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
+import ddtrace
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
@@ -424,6 +425,26 @@ def test_trace_top_level_span_processor_different_service_name(tracer):
     assert child.get_metric("_dd.top_level") == 1
 
 
+def test_apm_opt_out_tags_all_spans(tracer):
+    """When APM tracing is disabled (apm_opt_out), _dd.apm.enabled:0 must be set on
+    every span, not only on the local root span. This ensures child/inferred services
+    (e.g. sibling service entry spans created for HTTP client calls) are also tagged so
+    the backend meters all services in the trace as alive.
+    """
+    processor = TraceSamplingProcessor(False, [], True)
+    switch_out_trace_sampling_processor(tracer, processor)
+
+    with tracer.trace("root", service="svc") as root:
+        with tracer.trace("same_service_child", service="svc") as same_service_child:
+            pass
+        with tracer.trace("other_service_child", service="other_svc") as other_service_child:
+            pass
+
+    assert root.get_metric("_dd.apm.enabled") == 0
+    assert same_service_child.get_metric("_dd.apm.enabled") == 0
+    assert other_service_child.get_metric("_dd.apm.enabled") == 0
+
+
 def test_trace_top_level_span_processor_orphan_span(tracer):
     """Trace chuck does not contain parent span"""
 
@@ -762,6 +783,15 @@ def test_trace_tag_processor_adds_chunk_root_tags(tracer):
     # test that parent span gets required chunk root span tags and child does not get language tag
     assert parent.get_tag("language") == "python"
     assert child.get_tag("language") is None
+
+
+def test_trace_tag_processor_no_language_tag_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, TraceTagsProcessor must NOT set the "language" tag
+    with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+        with tracer.trace("parent") as parent:
+            pass
+
+    assert parent.get_tag("language") is None
 
 
 def test_register_unregister_span_processor(tracer):

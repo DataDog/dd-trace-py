@@ -1,7 +1,10 @@
+from typing import Any
+
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
 import pytest
 
+from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_live
 from tests.contrib.google_adk.conftest import create_test_message
 
 
@@ -243,3 +246,28 @@ async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     assert runner_span.get_tag("component") == "google_adk"
     assert runner_span.get_tag("google_adk.request.provider") == "google"
     assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+
+
+@pytest.mark.asyncio
+async def test_call_tool_live_fallback_does_not_double_invoke_wrapped() -> None:
+    call_count = 0
+
+    async def fake_wrapped(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        for item in ("a", "b", "c"):
+            yield item
+
+    class _ToolContextWithoutInvocation:
+        pass
+
+    instance = object()
+    args = (object(), object(), _ToolContextWithoutInvocation())
+    kwargs: dict[str, Any] = {}
+
+    yielded: list[str] = []
+    async for item in _traced_functions_call_tool_live(fake_wrapped, instance, args, kwargs):
+        yielded.append(item)
+
+    assert yielded == ["a", "b", "c"]
+    assert call_count == 1, f"wrapped should be invoked exactly once, was invoked {call_count} times"

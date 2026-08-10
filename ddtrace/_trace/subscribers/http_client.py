@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from types import TracebackType
 from typing import Optional
 from typing import cast
@@ -9,10 +10,17 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+# AIDEV-NOTE: set True by a higher-level integration to skip its own injection
+# (e.g. botocore SigV4, requests suppressing the nested urllib3 span). Only
+# `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send` may set this,
+# and must reset() in try/finally — see PR #18152 for the leak that caused.
+_http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
 class HttpClientTracingSubscriber(TracingSubscriber):
@@ -28,6 +36,8 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
 
+        if _http_propagation_suppressed.get():
+            return
         # Set resource from request method and URL path if not explicitly provided by the integration
         if event.resource is None and event.request_method and event.request_url:
             try:
@@ -37,7 +47,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
                 log.debug("error computing resource from request URL", exc_info=True)
 
         if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:
-            HTTPPropagator.inject(ctx.span.context, cast(dict[str, str], event.request_headers))
+            HTTPPropagator.inject(span_from_context(ctx).context, cast(dict[str, str], event.request_headers))
 
     @classmethod
     def on_ended(
@@ -49,12 +59,13 @@ class HttpClientTracingSubscriber(TracingSubscriber):
 
         try:
             trace_utils.set_http_meta(
-                ctx.span,
+                span_from_context(ctx),
                 event.integration_config,
                 method=event.request_method,
                 url=event.request_url,
                 target_host=event.target_host,
                 status_code=event.response_status_code,
+                status_msg=event.response_status_msg,
                 query=event.query,
                 request_headers=event.request_headers,
                 response_headers=event.response_headers,

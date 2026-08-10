@@ -41,6 +41,7 @@ init_safe_copy()
     // Honor the fast-copy opt-out: when disabled via env var, skip installing
     // the SIGSEGV/SIGBUS handlers and alt stack entirely.
     if (fast_copy_env_disabled()) {
+        fast_copy_user_disabled = true;
         if (process_vm_readv_available) {
             safe_copy = process_vm_readv;
         } else {
@@ -60,6 +61,7 @@ init_safe_copy()
         fprintf(stderr, "Failed to initialize segv catcher. Trying process_vm_readv.\n");
         if (process_vm_readv_available) {
             safe_copy = process_vm_readv;
+            mark_fast_copy_syscall_fallback();
         } else {
             fprintf(stderr, "Failed to initialize safe copy interface\n");
             failed_safe_copy = true;
@@ -72,6 +74,7 @@ init_safe_copy()
 {
     // Honor the fast-copy opt-out: skip installing signal handlers when disabled.
     if (fast_copy_env_disabled()) {
+        fast_copy_user_disabled = true;
         return;
     }
 
@@ -84,6 +87,7 @@ init_safe_copy()
 
     // std::cerr might not be fully initialized at constructor time.
     fprintf(stderr, "Failed to initialize segv catcher. Using mach_vm_read_overwrite instead.\n");
+    mark_fast_copy_syscall_fallback();
 }
 #endif // PL_DARWIN
 
@@ -99,6 +103,7 @@ set_fast_copy_enabled(bool enabled)
         }
         fprintf(stderr,
                 "Warning: fast copy requested but safe_memcpy was not initialized; falling back to process_vm_readv\n");
+        mark_fast_copy_syscall_fallback();
 
         // Fall through to process_vm_readv.
     }

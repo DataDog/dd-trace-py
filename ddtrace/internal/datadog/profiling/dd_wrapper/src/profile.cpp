@@ -111,6 +111,7 @@ Datadog::Profile::setup_samplers()
     }
     if (0U != (type_mask & SampleType::Heap)) {
         val_idx.heap_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_HEAP_SPACE);
+        val_idx.heap_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_HEAP_LIVE_SAMPLES);
     }
     if (0U != (type_mask & SampleType::GPUTime)) {
         val_idx.gpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_TIME);

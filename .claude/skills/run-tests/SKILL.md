@@ -116,7 +116,7 @@ scripts/run-tests --venv <hash1> --venv <hash2> -- -s
 **When to omit `-s` even on subsequent runs (force rebuild):**
 - After merging or rebasing from main (dependencies or native code may have changed)
 - C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
-- `setup.py`, `pyproject.toml`, `setup.cfg`, or `hatch.toml` were modified
+- `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
 - `riotfile.py` or `.riot/requirements/` files were modified
 
 This will:

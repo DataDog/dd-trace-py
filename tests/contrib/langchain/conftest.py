@@ -20,7 +20,6 @@ def langchain_llmobs(tracer, monkeypatch):
     decide whether a request goes through an instrumented proxy
     (-> workflow span) or directly to the model (-> llm span).
     """
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {

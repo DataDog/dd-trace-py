@@ -23,17 +23,57 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import textwrap
 import threading
 import typing as t
+from unittest import mock
 
 import msgpack
 import pytest
+
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
+from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
+import ddtrace.testing.internal.pytest.xdist as xdist_module
+from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 
 
 # ---------------------------------------------------------------------------
 # Mock HTTP server
 # ---------------------------------------------------------------------------
+
+
+def _settings_attributes() -> dict[str, t.Any]:
+    """The ``attributes`` block returned by the settings endpoint.
+
+    This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
+    ``early_flake_detection`` requires ``slow_test_retries`` and ``faulty_session_threshold``, and ``test_management``
+    requires ``attempt_to_fix_retries`` — accessed with ``[]`` (not ``.get()``) in settings_data.py. If any are
+    missing, ``APIClient.get_settings`` swallows the ``KeyError`` and silently returns a default ``Settings()`` with
+    *every* feature disabled, which would make these tests pass against fallback defaults rather than the configured
+    values. Kept in one place so ``test_mock_settings_payload_is_parseable`` can guard it.
+    """
+    return {
+        "code_coverage": False,
+        "tests_skipping": False,
+        "itr_enabled": False,
+        "require_git": False,
+        "early_flake_detection": {
+            "enabled": False,
+            "slow_test_retries": {"5s": 10, "10s": 5, "30s": 3, "5m": 2},
+            "faulty_session_threshold": 30,
+        },
+        "flaky_test_retries_enabled": False,
+        "known_tests_enabled": False,
+        "test_management": {
+            "enabled": False,
+            "attempt_to_fix_retries": 20,
+        },
+    }
 
 
 class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
@@ -72,6 +112,8 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         body = self._read_body()
 
+        self.server.recorded_request_paths.append(self.path)  # type: ignore[attr-defined]
+
         if self.path == "/api/v2/citestcycle":
             payload = msgpack.unpackb(body)
             self.server.recorded_payloads.append(payload)  # type: ignore[attr-defined]
@@ -84,20 +126,7 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
                     "data": {
                         "id": "1",
                         "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "code_coverage": False,
-                            "tests_skipping": False,
-                            "itr_enabled": False,
-                            "require_git": False,
-                            "early_flake_detection": {
-                                "enabled": False,
-                            },
-                            "flaky_test_retries_enabled": False,
-                            "known_tests_enabled": False,
-                            "test_management": {
-                                "enabled": False,
-                            },
-                        },
+                        "attributes": self.server.settings_attributes,  # type: ignore[attr-defined]
                     }
                 }
             )
@@ -108,7 +137,9 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/v2/ci/tests/skippable":
-            self._send_json({"data": [], "meta": {}})
+            # NOTE: meta.correlation_id is required. Without it the API client records a configuration error, which
+            # (among other things) makes the controller decline to cache its data for the xdist workers.
+            self._send_json({"data": [], "meta": {"correlation_id": "test-correlation-id"}})
             return
 
         if self.path == "/api/v2/git/repository/search_commits":
@@ -151,6 +182,8 @@ class MockCIVisibilityServer:
     def __enter__(self) -> "MockCIVisibilityServer":
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
+        self.server.recorded_request_paths = []  # type: ignore[attr-defined]
+        self.server.settings_attributes = _settings_attributes()  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         return self
@@ -171,7 +204,17 @@ class MockCIVisibilityServer:
     @property
     def recorded_payloads(self) -> list[dict[str, t.Any]]:
         assert self.server is not None
-        return self.server.recorded_payloads  # type: ignore[attr-defined]
+        server = t.cast(t.Any, self.server)
+        return t.cast(list[dict[str, t.Any]], server.recorded_payloads)
+
+    @property
+    def recorded_request_paths(self) -> list[str]:
+        assert self.server is not None
+        server = t.cast(t.Any, self.server)
+        return t.cast(list[str], server.recorded_request_paths)
+
+    def count_requests(self, path: str) -> int:
+        return self.recorded_request_paths.count(path)
 
     def get_all_events(self) -> list[dict[str, t.Any]]:
         """Return a flat list of all events across all recorded payloads."""
@@ -207,6 +250,15 @@ class MockCIVisibilityServer:
 def _make_env(mock_server_url: str, extra: t.Optional[dict[str, str]] = None) -> dict[str, str]:
     """Build an environment dict for the subprocess that points at the mock server."""
     env = os.environ.copy()
+    env.pop("PYTEST_XDIST_WORKER", None)
+    env.pop("PYTEST_XDIST_WORKER_COUNT", None)
+    for name in (
+        DD_TEST_OPTIMIZATION_ENV_DATA_FILE,
+        DD_TEST_OPTIMIZATION_MANIFEST_FILE,
+        DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
+        TEST_UNDECLARED_OUTPUTS_DIR,
+    ):
+        env.pop(name, None)
     env.update(
         {
             "DD_API_KEY": "test-api-key-xdist",
@@ -302,6 +354,229 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # AIDEV-NOTE: These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
+
+
+class TestXdistManifestMode:
+    def test_controller_generates_manifest_workers_avoid_backend_fanout(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        settings = _settings_attributes()
+        settings["itr_enabled"] = True
+        settings["tests_skipping"] = True
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        marker_dir = test_project / "xdist_markers"
+        (test_project / "conftest.py").write_text(
+            textwrap.dedent(f"""\
+                import os
+                from pathlib import Path
+
+                MARKER_DIR = Path({str(marker_dir)!r})
+
+                def pytest_configure(config):
+                    worker = os.environ.get("PYTEST_XDIST_WORKER")
+                    manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
+                    MARKER_DIR.mkdir(exist_ok=True)
+                    (MARKER_DIR / (worker or "controller")).write_text(manifest)
+            """)
+        )
+        (test_project / "test_a.py").write_text(
+            textwrap.dedent(f"""\
+                import os
+                from pathlib import Path
+
+                MARKER_DIR = Path({str(marker_dir)!r})
+
+                def _record_test(name):
+                    worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
+                    with (MARKER_DIR / (worker + "-tests")).open("a") as f:
+                        f.write(name + "\\n")
+                    if worker != "controller":
+                        from ddtrace.testing.internal.offline_mode import get_offline_mode
+
+                        offline_mode = get_offline_mode()
+                        (MARKER_DIR / (worker + "-manifest-mode")).write_text(
+                            f"enabled={{offline_mode.manifest_enabled}}\\n"
+                            f"dir={{offline_mode.test_optimization_dir}}\\n"
+                        )
+
+                def test_one():
+                    _record_test("test_one")
+                    assert True
+
+                def test_two():
+                    _record_test("test_two")
+                    assert True
+
+                def test_three():
+                    _record_test("test_three")
+                    assert True
+
+                def test_four():
+                    _record_test("test_four")
+                    assert True
+            """)
+        )
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url)
+        result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        # Every worker inherited the controller-generated manifest ...
+        worker_manifests = [path.read_text() for path in marker_dir.glob("gw[0-9]")]
+        assert len(worker_manifests) == 2
+        assert all(XDIST_MANIFEST_DIR_PREFIX in manifest for manifest in worker_manifests), worker_manifests
+        # ... and actually ran in manifest mode instead of querying the backend.
+        worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
+        assert len(worker_manifest_modes) == 2
+        assert all("enabled=True" in mode for mode in worker_manifest_modes), worker_manifest_modes
+        assert all(XDIST_MANIFEST_DIR_PREFIX in mode for mode in worker_manifest_modes), worker_manifest_modes
+
+        # Only the controller talked to the backend.
+        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
+        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
+
+        worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
+        assert len(worker_test_counts) == 2
+        assert sum(worker_test_counts) == 4
+        assert all(1 <= count <= 3 for count in worker_test_counts)
+
+        # The generated manifest cache is a private temp directory, removed when the session ends.
+        manifest_dir = Path(worker_manifests[0]).parent
+        assert not manifest_dir.exists(), manifest_dir
+
+
+class TestResolveInheritedManifestEnv:
+    """A generated manifest is only honored by the controller that wrote it and by the workers it spawned."""
+
+    @pytest.fixture(autouse=True)
+    def not_a_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default to a controller; the worker tests opt back in."""
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+
+    def test_keeps_manifest_generated_by_this_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{os.getpid()}_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        resolve_inherited_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
+
+    def test_keeps_manifest_generated_by_parent_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{os.getppid()}_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        resolve_inherited_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
+
+    def test_discards_manifest_generated_by_unrelated_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}1_abc/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        resolve_inherited_manifest_env()
+
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+
+    def test_keeps_user_provided_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bazel-style manifests are not ours to second-guess, whatever process exported them."""
+        manifest = "/some/workspace/.testoptimization/manifest.txt"
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
+
+        resolve_inherited_manifest_env()
+
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
+
+    def test_logs_when_worker_reads_the_controller_manifest(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The INFO line is how you tell at a glance that workers are not querying the backend."""
+        manifest_dir = tmp_path / f"{XDIST_MANIFEST_DIR_PREFIX}{os.getppid()}_abc"
+        manifest_dir.mkdir()
+        manifest = manifest_dir / "manifest.txt"
+        manifest.write_text("version = 1\n")
+        monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
+        monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, str(manifest))
+        info = mock.Mock()
+        monkeypatch.setattr(xdist_module.log, "info", info)
+
+        resolve_inherited_manifest_env()
+
+        assert info.call_count == 1
+        assert "is reading backend data cached by its controller" in info.call_args.args[0]
+        assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == str(manifest)
+
+    def test_warns_when_worker_cannot_read_generated_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
+        monkeypatch.setenv(
+            DD_TEST_OPTIMIZATION_MANIFEST_FILE, f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{os.getppid()}_abc/manifest.txt"
+        )
+        warning = mock.Mock()
+        monkeypatch.setattr(xdist_module.log, "warning", warning)
+
+        resolve_inherited_manifest_env()
+
+        assert warning.call_count == 1
+        assert "could not read the manifest generated by its controller" in warning.call_args.args[0]
+
+    def test_silent_when_worker_has_no_generated_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A worker of a session that never generated a manifest (e.g. Bazel, or a failed write) is not a problem."""
+        monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
+        monkeypatch.delenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, raising=False)
+        warning = mock.Mock()
+        monkeypatch.setattr(xdist_module.log, "warning", warning)
+
+        resolve_inherited_manifest_env()
+
+        assert warning.call_count == 0
+
+
+def _session_manager_without_errors() -> mock.Mock:
+    """A SessionManager stand-in whose backend fetches all succeeded."""
+    return mock.Mock(configuration_errors={})
+
+
+class TestGenerateXdistManifestFailures:
+    """Generating the manifest is an optimization: a failure must degrade to online mode, never break the session."""
+
+    @pytest.fixture(autouse=True)
+    def controller_with_xdist(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, raising=False)
+
+    def test_returns_none_when_the_controller_fetch_had_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Degraded data must not be handed to the workers: leave them online so each retries on its own."""
+        session_manager = mock.Mock(configuration_errors={"test.configuration_error.settings": "true"})
+        mkdtemp = mock.Mock()
+        monkeypatch.setattr(tempfile, "mkdtemp", mkdtemp)
+
+        assert generate_xdist_manifest(session_manager, ["-n", "2"]) is None
+        assert mkdtemp.call_count == 0
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+
+    def test_returns_none_when_temp_dir_cannot_be_created(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(tempfile, "mkdtemp", mock.Mock(side_effect=OSError("read-only file system")))
+
+        assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+
+    def test_returns_none_and_cleans_up_when_cache_cannot_be_written(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        created_dirs: list[str] = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def record_mkdtemp(**kwargs: t.Any) -> str:
+            created_dirs.append(real_mkdtemp(**kwargs))
+            return created_dirs[-1]
+
+        monkeypatch.setattr(tempfile, "mkdtemp", record_mkdtemp)
+        monkeypatch.setattr(xdist_module, "write_manifest_cache", mock.Mock(side_effect=OSError("no space left")))
+
+        assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
+        assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
+        assert created_dirs and not Path(created_dirs[0]).exists()
 
 
 class TestXdistEventDelivery:
@@ -790,14 +1065,14 @@ class TestXdistWorkerCrashRestart:
 
 
 class TestXdistPartialFlush:
-    """Verify that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
+    """Verify that _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
 
     These tests prove the workaround works by running the same crash scenario
     with and without the env var and comparing the outcomes.
     """
 
     def test_partial_flush_before_and_after(self, test_project: Path) -> None:
-        """Same crash scenario, two runs: without and with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1.
+        """Same crash scenario, two runs: without and with _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1.
 
         Run 1 (no env var): the passing test's event is LOST because it was
         buffered on the same worker that crashed.
@@ -834,7 +1109,7 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project, message="re-commit for second run")
 
-            env = _make_env(server_with.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+            env = _make_env(server_with.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
@@ -847,7 +1122,7 @@ class TestXdistPartialFlush:
 
         # With eager flushing: the passing test is saved.
         assert "test_passes_before_crash" in names_with, (
-            f"With DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
+            f"With _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
         )
 
     def test_partial_flush_preserves_all_healthy_tests_with_crashes(
@@ -872,7 +1147,7 @@ class TestXdistPartialFlush:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+        env = _make_env(mock_server.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
         result = _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()
@@ -920,3 +1195,20 @@ class TestXdistLoadScope:
         test_events = mock_server.get_test_events()
         test_names = sorted(e["content"]["meta"]["test.name"] for e in test_events)
         assert test_names == ["test_s1", "test_s2", "test_s3", "test_s4"]
+
+
+def test_mock_settings_payload_is_parseable() -> None:
+    """Regression: the mock settings payload must be complete enough for ``Settings.from_attributes`` to parse.
+
+    If a required field is missing, ``Settings.from_attributes`` raises ``KeyError``, ``APIClient.get_settings``
+    swallows it and returns a default ``Settings()`` (every feature disabled). That would silently make all of the
+    xdist tests above run against fallback defaults instead of the settings the mock reports.
+    """
+    from ddtrace.testing.internal.settings_data import Settings
+
+    settings = Settings.from_attributes(_settings_attributes())
+
+    # The fields whose absence previously triggered the KeyError fallback.
+    assert settings.early_flake_detection.slow_test_retries_5s == 10
+    assert settings.early_flake_detection.faulty_session_threshold == 30
+    assert settings.test_management.attempt_to_fix_retries == 20

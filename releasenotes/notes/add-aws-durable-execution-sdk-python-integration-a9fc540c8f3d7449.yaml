@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    aws_durable_execution_sdk_python: Add tracing support for the ``aws-durable-execution-sdk-python`` library.
+    Instruments ``@durable_execution`` workflows and ``DurableContext`` operations (``step``, ``invoke``,
+    ``wait``, ``wait_for_condition``, ``wait_for_callback``, ``create_callback``, ``map``, ``parallel``,
+    ``run_in_child_context``) to generate spans.

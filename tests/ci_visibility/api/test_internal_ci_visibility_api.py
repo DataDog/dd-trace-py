@@ -1,7 +1,9 @@
+import dataclasses
 from pathlib import Path
 
 import pytest
 
+from ddtrace.ext import test
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
@@ -81,6 +83,26 @@ class TestCIVisibilityItems:
         assert ci_suite._source_file_info.path == Path("/absolute/path/to/my_file_name")
         assert ci_suite._source_file_info.start_line is None
         assert ci_suite._source_file_info.end_line is None
+
+    @pytest.mark.parametrize(
+        "item_cls,item_name",
+        [(TestVisibilitySuite, _get_default_suite_id().name), (TestVisibilityTest, _get_default_test_id().name)],
+    )
+    @pytest.mark.parametrize("itr_enabled", [True, False])
+    @pytest.mark.parametrize("itr_test_skipping_enabled", [True, False])
+    def test_civisibilityitem_sets_itr_test_skipping_enabled_tag_on_suite_and_test(
+        self, civisibility_settings, item_cls, item_name, itr_enabled, itr_test_skipping_enabled
+    ):
+        settings = dataclasses.replace(
+            civisibility_settings,
+            itr_enabled=itr_enabled,
+            itr_test_skipping_enabled=itr_test_skipping_enabled,
+        )
+        ci_item = item_cls(item_name, settings)
+
+        ci_item._set_itr_tags(itr_enabled)
+
+        assert ci_item.get_tag(test.ITR_TEST_SKIPPING_ENABLED) is itr_test_skipping_enabled
 
 
 class TestCIVisibilitySessionSettings:

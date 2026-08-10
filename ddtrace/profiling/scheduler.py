@@ -78,6 +78,8 @@ class ServerlessScheduler(Scheduler):
         self._profiled_intervals: int = 0
 
     def periodic(self) -> None:
+        self._profiled_intervals += 1
+
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
         if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (time.time_ns() - self._last_export) >= int(
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS * 1e9
@@ -85,8 +87,6 @@ class ServerlessScheduler(Scheduler):
             try:
                 super(ServerlessScheduler, self).periodic()
             finally:
-                # Override interval so it's always back to the value we n
+                # Override interval so it's always back to the value we need
                 self.interval = self.FORCED_INTERVAL
                 self._profiled_intervals = 0
-        else:
-            self._profiled_intervals += 1

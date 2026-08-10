@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    pytorch: Adds a ``pytorch.rank`` lifetime span for PyTorch distributed training.
+    The span opens at ``init_process_group`` and closes at ``destroy_process_group``
+    or process exit. Tags include ``rank``, ``world_size``, ``framework``
+    (DDP / FSDP / DeepSpeed), ``launcher``, ``torch.distributed.backend``, and
+    ``training_job_id`` (resolved from launcher environment variables).
+    When running under Ray Train, ``ray.train.run_name``, ``ray.submission_id``,
+    and ``ray.metadata.*`` are also applied.
+    Enable with ``DD_PATCH_MODULES=pytorch:true``.

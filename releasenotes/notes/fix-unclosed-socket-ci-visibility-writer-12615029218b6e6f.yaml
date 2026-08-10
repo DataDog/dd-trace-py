@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes a ``ResourceWarning: unclosed socket`` that occurred when
+    using the pytest plugin. The background writer thread's thread-local
+    HTTP connection was not closed on thread exit.

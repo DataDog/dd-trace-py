@@ -63,8 +63,9 @@
           "parent_id": 2,
           "meta": {
             "_dd.p.tid": "69e7a82200000000",
-            "_dd.svc_src": "aiohttp_client",
-            "component": "aiohttp"
+            "_dd.svc_src": "aiohttp",
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 538000,
           "start": 1776789538038080000
@@ -100,8 +101,9 @@
           "parent_id": 3,
           "meta": {
             "_dd.p.tid": "69e7a82200000000",
-            "_dd.svc_src": "aiohttp_client",
-            "component": "aiohttp"
+            "_dd.svc_src": "aiohttp",
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 443000,
           "start": 1776789538075296000
@@ -137,8 +139,9 @@
           "parent_id": 4,
           "meta": {
             "_dd.p.tid": "69e7a82200000000",
-            "_dd.svc_src": "aiohttp_client",
-            "component": "aiohttp"
+            "_dd.svc_src": "aiohttp",
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 469000,
           "start": 1776789539086037000

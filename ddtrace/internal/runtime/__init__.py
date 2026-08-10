@@ -56,7 +56,7 @@ def _set_runtime_id():
         cb(_RUNTIME_ID)
 
 
-def get_runtime_id():
+def get_runtime_id() -> str:
     """Return a unique string identifier for this runtime.
 
     Do not store this identifier as it can change when, e.g., the process forks.

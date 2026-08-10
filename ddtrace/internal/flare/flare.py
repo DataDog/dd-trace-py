@@ -104,7 +104,7 @@ class Flare:
         finally:
             self.clean_up_files()
 
-    def revert_configs(self):
+    def revert_configs(self) -> None:
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
@@ -114,13 +114,14 @@ class Flare:
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
-                # Redact API key if present
-                api_key = self.ddconfig.get("_dd_api_key")
+                # Work on a shallow copy so the live config is never mutated
+                redacted_config = dict(self.ddconfig)
+                api_key = redacted_config.get("_dd_api_key")
                 if api_key:
-                    self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+                    redacted_config["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
 
                 tracer_configs = {
-                    "configs": self.ddconfig,
+                    "configs": redacted_config,
                 }
                 json.dump(
                     tracer_configs,
@@ -171,7 +172,7 @@ class Flare:
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
-    def clean_up_files(self):
+    def clean_up_files(self) -> None:
         """Clean up the flare directory using Python's shutil."""
         flare_lock = self.flare_dir / TRACER_FLARE_LOCK
         if flare_lock.exists():

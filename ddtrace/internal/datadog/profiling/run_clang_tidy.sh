@@ -30,7 +30,7 @@ cmake \
     "${SCRIPT_DIR}/dd_wrapper"
 popd
 
-# Configure cmake for stack
+# Configure cmake for stack (including fuzz harnesses so they are covered by clang-tidy)
 echo "Configuring cmake for stack..."
 mkdir -p "${BUILD_DIR}/stack"
 pushd "${BUILD_DIR}/stack"
@@ -41,6 +41,8 @@ cmake \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
     -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
     -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
+    -DBUILD_FUZZING=ON \
+    -DSTACK_USE_LIBFUZZER=OFF \
     "${SCRIPT_DIR}/stack"
 popd
 
@@ -68,8 +70,9 @@ fi
 
 echo "Using merged compile_commands.json from: ${BUILD_DIR}"
 
-# Collect all profiling source files (not headers, not test files, not build artifacts)
-# Also exclude fuzz sources since BUILD_FUZZING is OFF by default
+# Collect all profiling source files, except for  headers, source files, build artifacts.
+# Fuzz sources are included so clang-tidy catches compilation regressions in the harnesses
+# without the overhead of a full libFuzzer build.
 SOURCE_FILES=()
 while IFS= read -r -d '' file; do
     SOURCE_FILES+=("$file")
@@ -78,7 +81,6 @@ done < <(find "${SCRIPT_DIR}" \
     ! -path "*/build/*" \
     ! -path "*/CMakeFiles/*" \
     ! -path "*/test/*" \
-    ! -path "*/fuzz/*" \
     ! -path "*/_vendor/*" \
     -print0)
 

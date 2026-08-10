@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    opentelemetry: Adds ``OTEL_METRIC_EXPORT_TIMEOUT`` and ``OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE`` to the allowlist of recognized OpenTelemetry environment variables.
+    Previously, setting any of these variables produced an inaccurate ``OpenTelemetry configuration ... is not supported by Datadog`` warning at startup, even though the variables are valid OpenTelemetry SDK settings.

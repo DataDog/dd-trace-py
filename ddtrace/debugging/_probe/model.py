@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
@@ -34,7 +35,10 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     This recursively strips parent directories until it finds a file that
     exists according to sys.path.
     """
-    path = Path(_path)
+    # Probe paths can come from remote-config with Windows-style backslash
+    # separators (e.g. from a Windows client) even when running on a POSIX
+    # system, where pathlib does not treat "\\" as a separator.
+    path = Path(_path.replace("\\", "/"))
     if path.is_file():
         return path.resolve()
 
@@ -51,12 +55,24 @@ MAXLEN = 255
 MAXFIELDS = 20
 
 
+_CAPTURE_LIMITS_KEY_MAP = {
+    "maxReferenceDepth": "max_level",
+    "maxCollectionSize": "max_size",
+    "maxLength": "max_len",
+    "maxFieldCount": "max_fields",
+}
+
+
 @dataclass
 class CaptureLimits:
     max_level: int = MAXLEVEL
     max_size: int = MAXSIZE
     max_len: int = MAXLEN
     max_fields: int = MAXFIELDS
+
+    @classmethod
+    def parse(cls, data: dict[str, Any]) -> "CaptureLimits":
+        return cls(**{_CAPTURE_LIMITS_KEY_MAP.get(k, k): v for k, v in data.items()})
 
 
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
@@ -126,6 +142,8 @@ class ProbeConditionMixin(AbstractProbeMixIn):
     condition: Optional[DDExpression]
     condition_error_rate: float = field(compare=False)
     condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
+    # monotonic timestamp before which evaluation should be skipped at probe entry (RFC: probe-entry skip)
+    _error_throttled_until: float = field(default=0.0, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -216,13 +234,13 @@ class TemplateSegment(abc.ABC):
 class LiteralTemplateSegment(TemplateSegment):
     str_value: str
 
-    def eval(self, scope: Mapping[str, Any]) -> Any:
+    def eval(self, scope: Mapping[str, Any]) -> str:
         return self.str_value
 
 
 @dataclass
 class ExpressionTemplateSegment(TemplateSegment):
-    expr: DDExpression
+    expr: DDRedactedExpression
 
     def eval(self, scope: Mapping[str, Any]) -> Any:
         return self.expr.eval(scope)
@@ -244,7 +262,15 @@ class StringTemplate:
 class CaptureExpression:
     name: str
     expr: DDExpression
-    limits: CaptureLimits = field(compare=False)
+    capture: CaptureLimits = field(compare=False)
+
+    @classmethod
+    def parse(cls, data: dict[str, Any]) -> "CaptureExpression":
+        return cls(
+            name=data["name"],
+            expr=DDRedactedExpression.compile(data["expr"]),
+            capture=CaptureLimits.parse(data["capture"]) if "capture" in data else DEFAULT_CAPTURE_LIMITS,
+        )
 
 
 @dataclass

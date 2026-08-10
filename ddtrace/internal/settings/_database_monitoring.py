@@ -10,8 +10,8 @@ class DatabaseMonitoringConfig(DDConfig):
         str,
         "propagation_mode",
         default="disabled",
-        help="Valid Injection Modes: disabled, service, and full",
-        validator=validators.choice(["disabled", "full", "service"]),
+        help="Valid Injection Modes: disabled, service, dynamic_service, and full",
+        validator=validators.choice(["disabled", "full", "service", "dynamic_service"]),
     )
 
     inject_sql_basehash = DDConfig.v(

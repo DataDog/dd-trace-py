@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from importlib import import_module
 from types import TracebackType
 from typing import Any  # noqa:F401

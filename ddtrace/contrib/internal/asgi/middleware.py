@@ -4,12 +4,13 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
-from typing import Union
 from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.asgi.utils import bytes_to_str
+from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -24,6 +25,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -65,14 +67,11 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
+_DD_ROUTE_RESOURCE_RESOLVER = "route_resource_resolver"
 
 
 def get_version() -> str:
     return ""
-
-
-def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
-    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, str]:
@@ -94,20 +93,6 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
         tags[ASGI_SPEC_VERSION] = scope_asgi["spec_version"]
 
     return tags
-
-
-def _extract_headers(scope: Mapping[str, Any]) -> dict[str, str]:
-    """
-    Extract and decode headers from ASGI scope.
-
-    ASGI headers are stored as byte strings; this method decodes them
-    to UTF-8 strings for easier processing.
-    """
-    headers = scope.get("headers")
-    if headers:
-        # headers: (Iterable[[byte string, byte string]])
-        return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
-    return {}
 
 
 def _default_handle_exception_span(exc, span):
@@ -141,6 +126,16 @@ def _cleanup_previous_receive(scope: Mapping[str, Any]):
     if current_receive_span:
         current_receive_span.finish()
         scope["datadog"].pop("current_receive_span", None)
+
+
+def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
+    route_resource_resolver = scope.get("datadog", {}).get(_DD_ROUTE_RESOURCE_RESOLVER)
+    if route_resource_resolver is None:
+        return
+    try:
+        route_resource_resolver(scope, span)
+    except Exception:
+        log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
 class TraceMiddleware:
@@ -208,14 +203,11 @@ class TraceMiddleware:
             root_app = scope.get("app")
             if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
                 # Set the flag before attempting collection to avoid retrying on every request
-                # if the import or walk fails (e.g., starlette not patched, pure ASGI app).
+                # if the walk fails (e.g., starlette not patched, pure ASGI app).
+                # Framework integrations (e.g. starlette) register a listener for this event
+                # to walk their route tree; asgi itself has no notion of routes.
                 root_app._datadog_endpoints_collected = True
-                try:
-                    from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
-
-                    _collect_routes_from_app(root_app)
-                except Exception:
-                    log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+                core.dispatch("asgi.collect_routes", (root_app,))
 
         if scope["type"] == "http":
             method = scope["method"]
@@ -224,7 +216,7 @@ class TraceMiddleware:
         else:
             return await self.app(scope, receive, send)
         try:
-            headers = _extract_headers(scope)
+            headers = extract_headers(scope)
         except Exception:
             log.warning("failed to decode headers for distributed tracing", exc_info=True)
             headers = {}
@@ -258,13 +250,13 @@ class TraceMiddleware:
                 integration_config=self.integration_config,
                 is_subapp=is_subapp,
             ) as ctx,
-            ctx.span as span,
+            span_from_context(ctx) as span,
         ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
             host_header = None
-            for key, value in _extract_headers(scope).items():
+            for key, value in extract_headers(scope).items():
                 if key.encode() == b"host":
                     try:
                         host_header = value
@@ -305,18 +297,18 @@ class TraceMiddleware:
                     raw_url = f"{raw_url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            # Sub-app middlewares skip body parsing since it's already handled
-            # by the parent app's middleware. HTTP meta and version tags are still
-            # set on the child span for visibility.
+            # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
+            # and websocket scopes must not have their receive() consumed here.
             body = None
             peer_ip = None
-            if not is_subapp:
+            if not is_subapp and scope["type"] == "http":
                 result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     "asgi.request.parse.body", (receive, headers)
                 ).await_receive_and_body
                 if result:
                     receive, body = await result.value
 
+            if not is_subapp:
                 client = scope.get("client")
                 # Both list and tuple must be supported for scope["client"].
                 # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
@@ -381,7 +373,7 @@ class TraceMiddleware:
                         current_receive_span.finish()
                         scope["datadog"].pop("current_receive_span", None)
 
-                    recv_span = ctx.span
+                    recv_span = span_from_context(ctx)
                     try:
                         message = await receive()
 
@@ -449,7 +441,7 @@ class TraceMiddleware:
                         self._handle_websocket_close_message(scope, message, span)
                         return await send(message)
 
-                    response_headers = _extract_headers(message)
+                    response_headers = extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
@@ -469,6 +461,11 @@ class TraceMiddleware:
                         and not message.get("more_body", False)
                         and span.error == 0
                     ):
+                        # Resolve fallback route resource before finishing so span processors
+                        # see the correct value (e.g. CORSMiddleware short-circuits before
+                        # traced_handler populates resource_paths).
+                        if not scope.get("datadog", {}).get("resource_paths"):
+                            _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
                         span.finish()
@@ -522,6 +519,11 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
+                # If resource_paths was never populated (e.g. CORSMiddleware short-circuited
+                # before traced_handler ran), let framework integrations resolve a route
+                # template so the span does not keep a raw path resource.
+                if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
+                    _call_route_resource_resolver(scope, span)
                 # missing datadog scope should not crash request teardown.
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:

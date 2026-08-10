@@ -1,0 +1,24 @@
+proxy_location: HeadOnly
+
+http_options:
+  host: 0.0.0.0
+  port: 8000
+
+applications:
+  - name: hello_app
+    route_prefix: /hello
+    import_path: app1:app
+    deployments:
+      - name: HelloApp
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 0.25
+
+  - name: goodbye_app
+    route_prefix: /goodbye
+    import_path: app2:app
+    deployments:
+      - name: GoodbyeApp
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 0.25

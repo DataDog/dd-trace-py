@@ -21,18 +21,15 @@ def get_current_system_tests_version() -> str:
     with open(system_tests_workflows_path, "r") as file:
         content = file.read()
 
-    parse_ref = False
     lines = content.splitlines()
     for line in lines:
-        if "repository: 'DataDog/system-tests'" in line:
-            parse_ref = True
-        if parse_ref and line.strip().startswith("ref:"):
-            _, _, ref_value = line.partition(":")
+        if "uses: DataDog/system-tests/.github/workflows/system-tests.yml@" in line:
+            _, ref_value = line.split("@")
             return ref_value.strip().strip("'\r\n")
     raise ValueError(f"Could not find the current system-tests version in {system_tests_workflows_path}.")
 
 
-def update_system_tests_version(latest_version: str):
+def update_system_tests_version(latest_version: str) -> None:
     # Update GitHub workflow file
     with open(system_tests_workflows_path, "r") as file:
         content = file.read()
@@ -41,7 +38,7 @@ def update_system_tests_version(latest_version: str):
     update_ref = False
     for i in range(len(lines)):
         # Only update the ref if the repository is DataDog/system-tests
-        if "repository: 'DataDog/system-tests'" in lines[i]:
+        if "uses: DataDog/system-tests/.github/workflows/system-tests.yml" in lines[i]:
             update_ref = True
         if update_ref and lines[i].strip().startswith("ref:"):
             pre, _, _ = lines[i].partition(":")

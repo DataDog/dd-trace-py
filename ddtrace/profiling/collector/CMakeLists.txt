@@ -11,7 +11,7 @@ add_compile_options(-fPIC -fvisibility=hidden -pthread -Wall -Wextra)
 
 # Platform-specific compile definitions
 if(APPLE)
-    # Fix for newer macOS SDKs that don't define BSD-style types These are needed by Abseil on macOS
+    # Fix for newer macOS SDKs that don't define BSD-style types. These are needed by Abseil on macOS
     add_compile_definitions(_DARWIN_C_SOURCE)
 endif()
 

@@ -460,6 +460,17 @@ def test_multiple_fn_middleware_resource_names(client, test_spans):
     assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn2_middleware")
 
 
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+def test_async_function_middleware_preserves_process_exception():
+    from django.core.handlers.base import BaseHandler
+
+    with override_settings(MIDDLEWARE=["tests.contrib.django.middleware.fn_middleware_with_process_exception"]):
+        handler = BaseHandler()
+        handler.load_middleware(is_async=True)
+
+    assert len(handler._exception_middleware) == 1
+
+
 """
 View tests
 """

@@ -5,8 +5,6 @@
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
-#include <cerrno>   // errno
-#include <cstring>  // strerror
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
 #include <unistd.h> // getpid
@@ -59,7 +57,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
 
     std::ofstream out(pprof_filename, std::ios::binary);
     if (!out.is_open()) {
-        std::cerr << "Error opening output file " << pprof_filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error opening output file " << pprof_filename << std::endl;
         return false;
     }
 
@@ -72,7 +70,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     }
     out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), static_cast<std::streamsize>(bytes_res.ok.len));
     if (out.fail()) {
-        std::cerr << "Error writing to output file " << pprof_filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error writing to output file " << pprof_filename << std::endl;
         return false;
     }
 
@@ -80,9 +78,19 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     std::ofstream out_internal_metadata(internal_metadata_filename);
     out_internal_metadata << internal_metadata_json;
     if (out_internal_metadata.fail()) {
-        std::cerr << "Error writing to internal metadata file " << internal_metadata_filename << ": " << strerror(errno)
-                  << std::endl;
+        std::cerr << "Error writing to internal metadata file " << internal_metadata_filename << std::endl;
         return false;
+    }
+
+    const auto& info_json = ProfilerState::get().profiler_settings_info_json;
+    if (!info_json.empty()) {
+        const std::string info_filename = base_filename + ".info.json";
+        std::ofstream out_info(info_filename);
+        out_info << info_json;
+        if (out_info.fail()) {
+            std::cerr << "Error writing to info file " << info_filename << std::endl;
+            return false;
+        }
     }
 
     return true;
@@ -115,6 +123,17 @@ Datadog::Uploader::upload_unlocked()
     if (!process_tags.empty()) {
         process_tags_slice = to_slice(process_tags);
         optional_process_tags_ptr = &process_tags_slice;
+    }
+
+    // The profiler settings live in the `info` channel of the event so they
+    // are user-visible in the UI and indexed by the backend for filtering.
+    // Pass them through verbatim; the setter validated the shape.
+    ddog_CharSlice info_json_slice;
+    const ddog_CharSlice* optional_info_json_ptr = nullptr;
+    const auto& info_json = ProfilerState::get().profiler_settings_info_json;
+    if (!info_json.empty()) {
+        info_json_slice = to_slice(info_json);
+        optional_info_json_ptr = &info_json_slice;
     }
 
     ddog_prof_Exporter_Slice_File files_to_compress = {
@@ -152,7 +171,7 @@ Datadog::Uploader::upload_unlocked()
                                                 nullptr, // optional_additional_tags
                                                 optional_process_tags_ptr,
                                                 &internal_metadata_json_slice,
-                                                nullptr, // optional_info_json
+                                                optional_info_json_ptr,
                                                 &new_cancel_clone_for_request);
 
     bool ret = true;

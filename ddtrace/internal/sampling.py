@@ -22,6 +22,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
@@ -41,6 +42,12 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
+# AIDEV-NOTE: sampling mechanism is an opaque integer; validate syntax/range only, not enum
+# membership, or unenumerated-but-valid ids get silently dropped (#13516, #19335). Do not re-tighten.
+_MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a u8
+VALID_SAMPLING_DECISIONS = frozenset("-%d" % value for value in range(_MAX_SAMPLING_MECHANISM + 1))
+
+# Unused, kept so external `.add()` calls (a past workaround) don't AttributeError on upgrade.
 SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
@@ -48,7 +55,7 @@ SAMPLING_MECHANISM_CONSTANTS = {
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
 
-def _format_ksr(rate: float) -> str:
+def format_rate(rate: float) -> str:
     """Format a sampling rate for _dd.p.ksr: up to 6 decimal digits, trailing zeros stripped.
 
     Uses explicit rounding via math.floor(x + 0.5) to avoid Python's banker's rounding
@@ -76,7 +83,7 @@ def validate_sampling_decision(
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
-        if value not in SAMPLING_MECHANISM_CONSTANTS:
+        if value not in VALID_SAMPLING_DECISIONS:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
             log.warning("failed to decode _dd.p.dm: %r", value)
@@ -255,15 +262,32 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span._set_attribute(_SAMPLING_RULE_DECISION, sample_rate)
-        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, format_rate(sample_rate))
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span._set_attribute(_SAMPLING_AGENT_DECISION, sample_rate)
-        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, format_rate(sample_rate))
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     span.context.sampling_priority = priorities[priority_index]
+
+
+def add_trace_source(span: Span, source: int) -> None:
+    """OR source (a TraceSource bit) into the span's _dd.p.ts trace-source mask.
+
+    Marks that an enabled product originated or retained the trace so it is kept when APM
+    tracing is disabled. The mask is serialized as a min 2-char lowercase hex string, so
+    combined products accumulate (e.g. ASM + AI Guard -> "22").
+    """
+    meta = span.context._meta
+    try:
+        mask = int(meta.get(TRACE_SOURCE_PROPAGATION_KEY, "0"), 16)
+    except (TypeError, ValueError):
+        mask = 0
+    value = "%02x" % (mask | source)
+    span._set_attribute(TRACE_SOURCE_PROPAGATION_KEY, value)
+    meta[TRACE_SOURCE_PROPAGATION_KEY] = value
 
 
 def _inherit_sampling_tags(target: Span, source: Span):

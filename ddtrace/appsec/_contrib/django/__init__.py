@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _metrics
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _get_headers_if_appsec
@@ -20,6 +21,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._trace_utils import track_user_login_failure_event
 from ddtrace.appsec._trace_utils import track_user_login_success_event
 from ddtrace.appsec._utils import _hash_user_id
+from ddtrace.appsec._utils import _UserExtraInfo
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
@@ -33,6 +35,8 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
+
+TELEMETRY_FRAMEWORK_NAME = "django"
 
 
 def _on_django_login(
@@ -51,7 +55,15 @@ def _on_django_login(
             email=django_config.include_user_email,
             name=django_config.include_user_realname,
         )
+        user_login = user_extra.get("login")
         if user_is_authenticated(user_obj):
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_success",
+                user_id,
+                user_login,
+                django_config.include_user_login,
+            )
             with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
                 track_user_login_success_event(
@@ -65,9 +77,14 @@ def _on_django_login(
         else:
             # Login failed and the user is unknown (may exist or not)
             # DEV: DEAD CODE?
-            track_user_login_failure_event(
-                None, user_id=user_id, login_events_mode=mode, login=user_extra.get("login", None)
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_failure",
+                user_id,
+                user_login,
+                django_config.include_user_login,
             )
+            track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, login=user_login)
 
 
 def _on_django_auth(
@@ -83,12 +100,11 @@ def _on_django_auth(
 
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     if not result_user:
         with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
@@ -99,9 +115,17 @@ def _on_django_auth(
                 name=django_config.include_user_realname,
             )
             if user_extra.get("login") is None:
-                user_extra["login"] = user_id
+                user_extra["login"] = str(user_id) if user_id is not None else None
             user_id = user_id_found or user_id
+            user_login = user_extra.get("login")
 
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_failure",
+                user_id,
+                user_login,
+                django_config.include_user_login,
+            )
             track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra)
 
     return False, None
@@ -111,17 +135,16 @@ def get_user_info(
     info_retriever: _DjangoUserInfoRetriever,
     django_config: IntegrationConfig,
     kwargs: Optional[dict[str, Any]] = None,
-) -> tuple[Any, dict[str, Any]]:
+) -> tuple[Optional[object], _UserExtraInfo]:
     if kwargs is None:
         kwargs = {}
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     user_id_found, user_extra = info_retriever.get_user_info(
         login=True,
@@ -129,7 +152,7 @@ def get_user_info(
         name=django_config.include_user_realname,
     )
     if user_extra.get("login") is None and user_id:
-        user_extra["login"] = user_id
+        user_extra["login"] = str(user_id)
     return user_id_found or user_id, user_extra
 
 
@@ -145,8 +168,13 @@ def _on_django_process(
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
     user_login = user_extra.get("login")
+    real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+    if session_key and real_mode == LOGIN_EVENTS_MODE.ANON:
+        session_key = _hash_user_id(session_key)
     res = None
     if result_user and result_user.is_authenticated:
+        if _metrics._is_user_auth_value_missing(user_id):
+            _metrics.report_user_auth_missing_user_id(TELEMETRY_FRAMEWORK_NAME, "authenticated_request")
         span = _asm_request_context.get_entry_span()
         if span is None:
             return
@@ -177,7 +205,6 @@ def _on_django_process(
                 span=span,
             )
         if in_asm_context():
-            real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
                 "REQUEST_USERNAME": user_login,
@@ -206,14 +233,21 @@ def _on_django_signup_user(
         return
     user_id, user_extra = get_user_info(info_retriever, django_config)
     if user_obj:
+        user_login = user_extra.get("login")
+        _metrics.report_user_auth_missing(
+            TELEMETRY_FRAMEWORK_NAME,
+            "signup",
+            user_id,
+            user_login,
+            django_config.include_user_login,
+        )
         span = _asm_request_context.get_entry_span()
         if span is None:
             return
         _asm_manual_keep(span)
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT, "true")
-        if "login" in user_extra:
-            login = user_extra["login"]
+        if (login := user_extra.get("login")) is not None:
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
                 login = _hash_user_id(login)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)

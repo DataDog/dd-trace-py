@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -68,6 +69,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
+
+        model_name = self._resolve_model_name(span, response, model_name, model_provider)
 
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         metrics = self._extract_llmobs_metrics(response, span_kind)
@@ -160,13 +163,28 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
             return False
+        # OpenRouter routes through litellm's own HTTP handler, not the OpenAI SDK, so there's no
+        # downstream OpenAI span to defer to.
+        if model_lower.startswith("openrouter/"):
+            return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
+    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
+        # Azure requires an arbitrary deployment name as the request model; the canonical model
+        # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
+        # "azure_ai/<deployment>", which would not match the cost catalog.
+        if model_provider in ("azure", "azure_text"):
+            response_model = span.get_tag("litellm.response.model") or _get_attr(response, "model", None)
+            if response_model:
+                return str(response_model)
+        return model_name
+
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
+        model_name = self._resolve_model_name(span, response, model_name, model_provider)
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         metrics = self._extract_llmobs_metrics(response, span_kind)
         self._apply_shadow_metrics(
@@ -259,6 +277,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 # if no cache write TTL breakdown available, assume all writes are 5m TTL
                 metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
                 metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+
+        metrics.update(get_openrouter_cost_metrics(token_usage))
 
         return metrics
 

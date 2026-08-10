@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
+import sysconfig
 import typing as t
 
 from envier import Env
@@ -55,7 +57,7 @@ def _derive_default_heap_sample_size(
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _check_for_ddup_available():
+def _check_for_ddup_available() -> tuple[str, bool]:
     # NB: importing ddup module results in importing _ddup.so file which could
     # raise an Exception within the ddup module, but we catch it there and
     # we don't propagate up to here. And regardless of whether ddup is available,
@@ -65,7 +67,7 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_available():
+def _check_for_stack_available() -> tuple[str, bool]:
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
 
@@ -90,7 +92,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
-def _update_git_metadata_tags(tags):
+def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Update profiler tags with git metadata
     """
@@ -106,7 +108,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -116,6 +118,18 @@ def _enrich_tags(tags) -> dict[str, str]:
     }
 
     return tags
+
+
+# The profiling backend accepts at most this many locations per sample.
+BACKEND_MAX_LOCATIONS = 600
+# Reserve one location for the synthetic "<N frames omitted>" frame emitted when
+# a stack is truncated. Keep these constants in sync with g_backend_max_nlocations
+# and g_backend_max_nframes in constants.hpp.
+MAX_FRAMES = BACKEND_MAX_LOCATIONS - 1
+
+
+def _clamp_max_frames(value: str) -> int:
+    return min(int(value), MAX_FRAMES)
 
 
 class ProfilingConfig(DDConfig):
@@ -198,9 +212,12 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
-        validator=validators.range(0, t.cast(int, float("inf"))),
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
         help_type="Integer",
-        help="The maximum number of frames to capture in stack execution tracing",
+        help="The maximum number of frames to capture in stack execution tracing. Values above "
+        f"{MAX_FRAMES} are clamped so that truncated stacks, including the omitted-frame indicator, stay within "
+        f"the profiling backend's {BACKEND_MAX_LOCATIONS}-location limit.",
     )
 
     ignore_profiler = DDConfig.v(
@@ -306,10 +323,55 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_max_interval = DDConfig.v(
         int,
         "adaptive_sampling.max_interval_us",
-        default=1_000_000,
-        validator=validators.range(100, 1_000_000),
+        default=100_000,
+        validator=validators.range(100, 100_000),
         help_type="Integer",
-        help="Maximum sampling interval in microseconds for adaptive sampling.",
+        help="Maximum sampling interval in microseconds for adaptive sampling. Must be between 100us and 100ms.",
+        private=True,
+    )
+
+    adaptive_sampling_baseline = DDConfig.v(
+        float,
+        "adaptive_sampling.baseline",
+        default=0.0,
+        validator=validators.range(0, t.cast(int, float("inf"))),
+        help_type="Float",
+        help=(
+            "Absolute overhead floor for adaptive sampling, in core-percent units "
+            "(e.g. 1 = 0.01 core = 10 mcores ≈ 600 ms CPU/min). "
+            "Prevents the profiler from going silent on idle applications. "
+            "0 disables the floor (pure-ratio behaviour)."
+        ),
+        private=True,
+    )
+
+    adaptive_sampling_p_stable_window_s = DDConfig.v(
+        int,
+        "adaptive_sampling.p_stable_window_s",
+        default=600,
+        validator=validators.range(1, t.cast(int, float("inf"))),
+        help_type="Integer",
+        help=(
+            "Rolling window duration in seconds over which the stable app-CPU "
+            "percentile (p_stable) is computed for adaptive sampling. "
+            "Longer windows give a more stable sample rate at the cost of slower "
+            "adaptation to sustained load changes."
+        ),
+        private=True,
+    )
+
+    adaptive_sampling_p_stable_percentile = DDConfig.v(
+        float,
+        "adaptive_sampling.p_stable_percentile",
+        default=95.0,
+        validator=validators.range(0, 100),
+        help_type="Float",
+        help=(
+            "Percentile (0–100) of the rolling app-CPU window used as the stable "
+            "denominator in the adaptive sampling budget formula. "
+            "95 means the budget is based on the 95th-percentile CPU usage over "
+            "the last p_stable_window_s seconds."
+        ),
         private=True,
     )
 
@@ -429,6 +491,20 @@ class ProfilingConfigMemory(DDConfig):
         help="",
     )
 
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
@@ -481,6 +557,15 @@ class ProfilingConfigPytorch(DDConfig):
         help="How many events the PyTorch profiler records each collection",
     )
 
+    max_frames = DDConfig.v(
+        int,
+        "max_frames",
+        default=128,
+        validator=validators.range(1, t.cast(int, float("inf"))),
+        help_type="Integer",
+        help="Maximum number of frames to capture",
+    )
+
 
 class ProfilingConfigException(DDConfig):
     __item__ = __prefix__ = "exception"
@@ -488,7 +573,7 @@ class ProfilingConfigException(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to enable the exception profiler",
     )
@@ -524,7 +609,6 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
-report_configuration(config)
 
 ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
@@ -553,11 +637,33 @@ if not stack_is_available:
         )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
+# Exception profiling requires sys.monitoring (Python 3.12+) and is not
+# supported on free-threaded builds.  Disable the config so that
+# config_str() / profiler_config tags reflect the effective collector state.
+
+
+def _check_for_exception_available() -> tuple[str, bool]:
+    if not hasattr(sys, "monitoring"):
+        return ("sys.monitoring unavailable (requires Python 3.12+)", False)
+    if sysconfig.get_config_var("Py_GIL_DISABLED"):
+        return ("not supported on free-threaded builds", False)
+    return ("", True)
+
+
+exception_failure_msg, exception_is_available = _check_for_exception_available()
+
+if not exception_is_available and config.exception.enabled:
+    config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Report configuration after all availability overrides so telemetry
+# reflects the effective state.
+report_configuration(config)
+
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config) -> str:
+def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
         # NOTE: This is intentionally left as stack_v2, to have an easy way

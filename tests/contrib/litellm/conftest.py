@@ -1,3 +1,4 @@
+import os
 from unittest import mock
 
 import pytest
@@ -15,16 +16,22 @@ def litellm(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "<not-a-real-key>")
     monkeypatch.setenv("COHERE_API_KEY", "<not-a-real-key>")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "<not-a-real-key>")
     patch()
     import litellm
 
+    # Pin tiktoken to litellm's bundled encoding cache so token counting never hits the network.
+    # Unrecognized model slugs fall back to tiktoken.get_encoding("cl100k_base"), which would
+    # otherwise fetch the encoding over HTTP (unrecordable / fails in CI).
+    monkeypatch.setenv(
+        "TIKTOKEN_CACHE_DIR", os.path.join(os.path.dirname(litellm.__file__), "litellm_core_utils", "tokenizers")
+    )
     yield litellm
     unpatch()
 
 
 @pytest.fixture
 def litellm_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {

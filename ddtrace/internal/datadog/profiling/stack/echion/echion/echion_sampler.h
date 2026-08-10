@@ -41,6 +41,12 @@ class EchionSampler
     std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
+    // Sampling-thread scratch buffer. Only the single sampling thread
+    // (Sampler::sampling_thread) touches this. unwind_frame clears it on
+    // entry; reusing the hash table across calls eliminates per-call
+    // allocator churn.
+    std::unordered_set<PyObject*> seen_frames_scratch_;
+
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
     // reflects tasks from the sampled subset, not all threads in the process.
@@ -88,6 +94,8 @@ class EchionSampler
     std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
+
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
@@ -114,13 +122,24 @@ class EchionSampler
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
 
-        // Clear stale entries from parent process.
-        // No lock needed: only one thread exists in child immediately after fork.
-        task_link_map_.clear();
-        weak_task_link_map_.clear();
-        greenlet_info_map_.clear();
-        greenlet_parent_map_.clear();
-        greenlet_thread_map_.clear();
+        // Also use placement new for all containers touched by the sampling thread.
+        // Using placement new means the existing containers are abandoned and
+        // their memory leaked in the child and we may lose some data (e.g. relationships
+        // between asyncio Tasks).
+        // However, this is the only way to safely continue working after fork.
+        new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
+        new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
+        new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
+        new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
+        new (&previous_task_objects_) std::unordered_set<PyObject*>();
+
+        asyncio_frame_cache_key_.reset();
+        uvloop_frame_cache_key_.reset();
+        asyncio_task_count_ = 0;
+
+        new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary

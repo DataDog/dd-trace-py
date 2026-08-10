@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+import contextlib
 import json
 import re
 from types import TracebackType
@@ -13,8 +14,9 @@ from urllib import parse
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._constants import Constant_Class
+from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
 from ddtrace.appsec._metrics import set_waf_request_metrics
@@ -24,9 +26,13 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
+from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 if TYPE_CHECKING:
@@ -98,7 +104,7 @@ class ASM_Environment:
         if self.root:
             core.add_suppress_exception(BlockingException)
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
-        context_span = span or core.get_root_span()
+        context_span = span or span_bus.get_root_span()
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
@@ -121,10 +127,12 @@ class ASM_Environment:
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
         self.downstream_requests: int = 0
+        # Idempotency flag for ``_dd.appsec.normalized_route`` — Django's sync path dispatches twice.
+        self.normalized_route_emitted: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
-    return core.find_item(_ASM_CONTEXT)
+    return core.find_item(_ASM_CONTEXT)  # type: ignore[no-any-return]
 
 
 def get_active_asm_context() -> Optional[ASM_Environment]:
@@ -157,11 +165,11 @@ def get_blocked() -> Optional[Block_config]:
 def get_entry_span() -> Optional[Span]:
     env = _get_asm_context()
     if env is None:
-        span = core.get_span()
+        span = span_bus.get_span()
         if span:
             return span._service_entry_span
         else:
-            return core.get_root_span()
+            return span_bus.get_root_span()
     return env.entry_span
 
 
@@ -181,6 +189,61 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
         env.downstream_requests < asm_config._dr_body_limit_per_request
         and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
     )
+
+
+# SSRF shares one subcontext across an outgoing request's SSRF_REQ + SSRF_RES calls, which may run
+# in different core contexts (e.g. httpx: request on the inner send context, final response on the
+# outer). A mutable holder is stored on the owning context; both calls resolve it via find_item
+# (which walks up the context tree), and it is released when that scope ends.
+
+_RASP_SUBCONTEXT = "asm::rasp_subcontext"
+
+_SSRF_RULE_TYPES = frozenset(
+    (
+        EXPLOIT_PREVENTION.TYPE.SSRF,
+        EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
+)
+
+
+class _RaspSubcontextHolder:
+    __slots__ = ("subctx",)
+
+    def __init__(self) -> None:
+        self.subctx: Optional[Any] = None
+
+
+def open_rasp_subcontext_scope() -> None:
+    """Establish the current core context as the owner of an SSRF subcontext.
+
+    Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
+    httpx's request context, or urllib3's own ``context_with_data``) so the request's SSRF_REQ and
+    SSRF_RES WAF calls share one subcontext, created lazily on the first RASP call within the scope.
+    Because the holder lives on that per-request context, concurrent outgoing requests (each in its
+    own context) get distinct subcontexts, and dropping the context releases the holder.
+
+    Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
+    this is a no-op and the inner operation shares the outer subcontext.
+    """
+    if core.find_item(_RASP_SUBCONTEXT) is None:
+        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+
+
+def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:
+    """Return the subcontext to use for a RASP WAF call.
+
+    SSRF calls reuse the subcontext stored on the owning scope (created lazily on first use);
+    other RASP types (LFI/CMDI/SHI/SQLI) get a fresh subcontext per call. Returns None when no
+    subcontext could be created, in which case the caller bypasses the RASP check.
+    """
+    if rule_type in _SSRF_RULE_TYPES:
+        holder = core.find_item(_RASP_SUBCONTEXT)
+        if holder is not None:
+            if holder.subctx is None:
+                holder.subctx = ddwaf.new_subcontext(ctx)
+            return holder.subctx
+    return ddwaf.new_subcontext(ctx)
 
 
 def get_framework() -> str:
@@ -276,10 +339,20 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
     entry_span._set_attribute(APPSEC.WAF_VERSION, asm_config._ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
+    tags = (
+        ("event_rules_version", telemetry_results.version or UNKNOWN_VERSION),
+        ("waf_version", asm_config._ddwaf_version),
+    )
     if telemetry_results.total_duration:
         update_span_metrics(entry_span, APPSEC.WAF_DURATION, telemetry_results.duration)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "waf.duration", telemetry_results.duration, tags=tags
+        )
         telemetry_results.duration = 0.0
         update_span_metrics(entry_span, APPSEC.WAF_DURATION_EXT, telemetry_results.total_duration)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "waf.duration_ext", telemetry_results.total_duration, tags=tags
+        )
         telemetry_results.total_duration = 0.0
     if telemetry_results.timeout:
         update_span_metrics(entry_span, APPSEC.WAF_TIMEOUTS, telemetry_results.timeout)
@@ -290,6 +363,12 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         update_span_metrics(entry_span, APPSEC.RASP_DURATION, telemetry_results.rasp.duration)
         update_span_metrics(entry_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
         update_span_metrics(entry_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "rasp.duration", telemetry_results.rasp.duration, tags=tags
+        )
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "rasp.duration_ext", telemetry_results.rasp.total_duration, tags=tags
+        )
     if telemetry_results.truncation.string_length:
         entry_span._set_attribute(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
     if telemetry_results.truncation.container_size:
@@ -385,18 +464,11 @@ def set_waf_address(address: str, value: Any) -> None:
         core.set_item(address, value)
 
 
-def get_value(category: str, address: str, default: Any = None) -> Any:
+def get_waf_address(address: str, default: Any = None) -> Any:
     env = get_active_asm_context()
     if env is None:
         return default
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        return asm_context_attr.get(address, default)
-    return default
-
-
-def get_waf_address(address: str, default: Any = None) -> Any:
-    return get_value(_WAF_ADDRESSES, address, default=default)
+    return env.waf_addresses.get(address, default)
 
 
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
@@ -419,8 +491,12 @@ def call_waf_callback(
     if env is not None and env.waf_callable is not None:
         return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
 
-    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
-    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    if rule_type is None:
+        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    else:
+        # RASP calls out of context are benign (e.g. outbound request with no active request)
+        logger.debug(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
     return None
 
 
@@ -440,7 +516,7 @@ def set_ip(ip: Optional[str]) -> None:
 
 
 def get_ip() -> Optional[str]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HTTP_IP)
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)  # type: ignore[no-any-return]
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
@@ -454,7 +530,7 @@ def set_headers(headers: Mapping) -> None:
 
 
 def get_headers() -> Optional[Mapping]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})  # type: ignore[no-any-return]
 
 
 def set_headers_case_sensitive(case_sensitive: bool) -> None:
@@ -462,7 +538,7 @@ def set_headers_case_sensitive(case_sensitive: bool) -> None:
 
 
 def get_headers_case_sensitive() -> bool:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type: ignore[no-any-return]
 
 
 def set_block_request_callable(block_callable: Optional[Callable[[], None]]) -> None:
@@ -576,12 +652,6 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
 
 def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
-        # Skip creating a new ASM context if one already exists in a parent context
-        # AND this is a sub-app span (e.g., mounted FastAPI/Starlette sub-application).
-        # The parent's ASM context already has the request data (body, headers, etc.)
-        # and is accessible via core.find_item thanks to context tree traversal.
-        if in_asm_context() and core.find_item("is_subapp"):
-            return
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
@@ -656,7 +726,7 @@ def _get_headers_if_appsec() -> Optional[Any]:
     return None
 
 
-## headers tags
+# Headers tags
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
@@ -714,3 +784,11 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
 def asm_listen() -> None:
     core.on("asm.set_blocked", set_blocked_dict)
     core.on("asm.get_blocked", get_blocked, "block_config")
+
+
+def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
+
+        return iast_suppress_context()
+    return contextlib.nullcontext()
