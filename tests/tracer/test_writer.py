@@ -604,27 +604,27 @@ def _agentless_writer():
 
 
 class TestWriterTelemetry:
-    """AgentlessTraceWriter reports internal span telemetry via record_trace_writer_metric."""
+    """AgentlessTraceWriter reports internal span telemetry through its writer method."""
 
     def test_records_spans_enqueued(self):
         writer = _agentless_writer()
         spans = [Span(name="span1"), Span(name="span2")]
-        with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+        with mock.patch.object(writer, "_record_trace_telemetry") as mock_metric:
             writer._write_with_client(writer._clients[0], spans=spans)
-        mock_metric.assert_called_once_with("spans_enqueued_for_serialization", 2, None)
+        mock_metric.assert_called_once_with("spans_enqueued_for_serialization", 2)
 
     def test_records_spans_dropped_on_buffer_full(self):
         writer = _agentless_writer()
         spans = [Span(name="span1"), Span(name="span2")]
         with mock.patch.object(writer._clients[0].encoder, "put", side_effect=BufferFull(1024)):
-            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+            with mock.patch.object(writer, "_record_trace_telemetry") as mock_metric:
                 writer._write_with_client(writer._clients[0], spans=spans)
         mock_metric.assert_called_once_with("spans_dropped", 2, (("reason", "overfull_buffer"),))
 
     def test_records_spans_dropped_after_retries_exhausted(self):
         writer = _agentless_writer()
         with mock.patch.object(writer, "_send_payload_with_backoff", side_effect=OSError("boom")):
-            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+            with mock.patch.object(writer, "_record_trace_telemetry") as mock_metric:
                 writer._flush_single_payload(b"payload", 3, client=writer._clients[0], n_spans=9)
         mock_metric.assert_called_once_with("spans_dropped", 9, (("reason", "api_error"),))
 
@@ -632,9 +632,9 @@ class TestWriterTelemetry:
         writer = _agentless_writer()
         response = mock.Mock(spec=Response, status=202, reason="Accepted")
         with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+            with mock.patch.object(writer, "_record_trace_telemetry") as mock_metric:
                 writer._send_payload(b"payload", 5, client=writer._clients[0])
-        mock_metric.assert_any_call("trace_api.requests", 1, None)
+        mock_metric.assert_any_call("trace_api.requests", 1)
         mock_metric.assert_any_call("trace_api.responses", 1, (("status_code", "202"),))
 
     def test_civisibility_writer_does_not_record_tracer_telemetry(self):
@@ -643,7 +643,7 @@ class TestWriterTelemetry:
             writer = CIVisibilityWriter("http://localhost:9126")
         response = mock.Mock(spec=Response, status=500, reason="Internal Server Error")
         with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+            with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_metric:
                 writer._send_payload(b"payload", 5, client=writer._clients[0])
         mock_metric.assert_not_called()
 

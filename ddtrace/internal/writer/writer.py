@@ -71,12 +71,6 @@ log = get_logger(__name__)
 LOG_ERR_INTERVAL = 60
 
 
-def record_trace_writer_metric(name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None) -> None:
-    """Record a trace-writer count metric when count is positive."""
-    if count > 0:
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
-
-
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
     """
     Safely log a message, handling closed I/O streams gracefully.
@@ -284,8 +278,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _record_trace_telemetry(
         self, name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None
     ) -> None:
-        if self._records_trace_telemetry:
-            record_trace_writer_metric(name, count, tags)
+        if self._records_trace_telemetry and count > 0:
+            telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
 
     def _reset_connection(self) -> None:
         with self._conn_lck:
