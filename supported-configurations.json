@@ -5914,14 +5914,6 @@
         "internal": true
       }
     ],
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
     "_DD_LLMOBS_EVALUATOR_INTERVAL": [
       {
         "implementation": "A",

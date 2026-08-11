@@ -46,12 +46,12 @@ def _corpus_params() -> list[Any]:
     return [pytest.param(case, id=case["id"]) for case in SCENARIOS]
 
 
-def _metrics(telemetry_mock: Mock, metric: str) -> list[tuple[Any, Any]]:
+def _metrics(add_count_metric: Mock, metric: str) -> list[tuple[Any, Any]]:
     """Every (value, tags) pair recorded for the given metric."""
     return [
-        (args[3], args[4])
-        for args, _ in telemetry_mock.add_metric.call_args_list
-        if args[1].value == "appsec" and args[2] == metric
+        (args[2], args[3])
+        for args, _ in add_count_metric.call_args_list
+        if args[0].value == "appsec" and args[1] == metric
     ]
 
 
@@ -78,11 +78,9 @@ def test_redact_messages_corpus(case: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize("case", _corpus_params())
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_applies_corpus(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     case: dict[str, Any],
@@ -166,11 +164,11 @@ def test_resolve_writable_string_against_the_rfc_example() -> None:
     assert resolved_value("messages[0].missing") is None
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redaction_survives_message_truncation(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
+    add_count_metric: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -196,14 +194,12 @@ def test_redaction_survives_message_truncation(
     assert struct_messages[-1]["content"] == "message 19 ssn <REDACTED>"
     assert struct_messages[0]["content"] == "message 4 ssn 123-45-6789"
     # Truncating twice must not be reported twice.
-    assert _metrics(telemetry_mock, AI_GUARD.TRUNCATED_METRIC) == [(1, (("type", "messages"),))]
+    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [(1, (("type", "messages"),))]
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_content_is_truncated_in_meta_struct(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -222,11 +218,9 @@ def test_redacted_content_is_truncated_in_meta_struct(
 
 
 @pytest.mark.parametrize("action", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_blocked_evaluation_reports_redacted_messages(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     action: str,
@@ -257,11 +251,11 @@ def test_blocked_evaluation_reports_redacted_messages(
         pytest.param(False, REPLACEMENTS, None, id="kill switch off means no tag at all"),
     ],
 )
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_is_reported(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
+    add_count_metric: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     redaction_enabled: bool,
@@ -276,15 +270,13 @@ def test_redacted_is_reported(
         ai_guard_client.evaluate(messages)
 
     assert find_ai_guard_span(test_spans).get_tag(AI_GUARD.REDACTED_TAG) == expected
-    [(_, telemetry_tags)] = _metrics(telemetry_mock, AI_GUARD.REQUESTS_METRIC)
+    [(_, telemetry_tags)] = _metrics(add_count_metric, AI_GUARD.REQUESTS_METRIC)
     assert dict(telemetry_tags).get("redacted") == expected
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_sds_findings_do_not_drive_redaction(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -306,11 +298,9 @@ def test_sds_findings_do_not_drive_redaction(
     assert _meta_struct(test_spans)["sds"] == findings
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_messages_are_isolated_from_the_caller(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -326,11 +316,9 @@ def test_redacted_messages_are_isolated_from_the_caller(
     assert _meta_struct(test_spans)["messages"] == REDACTED
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_kill_switch_keeps_findings_and_evaluation(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
