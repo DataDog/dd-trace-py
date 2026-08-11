@@ -319,6 +319,7 @@ tests/test_sampling.py                             @DataDog/apm-sdk-capabilities
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
 tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
+tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/asm-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
