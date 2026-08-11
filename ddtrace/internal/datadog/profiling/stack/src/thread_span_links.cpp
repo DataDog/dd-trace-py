@@ -33,7 +33,8 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
     std::lock_guard<std::mutex> lock(mtx);
 
     remove_thread_locked(thread_id);
-    thread_id_to_span.try_emplace(thread_id, span_id, local_root_span_id, std::move(span_type));
+    Span span(span_id, local_root_span_id, std::move(span_type));
+    thread_id_to_span.try_emplace(thread_id, std::move(span));
     // Index only the current span. A local root can finish before an active child, and finishing it must not remove the
     // child's attribution before that child finishes.
     span_to_threads[span_id].insert(thread_id);
