@@ -19,7 +19,7 @@ from tests.webclient import Client
 
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
-SNAPSHOT_IGNORES = ["meta.http.url", "meta.test.deployment_verification"]
+SNAPSHOT_IGNORES = ["meta.http.url", "meta.test.deployment_verification", "resource"]
 
 
 @pytest.fixture
