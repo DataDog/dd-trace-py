@@ -10,7 +10,7 @@ from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import get_blocked
-from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
+from ddtrace.appsec._iast._iast_request_context_base import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag

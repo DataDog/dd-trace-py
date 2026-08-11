@@ -40,6 +40,12 @@ def iast_suppress_context():
         _IAST_TAINT_SOURCES_SUPPRESSED.reset(token)
 
 
+def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
+    if asm_config._iast_enabled:
+        return iast_suppress_context()
+    return contextlib.nullcontext()
+
+
 def _is_iast_taint_source_enabled() -> bool:
     return not _IAST_TAINT_SOURCES_SUPPRESSED.get()
 

@@ -7,9 +7,9 @@ from ddtrace.appsec._asm_request_context import _use_html
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import get_headers
-from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast._iast_request_context_base import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
