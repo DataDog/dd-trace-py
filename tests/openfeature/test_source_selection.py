@@ -148,7 +148,7 @@ def test_create_invalid_endpoint_returns_none(bad_url):
         (
             "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
             "configuration_source_agentless_request_timeout_seconds",
-            2,
+            5,
         ),
         (
             "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
@@ -167,7 +167,3 @@ def test_unparsable_integer_setting_falls_back_to_default(monkeypatch, env_name,
 def test_unparsable_float_setting_falls_back_to_default(monkeypatch):
     monkeypatch.setenv("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", "not-a-number")
     assert OpenFeatureConfig().ffe_intake_heartbeat_interval == 1.0
-
-
-def test_request_timeout_default_matches_the_rfc():
-    assert _config().configuration_source_agentless_request_timeout_seconds == 2

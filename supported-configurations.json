@@ -1730,7 +1730,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": "2"
+        "default": "5"
       }
     ],
     "DD_FEATURE_FLAGS_ENABLED": [

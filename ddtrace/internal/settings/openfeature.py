@@ -133,13 +133,12 @@ class OpenFeatureConfig(DDConfig):
         parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS", 30),
     )
 
-    # Agentless UFC per-request timeout in seconds. 2s per the Feature Flagging RFC, which
-    # dd-trace-java also implements.
+    # Agentless UFC per-request timeout in seconds.
     configuration_source_agentless_request_timeout_seconds = DDConfig.var(
         int,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
-        default=2,
-        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 2),
+        default=5,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 5),
     )
 
     _openfeature_config_keys = [

@@ -1260,7 +1260,7 @@ Feature Flagging
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS:
      type: Integer
-     default: 2
+     default: 5
      description: |
          The per-request timeout in seconds for agentless Universal Flag
          Configuration polls.
