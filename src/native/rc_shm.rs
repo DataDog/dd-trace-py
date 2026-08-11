@@ -513,7 +513,7 @@ impl ShmReader {
                     Err(_) => continue,
                 };
 
-                if !enabled.contains(&parsed.product.to_string()) {
+                if !enabled.contains(&parsed.product().to_string()) {
                     continue;
                 }
 
