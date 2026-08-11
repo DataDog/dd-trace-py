@@ -97,3 +97,6 @@ endfunction()
 dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
 target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
 configure_stack_internal_test(test_sample_lifecycle)
+
+dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
+configure_stack_internal_test(test_sampling_cycle_state)
