@@ -93,16 +93,16 @@ class OpenFeatureConfig(DDConfig):
 
     # Agentless UFC polling interval in seconds, capped at one hour by the source.
     configuration_source_agentless_poll_interval_seconds = DDConfig.var(
-        int,
+        float,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
-        default=30,
+        default=30.0,
     )
 
     # Agentless UFC per-request timeout in seconds.
     configuration_source_agentless_request_timeout_seconds = DDConfig.var(
-        int,
+        float,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
-        default=5,
+        default=5.0,
     )
 
     _openfeature_config_keys = [
