@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    openfeature: This fix resolves an issue where the default agentless Universal Flag
+    Configuration request timeout was 5 seconds instead of the specified 2 seconds. Polls that
+    take longer than 2 seconds now time out and are retried. Set
+    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS`` to restore a
+    longer timeout.
+  - |
+    openfeature: This fix resolves an issue where an invalid value for a numeric Feature
+    Flagging environment variable raised an exception while importing ``ddtrace.openfeature``,
+    preventing the application from starting. Such values are now logged and the documented
+    default is used instead.

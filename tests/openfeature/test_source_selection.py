@@ -130,3 +130,44 @@ def test_create_invalid_endpoint_returns_none(bad_url):
     cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL=bad_url)
     with override_global_config({"_dd_api_key": "secret"}):
         assert create_agentless_source(cfg, lambda _: None) is None
+
+
+# ---------------------------------------------------------------------------
+# Numeric settings degrade instead of breaking the import
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("env_name", "attribute", "expected"),
+    [
+        (
+            "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
+            "configuration_source_agentless_poll_interval_seconds",
+            30,
+        ),
+        (
+            "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
+            "configuration_source_agentless_request_timeout_seconds",
+            2,
+        ),
+        (
+            "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
+            "initialization_timeout_ms",
+            10000,
+        ),
+    ],
+)
+def test_unparsable_integer_setting_falls_back_to_default(monkeypatch, env_name, attribute, expected):
+    # OpenFeatureConfig is built at module scope, so raising here would surface as an
+    # ImportError for ddtrace.openfeature and take the application down at startup.
+    monkeypatch.setenv(env_name, "0.2")
+    assert getattr(OpenFeatureConfig(), attribute) == expected
+
+
+def test_unparsable_float_setting_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", "not-a-number")
+    assert OpenFeatureConfig().ffe_intake_heartbeat_interval == 1.0
+
+
+def test_request_timeout_default_matches_the_rfc():
+    assert _config().configuration_source_agentless_request_timeout_seconds == 2

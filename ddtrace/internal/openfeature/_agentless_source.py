@@ -39,7 +39,9 @@ log = get_logger(__name__)
 # Polling / retry policy (mirrors the dd-trace-js reference implementation).
 MAX_POLL_INTERVAL_SECONDS = 60 * 60
 DEFAULT_POLL_INTERVAL_SECONDS = 30.0
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
+# 2s per the Feature Flagging RFC. dd-trace-js declares 5s, which is where an earlier
+# revision of this file took it from; the RFC and dd-trace-java are the contract.
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 2.0
 
 MAX_ATTEMPTS = 3
 FIRST_RETRY_MIN_S = 2.0
