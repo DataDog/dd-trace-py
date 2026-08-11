@@ -451,11 +451,9 @@ class TestLLMObsPydanticAI:
         )
 
     async def test_agent_run_with_unserializable_model_settings(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """Regression test: agent.model_settings containing non-JSON-serializable provider
-        sentinel values must not crash span submission.
+        """A non-serializable provider sentinel in model_settings must not crash span submission.
 
-        Uses FunctionModel to avoid OpenAI SDK serialization, which would reject the
-        sentinel before our span-tagging code ever runs.
+        FunctionModel avoids OpenAI SDK serialization, which would reject it before span tagging.
         """
         agent = pydantic_ai.Agent(
             model=_function_model(),
@@ -541,10 +539,9 @@ class ABSENT:
 
 
 def _assert_contains(manifest, expected, path=""):
-    """Assert every grouping and field in expected matches, ignoring anything not mentioned.
+    """Assert every field in expected matches, ignoring anything not mentioned.
 
-    Entries in a list are compared the same way, so a case pins only the fields it is about. That
-    matters for builtin_tools, whose name is "WebSearchTool" below 1.63.0 and "web_search" from there.
+    Lets a case skip builtin_tools' name, which is "WebSearchTool" below 1.63.0, "web_search" after.
     """
     for key, want in expected.items():
         assert key in manifest, "manifest is missing {}{}".format(path, key)
@@ -769,10 +766,7 @@ class TestPydanticAIAgentManifest:
     async def test_secrets_never_ship_cases(
         self, pydantic_ai, pydantic_ai_llmobs, test_spans, make_kwargs, forbidden, expected, min_version
     ):
-        """The security contract, one case per carrier, in one reviewable table.
-
-        expected is asserted alongside so a case cannot pass by emitting nothing at all.
-        """
+        """The security contract, one case per carrier. expected is asserted so a case cannot pass empty."""
         if min_version and PYDANTIC_AI_VERSION < min_version:
             pytest.skip("pydantic-ai < {} does not support this field".format(min_version))
 
@@ -784,10 +778,7 @@ class TestPydanticAIAgentManifest:
         _assert_contains(manifest, expected)
 
     async def test_shape_is_one_flat_document(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """One flat document whose keys all come from the shared schema.
-
-        Driven off a richly-configured agent, because a minimal one has too few keys to test anything.
-        """
+        """One flat document whose keys all come from the shared schema, driven off a configured agent."""
 
         class Deps:
             tenant: str
@@ -809,19 +800,12 @@ class TestPydanticAIAgentManifest:
         assert not [key for key in manifest if "." in key]
 
     async def test_framework_is_the_display_name(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """framework keeps the value it has always had.
-
-        Re-keying it to the integration token would silently break every consumer filtering on
-        framework, for no gain the schema migration needs.
-        """
+        """framework keeps the value it has always had, so a consumer filtering on it does not break."""
         _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent")
         assert manifest["framework"] == "PydanticAI"
 
     async def test_field_mapping(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The whole document for a configured agent, compared exactly.
-
-        An exact comparison is what catches a field quietly moving or gaining a wrapper.
-        """
+        """The whole document compared exactly, which catches a field moving or gaining a wrapper."""
 
         class Deps:
             tenant: str
@@ -860,8 +844,7 @@ class TestPydanticAIAgentManifest:
     async def test_model_settings_is_an_allowlist(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A key the allowlist does not name drops, even though nothing denies it by name.
 
-        This is the difference that matters: a denylist has to enumerate an open set, and providers
-        keep adding passthroughs. A parameter invented after this test was written still drops.
+        A denylist would have to enumerate an open set; providers keep adding passthroughs.
         """
         _, manifest = await self._run(
             pydantic_ai,
@@ -876,9 +859,7 @@ class TestPydanticAIAgentManifest:
     async def test_allowlisted_key_still_drops_a_blob_value(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """The allowlist protects the key; a shape check protects the value.
 
-        logit_bias and tool_choice take a caller-supplied mapping, which is the same unbounded shape
-        the transport passthroughs use to carry credentials. A nested structure, or a mapping holding
-        anything other than numbers, drops rather than shipping whatever it holds.
+        logit_bias and tool_choice take a caller mapping, the same shape a credential travels in.
         """
         _, manifest = await self._run(
             pydantic_ai,
@@ -898,10 +879,7 @@ class TestPydanticAIAgentManifest:
         assert "sk-canary-nested" not in blob
 
     async def test_legitimate_container_values_survive(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The shape check must not swallow the container values that are genuinely inference config.
-
-        Without this the previous test would pass trivially by dropping every container.
-        """
+        """The shape check must not swallow genuine container config, or the previous test passes trivially."""
         _, manifest = await self._run(
             pydantic_ai,
             test_spans,
@@ -913,15 +891,12 @@ class TestPydanticAIAgentManifest:
         assert manifest["model_settings"]["logit_bias"] == {"50256": -100}
 
     async def test_unnamed_agent_reports_the_placeholder_name(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """An agent with no recoverable name still reports a name, per review.
+        """An agent with no recoverable name still reports one, matching the span name fallback.
 
-        A consumer needs something to display, and the span name already falls back to the same
-        literal, so the manifest agreeing with it beats an absent key. The consequence is that two
-        distinct unnamed agents share this name, which is why name is not identity for versioning.
-
-        The agents are held in a list so pydantic-ai's own name inference, which scans the calling
-        frame for a variable bound to the agent, finds nothing.
+        Two unnamed agents therefore share it, which is why name is not identity for versioning.
         """
+        # Held in a list so pydantic-ai's name inference, which scans the frame for a bound variable,
+        # finds nothing.
         agents = [pydantic_ai.Agent(model=_function_model())]
         await agents[0].run("Hello, world!")
         manifest = _manifest_of(test_spans.pop_traces()[0][0])
@@ -931,8 +906,7 @@ class TestPydanticAIAgentManifest:
     async def test_agent_name_may_be_inferred_by_the_framework(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """pydantic-ai infers a name from the calling frame, and the builder cannot tell it apart.
 
-        Pinned rather than fixed: by the time the manifest is built an inferred name is
-        indistinguishable from a declared one. Recorded so the limitation is not rediscovered.
+        Pinned rather than fixed, so the limitation is not rediscovered.
         """
         agent = pydantic_ai.Agent(model=_function_model())
         await agent.run("Hello, world!")
@@ -941,11 +915,9 @@ class TestPydanticAIAgentManifest:
         assert manifest["name"] == "agent"
 
     async def test_minimal_agent_emits_nothing_empty(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """No key ships as null, "", [] or {}.
+        """No key ships as null, "", [] or {}, so absence means not configured.
 
-        Absence has to mean "not configured", which it cannot if an unconfigured field ships empty.
-        origin/main emitted instructions: null for exactly this agent. Walks the whole document, so
-        a new field cannot regress this.
+        origin/main emitted instructions: null for exactly this agent. Walks the whole document.
         """
         _, manifest = await self._run(pydantic_ai, test_spans)
 
@@ -964,8 +936,7 @@ class TestPydanticAIAgentManifest:
     async def test_function_tool_appears_once_per_key(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A function tool appears once in tools and once in capabilities, never twice within either.
 
-        The duplication across the two keys is deliberate: tools stays for backward compatibility and
-        capabilities is the typed superset. Duplication inside a key would double-count it.
+        Across the two keys is deliberate: tools is compatibility, capabilities the typed superset.
         """
         _, manifest = await self._run(
             pydantic_ai, test_spans, name="test_agent", tools=[calculate_square_tool, foo_tool]
@@ -985,11 +956,7 @@ class TestPydanticAIAgentManifest:
             assert capability["type"] in {"mcp", "builtin", "custom", "tool_preparation"}
 
     async def test_extra_instructions_carry_type_and_name(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A dynamic resolver ships flat as {type, name, reevaluated}.
-
-        Naming the resolver says which text is decided at run time, which a boolean "has dynamic
-        instructions" on the agent could not.
-        """
+        """A dynamic resolver ships flat as {type, name}, naming which text is decided at run time."""
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
 
         @agent.instructions
@@ -1000,9 +967,7 @@ class TestPydanticAIAgentManifest:
         await agent.run("Hello, world!")
         manifest = _manifest_of(test_spans.pop_traces()[0][0])
 
-        assert manifest["extra_instructions"] == [
-            {"type": "dynamic_instructions", "name": "per_tenant_policy", "reevaluated": True}
-        ]
+        assert manifest["extra_instructions"] == [{"type": "dynamic_instructions", "name": "per_tenant_policy"}]
 
     async def test_function_source_never_reaches_the_wire(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A callable is recorded by name. A function body can hold a literal secret."""
@@ -1022,11 +987,7 @@ class TestPydanticAIAgentManifest:
         assert manifest["guardrails"] == ["reject_ungrounded"]
 
     async def test_repeated_output_validator_is_reported_twice(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The same validator registered twice runs twice, so both registrations are reported.
-
-        pydantic-ai keeps both in _output_validators, so reporting one would understate the
-        validation the agent actually performs.
-        """
+        """The same validator registered twice runs twice, so both are reported rather than collapsed."""
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent")
 
         def reject_ungrounded(value):
@@ -1056,8 +1017,7 @@ class TestPydanticAIAgentManifest:
     async def test_output_type_name_omits_the_defining_module(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A generic's arguments are named bare, so the value does not move with the import path.
 
-        str(list[Resolution]) qualifies the argument, which would report list[__main__.Resolution]
-        under a script and list[app.models.Resolution] imported: the same agent, two manifests.
+        str() would report list[__main__.Resolution] as a script, list[app.models.Resolution] imported.
         """
 
         class Resolution(BaseModel):
@@ -1071,11 +1031,7 @@ class TestPydanticAIAgentManifest:
         assert Resolution.__module__ not in manifest["data_contracts"]["output"]["name"]
 
     async def test_output_type_name_is_one_value_per_union_spelling(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The three ways to declare the same union report the same name.
-
-        Union[A, B], A | B and the [A, B] list form are one contract, so they cannot fingerprint as
-        three. Optional spells its arm None, the way it is written.
-        """
+        """The three ways to declare the same union report one name, so they cannot fingerprint as three."""
 
         class Answer(BaseModel):
             answer: str
@@ -1102,8 +1058,7 @@ class TestPydanticAIAgentManifest:
     async def test_agent_settings_carry_the_loop_knobs(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """retries is the output-validation budget and tool_retries the per-tool one.
 
-        pydantic-ai keeps them separate: Agent(retries=3, output_retries=2) is retries 2 with
-        tool_retries 3, not one number. Collapsing them would report a budget the agent does not use.
+        Agent(retries=3, output_retries=2) reports retries 2 with tool_retries 3, not one number.
         """
         _, manifest = await self._run(
             pydantic_ai, test_spans, name="test_agent", retries=3, output_retries=2, end_strategy="exhaustive"
@@ -1117,20 +1072,14 @@ class TestPydanticAIAgentManifest:
     async def test_no_handoffs_for_pydantic_ai(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """pydantic-ai declares no handoff parameter, so the key is absent rather than synthesized.
 
-        Delegation here is one agent called inside another's tool, which is code and not declared
-        config. Deriving handoff targets from output-function callables would be inferring from
-        behavior, which is the one thing a manifest must not do.
+        Delegation here is one agent called inside another's tool: code, not declared config.
         """
         _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", tools=[calculate_square_tool])
 
         assert "handoffs" not in manifest
 
     async def test_declared_string_model_is_read(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """A deferred model check leaves model as a string, and the name is still recovered.
-
-        origin/main dropped the model entirely for these agents, because it only handled the resolved
-        object form.
-        """
+        """A deferred model check leaves model as a string; origin/main dropped it for these agents."""
         agent = pydantic_ai.Agent("openai:gpt-4o", name="test_agent", defer_model_check=True)
         # The manifest must report the declared value, not whatever served this one call.
         await agent.run("Hello, world!", model=_function_model())
@@ -1158,10 +1107,7 @@ class TestPydanticAIAgentManifest:
         assert manifest["model"] == expected
 
     async def test_non_string_system_prompts_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """pydantic-ai does not validate system_prompt, so a non-string would ship as a repr.
-
-        A repr leaks a memory address and whatever the object's __repr__ chooses to include.
-        """
+        """pydantic-ai does not validate system_prompt, so a non-string would ship as a leaking repr."""
         agent = pydantic_ai.Agent(model=_function_model(), name="test_agent", system_prompt="real prompt")
         agent._system_prompts = ("real prompt", _UnserializableSentinel())
         # Built directly rather than through agent.run(). pydantic-ai itself cannot run an agent whose
@@ -1177,8 +1123,7 @@ class TestPydanticAIAgentManifest:
     async def test_wire_values_are_json_native(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """Only JSON-native values reach the wire.
 
-        The manifest travels in meta_struct, so an unencodable object there fails the whole span at
-        encode time, taking the customer's trace with it.
+        The manifest travels in meta_struct, so an unencodable object fails the whole span.
         """
         _, manifest = await self._run(
             pydantic_ai,
@@ -1191,10 +1136,9 @@ class TestPydanticAIAgentManifest:
         assert manifest["model_settings"]["logit_bias"] == {"50256": -100}, "an int key is coerced to str"
 
     async def test_non_finite_floats_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """NaN and Infinity are valid Python floats and invalid JSON.
+        """NaN and Infinity are valid Python floats and invalid JSON, so the key drops rather than nulls.
 
-        The key drops rather than shipping null. json.dumps alone does not catch that, because a null
-        encodes fine: an earlier version of this test passed while NaN was landing as an explicit null.
+        An earlier version of this test passed while NaN was landing as an explicit null.
         """
         _, manifest = await self._run(
             pydantic_ai,
@@ -1209,7 +1153,7 @@ class TestPydanticAIAgentManifest:
     def test_mcp_servers_are_named_but_never_addressed(self, pydantic_ai):
         """MCP capture, which no other test reaches: the mcp extra is in none of the riot venvs.
 
-        No URI is emitted at all, so a server address cannot carry a credential onto the wire.
+        No URI is emitted, so a server address cannot carry a credential onto the wire.
         """
         from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
@@ -1238,11 +1182,7 @@ class TestPydanticAIAgentManifest:
     async def test_non_string_agent_name_falls_back_to_the_placeholder(
         self, pydantic_ai, pydantic_ai_llmobs, test_spans
     ):
-        """A name that is not a str must not be printed onto the wire.
-
-        The name is not type-checked by pydantic-ai, and the span encoder reprs a value it cannot
-        encode, so an object here discloses its contents. Same rule as the tool description.
-        """
+        """A name that is not a str must not be printed onto the wire, since the encoder reprs it."""
 
         class Leaky:
             def __repr__(self):
@@ -1258,8 +1198,7 @@ class TestPydanticAIAgentManifest:
     async def test_non_string_tool_description_is_dropped(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A tool description that is not a str must not be printed onto the wire.
 
-        pydantic-ai accepts Tool(fn, description=<object>) and nothing downstream coerces it, and the
-        span encoder falls back to repr for a value it cannot encode. A repr can carry credentials.
+        pydantic-ai accepts Tool(fn, description=<object>) and the encoder reprs what it cannot encode.
         """
 
         class SecretHolder:
@@ -1287,8 +1226,7 @@ class TestPydanticAIAgentManifest:
     async def test_non_string_tool_parameter_key_is_coerced(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A non-str parameter key is coerced rather than left for the encoder.
 
-        Tool.from_schema takes a caller json_schema, so a non-str key reaches the manifest. The span
-        sanitizer stringifies keys before encoding, so this is defence in depth rather than a fix.
+        Tool.from_schema takes a caller json_schema, so a non-str key reaches the manifest.
         """
 
         def mytool(**kwargs) -> str:
@@ -1309,16 +1247,12 @@ class TestPydanticAIAgentManifest:
         assert safe_json(manifest) is not None, "the payload must still encode"
 
     async def test_non_finite_agent_settings_never_ship(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """The same rule for agent_settings, which does not go through the value coercer.
+        """agent_settings does not go through the value coercer, so it needs its own guard.
 
-        float("inf") is a plausible way to say "no limit", and it reached the wire as a bare Infinity
-        token. Python's json parser accepts that, a strict one does not, and spans ship batched, so a
-        single such agent can invalidate a whole payload.
-
-        Driven through output_retries rather than tool_timeout: pydantic-ai accepts a non-finite for
-        both, but tool_timeout does not exist below 1.63.0, and guarding on it would skip this test on
-        the versions where the hazard is just as reachable.
+        A bare Infinity token is not valid JSON, and spans ship batched, so one agent can invalidate
+        a whole payload.
         """
+        # output_retries, not tool_timeout: the hazard is reachable on every pin, tool_timeout is 1.63.0+.
         _, manifest = await self._run(
             pydantic_ai, test_spans, name="test_agent", output_retries=float("inf"), model=_test_model()
         )
@@ -1340,9 +1274,7 @@ class TestPydanticAIAgentManifest:
     async def test_callable_metadata_emits_no_metadata(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A metadata resolver is not captured, and is never called to find out what it returns.
 
-        metadata is caller labels rather than behaviour and nothing versions on it, so the resolver's
-        identity is not worth a key the shared schema does not define. What matters here is the
-        negative: building a manifest must not execute caller code.
+        The negative is the point: building a manifest must not execute caller code.
         """
         if PYDANTIC_AI_VERSION < (1, 39, 0):
             pytest.skip("pydantic-ai < 1.39.0 does not accept a callable metadata")
@@ -1365,8 +1297,7 @@ class TestPydanticAIAgentManifest:
     async def test_tool_preparation_is_recorded_as_a_capability(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """A prepare hook rewrites the tool list per step, so a change to it must move the manifest.
 
-        This records that a transformation exists. It does NOT make the tool list correct: the tools
-        key still reports what was declared, including a tool the hook removes.
+        It records that a transformation exists; tools still reports what was declared.
         """
 
         async def drop_destructive(ctx, defs):
@@ -1381,10 +1312,7 @@ class TestPydanticAIAgentManifest:
         assert prep == [{"name": "drop_destructive", "type": "tool_preparation"}]
 
     async def test_section_failure_is_isolated(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
-        """One section raising costs that section only, not the whole manifest.
-
-        This is what keeps an unexpected framework change from blanking a customer's manifest entirely.
-        """
+        """One section raising costs that section only, not the whole manifest."""
         from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
         with mock.patch.object(PydanticAIIntegration, "_manifest_model", side_effect=ValueError("boom")):

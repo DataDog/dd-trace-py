@@ -4,6 +4,9 @@ import math
 from typing import Any
 
 
+# Bounds this function's own recursion, not the payload. metadata is a caller dict, and nesting it
+# past the interpreter's limit raises RecursionError here. The span sanitizer truncates deep values
+# too, but it runs after this and so cannot prevent that.
 MAX_WIRE_DEPTH = 20
 
 # AIDEV-NOTE: allowlist, not denylist. model_settings is the one field whose key set the caller

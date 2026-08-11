@@ -83,19 +83,14 @@ def _iter_agent_tools(agent: Any):
 
 
 def _callable_name(fn: Any) -> str:
-    """Best recoverable name for a callable, never a fabricated constant.
-
-    Two distinct unnamed callables have to stay distinguishable in the manifest.
-    """
+    """Best recoverable name for a callable. Two lambdas both report <lambda>, as Python does."""
     return getattr(fn, "__name__", None) or getattr(getattr(fn, "func", None), "__name__", None) or type(fn).__name__
 
 
 def _type_name(candidate: Any) -> str:
-    """Readable name for an output-type candidate, including a parameterized generic like list[Fruit].
+    """Readable name for an output-type candidate, such as list[Fruit].
 
-    Assembled from the type's parts rather than str(), which qualifies every argument with its
-    defining module: the same agent would otherwise report list[__main__.Fruit] run as a script and
-    list[app.models.Fruit] imported.
+    Assembled from the type's parts because str() qualifies each argument with its defining module.
     """
     if candidate is type(None):
         return "None"
@@ -135,17 +130,13 @@ def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     return static_texts, dynamic
 
 
-def _collect_dynamic_system_prompts(agent: Any) -> list[tuple[Any, bool]]:
-    """Gather (fn, reevaluated) dynamic system-prompt resolvers, present on every supported version.
-
-    Static prompts ship verbatim in agent._system_prompts, read directly by the builder, so only the
-    resolver wrappers are collected here. A runner marked dynamic re-runs on each step.
-    """
-    dynamic: list[tuple[Any, bool]] = []
+def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
+    """Dynamic system-prompt resolvers. Static prompts are read straight off agent._system_prompts."""
+    dynamic: list[Any] = []
     for runner in getattr(agent, "_system_prompt_functions", None) or []:
         fn = getattr(runner, "function", runner)
         if callable(fn):
-            dynamic.append((fn, bool(getattr(runner, "dynamic", False))))
+            dynamic.append(fn)
     return dynamic
 
 
@@ -345,11 +336,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return fields
 
     def _manifest_instructions(self, agent: Any) -> dict[str, Any]:
-        """What the agent is told: static text, static system prompts, and dynamic resolvers.
-
-        instructions is a plain string, so a consumer never has to branch on its type. A resolver's
-        text is only known at run time, so it lands in extra_instructions by name.
-        """
+        """What the agent is told. A resolver's text is only known at run time, so it ships by name."""
         fields: dict[str, Any] = {}
         static_texts, dynamic_instructions = _collect_instructions(agent)
         put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
@@ -358,20 +345,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         put_field(fields, "system_prompts", prompts)
         extra: list[dict[str, Any]] = []
         for kind, resolvers in (
-            ("dynamic_instructions", [(fn, True) for fn in dynamic_instructions]),
+            ("dynamic_instructions", dynamic_instructions),
             ("dynamic_system_prompt", _collect_dynamic_system_prompts(agent)),
         ):
-            for fn, reevaluated in resolvers:
-                extra.append({"type": kind, "name": _callable_name(fn), "reevaluated": reevaluated})
+            extra.extend({"type": kind, "name": _callable_name(fn)} for fn in resolvers)
         put_field(fields, "extra_instructions", extra)
         return fields
 
     def _manifest_model(self, agent: Any) -> dict[str, Any]:
-        """The model and the inference params the user set.
-
-        model_settings is filtered through an allowlist rather than copied. agent.model_settings is the
-        caller's own dict and routinely carries provider passthroughs that hold credentials.
-        """
+        """The model and the inference params the user set, filtered by ALLOWED_MODEL_SETTINGS_KEYS."""
         fields: dict[str, Any] = {}
         model = getattr(agent, "model", None)
         if isinstance(model, str):
@@ -567,8 +549,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset or MCP server name: the id the user set, else the class name.
 
-        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), leaking the
-        connection config _redact_mcp_uri exists to strip.
+        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), which carries the
+        connection config, so only an explicit str id or the class name ships. No URI is emitted at
+        all, which is what keeps a credential in a server's userinfo, path or query off the wire.
         """
         try:
             toolset_id = getattr(toolset, "id", None)
