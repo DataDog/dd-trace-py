@@ -109,16 +109,18 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 }
 
-static inline std::string_view
-allocator_domain_to_sv(PyMemAllocatorDomain domain)
+static inline Datadog::AllocatorDomain
+to_allocator_domain(PyMemAllocatorDomain domain)
 {
     if (domain == PYMEM_DOMAIN_OBJ) {
-        return "obj";
+        return Datadog::AllocatorDomain::obj;
     } else if (domain == PYMEM_DOMAIN_MEM) {
-        return "mem";
+        return Datadog::AllocatorDomain::mem;
+    } else if (domain == PYMEM_DOMAIN_RAW) {
+        return Datadog::AllocatorDomain::raw;
     }
 
-    return "unknown";
+    return Datadog::AllocatorDomain::unknown;
 }
 
 void
@@ -133,7 +135,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
     size_t count = (size_t)scaled_count;
 
     sample.push_alloc(weighted_size, count);
-    sample.push_allocator_domain(allocator_domain_to_sv(domain));
+    sample.push_allocator_domain(to_allocator_domain(domain));
 
     push_threadinfo_to_sample(sample);
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
