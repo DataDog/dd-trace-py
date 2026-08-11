@@ -11,6 +11,7 @@
 //! inherit the ShmHandles, to obtain a [`RemoteConfigReader`] via `make_reader()`,
 //! and diffing successive manifests into add/update/remove changes.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -18,7 +19,7 @@ use std::time::Duration;
 use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
 use libdd_common::Endpoint;
 use libdd_remote_config::fetch::{
-    ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
+    AgentlessConfig, ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
 };
 use libdd_remote_config::file_change_tracker::{Change, FilePath};
 use libdd_remote_config::{
@@ -119,6 +120,10 @@ impl RemoteConfigClient {
 #[pymethods]
 impl RemoteConfigClient {
     /// Starts with empty capabilities and products, added from python side.
+    ///
+    /// Passing `api_key` (with `site` and `hostname`) selects agentless mode:
+    /// the client then talks to the Remote Config backend at
+    /// `config.<site>` directly instead of going through the local agent.
     #[new]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
@@ -136,6 +141,9 @@ impl RemoteConfigClient {
         process_tags=None,
         timeout_ms=5000,
         test_session_token=None,
+        site=None,
+        api_key=None,
+        hostname=None,
     ))]
     fn new(
         runtime: PyRef<'_, SharedRuntimePy>,
@@ -151,21 +159,43 @@ impl RemoteConfigClient {
         process_tags: Option<Vec<(String, String)>>,
         timeout_ms: u64,
         test_session_token: Option<String>,
+        site: Option<String>,
+        api_key: Option<String>,
+        hostname: Option<String>,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc().clone();
 
+        let test_token = test_session_token.map(Cow::Owned);
+
         let mut endpoint = Endpoint::from_slice(&agent_url);
         endpoint.timeout_ms = timeout_ms;
-        if let Some(token) = test_session_token {
-            endpoint.test_token = Some(token.into());
-        }
+        endpoint.test_token = test_token.clone();
+
+        let agentless = match api_key {
+            Some(api_key) => {
+                let site = site.ok_or_else(|| {
+                    PyValueError::new_err("agentless remote config requires a `site`")
+                })?;
+                let mut intake = Endpoint::agentless(&site, api_key).map_err(|e| {
+                    PyValueError::new_err(format!("invalid remote config site '{site}': {e}"))
+                })?;
+                intake.timeout_ms = timeout_ms;
+                intake.test_token = test_token;
+                Some(
+                    AgentlessConfig::new(hostname.unwrap_or_default(), &intake)
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                )
+            }
+            None => None,
+        };
+        let is_agentless = agentless.is_some();
 
         let options = ConfigOptions {
             invariants: ConfigInvariants {
                 language: language.unwrap_or_else(|| "python".to_string()),
                 tracer_version,
                 endpoint,
-                agentless: None,
+                agentless,
             },
             products: Vec::new(),
             capabilities: Vec::new(),
@@ -181,14 +211,21 @@ impl RemoteConfigClient {
 
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
-        // `new_no_agentless` is the infallible, synchronous constructor
-        let fetcher = SingleChangesFetcher::new_no_agentless(
-            ShmStorage::new(),
-            target,
-            runtime_id,
-            options,
-            NativeCapabilities::new_without_connection_pooling(),
-        )
+        let storage = ShmStorage::new();
+        let http = NativeCapabilities::new_without_connection_pooling();
+        let fetcher = if is_agentless {
+            // Agentless setup parses the embedded TUF trust roots; it performs no
+            // I/O, so blocking the calling thread here is safe.
+            rt.block_on(SingleChangesFetcher::new(
+                storage, target, runtime_id, options, http,
+            ))
+            .map_err(|e| PyRuntimeError::new_err(format!("remote config runtime error: {e}")))?
+        } else {
+            SingleChangesFetcher::new_no_agentless(storage, target, runtime_id, options, http)
+        }
+        .map_err(|e| {
+            PyRuntimeError::new_err(format!("failed to create the remote config client: {e}"))
+        })?
         .with_client_id(client_id);
 
         Ok(RemoteConfigClient {
@@ -310,7 +347,14 @@ impl RemoteConfigClient {
 
     /// The remote config client id (a UUID). Stable for the life of the process.
     fn get_client_id(&self) -> String {
-        self.lock().fetcher.get_client_id().to_owned()
+        self.lock().fetcher.get_client_id().to_string()
+    }
+
+    /// Seconds to wait before the next [`poll`]. In agentless mode the backend
+    /// recommends an interval and updates it on every successful fetch; against
+    /// the agent this is a fixed default.
+    fn get_refresh_interval(&self) -> f64 {
+        self.lock().fetcher.get_refresh_interval().as_secs_f64()
     }
 
     /// Enable cross-process broadcast: move the storage into shared memory. Must
