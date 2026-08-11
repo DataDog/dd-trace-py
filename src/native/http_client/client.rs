@@ -24,7 +24,12 @@ use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::{sync::Arc, sync::OnceLock, thread, time::Duration};
 use url::Url;
 
-/// Run `f`, retrying once on a fresh thread if it panics.
+/// Substring of the panic message `Runtime::block_on` raises when called from a
+/// thread whose thread-local storage has already been torn down.
+const TLS_DESTROYED_PANIC: &str = "Tokio context thread-local variable has been destroyed";
+
+/// Run `f`, retrying once on a fresh thread if it panics with the specific
+/// "TLS destroyed" message below — never for any other panic.
 ///
 /// AIDEV-NOTE: this exists for requests issued at interpreter shutdown. Some
 /// embedders tear down their threads *before* Python runs its `atexit` hooks,
@@ -34,15 +39,30 @@ use url::Url;
 /// has intact thread-local storage, so re-running the call there succeeds. Same
 /// workaround as `SharedRuntimePy::shutdown_in_thread`.
 ///
+/// The retry is gated on the panic message rather than "any panic" so a panic
+/// unrelated to runtime teardown (e.g. a bug elsewhere in `f`) propagates
+/// immediately instead of being silently re-run against possibly-broken state
+/// — or, worse, sending the same request twice.
+///
 /// A scoped thread is used so `f` can keep borrowing the client. The retry is
 /// only paid on the panic path; if it panics again the panic is propagated.
 fn block_on_resilient<T: Send>(f: impl Fn() -> T + Send + Sync) -> T {
     match catch_unwind(AssertUnwindSafe(&f)) {
         Ok(out) => out,
-        Err(_) => thread::scope(|s| match s.spawn(f).join() {
-            Ok(out) => out,
-            Err(panic) => resume_unwind(panic),
-        }),
+        Err(panic) => {
+            let is_tls_destroyed = panic
+                .downcast_ref::<&str>()
+                .copied()
+                .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+                .is_some_and(|msg| msg.contains(TLS_DESTROYED_PANIC));
+            if !is_tls_destroyed {
+                resume_unwind(panic);
+            }
+            thread::scope(|s| match s.spawn(f).join() {
+                Ok(out) => out,
+                Err(panic) => resume_unwind(panic),
+            })
+        }
     }
 }
 
@@ -377,5 +397,15 @@ mod tests {
     #[should_panic(expected = "always")]
     fn resilient_propagates_a_persistent_panic() {
         block_on_resilient(|| panic!("always"));
+    }
+
+    #[test]
+    #[should_panic(expected = "unrelated failure")]
+    fn resilient_does_not_retry_an_unrelated_panic() {
+        let calls = AtomicUsize::new(0);
+        block_on_resilient(|| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            panic!("unrelated failure");
+        });
     }
 }
