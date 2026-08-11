@@ -38,7 +38,7 @@ try:
         else:
             _stack.clear_span()
 
-    def unlink_finished_span(span: ddspan.Span) -> None:
+    def _unlink_finished_span(span: ddspan.Span) -> None:
         """Remove physical-thread attribution derived from a finished span."""
         _stack.unlink_finished_span(span.span_id)
 
