@@ -393,18 +393,18 @@ class _ProfilerInstance(service.Service):
 
             try:
                 if heap_gotter.install():
-                    LOG.debug("Native heap profiling armed (GOT overrides installed)")
+                    LOG.info("Native heap profiling armed (GOT overrides installed)")
                 else:
-                    LOG.debug("Native heap profiling requested but GOT overrides were not installed")
+                    LOG.warning("Native heap profiling requested but GOT overrides were not installed")
             except Exception:
-                LOG.debug("Failed to arm native heap profiling", exc_info=True)
+                LOG.error("Failed to arm native heap profiling", exc_info=True)
 
         collectors = []
         for col in self._collectors:
             try:
                 col.start()
             except collector.CollectorUnavailable:
-                LOG.debug("Collector %r is unavailable, disabling", col)
+                LOG.warning("Collector %r is unavailable, disabling", col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
             else:
