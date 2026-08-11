@@ -1438,17 +1438,7 @@ def _count_heap_samples_with_function(
     Used by MEM-domain tests to avoid false positives from unrelated heap-space
     samples produced by ddup upload / pprof serialization paths.
     """
-    matched: int = 0
-    for sample in samples:
-        for location_id in sample.location_id:
-            location = pprof_utils.get_location_with_id(profile, location_id)
-            if not location.line:
-                continue
-            fn = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
-            if profile.string_table[fn.name] == function_name:
-                matched += 1
-                break
-    return matched
+    return sum(1 for sample in samples if has_function_in_profile_sample(profile, sample, function_name))
 
 
 @pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
@@ -1571,3 +1561,138 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+# ---------------------------------------------------------------------------
+# "allocator domain" label tests
+# ---------------------------------------------------------------------------
+
+# Key and values emitted by Datadog::Sample::push_allocator_domain. Kept as
+# literals here so the test fails if the exported names ever change; downstream
+# tooling filters profiles on exactly these strings.
+ALLOCATOR_DOMAIN_KEY = "allocator domain"
+ALLOCATOR_DOMAIN_OBJ = "obj"
+ALLOCATOR_DOMAIN_MEM = "mem"
+
+
+class _Blob:
+    """Instances come from PyObject_Malloc, i.e. PYMEM_DOMAIN_OBJ."""
+
+    __slots__ = ("payload",)
+
+
+def _make_obj_domain_objects(count: int) -> object:
+    """Allocate count instances through PYMEM_DOMAIN_OBJ and return the last one.
+
+    Deliberately avoids keeping them in a container: a list's ob_item array and
+    a dict's key table are allocated with PyMem_Malloc (PYMEM_DOMAIN_MEM), which
+    would make the domain attributed to this frame ambiguous.
+    """
+    last: object = None
+    for _ in range(count):
+        last = _Blob()
+    return last
+
+
+def test_allocator_domain_label_obj_when_mem_domain_disabled(tmp_path: Path) -> None:
+    """With mem_domain off, every allocation sample is still labelled, and always with "obj".
+
+    Labelling is unconditional so that A/B runs (mem_domain off vs on) can be
+    compared by filtering on the same label rather than on its absence.
+    """
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_allocator_domain_obj_only")
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=1024, mem_domain_enabled=False)
+    obj: object
+    with mc:
+        obj = _make_obj_domain_objects(50_000)
+        mc.snapshot()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    assert len(samples) > 0, "Expected alloc-space samples from OBJ-domain allocations"
+
+    values = pprof_utils.get_label_str_values(profile, samples, ALLOCATOR_DOMAIN_KEY)
+    assert "" not in values, "Every allocation sample must carry the allocator domain label"
+    assert set(values) == {ALLOCATOR_DOMAIN_OBJ}, (
+        f"Only OBJ-domain hooks are installed, so no other domain value is possible, got {sorted(set(values))}"
+    )
+
+    del obj
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_allocator_domain_label_distinguishes_obj_and_mem(tmp_path: Path) -> None:
+    """With mem_domain on, MEM allocations are labelled "mem" and OBJ ones "obj"."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_allocator_domain_obj_and_mem")
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=64 * 1024, mem_domain_enabled=True)
+    mem_obj: object
+    obj: object
+    with mc:
+        obj = _make_obj_domain_objects(200_000)
+        mem_obj = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    assert len(samples) > 0, "Expected alloc-space samples"
+
+    values = pprof_utils.get_label_str_values(profile, samples, ALLOCATOR_DOMAIN_KEY)
+    assert "" not in values, "Every allocation sample must carry the allocator domain label"
+    assert set(values) <= {ALLOCATOR_DOMAIN_OBJ, ALLOCATOR_DOMAIN_MEM}, (
+        f"Unexpected allocator domain values: {sorted(set(values))}"
+    )
+
+    # The 16 MB allocation inside _make_mem_domain_object goes through the MEM
+    # domain, so samples attributed to that frame must include MEM ones.
+    mem_frame_values = pprof_utils.get_label_str_values_for_function(
+        profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_mem_domain_object"
+    )
+    assert ALLOCATOR_DOMAIN_MEM in mem_frame_values, (
+        f"Samples from _make_mem_domain_object should include a MEM-domain one, got {sorted(set(mem_frame_values))}"
+    )
+
+    # _make_obj_domain_objects only allocates plain instances, so it must be
+    # attributed to the OBJ domain and never to MEM.
+    obj_frame_values = pprof_utils.get_label_str_values_for_function(
+        profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_obj_domain_objects"
+    )
+    assert obj_frame_values, "Expected alloc-space samples attributed to _make_obj_domain_objects"
+    assert set(obj_frame_values) == {ALLOCATOR_DOMAIN_OBJ}, (
+        f"_make_obj_domain_objects allocates in the OBJ domain only, got {sorted(set(obj_frame_values))}"
+    )
+
+    del mem_obj, obj
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_allocator_domain_label_on_live_heap_samples(tmp_path: Path) -> None:
+    """The label survives on pooled tracebacks that are re-exported as live heap samples."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_allocator_domain_heap")
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
+    obj: object
+    with mc:
+        obj = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, "Expected heap-space samples"
+
+    values = pprof_utils.get_label_str_values_for_function(
+        profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_mem_domain_object"
+    )
+    assert values, "Expected heap-space samples attributed to _make_mem_domain_object"
+    assert ALLOCATOR_DOMAIN_MEM in values, (
+        f"Live heap samples must keep the allocator domain label, got {sorted(set(values))}"
+    )
+
+    del obj

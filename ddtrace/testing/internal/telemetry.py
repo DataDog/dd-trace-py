@@ -10,14 +10,10 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
+from ddtrace.testing.internal._protocols import TestRunProtocol
 from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
-
-
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.http import BackendConnectorSetup
-    from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
@@ -56,7 +52,7 @@ class GitTelemetry(str, Enum):
 class TelemetryAPI:
     _instance: t.Optional[TelemetryAPI] = None
 
-    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
 
@@ -235,7 +231,7 @@ class TelemetryAPI:
 
     # Test creation/finish events.
 
-    def record_test_created(self, test_framework: str, test_run: TestRun) -> None:
+    def record_test_created(self, test_framework: str, test_run: TestRunProtocol) -> None:
         tags = {
             "event_type": EventType.TEST.value,
             "test_framework": test_framework,
@@ -244,7 +240,7 @@ class TelemetryAPI:
         self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
-        self, test_framework: str, test_run: TestRun, ci_provider_name: t.Optional[str], is_auto_injected: bool
+        self, test_framework: str, test_run: TestRunProtocol, ci_provider_name: t.Optional[str], is_auto_injected: bool
     ) -> None:
         tags = {
             "event_type": EventType.TEST.value,
@@ -328,59 +324,26 @@ class TelemetryAPI:
         )
 
 
-class _PayloadFileTelemetryClient:
-    """Drop-in replacement for ``_TelemetryClient`` that writes payloads to files.
-
-    Installed on the ``telemetry_writer`` so that the writer's full lifecycle
-    (``app-started``, heartbeats, integrations, dependencies, CI metrics,
-    ``app-closing``) is captured with real content and proper ``seq_id`` — the
-    same payload the writer would have sent over HTTP, just redirected to disk.
-    """
-
-    # Matches the attribute read by TelemetryWriter.enable_agentless_client().
-    _agentless: bool = False
-
-    def __init__(self, output_dir: str) -> None:
-        self._output_dir = output_dir
-
-    def send_event(self, request: dict, payload_type: str) -> None:
-        write_payload_file(output_dir=self._output_dir, payload=request, kind="telemetry")
-        return None
-
-
 class PayloadFileTelemetryAPI(TelemetryAPI):
     """TelemetryAPI variant that redirects the ddtrace telemetry writer to payload files.
 
-    Used in payload-files mode (Bazel).  Swaps the telemetry writer's HTTP client
-    with ``_PayloadFileTelemetryClient`` so that all telemetry events are written to
-    ``payloads/telemetry/`` instead of being sent over the network.  Resetting
-    ``writer.started`` ensures the writer re-emits ``app-started`` with the real
-    integration and dependency information on the next flush.
+    Used in payload-files mode (Bazel).  Points the native telemetry worker at a ``file://``
+    endpoint under ``payloads/telemetry/`` so libdatadog's dump server writes each telemetry
+    request (``app-started``, heartbeats, integrations, dependencies, CI metrics,
+    ``app-closing``) to its own file instead of sending it over the network — the same
+    payload the writer would have sent over HTTP, just redirected to disk.
     """
 
-    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetupProtocol, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
-        self._writer_supports_intercept = hasattr(self.writer, "_client")
-        if self._writer_supports_intercept:
-            self.writer._client = _PayloadFileTelemetryClient(output_dir)  # type: ignore[assignment]
-            # Re-arm app-started so it is included in the next flush with real content.
-            self.writer.started = False
-        else:
-            log.warning(
-                "Telemetry writer does not support client swapping (NoOpTelemetryWriter?); "
-                "telemetry payloads will not be written to files"
-            )
+        self.writer.set_payload_file_dir(output_dir)
 
     def finish(self) -> None:
-        if self._writer_supports_intercept:
-            # Flush all accumulated telemetry.  Pass shutting_down=True so the writer
-            # adds app-closing to the batch.  Call periodic() directly — not
-            # app_shutdown() — because app_shutdown() guards on self.started which we
-            # reset above to re-arm app-started.
-            self.writer.periodic(force_flush=True, shutting_down=True)
-        else:
-            super().finish()
+        # Flush all accumulated telemetry and emit app-closing into the payload files.
+        # app_shutdown() runs a final discovery + flush, then stops the worker (which emits
+        # app-closing) while it still points at the file:// endpoint.
+        self.writer.app_shutdown()
 
 
 @dataclasses.dataclass
