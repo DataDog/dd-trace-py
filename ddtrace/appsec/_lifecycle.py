@@ -32,7 +32,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     This is called in case of non-recoverable AppSec load-time failure, such as a libddwaf loading error.
     """
-    from ddtrace.trace import tracer
+    tracer = core.root.get_item("tracer")
 
     log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
 
