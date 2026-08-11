@@ -123,15 +123,12 @@ class ThreadInfo
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
+    [[nodiscard]] Result<std::vector<TaskObj*>> get_all_task_addresses(EchionSampler&, PyThreadState* tstate);
 #if PY_VERSION_HEX >= 0x030e0000
-    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(EchionSampler& echion,
-                                                                 std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(EchionSampler& echion,
-                                                                      PyThreadState* tstate,
-                                                                      std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_linked_list(EchionSampler& echion,
-                                                          uintptr_t head_addr,
-                                                          std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_task_addresses_from_thread_linked_list(std::vector<TaskObj*>& tasks);
+    [[nodiscard]] Result<void> get_task_addresses_from_interpreter_linked_list(PyThreadState* tstate,
+                                                                               std::vector<TaskObj*>& tasks);
+    [[nodiscard]] Result<void> get_task_addresses_from_linked_list(uintptr_t head_addr, std::vector<TaskObj*>& tasks);
 #endif
 };
 
