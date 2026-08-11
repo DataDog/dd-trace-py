@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -60,7 +59,7 @@ class ThreadSpanLinks
     void remove_thread_locked(uint64_t thread_id);
 
     std::mutex mtx;
-    std::unordered_map<uint64_t, std::unique_ptr<Span>> thread_id_to_span;
+    std::unordered_map<uint64_t, Span> thread_id_to_span;
     SpanToThreadMap span_to_threads;
 
     // Private Constructor/Destructor

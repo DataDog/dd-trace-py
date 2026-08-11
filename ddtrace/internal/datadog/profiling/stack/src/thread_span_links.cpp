@@ -16,7 +16,7 @@ ThreadSpanLinks::remove_thread_locked(uint64_t thread_id)
         return;
     }
 
-    const auto& span = *(thread_it->second);
+    const auto& span = thread_it->second;
     auto span_it = span_to_threads.find(span.span_id);
     if (span_it != span_to_threads.end()) {
         span_it->second.erase(thread_id);
@@ -33,7 +33,7 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
     std::lock_guard<std::mutex> lock(mtx);
 
     remove_thread_locked(thread_id);
-    thread_id_to_span.emplace(thread_id, std::make_unique<Span>(span_id, local_root_span_id, std::move(span_type)));
+    thread_id_to_span.try_emplace(thread_id, span_id, local_root_span_id, std::move(span_type));
     // Index only the current span. A local root can finish before an active child, and finishing it must not remove the
     // child's attribution before that child finishes.
     span_to_threads[span_id].insert(thread_id);
@@ -48,7 +48,7 @@ ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
     if (it == thread_id_to_span.end()) {
         return std::nullopt;
     }
-    return *(it->second);
+    return it->second;
 }
 
 void
@@ -64,7 +64,7 @@ ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
     std::lock_guard<std::mutex> lock(mtx);
 
     auto it = thread_id_to_span.find(thread_id);
-    if (it != thread_id_to_span.end() && it->second->span_id == expected_span_id) {
+    if (it != thread_id_to_span.end() && it->second.span_id == expected_span_id) {
         remove_thread_locked(thread_id);
     }
 }
@@ -104,7 +104,7 @@ ThreadSpanLinks::postfork_child()
     // which is UB. Reconstruct the maps in place without inspecting their contents. This intentionally leaks the old
     // maps' heap allocations, but that memory belonged to the parent's address-space snapshot and cannot be freed
     // safely in the child.
-    new (&instance.thread_id_to_span) std::unordered_map<uint64_t, std::unique_ptr<Span>>();
+    new (&instance.thread_id_to_span) std::unordered_map<uint64_t, Span>();
     new (&instance.span_to_threads) SpanToThreadMap();
 }
 
