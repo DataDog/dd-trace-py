@@ -2,6 +2,7 @@ import abc
 import binascii
 from collections import defaultdict
 import gzip
+import socket
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -23,6 +24,8 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enab
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
@@ -46,7 +49,7 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
-from ..utils.formats import parse_tags_str
+from ..utils.formats import get_test_session_token
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -177,6 +180,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
     STATSD_NAMESPACE = "tracer"
+    # Whether this writer emits span/trace instrumentation telemetry (TRACERS namespace).
+    # CI Visibility reuses this HTTP pipeline for event/coverage uploads but is not a trace
+    # writer, so it opts out to avoid polluting tracer telemetry dashboards.
+    _records_trace_telemetry = False
 
     def __init__(
         self,
@@ -268,6 +275,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
             )  # PERF: avoid setting via Span.set_metric
 
+    def _record_trace_telemetry(
+        self, name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None
+    ) -> None:
+        if self._records_trace_telemetry and count > 0:
+            telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
+
     def _reset_connection(self) -> None:
         with self._conn_lck:
             if self._conn:
@@ -347,11 +360,22 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
+        # trace_api.* telemetry is intentionally recorded per HTTP attempt (including retries),
+        # unlike spans_dropped which is only recorded once a payload is definitively dropped.
+        self._record_trace_telemetry("trace_api.requests", 1)
 
-        response = self._put(payload, headers, client, no_trace=True)
+        try:
+            response = self._put(payload, headers, client, no_trace=True)
+        except Exception as e:
+            error_type = "timeout" if isinstance(e, (socket.timeout, TimeoutError)) else "network"
+            self._record_trace_telemetry("trace_api.errors", 1, (("type", error_type),))
+            raise
+
+        self._record_trace_telemetry("trace_api.responses", 1, (("status_code", str(response.status)),))
 
         if response.status >= 400:
             self._metrics_dist("http.errors", tags=["type:%s" % response.status])
+            self._record_trace_telemetry("trace_api.errors", 1, (("type", "status_code"),))
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
             self._metrics["sent_traces"] += count
@@ -412,6 +436,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+            self._record_trace_telemetry("spans_dropped", len(spans), (("reason", "serialization_error"),))
         except BufferFull as e:
             payload_size = e.args[0]
             _safelog(
@@ -425,11 +450,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+            self._record_trace_telemetry("spans_dropped", len(spans), (("reason", "overfull_buffer"),))
         except NoEncodableSpansError:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
+            self._record_trace_telemetry("spans_dropped", len(spans), (("reason", "serialization_error"),))
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
+            self._record_trace_telemetry("spans_enqueued_for_serialization", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
         try:
@@ -440,6 +468,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
+        # Snapshot the number of buffered spans before encoding so we can attribute spans_dropped
+        # if encoding fails. Encoders that do not track spans (e.g. the msgpack encoders) report 0,
+        # and a 0 count is a no-op in the telemetry layer.
+        n_spans = getattr(client.encoder, "pending_spans", 0)
         try:
             if not (encoded_traces := client.encoder.encode()):
                 return
@@ -448,14 +480,26 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
+            self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "serialization_error"),))
             return
 
+        # Per-payload span counts are only meaningful when the encoder produces a single payload
+        # (as the agentless JSON encoder does). With multiple payloads we cannot attribute a span
+        # count to an individual payload, so we report 0 (a no-op) for span-level drops.
+        payload_n_spans = n_spans if len(encoded_traces) == 1 else 0
         for payload in encoded_traces:
             encoded_data, n_traces = payload
-            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+            self._flush_single_payload(
+                encoded_data, n_traces, client=client, n_spans=payload_n_spans, raise_exc=raise_exc
+            )
 
     def _flush_single_payload(
-        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+        self,
+        encoded: Optional[bytes],
+        n_traces: int,
+        client: WriterClientBase,
+        n_spans: int = 0,
+        raise_exc: bool = False,
     ) -> None:
         if encoded is None:
             return
@@ -473,14 +517,18 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             except Exception:
                 _safelog(log.error, "failed to compress traces with encoder %r", client.encoder, exc_info=True)
                 self._metrics_dist("encoder.dropped.traces", n_traces)
+                self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "serialization_error"),))
                 return
 
         try:
-            self._send_payload_with_backoff(encoded, n_traces, client)
+            response = self._send_payload_with_backoff(encoded, n_traces, client)
         except Exception:
+            # All retries have been exhausted (network/timeout failures are retried until
+            # RETRY_ATTEMPTS). The payload is now definitively dropped, so it is safe to record it.
             self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
+            self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "api_error"),))
             if raise_exc:
                 raise
             else:
@@ -493,6 +541,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     exc_info=True,
                     extra={"send_to_telemetry": False},
                 )
+        else:
+            # An HTTP error status (>=400) is not retried (the backoff stops as soon as a Response
+            # is returned), so the payload is dropped after this single, definitive attempt.
+            if isinstance(response, Response) and response.status >= 400:
+                self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "api_error"),))
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
             self._metrics_dist("http.sent.traces", n_traces)
@@ -548,6 +601,7 @@ class AgentlessTraceWriter(HTTPWriter):
         "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
     }
     FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
+    _records_trace_telemetry = True
 
     @staticmethod
     def compute_intake_url(site: str) -> str:
@@ -674,12 +728,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
 
 
 def _resolve_test_session_token(token: Optional[str]) -> Optional[str]:
-    if token is not None:
-        return token
-    additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-    if additional_header_str is not None:
-        return parse_tags_str(additional_header_str).get("X-Datadog-Test-Session-Token")
-    return None
+    return token if token is not None else get_test_session_token()
 
 
 def _build_base_exporter_builder(
@@ -833,6 +882,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
+            # Only http/json and http/protobuf are supported; fall back to http/protobuf
+            # for anything else (e.g. grpc).
+            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
+            if otlp_protocol not in ("http/json", "http/protobuf"):
+                log.debug(
+                    "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
+                    otlp_protocol,
+                )
+                otlp_protocol = "http/protobuf"
+            builder.set_otlp_protocol(otlp_protocol)
             otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
@@ -855,15 +914,33 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._client_side_stats_obfuscation:
             builder.enable_client_side_stats_obfuscation()
 
-        # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
-        if config._telemetry_enabled and sys.platform.startswith("linux"):
-            heartbeat_ms = int(
-                config._telemetry_heartbeat_interval * 1000
-            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-            builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        shared_worker = None
+        if config._telemetry_enabled:
+            # Have a single telemetry client / lifecycle - by sharing it with trace exporter.
+            # The telemetry client is guaranteed to be ready by the time this is called.
+            shared_worker = telemetry_writer._get_shared_worker()
+            # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
+            if shared_worker is None and sys.platform.startswith("linux"):
+                heartbeat_ms = int(
+                    config._telemetry_heartbeat_interval * 1000
+                )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
+                builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime())
+        exporter = builder.build(get_native_runtime())
+        if shared_worker is not None:
+            exporter.set_telemetry_handle(shared_worker)
+            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
+        return exporter
+
+    def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
+        """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
+        try:
+            self._exporter.set_telemetry_handle(worker)
+        except Exception:
+            log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -949,6 +1026,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             )
 
     def _intake_endpoint(self, client=None):
+        if self._otlp_endpoint is not None:
+            return self._otlp_endpoint
         return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
 
     @property

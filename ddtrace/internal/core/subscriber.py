@@ -16,6 +16,7 @@ the same subscriber.
 
 import logging
 from types import TracebackType
+from typing import Any
 from typing import ClassVar
 from typing import Generic
 from typing import Optional
@@ -59,7 +60,7 @@ class Subscriber:
     event_names: Sequence[str]
     _event_handlers: tuple = ()
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
         Handlers are registered from Base class to Children classes to allow
         behavior composition (a child class benefit from the parent class hook)
@@ -136,7 +137,7 @@ class ContextSubscriber(Generic[EventType]):
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
         Handlers are registered from Base class to Children classes to allow
         behavior composition (a child class benefit from the parent class hook)

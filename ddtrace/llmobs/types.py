@@ -14,6 +14,14 @@ class ExportedLLMObsSpan(TypedDict):
     trace_id: str
 
 
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
+
+
 class Document(TypedDict, total=False):
     name: str
     id: str
@@ -161,6 +169,17 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+
+
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that identifies a versioned agent.
+        version: str - user tag for the version of the agent.
+
+    Set as an `agent_version` tag on the agent span only, never on its children.
+    """
+
+    version: str
 
 
 class _MetaIO(TypedDict, total=False):

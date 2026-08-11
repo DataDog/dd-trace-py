@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 import logging
+import sys
 
 import pytest
 
@@ -537,6 +538,19 @@ def test_propagate_ranges_with_no_context(caplog):
         assert result == "a-joiner-b-joiner-c"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("iast::" in message for message in log_messages), log_messages
+
+
+@pytest.mark.skip_iast_check_logs
+def test_join_generator_releases_materialized_items_with_no_context():
+    class StringSubclass(str):
+        pass
+
+    item = StringSubclass("a")
+    refcount_before = sys.getrefcount(item)
+    _end_iast_context_and_oce()
+
+    assert mod.do_join(",", (value for value in (item, "b"))) == "a,b"
+    assert sys.getrefcount(item) == refcount_before
 
 
 @pytest.mark.skip_iast_check_logs
