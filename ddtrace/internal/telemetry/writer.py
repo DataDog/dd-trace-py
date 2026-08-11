@@ -13,6 +13,7 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
 
 from ...internal import atexit
@@ -150,9 +151,11 @@ class TelemetryWriter:
         self._enabled = config.TELEMETRY_ENABLED
 
         if agentless is None:
-            agentless = config.AGENTLESS_MODE or config.API_KEY not in (None, "")
+            # An API key on its own says nothing about how data should be submitted;
+            # only an explicit agentless setting does.
+            agentless = agentless_config.any_enabled
 
-        if agentless and not config.API_KEY:
+        if agentless and not agentless_config.api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
 
@@ -224,8 +227,8 @@ class TelemetryWriter:
             endpoint_url = "file://" + os.path.join(self._payload_file_dir, "")
             api_key = None
         elif self._agentless:
-            endpoint_url = _agentless_endpoint_url(config.SITE)
-            api_key = config.API_KEY
+            endpoint_url = _agentless_endpoint_url(agentless_config.site)
+            api_key = agentless_config.api_key
         else:
             endpoint_url = agent_config.trace_agent_url
             api_key = None
@@ -401,7 +404,7 @@ class TelemetryWriter:
 
         self._agentless = enabled
 
-        if enabled and not config.API_KEY:
+        if enabled and not agentless_config.api_key:
             log.debug("Cannot switch telemetry to agentless mode: no Datadog API key found")
             return
 

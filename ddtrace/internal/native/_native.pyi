@@ -1443,6 +1443,9 @@ class RemoteConfigClient:
     """Native single-target remote config client (origin process).
 
     Children consume published configs via :class:`RemoteConfigReader` instead.
+
+    Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
+    mode: configs are fetched from ``config.<site>`` rather than from the agent.
     """
 
     def __new__(
@@ -1461,6 +1464,9 @@ class RemoteConfigClient:
         process_tags: Optional[list[tuple[str, str]]] = None,
         timeout_ms: int = 5000,
         test_session_token: Optional[str] = None,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        hostname: Optional[str] = None,
     ) -> "RemoteConfigClient": ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
@@ -1480,6 +1486,13 @@ class RemoteConfigClient:
         ...
     def get_client_id(self) -> str:
         """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def get_refresh_interval(self) -> float:
+        """Seconds to wait before the next poll.
+
+        Agentless mode follows the interval the backend recommends, refreshed on
+        every successful fetch; against the agent this is a fixed default.
+        """
         ...
     def enable_shared_memory(self) -> None:
         """Enable cross-process broadcast. Call on the origin before forking."""
