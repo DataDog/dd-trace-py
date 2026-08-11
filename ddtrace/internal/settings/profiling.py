@@ -42,7 +42,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -545,14 +545,9 @@ class ProfilingConfigNativeHeap(DDConfig):
         default=False,
         help_type="Boolean",
         help=(
-            "Whether to enable experimental, opt-in native (C/C++) heap profiling. "
-            "Requires ``DD_PROFILING_ENABLED=true`` so the profiler starts and arms "
-            "native allocation sampling. Samples are collected outside the application "
-            "process by the OpenTelemetry ``eBPF`` profiler or Datadog Host Profiler; "
-            "dd-trace-py itself neither collects nor uploads native heap data. Requires "
-            "Linux and a wheel built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Both "
-            "allocations and the frees that release them are sampled, so retained "
-            "(live) heap is reported. Disabled by default (experimental)."
+            "Whether to enable experimental native (C/C++) heap profiling. "
+            "Requires ``DD_PROFILING_ENABLED=true``, Linux, and a wheel built with "
+            "``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Disabled by default."
         ),
     )
 
