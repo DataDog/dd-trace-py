@@ -1628,7 +1628,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "true",
+        "default": "false",
         "experimental": true
       }
     ],
@@ -4610,9 +4610,9 @@
     ],
     "DD_TRACE_OTEL_CTX_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "experimental": true
       }
     ],
