@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -51,17 +52,31 @@ class ThreadSpanLinks
     void unlink_finished_span(uint64_t span_id);
     void reset();
 
+    // These lifecycle methods run with the GIL held, before or after a native map mutation that releases it.
+    void on_link_start(uint64_t span_id);
+    bool on_link_end(uint64_t span_id);
+    bool on_span_finish(uint64_t span_id);
+
     static void postfork_child();
 
   private:
     using ThreadIdSet = std::unordered_set<uint64_t>;
     using SpanToThreadMap = std::unordered_map<uint64_t, ThreadIdSet>;
 
+    struct PendingSpanLink
+    {
+        size_t count = 0;
+        bool finished = false;
+    };
+
     void remove_thread_locked(uint64_t thread_id);
 
     std::mutex mtx;
     std::unordered_map<uint64_t, Span> thread_id_to_span;
     SpanToThreadMap span_to_threads;
+
+    // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
+    std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;
 
     // Private Constructor/Destructor
     ThreadSpanLinks() = default;

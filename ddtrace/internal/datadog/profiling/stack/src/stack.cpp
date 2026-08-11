@@ -162,9 +162,18 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
+    auto& links = ThreadSpanLinks::get_instance();
+    links.on_link_start(span_id);
+
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
     Py_END_ALLOW_THREADS;
+
+    if (links.on_link_end(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
 
     Py_RETURN_NONE;
 }
@@ -224,9 +233,12 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_finished_span(span_id);
-    Py_END_ALLOW_THREADS;
+    auto& links = ThreadSpanLinks::get_instance();
+    if (links.on_span_finish(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
 
     Py_RETURN_NONE;
 }

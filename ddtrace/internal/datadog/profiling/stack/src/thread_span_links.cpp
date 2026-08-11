@@ -95,6 +95,37 @@ ThreadSpanLinks::reset()
 }
 
 void
+ThreadSpanLinks::on_link_start(uint64_t span_id)
+{
+    ++pending_span_links[span_id].count;
+}
+
+bool
+ThreadSpanLinks::on_link_end(uint64_t span_id)
+{
+    auto pending_span = pending_span_links.find(span_id);
+    if (--pending_span->second.count != 0) {
+        return false;
+    }
+
+    const bool finished = pending_span->second.finished;
+    pending_span_links.erase(pending_span);
+    return finished;
+}
+
+bool
+ThreadSpanLinks::on_span_finish(uint64_t span_id)
+{
+    auto pending_span = pending_span_links.find(span_id);
+    if (pending_span == pending_span_links.end()) {
+        return true;
+    }
+
+    pending_span->second.finished = true;
+    return false;
+}
+
+void
 ThreadSpanLinks::postfork_child()
 {
     auto& instance = get_instance();
@@ -107,6 +138,7 @@ ThreadSpanLinks::postfork_child()
     // child.
     new (&instance.thread_id_to_span) std::unordered_map<uint64_t, Span>();
     new (&instance.span_to_threads) SpanToThreadMap();
+    new (&instance.pending_span_links) std::unordered_map<uint64_t, PendingSpanLink>();
 }
 
 } // namespace Datadog

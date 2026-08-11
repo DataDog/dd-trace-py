@@ -136,6 +136,23 @@ TEST(ThreadSpanLinks, RelinkUpdatesFinishedSpanIndex)
     EXPECT_EQ(links.get_active_span_from_thread_id(201), std::nullopt);
 }
 
+TEST(ThreadSpanLinks, FinishingWhileLinkingDefersCleanup)
+{
+    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    constexpr uint64_t thread_id = 301;
+    constexpr uint64_t span_id = 3001;
+    links.reset();
+
+    links.on_link_start(span_id);
+    EXPECT_FALSE(links.on_span_finish(span_id));
+
+    links.link_span(thread_id, span_id, span_id, "web");
+    EXPECT_TRUE(links.on_link_end(span_id));
+
+    links.unlink_finished_span(span_id);
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+}
+
 int
 main(int argc, char** argv)
 {
