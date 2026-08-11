@@ -102,8 +102,8 @@ ThreadSpanLinks::postfork_child()
     // Either map may be in a mid-mutation state if fork raced with a link or unlink. Its inherited pointers may be
     // inconsistent, so calling clear (or letting the destructor run) would traverse corrupted linked-list state,
     // which is UB. Reconstruct the maps in place without inspecting their contents. This intentionally leaks the old
-    // maps' heap allocations, but that memory belonged to the parent's address-space snapshot and cannot be freed
-    // safely in the child.
+    // maps' heap allocations, because their possibly corrupted pointers cannot be safely traversed or freed in the
+    // child.
     new (&instance.thread_id_to_span) std::unordered_map<uint64_t, Span>();
     new (&instance.span_to_threads) SpanToThreadMap();
 }
