@@ -10,6 +10,10 @@ class DDTraceDeprecationWarning(DeprecationWarning):
     __module__ = "ddtrace"
 
 
+# generate_message() and deprecate() below are adapted from the OpenStack
+# debtcollector project (Copyright (C) 2015 Yahoo! Inc.), previously vendored at
+# ddtrace/vendor/debtcollector/_utils.py, licensed under the Apache License,
+# Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 def generate_message(
     prefix: str,
     postfix: t.Optional[str] = None,
