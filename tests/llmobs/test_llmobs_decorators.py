@@ -10,6 +10,7 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs.decorators import agent
 from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
@@ -571,6 +572,51 @@ def test_ml_app_override(llmobs, test_spans):
     )
 
 
+def test_agent_service_override(llmobs, test_spans):
+    """Test that agent_service on decorators writes the canonical ml_app tag."""
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
+
+        @decorator(ml_app="legacy_ml_app", agent_service="test_agent_service")
+        def f():
+            pass
+
+        f()
+        span = test_spans.pop()[0]
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind=decorator_name,
+            tags={"ml_app": "test_agent_service", "decorator": "1"},
+        )
+
+    @llm(model_name="test_model", agent_service="test_agent_service")
+    def g():
+        pass
+
+    g()
+    span = test_spans.pop()[0]
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_agent_service", "decorator": "1"},
+    )
+
+    @embedding(model_name="test_model", agent_service="test_agent_service")
+    def h():
+        pass
+
+    h()
+    span = test_spans.pop()[0]
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_agent_service", "decorator": "1"},
+    )
+
+
 async def test_non_llm_async_decorators(llmobs, test_spans):
     """Test that decorators work with async functions."""
     for decorator_name, decorator in [
@@ -1082,3 +1128,35 @@ def test_generator_for_class_does_not_annotate_self(llmobs, test_spans, decorato
 
     input_value = json.loads(get_llmobs_input_value(spans[0]))
     assert input_value == {"a": 1, "b": 2}
+
+
+def test_agent_decorator_sets_agent_tags_on_agent_span_only(llmobs, test_spans):
+    @agent(version="v3")
+    def my_agent():
+        with llmobs.tool(name="test_tool"):
+            pass
+
+    my_agent()
+    spans = {s.name: s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)}
+    assert set(spans) == {"my_agent", "test_tool"}
+    assert get_llmobs_tags(spans["my_agent"])["agent_version"] == "v3"
+    assert "agent_version" not in get_llmobs_tags(spans["test_tool"])
+
+
+@pytest.mark.parametrize(
+    "decorator",
+    [task, tool, workflow, retrieval],
+    ids=["task", "tool", "workflow", "retrieval"],
+)
+def test_non_agent_decorators_ignore_version(llmobs, test_spans, mock_logs, decorator):
+    """version is only meaningful on agent spans; other kinds inherit from their agent ancestor."""
+
+    @decorator(version="v3")
+    def my_func():
+        pass
+
+    my_func()
+    mock_logs.warning.assert_called_once()
+    assert "only supported on @agent" in mock_logs.warning.call_args[0][0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
+    assert "agent_version" not in get_llmobs_tags(spans[0])

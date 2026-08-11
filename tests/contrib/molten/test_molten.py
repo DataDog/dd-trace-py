@@ -8,7 +8,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID

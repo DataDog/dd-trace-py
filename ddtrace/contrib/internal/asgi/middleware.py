@@ -25,6 +25,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -202,14 +203,11 @@ class TraceMiddleware:
             root_app = scope.get("app")
             if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
                 # Set the flag before attempting collection to avoid retrying on every request
-                # if the import or walk fails (e.g., starlette not patched, pure ASGI app).
+                # if the walk fails (e.g., starlette not patched, pure ASGI app).
+                # Framework integrations (e.g. starlette) register a listener for this event
+                # to walk their route tree; asgi itself has no notion of routes.
                 root_app._datadog_endpoints_collected = True
-                try:
-                    from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
-
-                    _collect_routes_from_app(root_app)
-                except Exception:
-                    log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+                core.dispatch("asgi.collect_routes", (root_app,))
 
         if scope["type"] == "http":
             method = scope["method"]
@@ -252,7 +250,7 @@ class TraceMiddleware:
                 integration_config=self.integration_config,
                 is_subapp=is_subapp,
             ) as ctx,
-            ctx.span as span,
+            span_from_context(ctx) as span,
         ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
@@ -375,7 +373,7 @@ class TraceMiddleware:
                         current_receive_span.finish()
                         scope["datadog"].pop("current_receive_span", None)
 
-                    recv_span = ctx.span
+                    recv_span = span_from_context(ctx)
                     try:
                         message = await receive()
 

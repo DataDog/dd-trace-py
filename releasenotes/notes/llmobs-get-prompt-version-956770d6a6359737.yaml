@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds a ``version`` argument to ``LLMObs.get_prompt()`` for retrieving an exact prompt version. #19050

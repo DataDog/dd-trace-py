@@ -18,7 +18,7 @@ from moto import mock_sts
 from ddtrace.contrib.internal.boto.patch import patch
 from ddtrace.contrib.internal.boto.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

@@ -570,6 +570,85 @@ def test_collect_gevent_thread_task() -> None:
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_gevent_greenlets_emit_task_labels() -> None:
+    """Gevent greenlet wall-time samples must carry task_name and task_id labels."""
+    import os
+
+    import gevent
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
+    test_name = "test_gevent_greenlets_emit_task_labels"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def cpu_work() -> None:
+        for _ in range(3):
+            _fib(28)
+            gevent.sleep(0)
+
+    with stack.StackCollector():
+        named_greenlets: list[gevent.Greenlet] = []
+        for i in range(3):
+            g = gevent.spawn(cpu_work)
+            g.name = f"Greenlet-{i}"
+            named_greenlets.append(g)
+        gevent.joinall(named_greenlets, timeout=30)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
+
+    st = profile.string_table
+    # check Greenlet-X is in the task name for each sample
+    greenlet_samples_with_task_name = [s for s in samples if any("Greenlet" in st[label.str] for label in s.label)]
+    assert len(greenlet_samples_with_task_name) > 0, "No greenlet samples with task name found"
+
+    # check sample with task info also has task id
+    for sample in greenlet_samples_with_task_name:
+        assert any(st[label.key] == "task id" for label in sample.label), (
+            f"No task id found in greenlet sample, labels: {sample.label}"
+        )
+
+    # Greenlet samples must still carry the real OS thread identity (MainThread),
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name=expected_thread_name,
+            task_name=r"Greenlet-\d+$",
+            locations=[
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
@@ -586,8 +665,6 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     import time
 
     import gevent
-
-    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     should_stop = threading.Event()
 
@@ -608,6 +685,7 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     # Import profiler modules after gevent patching and greenlet creation
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     p = profiler.Profiler()
     p.start()

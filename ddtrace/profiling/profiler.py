@@ -183,7 +183,7 @@ class _ProfilerInstance(service.Service):
         super().__init__()
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
-        self.tags: dict[str, str] = tags if tags is not None else profiling_config.tags
+        self.tags: dict[str, str] = dict(tags if tags is not None else profiling_config.tags)
         self.env: Optional[str] = env if env is not None else config.env
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer

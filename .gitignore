@@ -171,6 +171,11 @@ CLAUDE.local.md
 .riot/.build.lock
 .riot/requirements/*.in
 
+# Riot venvs built inside the testrunner container (see docker-compose.yml
+# RIOT_ENV_BASE_PATH) — kept separate from .riot/venv* to avoid mixing Linux
+# container binaries with host-native (e.g. macOS) venvs on the shared mount.
+.riot/docker/
+
 # Benchmarks
 artifacts/
 
@@ -221,6 +226,12 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
+# Core dump files
+/core
+/core.[0-9]*
+*.core
+vgcore.*
+
 # Rust build artifacts
 src/native/target*
 
@@ -232,3 +243,4 @@ src/native/target*
 
 # file created when running scripts/lint
 uv.lock
+.riot/*.installed

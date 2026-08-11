@@ -39,6 +39,17 @@ try:
 except ImportError:
     LangGraphGraphInterruptError = None
 
+
+def _is_langgraph_control_flow(exc):
+    """Return True if ``exc`` is a LangGraph control-flow signal (``GraphInterrupt`` or
+    ``ParentCommand``) rather than a real error. LangGraph uses these for human-in-the-loop
+    pauses and subgraph routing, so the span must not be marked as an error.
+    """
+    return (LangGraphParentCommandError is not None and isinstance(exc, LangGraphParentCommandError)) or (
+        LangGraphGraphInterruptError is not None and isinstance(exc, LangGraphGraphInterruptError)
+    )
+
+
 LANGGRAPH_VERSION = parse_version(get_version())
 
 LANGGRAPH_MODULE_MAP = {
@@ -108,9 +119,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
     try:
         result = func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -135,9 +144,7 @@ async def traced_runnable_seq_ainvoke(func, instance, args, kwargs):
     try:
         result = await func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -168,8 +175,9 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
 
     try:
         result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except (DDBlockException, Exception) as e:
+        if not _is_langgraph_control_flow(e):
+            span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
         span.finish()
         raise
@@ -177,35 +185,43 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
     async def _astream():
         item = None
         response = None
+        stream_exc = None
         add_supported = True
-        while True:
-            try:
-                item = await result.__anext__()
-                if add_supported:
-                    try:
-                        response = item if response is None else response + item
-                    except TypeError:
+        try:
+            while True:
+                try:
+                    item = await result.__anext__()
+                    if add_supported:
+                        try:
+                            response = item if response is None else response + item
+                        except TypeError:
+                            response = item
+                            add_supported = False
+                    else:
+                        # default to the last item if addition between items is not supported
                         response = item
-                        add_supported = False
-                else:
-                    # default to the last item if addition between items is not supported
-                    response = item
-                yield item
-            except StopAsyncIteration:
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
-                span.finish()
-                break
-            # AIDEV-NOTE: do not widen to bare ``BaseException`` here — this wraps a ``yield``, so ``GeneratorExit``
-            # / ``CancelledError`` from normal stream teardown would be mis-reported as span errors.
-            except (DDBlockException, Exception) as e:
-                if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                    LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                ):
-                    # This error is caught in the LangGraph framework, we shouldn't mark it as a runtime error.
-                    span.set_exc_info(*sys.exc_info())
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
-                span.finish()
-                raise
+                    yield item
+                except StopAsyncIteration:
+                    break
+                # AIDEV-NOTE: do not widen to bare ``BaseException`` here - this wraps a ``yield``, so
+                # ``GeneratorExit`` / ``CancelledError`` from normal stream teardown must not be caught
+                # (they'd be mis-reported as span errors). The ``finally`` below still closes the span.
+                except (DDBlockException, Exception) as e:
+                    if not _is_langgraph_control_flow(e):
+                        span.set_exc_info(*sys.exc_info())
+                    stream_exc = e
+                    raise
+        finally:
+            # Report the partial output on any non-error exit (including ``GeneratorExit`` abandonment);
+            # a real propagated exception drops it.
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=(None if stream_exc is not None else response),
+                operation="node",
+            )
+            span.finish()
 
     return _astream()
 
@@ -250,43 +266,37 @@ def traced_pregel_stream(func, instance, args, kwargs):
 
     try:
         result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except (DDBlockException, Exception) as e:
+        if not _is_langgraph_control_flow(e):
+            span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
     def _stream():
         item = None
-        while True:
-            try:
-                item = next(result)
-                yield item
-            except StopIteration:
-                response = item[-1] if isinstance(item, tuple) else item
-                integration.llmobs_set_tags(
-                    span,
-                    args=args,
-                    kwargs={**kwargs, "name": name},
-                    response=response,
-                    operation="graph",
-                )
-                span.finish()
-                break
-            except (DDBlockException, Exception) as e:
-                if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                    LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                ):
-                    span.set_exc_info(*sys.exc_info())
-                integration.llmobs_set_tags(
-                    span,
-                    args=args,
-                    kwargs={**kwargs, "name": name},
-                    response=None,
-                    operation="graph",
-                )
-                span.finish()
-                raise
+        response = None
+        try:
+            while True:
+                try:
+                    item = next(result)
+                    yield item
+                except StopIteration:
+                    response = item[-1] if isinstance(item, tuple) else item
+                    break
+                except (DDBlockException, Exception) as e:
+                    if not _is_langgraph_control_flow(e):
+                        span.set_exc_info(*sys.exc_info())
+                    raise
+        finally:
+            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # abandonment - a consumer ``break`` tears the generator down via ``GeneratorExit``, which is
+            # intentionally not caught above, so teardown is not flagged as an error. ``response`` stays
+            # ``None`` unless the stream ran to completion, so abandonment reports no misleading output.
+            integration.llmobs_set_tags(
+                span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+            )
+            span.finish()
 
     return _stream()
 
@@ -303,43 +313,37 @@ def traced_pregel_astream(func, instance, args, kwargs):
 
     try:
         result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except (DDBlockException, Exception) as e:
+        if not _is_langgraph_control_flow(e):
+            span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
     async def _astream():
         item = None
-        while True:
-            try:
-                item = await result.__anext__()
-                yield item
-            except StopAsyncIteration:
-                response = item[-1] if isinstance(item, tuple) else item
-                integration.llmobs_set_tags(
-                    span,
-                    args=args,
-                    kwargs={**kwargs, "name": name},
-                    response=response,
-                    operation="graph",
-                )
-                span.finish()
-                break
-            except (DDBlockException, Exception) as e:
-                if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                    LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                ):
-                    span.set_exc_info(*sys.exc_info())
-                integration.llmobs_set_tags(
-                    span,
-                    args=args,
-                    kwargs={**kwargs, "name": name},
-                    response=None,
-                    operation="graph",
-                )
-                span.finish()
-                raise
+        response = None
+        try:
+            while True:
+                try:
+                    item = await result.__anext__()
+                    yield item
+                except StopAsyncIteration:
+                    response = item[-1] if isinstance(item, tuple) else item
+                    break
+                except (DDBlockException, Exception) as e:
+                    if not _is_langgraph_control_flow(e):
+                        span.set_exc_info(*sys.exc_info())
+                    raise
+        finally:
+            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # abandonment - a consumer ``break`` on ``__interrupt__`` (human-in-the-loop) tears the generator
+            # down via ``GeneratorExit``, which is intentionally not caught above, so teardown is not
+            # flagged as an error. ``response`` stays ``None`` unless the stream ran to completion.
+            integration.llmobs_set_tags(
+                span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+            )
+            span.finish()
 
     return _astream()
 

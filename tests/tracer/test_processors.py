@@ -3,6 +3,7 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
+import ddtrace
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
@@ -98,6 +99,59 @@ def test_aggregator_user_processors():
     assert span.get_tag("dd_processor")
     assert span.get_tag("user_processor")
     assert span.get_tag("final_processor") == "user"
+
+
+def test_aggregator_records_tp_drop_when_processor_drops_trace():
+    """A trace processor dropping the whole trace accumulates spans_dropped(reason=tp_drop)."""
+
+    class DropProc(TraceProcessor):
+        def process_trace(self, trace):
+            return None
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, user_processors=[DropProc()])
+    aggr.writer = DummyWriter()
+
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
+    assert aggr.writer.pop() == []
+
+
+def test_aggregator_records_tp_drop_for_partial_processor_drop():
+    """A trace processor dropping a subset of spans accumulates only the dropped count as tp_drop."""
+
+    class HalfDropProc(TraceProcessor):
+        def process_trace(self, trace):
+            return trace[:1]
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, user_processors=[HalfDropProc()])
+    aggr.writer = DummyWriter()
+
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    child = Span("child", on_finish=[aggr.on_span_finish])
+    child.trace_id = parent.trace_id
+    child.parent_id = parent.span_id
+    aggr.on_span_start(child)
+    child.finish()
+    parent.finish()
+
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
+
+
+def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
+    """When no spans are dropped by processors, spans_dropped is not accumulated."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 0
+    assert aggr.writer.pop() == [span]
 
 
 def test_aggregator_reset_default_args():
@@ -424,6 +478,26 @@ def test_trace_top_level_span_processor_different_service_name(tracer):
     assert child.get_metric("_dd.top_level") == 1
 
 
+def test_apm_opt_out_tags_all_spans(tracer):
+    """When APM tracing is disabled (apm_opt_out), _dd.apm.enabled:0 must be set on
+    every span, not only on the local root span. This ensures child/inferred services
+    (e.g. sibling service entry spans created for HTTP client calls) are also tagged so
+    the backend meters all services in the trace as alive.
+    """
+    processor = TraceSamplingProcessor(False, [], True)
+    switch_out_trace_sampling_processor(tracer, processor)
+
+    with tracer.trace("root", service="svc") as root:
+        with tracer.trace("same_service_child", service="svc") as same_service_child:
+            pass
+        with tracer.trace("other_service_child", service="other_svc") as other_service_child:
+            pass
+
+    assert root.get_metric("_dd.apm.enabled") == 0
+    assert same_service_child.get_metric("_dd.apm.enabled") == 0
+    assert other_service_child.get_metric("_dd.apm.enabled") == 0
+
+
 def test_trace_top_level_span_processor_orphan_span(tracer):
     """Trace chuck does not contain parent span"""
 
@@ -473,6 +547,9 @@ def test_span_creation_metrics():
 
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
     from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    tracer._span_aggregator.writer = DummyWriter()
 
     with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
@@ -501,6 +578,48 @@ def test_span_creation_metrics():
                 mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
             ]
         )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_CIVISIBILITY_ENABLED": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true",
+    }
+)
+def test_span_dropped_metrics():
+    """Spans dropped by a trace processor are queued in batches of 100 and the remainder is sent on shutdown"""
+    import mock
+
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.trace import TraceFilter
+    from ddtrace.trace import tracer
+
+    class DropAllFilter(TraceFilter):
+        def process_trace(self, trace):
+            return None
+
+    tracer.configure(trace_processors=[DropAllFilter()])
+
+    def dropped_calls(mock_tm):
+        # spans_dropped calls are interleaved with spans_created/spans_finished, so filter them out.
+        return [c for c in mock_tm.call_args_list if len(c.args) >= 2 and c.args[1] == "spans_dropped"]
+
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+        for _ in range(250):
+            tracer.trace("span").finish()
+
+        # 250 dropped spans are flushed in batches of 100.
+        assert dropped_calls(mock_tm) == [
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
+        ]
+
+        mock_tm.reset_mock()
+        tracer.shutdown()
+        # The remaining 50 dropped spans are flushed on shutdown.
+        assert dropped_calls(mock_tm) == [
+            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 50, tags=(("reason", "trace_processor"),)),
+        ]
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler(tracer):
@@ -762,6 +881,15 @@ def test_trace_tag_processor_adds_chunk_root_tags(tracer):
     # test that parent span gets required chunk root span tags and child does not get language tag
     assert parent.get_tag("language") == "python"
     assert child.get_tag("language") is None
+
+
+def test_trace_tag_processor_no_language_tag_otel_semantics_enabled(tracer):
+    # When DD_TRACE_OTEL_SEMANTICS_ENABLED=true, TraceTagsProcessor must NOT set the "language" tag
+    with mock.patch.object(ddtrace.config, "_otel_trace_semantics_enabled", True):
+        with tracer.trace("parent") as parent:
+            pass
+
+    assert parent.get_tag("language") is None
 
 
 def test_register_unregister_span_processor(tracer):

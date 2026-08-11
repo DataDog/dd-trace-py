@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.contrib.internal.redis_utils import _build_tags
 from ddtrace.ext import net
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

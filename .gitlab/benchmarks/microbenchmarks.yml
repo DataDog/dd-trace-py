@@ -16,9 +16,8 @@ variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
-  GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
+  BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
 
 .benchmarks:
   stage: test
@@ -94,7 +93,7 @@ variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
 
 baseline:detect:
-  image: $GITHUB_CLI_IMAGE
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: build
   id_tokens:
@@ -132,6 +131,12 @@ baseline:build:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # and clamps the build container, causing OOMKills during parallel compilation.
+    DD_DISABLE_VPA: "true"
   script: |
     CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
     if [ ! -f "${CACHED_WHL}" ];
@@ -209,6 +214,8 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen

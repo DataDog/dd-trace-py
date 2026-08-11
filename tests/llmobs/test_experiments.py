@@ -18,6 +18,7 @@ import time
 from typing import Generator
 from typing import Optional
 from unittest.mock import MagicMock
+import urllib.parse
 from uuid import UUID
 
 
@@ -6313,3 +6314,300 @@ def test_experiment_user_supplied_git_tags_take_precedence():
         )
     assert exp._tags["git.commit.sha"] == "user-override"
     assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def _fake_response(body, status=200):
+    """Return a mock mimicking ddtrace.internal.utils.http.Response."""
+    resp = mock.MagicMock()
+    resp.status = status
+    resp.get_json.return_value = body
+    return resp
+
+
+def _experiment_list_page(experiment_ids, after=None, **attr_overrides):
+    """Build a JSON:API list-experiments response page as returned by the v2 experiments endpoint."""
+    data = []
+    for exp_id in experiment_ids:
+        attributes = {
+            "name": f"{exp_id}-run",
+            "experiment": "nightly-eval",
+            "project_id": "mock-project-id",
+            "dataset_id": "mock-dataset-id",
+            "dataset_version": 3,
+            "dataset_name": "mock-dataset-name",
+            "description": "a description",
+            "config": {"model": "gpt-4"},
+            "run_count": 1,
+            "metadata": {"tags": ["git.commit.sha:abc123", "experiment_name:nightly-eval"]},
+            "parent_experiment_id": "mock-parent-id",
+            # Mirrors the shape returned by the live v2 experiments endpoint.
+            "aggregate_data": {
+                "evaluations": {"custom": None, "summary": None},
+                "total_spans": 4,
+                "total_errors": 0,
+                "total_tokens": 654,
+                "total_duration_ns": 500000000,
+                "total_input_tokens": 621,
+                "total_output_tokens": 33,
+                "estimated_total_cost": 44250,
+            },
+            "status": "completed",
+            "error": None,
+            "created_at": "2026-07-01T00:00:00Z",
+            "updated_at": "2026-07-01T00:05:00Z",
+        }
+        attributes.update(attr_overrides)
+        data.append({"id": exp_id, "type": "experiments", "attributes": attributes})
+    return {"data": data, "meta": {"after": after or ""}}
+
+
+class TestExperimentList:
+    def test_experiment_list_maps_response_fields(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request", return_value=_fake_response(_experiment_list_page(["exp-1"]))):
+            summaries = client.experiment_list()
+
+        assert len(summaries) == 1
+        summary = summaries[0]
+        assert summary["id"] == "exp-1"
+        assert summary["name"] == "exp-1-run"
+        assert summary["experiment"] == "nightly-eval"
+        assert summary["project_id"] == "mock-project-id"
+        assert summary["dataset_id"] == "mock-dataset-id"
+        assert summary["dataset_version"] == 3
+        assert summary["description"] == "a description"
+        assert summary["config"] == {"model": "gpt-4"}
+        assert summary["run_count"] == 1
+        assert summary["tags"] == ["git.commit.sha:abc123", "experiment_name:nightly-eval"]
+        assert summary["parent_experiment_id"] == "mock-parent-id"
+        assert summary["aggregate_data"]["total_tokens"] == 654
+        assert summary["aggregate_data"]["estimated_total_cost"] == 44250
+        assert summary["aggregate_data"]["evaluations"] == {"custom": None, "summary": None}
+        assert summary["status"] == "completed"
+        assert summary["error"] is None
+        assert summary["created_at"] == "2026-07-01T00:00:00Z"
+        assert summary["updated_at"] == "2026-07-01T00:05:00Z"
+        # dataset_name is only populated when include[dataset_names]=true is requested, which this
+        # client does not do, so it is deliberately not surfaced. dataset_name is available as a tag.
+        assert "dataset_name" not in summary
+
+    def test_experiment_list_serializes_filters(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(
+            client, "request", return_value=_fake_response(_experiment_list_page([]))
+        ) as mock_request:
+            client.experiment_list(
+                experiment_name="nightly-eval",
+                metadata_filter={"tags": ["git.commit.sha:abc123"]},
+                parent_experiment_ids=["parent-1", "parent-2"],
+                project_id="proj-1",
+                dataset_id="ds-1",
+                is_deleted=True,
+                page_limit=250,
+            )
+
+        method, path = mock_request.call_args[0]
+        assert method == "GET"
+        assert path.startswith("/api/v2/llm-obs/v1/experiments?")
+        query = urllib.parse.parse_qs(path.split("?", 1)[1])
+        assert query["page[limit]"] == ["250"]
+        assert query["filter[experiment]"] == ["nightly-eval"]
+        assert query["filter[metadata]"] == ['{"tags":["git.commit.sha:abc123"]}']
+        assert query["filter[parent_experiment_id]"] == ["parent-1", "parent-2"]
+        assert query["filter[project_id]"] == ["proj-1"]
+        assert query["filter[dataset_id]"] == ["ds-1"]
+        assert query["filter[is_deleted]"] == ["true"]
+        assert "page[cursor]" not in query
+
+    def test_experiment_list_omits_unset_filters(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(
+            client, "request", return_value=_fake_response(_experiment_list_page([]))
+        ) as mock_request:
+            client.experiment_list()
+
+        query = urllib.parse.parse_qs(mock_request.call_args[0][1].split("?", 1)[1])
+        assert query == {"page[limit]": ["100"]}
+
+    @pytest.mark.parametrize("page_limit,expected", [(0, "1"), (-5, "1"), (10_000, "5000"), (1, "1")])
+    def test_experiment_list_clamps_page_limit(self, llmobs, page_limit, expected):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(
+            client, "request", return_value=_fake_response(_experiment_list_page([]))
+        ) as mock_request:
+            client.experiment_list(page_limit=page_limit)
+
+        query = urllib.parse.parse_qs(mock_request.call_args[0][1].split("?", 1)[1])
+        assert query["page[limit]"] == [expected]
+
+    def test_experiment_list_follows_meta_after_cursor(self, llmobs):
+        """The v2 experiments endpoint returns the next-page cursor at meta.after (not meta.page.after)."""
+        client = llmobs._instance._dne_client
+        pages = [
+            _fake_response(_experiment_list_page(["exp-1", "exp-2"], after="cursor-1")),
+            _fake_response(_experiment_list_page(["exp-3"], after="cursor-2")),
+            _fake_response(_experiment_list_page(["exp-4"])),
+        ]
+        with mock.patch.object(client, "request", side_effect=pages) as mock_request:
+            summaries = client.experiment_list(page_limit=2)
+
+        assert [s["id"] for s in summaries] == ["exp-1", "exp-2", "exp-3", "exp-4"]
+        assert mock_request.call_count == 3
+        cursors = [
+            urllib.parse.parse_qs(call[0][1].split("?", 1)[1]).get("page[cursor]")
+            for call in mock_request.call_args_list
+        ]
+        assert cursors == [None, ["cursor-1"], ["cursor-2"]]
+
+    def test_experiment_list_stops_at_max_results(self, llmobs):
+        """max_results must stop pagination, not just truncate after walking every page."""
+        client = llmobs._instance._dne_client
+        pages = [
+            _fake_response(_experiment_list_page(["exp-1", "exp-2", "exp-3"], after="cursor-1")),
+            _fake_response(_experiment_list_page(["exp-4", "exp-5", "exp-6"], after="cursor-2")),
+        ]
+        with mock.patch.object(client, "request", side_effect=pages) as mock_request:
+            summaries = client.experiment_list(page_limit=3, max_results=4)
+
+        assert [s["id"] for s in summaries] == ["exp-1", "exp-2", "exp-3", "exp-4"]
+        assert mock_request.call_count == 2
+
+    def test_experiment_list_max_results_within_first_page(self, llmobs):
+        client = llmobs._instance._dne_client
+        page = _fake_response(_experiment_list_page(["exp-1", "exp-2", "exp-3"], after="cursor-1"))
+        with mock.patch.object(client, "request", return_value=page) as mock_request:
+            summaries = client.experiment_list(max_results=2)
+
+        assert [s["id"] for s in summaries] == ["exp-1", "exp-2"]
+        assert mock_request.call_count == 1
+
+    @pytest.mark.parametrize("max_results", [0, -1])
+    def test_experiment_list_rejects_non_positive_max_results(self, llmobs, max_results):
+        """max_results=0 must not quietly return one row, and must not issue a request."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            with pytest.raises(ValueError, match="max_results must be at least 1"):
+                client.experiment_list(max_results=max_results)
+
+        mock_request.assert_not_called()
+
+    def test_experiment_list_without_max_results_walks_all_pages(self, llmobs):
+        client = llmobs._instance._dne_client
+        pages = [
+            _fake_response(_experiment_list_page(["exp-1"], after="cursor-1")),
+            _fake_response(_experiment_list_page(["exp-2"], after="cursor-2")),
+            _fake_response(_experiment_list_page(["exp-3"])),
+        ]
+        with mock.patch.object(client, "request", side_effect=pages) as mock_request:
+            summaries = client.experiment_list()
+
+        assert len(summaries) == 3
+        assert mock_request.call_count == 3
+
+    def test_experiment_list_stops_on_empty_page(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(
+            client, "request", return_value=_fake_response({"data": [], "meta": {}})
+        ) as mock_request:
+            assert client.experiment_list() == []
+        assert mock_request.call_count == 1
+
+    def test_experiment_list_handles_missing_body(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request", return_value=_fake_response(None)):
+            assert client.experiment_list() == []
+
+    def test_experiment_list_raises_on_error_status(self, llmobs):
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request", return_value=_fake_response({"errors": ["nope"]}, status=403)):
+            with pytest.raises(ValueError, match="Failed to list experiments: 403"):
+                client.experiment_list()
+
+
+class TestListExperiments:
+    def test_list_experiments_resolves_project_and_forwards_args(self, llmobs):
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(
+                client, "project_create_or_get", return_value={"name": "my-project", "_id": "resolved-project-id"}
+            ) as mock_project,
+            mock.patch.object(client, "experiment_list", return_value=[]) as mock_list,
+        ):
+            llmobs.list_experiments(
+                experiment_name="nightly-eval",
+                metadata_filter={"tags": ["git.commit.sha:abc123"]},
+                parent_experiment_ids=["parent-1"],
+                project_name="my-project",
+                page_limit=500,
+            )
+
+        mock_project.assert_called_once_with("my-project")
+        mock_list.assert_called_once_with(
+            experiment_name="nightly-eval",
+            metadata_filter={"tags": ["git.commit.sha:abc123"]},
+            parent_experiment_ids=["parent-1"],
+            project_id="resolved-project-id",
+            page_limit=500,
+            max_results=None,
+        )
+
+    def test_list_experiments_forwards_max_results(self, llmobs):
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(client, "project_create_or_get", return_value={"name": "p", "_id": "p-id"}),
+            mock.patch.object(client, "experiment_list", return_value=[]) as mock_list,
+        ):
+            llmobs.list_experiments(max_results=20)
+
+        assert mock_list.call_args[1]["max_results"] == 20
+
+    def test_list_experiments_defaults_to_cached_project(self, llmobs):
+        """The default project is requested as None so the client can serve it from its cache."""
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(
+                client, "project_create_or_get", return_value={"name": "default", "_id": "default-project-id"}
+            ) as mock_project,
+            mock.patch.object(client, "experiment_list", return_value=[]) as mock_list,
+        ):
+            llmobs.list_experiments()
+
+        mock_project.assert_called_once_with(None)
+        assert mock_list.call_args[1]["project_id"] == "default-project-id"
+
+    def test_list_experiments_raises_on_project_resolution_failure(self, llmobs):
+        """Listing must not silently widen to every project in the org when project lookup fails."""
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(client, "project_create_or_get", side_effect=ValueError("boom")),
+            mock.patch.object(client, "experiment_list") as mock_list,
+        ):
+            with pytest.raises(ValueError, match="Failed to resolve project"):
+                llmobs.list_experiments()
+
+        mock_list.assert_not_called()
+
+    def test_list_experiments_raises_on_empty_project_id(self, llmobs):
+        client = llmobs._instance._dne_client
+        with (
+            mock.patch.object(client, "project_create_or_get", return_value={"name": "default", "_id": ""}),
+            mock.patch.object(client, "experiment_list") as mock_list,
+        ):
+            with pytest.raises(ValueError, match="Got no project ID"):
+                llmobs.list_experiments()
+
+        mock_list.assert_not_called()
+
+    def test_list_experiments_returns_summaries(self, llmobs):
+        client = llmobs._instance._dne_client
+        summaries = [{"id": "exp-1", "status": "completed", "aggregate_data": {"correctness": {"avg": 0.9}}}]
+        with (
+            mock.patch.object(client, "project_create_or_get", return_value={"name": "p", "_id": "p-id"}),
+            mock.patch.object(client, "experiment_list", return_value=summaries),
+        ):
+            assert llmobs.list_experiments() == summaries
+
+    def test_list_experiments_requires_llmobs_enabled(self, monkeypatch, llmobs):
+        monkeypatch.setattr(llmobs, "enabled", False)
+        with pytest.raises(ValueError, match="LLMObs is not enabled"):
+            llmobs.list_experiments()

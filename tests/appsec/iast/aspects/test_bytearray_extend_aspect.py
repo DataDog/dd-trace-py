@@ -41,6 +41,25 @@ class TestByteArrayExtendAspect(object):
         with pytest.raises(TypeError):
             _extend_aspect(ba1, b2)
 
+    def test_extend_releases_method_result(self):
+        from ddtrace.appsec._iast._taint_tracking.aspects import _extend_aspect
+
+        released = []
+
+        class Result:
+            def __del__(self):
+                released.append(True)
+
+        class ReturningBytearray(bytearray):
+            def extend(self, value):
+                super().extend(value)
+                return Result()
+
+        value = ReturningBytearray(b"123")
+        assert _extend_aspect(value, b"456") is None
+        assert value == b"123456"
+        assert released == [True]
+
     def test_extend_first_tainted(self):
         ba1 = taint_pyobject(
             pyobject=bytearray(b"123"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER

@@ -1,5 +1,6 @@
 AArch
 adk
+agentic
 agentless
 aiobotocore
 aiohttp
@@ -108,6 +109,7 @@ dramatiq
 Dramatiq
 dsn
 dunder
+eBPF
 echion
 eg
 elasticsearch
@@ -117,6 +119,7 @@ embeddings
 Enablement
 enqueue
 enqueuer
+enqueuing
 entrypoint
 entrypoints
 env
@@ -174,6 +177,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
@@ -223,6 +227,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarded
 onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
@@ -279,6 +284,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+Realtime
 reentrant
 redis
 rediscluster

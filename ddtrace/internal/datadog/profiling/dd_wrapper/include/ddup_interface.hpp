@@ -79,7 +79,7 @@ extern "C"
                               int64_t thread_id,
                               int64_t thread_native_id,
                               std::string_view thread_name);
-    void ddup_push_task_id(Datadog::Sample* sample, int64_t task_id);
+    void ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id);
     void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
     void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
@@ -94,7 +94,6 @@ extern "C"
                          uint64_t address,
                          int64_t line);
     void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
-    void ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 

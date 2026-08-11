@@ -11,7 +11,7 @@ import sys
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_constants_module_toplevel_import_tracked():
     """
     Test that constant-only modules imported at top-level are tracked in import-time coverage.
@@ -43,11 +43,11 @@ def test_constants_module_toplevel_import_tracked():
     # Get coverage with and without imports
     covered = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),
     )
     covered_with_imports = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),
     )
 
     # Verify runtime coverage (without imports)
@@ -71,7 +71,7 @@ def test_constants_module_toplevel_import_tracked():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_constants_module_dynamic_import_tracked():
     """
     Test that constant-only modules imported dynamically are tracked in import-time coverage.
@@ -103,11 +103,11 @@ def test_constants_module_dynamic_import_tracked():
     # Get coverage with and without imports
     covered = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),
     )
     covered_with_imports = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),
     )
 
     # Verify runtime coverage (without imports)
@@ -129,7 +129,7 @@ def test_constants_module_dynamic_import_tracked():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_constants_module_reinstrumentation():
     """
     Test that constant-only modules are properly re-instrumented between coverage collections.
@@ -158,11 +158,11 @@ def test_constants_module_reinstrumentation():
 
     first_covered_with_imports = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),
     )
 
     # Clear coverage to simulate new test
-    ModuleCodeCollector._instance.covered.clear()  # type: ignore[union-attr]
+    ModuleCodeCollector._instance.covered.clear()
 
     # Second coverage collection
     ModuleCodeCollector.start_coverage()
@@ -171,7 +171,7 @@ def test_constants_module_reinstrumentation():
 
     second_covered_with_imports = _get_relpath_dict(
         cwd_path,
-        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),
     )
 
     # CRITICAL: Both collections should track the constants module

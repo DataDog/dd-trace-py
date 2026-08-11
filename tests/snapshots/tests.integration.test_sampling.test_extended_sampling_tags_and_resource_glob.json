@@ -12,6 +12,7 @@
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
       "_dd.p.tid": "69f39dfc00000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjoqsoq2p,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
       "runtime-id": "b9868696b2dd4d3f8fc5d5921eccf8b2",
@@ -40,6 +41,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39dfc00000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjoqsoq2p,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
       "runtime-id": "b9868696b2dd4d3f8fc5d5921eccf8b2",
@@ -67,6 +69,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39dfc00000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjoqsoq2p,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
@@ -94,6 +97,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39dfc00000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjoqsoq2p,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",

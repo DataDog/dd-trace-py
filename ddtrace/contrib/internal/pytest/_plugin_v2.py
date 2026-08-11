@@ -1,3 +1,6 @@
+# DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
+# Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
+# the new plugin at ddtrace/testing/internal/pytest/.
 from pathlib import Path
 import typing as t
 
@@ -40,6 +43,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import is_enabled
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
 from ddtrace.contrib.internal.pytest._xdist import XdistHooks
@@ -76,6 +80,7 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.vendor.debtcollector import _utils as deprecation_utils
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -437,8 +442,24 @@ def pytest_configure(config: pytest_Config) -> None:
         skipped_suites = set()
         skip_pytest_runtest_protocol = False
 
+    # Use pytest's config-time warning API so the deprecation is displayed in pytest output even when the
+    # default Python filters hide library DeprecationWarning subclasses.
+    config.issue_config_time_warning(
+        DDTraceDeprecationWarning(
+            deprecation_utils.generate_message(
+                "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated",
+                message=(
+                    "The legacy pytest plugin (ddtrace/contrib/internal/pytest) is deprecated and will be removed "
+                    "in dd-trace-py 5.0.0. Remove the DD_PYTEST_USE_NEW_PLUGIN environment variable to use the "
+                    "new default plugin."
+                ),
+                removal_version="5.0.0",
+            )
+        ),
+        stacklevel=2,
+    )
+
     if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
-        # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
             message="the new pytest plugin is now the default version. No additional configurations are required.",
@@ -447,8 +468,6 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
-        from ddtrace.contrib.internal.pytest.plugin import is_enabled
-
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)

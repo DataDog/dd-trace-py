@@ -148,7 +148,7 @@ def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
                     log.debug("Could not load coverage data file: %s", load_error)
 
             try:
-                pct_covered = pytest_cov_instance.lcov_report(outfile=str(tmp_path))
+                pct_covered = pytest_cov_instance.lcov_report(outfile=str(tmp_path), ignore_errors=True)
                 log.debug("Generated LCOV report directly from pytest-cov instance")
                 return pct_covered
             except Exception as direct_error:
@@ -156,7 +156,7 @@ def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
                 # Fall back to ddtrace method
 
     # Use ddtrace method
-    return generate_lcov_report(outfile=str(tmp_path))
+    return generate_lcov_report(outfile=str(tmp_path), ignore_errors=True)
 
 
 def _validate_and_read_report(tmp_path):
@@ -206,6 +206,7 @@ def handle_coverage_report(
         is_pytest_cov_enabled_func: Function to check if pytest-cov is enabled
         stop_coverage_func: Optional function to stop coverage collection
     """
+    coverage_stopped = False
     try:
         log.debug("Coverage report upload is enabled, checking for coverage data")
 
@@ -221,9 +222,13 @@ def handle_coverage_report(
 
         log.debug("Coverage is running, attempting to generate coverage report")
 
-        # Save pytest-cov data if using pytest-cov
+        # Save pytest-cov data if using pytest-cov. When ddtrace owns the collector,
+        # stop it before reporting so coverage.py can flush a stable data set.
         if is_pytest_cov_enabled_func(config):
             _save_pytest_cov_data(config)
+        else:
+            _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_func)
+            coverage_stopped = True
 
         # Generate and upload report
         coverage_format = "lcov"
@@ -264,13 +269,11 @@ def handle_coverage_report(
         finally:
             # Always clean up temp file
             _cleanup_temp_file(tmp_path)
-            # Stop coverage after upload (if we started it)
-            _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_func)
 
     except Exception as e:
         log.debug("Error in coverage report upload handling: %s", e)
         # Still try to stop coverage even if report generation failed
-        if stop_coverage_func and not is_pytest_cov_enabled_func(config):
+        if not coverage_stopped and stop_coverage_func and not is_pytest_cov_enabled_func(config):
             try:
                 stop_coverage_func(save=True)
             except Exception:

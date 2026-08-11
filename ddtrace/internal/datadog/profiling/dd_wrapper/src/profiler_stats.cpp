@@ -12,6 +12,19 @@ append_to_string(std::string& s, size_t value)
     s.append(buf, ptr);
 }
 
+void
+append_optional_bool(std::string& s, const char* key, const std::optional<bool>& value)
+{
+    if (!value.has_value()) {
+        return;
+    }
+    s += '"';
+    s += key;
+    s += "\": ";
+    s += *value ? "true" : "false";
+    s += ',';
+}
+
 } // namespace
 
 void
@@ -51,7 +64,7 @@ Datadog::ProfilerStats::reset_state()
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
-    // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
+    // fast_copy_memory_* static fields are intentionally not reset (see setters).
 }
 
 void
@@ -64,6 +77,59 @@ std::optional<bool>
 Datadog::ProfilerStats::get_fast_copy_memory_enabled() const
 {
     return fast_copy_memory_enabled;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_user_disabled(bool disabled)
+{
+    fast_copy_memory_user_disabled = disabled;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_user_disabled() const
+{
+    return fast_copy_memory_user_disabled;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_capable(bool capable)
+{
+    fast_copy_memory_capable = capable;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_capable() const
+{
+    return fast_copy_memory_capable;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_syscall_fallback(bool fallback)
+{
+    fast_copy_memory_syscall_fallback = fallback;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_syscall_fallback() const
+{
+    return fast_copy_memory_syscall_fallback;
+}
+
+void
+Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
+{
+    if (auto value = other.get_fast_copy_memory_user_disabled()) {
+        set_fast_copy_memory_user_disabled(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_capable()) {
+        set_fast_copy_memory_capable(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_syscall_fallback()) {
+        set_fast_copy_memory_syscall_fallback(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_enabled()) {
+        set_fast_copy_memory_enabled(*value);
+    }
 }
 
 void
@@ -129,7 +195,11 @@ Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
 void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
-    asyncio_task_count = count;
+    // Track the peak (max) asyncio task count observed across sampling cycles
+    // within a profile period
+    if (!asyncio_task_count.has_value() || count > *asyncio_task_count) {
+        asyncio_task_count = count;
+    }
 }
 
 std::optional<size_t>
@@ -198,6 +268,11 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += *maybe_fast_copy_enabled ? "true" : "false";
         internal_metadata_json += ",";
     }
+
+    append_optional_bool(internal_metadata_json, "fast_copy_memory_user_disabled", fast_copy_memory_user_disabled);
+    append_optional_bool(internal_metadata_json, "fast_copy_memory_capable", fast_copy_memory_capable);
+    append_optional_bool(
+      internal_metadata_json, "fast_copy_memory_syscall_fallback", fast_copy_memory_syscall_fallback);
 
     auto maybe_heap_tracker_count = get_heap_tracker_size();
     if (maybe_heap_tracker_count) {

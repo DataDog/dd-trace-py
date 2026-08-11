@@ -97,6 +97,25 @@ def test_copy():
     assert p.tags == c.tags
 
 
+def test_profiler_does_not_mutate_custom_tags():
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self):
+            self.tags["generated"] = "value"
+
+    tags = {"team": "profiling"}
+    p = TestProfiler(
+        tags=tags,
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+
+    assert tags == {"team": "profiling"}
+    assert p.tags == {"team": "profiling", "generated": "value"}
+
+
 def test_failed_start_collector(caplog, monkeypatch):
     class ErrCollect(collector.Collector):
         def _start_service(self):
