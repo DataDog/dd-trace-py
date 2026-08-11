@@ -264,7 +264,7 @@ Traces
 
    DD_TRACE_OTEL_CTX_ENABLED:
      type: Boolean
-     default: False
+     default: True
 
      description: |
          Enables publication of OpenTelemetry thread context records for external readers such as the OpenTelemetry eBPF Profiler.
