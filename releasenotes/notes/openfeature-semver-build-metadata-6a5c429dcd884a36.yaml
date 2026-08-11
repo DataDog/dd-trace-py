@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openfeature: Fixes an issue where semantic version targeting incorrectly treats build metadata
+    as part of version precedence.
