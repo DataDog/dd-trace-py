@@ -21,7 +21,6 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf import DDWafContext
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
-from ddtrace.appsec._iast._iast_request_context_base import iast_disabled_taint_sources
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -299,7 +298,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # The address values gathered and serialized below only feed the WAF; suppress IAST taint source
         # generation so we don't create throwaway tainted objects (e.g. materializing lazy-tainted header /
         # query / body structures during serialization and WAF encoding). Customer reads re-taint independently.
-        with iast_disabled_taint_sources():
+        with _asm_request_context.iast_disabled_taint_sources():
             for key, waf_name in iter_data:
                 if key in data_already_sent and not force_sent:
                     continue
