@@ -397,7 +397,7 @@ class _ProfilerInstance(service.Service):
             try:
                 col.start()
             except collector.CollectorUnavailable:
-                LOG.warning("Collector %r is unavailable, disabling", col)
+                LOG.debug("Collector %r is unavailable, disabling", col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
             else:

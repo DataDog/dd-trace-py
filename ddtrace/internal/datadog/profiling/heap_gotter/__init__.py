@@ -47,8 +47,10 @@ def _library_path() -> str:
 try:
     # Native heap profiling via the gotter is Linux-only; on every other
     # platform the underlying library is a no-op, so don't even try to load.
-    if os.name != "posix" or os.uname().sysname != "Linux":
-        raise OSError("Native heap gotter is only supported on Linux. Running on %s.", os.uname().sysname)
+    # Avoid os.uname() on non-posix (e.g. Windows has no uname).
+    sysname = os.uname().sysname if os.name == "posix" else os.name
+    if sysname != "Linux":
+        raise OSError(f"Native heap gotter is only supported on Linux. Running on {sysname}")
 
     _path: str = _library_path()
     if not os.path.exists(_path):

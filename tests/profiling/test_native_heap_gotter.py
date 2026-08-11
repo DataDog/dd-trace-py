@@ -100,27 +100,30 @@ def test_profiler_start_arms_native_heap_when_enabled() -> None:
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
 def test_profiler_start_skips_native_heap_when_disabled() -> None:
-    """With native heap disabled, the profiler must not touch the activator.
+    """With native heap disabled, the profiler must not import the activator.
 
-    This guards the zero-overhead promise of the disabled path: no install()
-    call (and therefore no dlopen of the gotter cdylib) when the feature is off.
+    This guards the zero-overhead promise of the disabled path: no import of
+    heap_gotter (and therefore no dlopen of the gotter cdylib) when the feature
+    is off. Assert via ``sys.modules`` so the test itself does not trigger the
+    import-time load.
     """
-    from unittest import mock
+    import sys
 
-    from ddtrace.internal.datadog.profiling import heap_gotter
     from ddtrace.internal.settings.profiling import config as profiling_config
 
     profiling_config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-    with mock.patch.object(heap_gotter, "install", return_value=True) as install:
-        from ddtrace.profiling.profiler import Profiler
+    module_name = "ddtrace.internal.datadog.profiling.heap_gotter"
+    assert module_name not in sys.modules
 
-        prof: Profiler = Profiler()
-        prof.start()
-        try:
-            assert not install.called, "profiler must not arm native heap profiling when disabled"
-        finally:
-            prof.stop(flush=False)
+    from ddtrace.profiling.profiler import Profiler
+
+    prof: Profiler = Profiler()
+    prof.start()
+    try:
+        assert module_name not in sys.modules, "profiler must not import heap_gotter when native heap is disabled"
+    finally:
+        prof.stop(flush=False)
 
 
 @pytest.mark.subprocess(
