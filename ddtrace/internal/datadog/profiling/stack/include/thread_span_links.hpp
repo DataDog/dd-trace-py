@@ -55,13 +55,13 @@ class ThreadSpanLinks
 
   private:
     using ThreadIdSet = std::unordered_set<uint64_t>;
-    using SpanToThreads = std::unordered_map<uint64_t, ThreadIdSet>;
+    using SpanToThreadMap = std::unordered_map<uint64_t, ThreadIdSet>;
 
     void remove_thread_locked(uint64_t thread_id);
 
     std::mutex mtx;
     std::unordered_map<uint64_t, std::unique_ptr<Span>> thread_id_to_span;
-    SpanToThreads span_to_threads;
+    SpanToThreadMap span_to_threads;
 
     // Private Constructor/Destructor
     ThreadSpanLinks() = default;

@@ -105,7 +105,7 @@ ThreadSpanLinks::postfork_child()
     // maps' heap allocations, but that memory belonged to the parent's address-space snapshot and cannot be freed
     // safely in the child.
     new (&instance.thread_id_to_span) std::unordered_map<uint64_t, std::unique_ptr<Span>>();
-    new (&instance.span_to_threads) SpanToThreads();
+    new (&instance.span_to_threads) SpanToThreadMap();
 }
 
 } // namespace Datadog
