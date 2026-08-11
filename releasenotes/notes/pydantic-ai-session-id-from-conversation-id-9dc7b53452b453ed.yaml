@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: The Pydantic AI integration now propagates the explicit
+    ``conversation_id`` passed to ``Agent.run``/``run_stream``/``iter`` as the LLMObs
+    ``session_id``.
