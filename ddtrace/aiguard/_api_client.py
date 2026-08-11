@@ -22,7 +22,7 @@ from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
+from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 

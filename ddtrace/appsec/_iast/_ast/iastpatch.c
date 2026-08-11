@@ -332,12 +332,14 @@ static char**
 get_list_from_env(const char* env_var_name, size_t* count)
 {
     const char* env_value = getenv(env_var_name);
-    static char** modules_list = NULL;
+    char** modules_list = NULL;
     size_t count_tmp = 0;
     if (env_value && env_value[0] != '\0') {
         char* env_copy = strdup(env_value);
-        if (!env_copy)
+        if (!env_copy) {
+            PyErr_NoMemory();
             return NULL;
+        }
         char* token = strtok(env_copy, ",");
         while (token) {
             count_tmp++;
@@ -354,7 +356,7 @@ get_list_from_env(const char* env_var_name, size_t* count)
             env_copy = strdup(env_value);
             if (!env_copy) {
                 free(modules_list);
-                modules_list = NULL;
+                PyErr_NoMemory();
                 return NULL;
             }
             count_tmp = 0;
@@ -366,8 +368,8 @@ get_list_from_env(const char* env_var_name, size_t* count)
                         free(modules_list[j]);
                     }
                     free(modules_list);
-                    modules_list = NULL;
                     free(env_copy);
+                    PyErr_NoMemory();
                     return NULL;
                 }
                 for (char* p = dup; *p; p++) {
@@ -555,22 +557,27 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 int
 build_list_from_env(const char* env_var_name)
 {
-    size_t count = 0;
-    char** result_list = get_list_from_env(env_var_name, &count);
-    if (result_list == NULL) {
-        return 0;
-    }
-
+    char*** destination;
+    size_t* destination_count;
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        user_allowlist = result_list;
-        user_allowlist_count = count;
+        destination = &user_allowlist;
+        destination_count = &user_allowlist_count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        user_denylist = result_list;
-        user_denylist_count = count;
+        destination = &user_denylist;
+        destination_count = &user_denylist_count;
     } else {
-        free_list(result_list, count);
         return -1;
     }
+
+    size_t count = 0;
+    char** result_list = get_list_from_env(env_var_name, &count);
+    if (result_list == NULL && PyErr_Occurred()) {
+        return -1;
+    }
+
+    free_list(*destination, *destination_count);
+    *destination = result_list;
+    *destination_count = count;
 
     return 0;
 }
@@ -583,10 +590,13 @@ py_build_list_from_env(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
     int result = build_list_from_env(env_var_name);
-    if (result >= 0) {
-        Py_RETURN_TRUE;
+    if (result < 0) {
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+        Py_RETURN_FALSE;
     }
-    Py_RETURN_FALSE;
+    Py_RETURN_TRUE;
 }
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */

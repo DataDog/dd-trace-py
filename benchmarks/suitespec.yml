@@ -144,7 +144,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/telemetry/constants.py
-      - ddtrace/internal/telemetry/metrics_namespaces.py*
+      - ddtrace/internal/telemetry/writer.py
       - benchmarks/telemetry_add_metric/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
