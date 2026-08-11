@@ -145,6 +145,7 @@ jobs:
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
+      scenarios: FEATURE_FLAGGING_AND_EXPERIMENTATION_AGENTLESS  # this scenario is not yet in tracer-release
       skip_empty_scenarios: ${{github.event_name == 'pull_request'}}
       push_to_test_optimization: true
 
