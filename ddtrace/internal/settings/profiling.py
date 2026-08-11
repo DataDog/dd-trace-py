@@ -545,15 +545,14 @@ class ProfilingConfigNativeHeap(DDConfig):
         default=False,
         help_type="Boolean",
         help=(
-            "Whether to arm native (C/C++) heap allocation profiling by installing GOT "
-            "overrides for allocation symbols so Datadog's ``ddheap`` USDT probe sites "
-            "fire on sampled allocations. Requires ``DD_PROFILING_ENABLED=true`` so the "
-            "profiler starts and calls the activator; samples are collected out-of-band "
-            "by the OpenTelemetry eBPF profiler or Datadog Host Profiler (nothing is "
-            "collected or uploaded by the tracer itself). Requires Linux and a wheel "
-            "built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Both allocations and the "
-            "frees that release them are sampled, so retained (live) heap is reported. "
-            "Disabled by default (experimental)."
+            "Whether to enable experimental, opt-in native (C/C++) heap profiling. "
+            "Requires ``DD_PROFILING_ENABLED=true`` so the profiler starts and arms "
+            "native allocation sampling. Samples are collected outside the application "
+            "process by the OpenTelemetry ``eBPF`` profiler or Datadog Host Profiler; "
+            "dd-trace-py itself neither collects nor uploads native heap data. Requires "
+            "Linux and a wheel built with ``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Both "
+            "allocations and the frees that release them are sampled, so retained "
+            "(live) heap is reported. Disabled by default (experimental)."
         ),
     )
 

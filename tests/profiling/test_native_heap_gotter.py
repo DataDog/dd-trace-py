@@ -46,7 +46,7 @@ def test_native_heap_gotter_smoke() -> None:
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
 def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
-    """Post-fork profiler restarts call install() again; that must be harmless."""
+    """A second profiler start (e.g. uWSGI worker) calls install() again; that must be harmless."""
     from unittest import mock
 
     from ddtrace.internal.datadog.profiling import heap_gotter
@@ -61,8 +61,11 @@ def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
         prof.start()
         try:
             assert install.call_count == 1
-            # Simulate uWSGI post-fork restart: _start_service() runs again.
-            prof._profiler._start_service()
+            # Stop + start again (same path as a fresh worker start after fork).
+            # Do not call _start_service() on a running instance — collectors are
+            # already RUNNING and would raise ServiceStatusError.
+            prof.stop(flush=False)
+            prof.start()
             assert install.call_count == 2
         finally:
             prof.stop(flush=False)
@@ -120,7 +123,11 @@ def test_profiler_start_skips_native_heap_when_disabled() -> None:
             prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    # install() failures are logged with exc_info=True, so stderr is expected.
+    err=lambda s: "Failed to arm native heap profiling" in s and "RuntimeError: boom" in s,
+)
 def test_profiler_start_survives_native_heap_install_error() -> None:
     """A failure while arming native heap profiling must not break the profiler.
 
