@@ -728,6 +728,13 @@ deploy_to_reliability_env:
   needs:
     - job: "upload all"
       artifacts: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
+    - when: manual
+      allow_failure: true
 
 # Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
 # stage-based ordering and waits for all prior stages before publishing.
