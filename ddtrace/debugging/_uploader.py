@@ -33,7 +33,7 @@ def build_debugger_sender() -> DebuggerSender:
     """Build a sender for the logs, snapshots and diagnostics tracks."""
     timeout_ms = int(di_config.upload_timeout * 1000)
 
-    if di_config._agentless:
+    if ddconfig._agentless_enabled:
         return DebuggerSender(
             get_native_runtime(),
             site=ddconfig._dd_site,

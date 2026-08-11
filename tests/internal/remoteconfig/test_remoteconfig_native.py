@@ -418,3 +418,57 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
         assert poller.enable() is True
 
     assert order == ["native", "before_fork", "start"], order
+
+
+def test_agentless_client_targets_the_backend_directly(monkeypatch):
+    # DD_AGENTLESS_ENABLED must hand the native client the credentials it needs to
+    # reach config.<site> itself, and the poller must skip the agent handshake
+    # there is no agent to make.
+    from ddtrace.internal.remoteconfig import client as client_mod
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(client_mod, "get_hostname", lambda: "a-host")
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", _fake_native)
+
+    with override_global_config(dict(_agentless_enabled=True, _dd_api_key="an-api-key", _dd_site="datad0g.com")):
+        poller = worker_mod.RemoteConfigPoller()
+        assert poller._client.agentless is True
+        assert poller._state == poller._online
+
+        poller._client.ensure_native()
+
+    assert captured["site"] == "datad0g.com"
+    assert captured["api_key"] == "an-api-key"
+    assert captured["hostname"] == "a-host"
+
+
+def test_agent_client_is_not_given_intake_credentials(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", _fake_native)
+
+    with override_global_config(dict(_agentless_enabled=False, _dd_api_key="an-api-key")):
+        poller = worker_mod.RemoteConfigPoller()
+        assert poller._client.agentless is False
+        assert poller._state == poller._agent_check
+
+        poller._client.ensure_native()
+
+    assert "site" not in captured
+    assert "api_key" not in captured
+    # Only the agentless fetcher carries a server-recommended interval.
+    assert poller._client.refresh_interval() is None

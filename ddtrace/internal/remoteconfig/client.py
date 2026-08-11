@@ -85,6 +85,7 @@ class RemoteConfigClient:
 
     def __init__(self) -> None:
         self.id = str(uuid.uuid4())
+        self.agentless = ddtrace.config._agentless_enabled
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture
@@ -104,6 +105,17 @@ class RemoteConfigClient:
             from ddtrace.internal.native_runtime import get_native_runtime
 
             tracer_version = _pep440_to_semver()
+            # In agentless mode the API key selects the direct-to-backend fetcher;
+            # site and hostname identify the intake and this client to it.
+            agentless_kwargs = (
+                {
+                    "site": ddtrace.config._dd_site,
+                    "api_key": ddtrace.config._dd_api_key,
+                    "hostname": get_hostname(),
+                }
+                if self.agentless
+                else {}
+            )
             self._native = _NativeClient(
                 get_native_runtime(),
                 agent_url=str(self.agent_url),
@@ -117,6 +129,7 @@ class RemoteConfigClient:
                 process_tags=_build_process_tags(),
                 timeout_ms=int(agent_config.trace_agent_timeout_seconds * 1000),
                 test_session_token=get_test_session_token(),
+                **agentless_kwargs,
             )
             if self._capability_values:
                 self._native.add_capabilities(self._capability_values)
@@ -124,6 +137,16 @@ class RemoteConfigClient:
 
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
+
+    def refresh_interval(self) -> Optional[float]:
+        """Seconds the backend wants us to wait before polling again.
+
+        Only agentless fetches carry a server-recommended interval; None means
+        "keep whatever interval the poller was configured with".
+        """
+        if self._native is None or not self.agentless:
+            return None
+        return self._native.get_refresh_interval()
 
     def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
         self._product_callbacks[product_name] = callback
