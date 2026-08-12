@@ -5,7 +5,6 @@ failure_msg = ""
 
 
 try:
-    import threading
     import typing
 
     from ddtrace._trace import context
@@ -17,28 +16,24 @@ try:
 
     is_available = True
 
-    # Thread-local storage for local-root span info read from Context._meta on activation.
-    # Child Spans created on the worker from a propagated Context use this value.
-    _propagated_root: threading.local = threading.local()
-
     def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]) -> None:
         if isinstance(span, ddspan.Span):
             span_id = span.span_id
-            # A Span whose _parent is None but parent_id is set was created with
-            # child_of=Context (cross-thread propagation). In that case _local_root
-            # is the span itself, which loses the distributed-trace root.
-            # Use the thread-local root stored during Context activation instead.
-            if span._parent is None and span.parent_id is not None:
-                local_root_span_id = getattr(_propagated_root, "span_id", None) or span._local_root.span_id
-                local_root_span_type = getattr(_propagated_root, "span_type", None) or span._local_root.span_type
+            # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
+            # the new span, so read the distributed local-root metadata directly from the parent Context. This works
+            # across both thread and greenlet context propagation without relying on physical-thread-local state.
+            if span._parent is None and span.parent_id is not None and span._parent_context is not None:
+                propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(
+                    span._parent_context
+                )
+                local_root_span_id = propagated_root_span_id or span._local_root.span_id
+                local_root_span_type = propagated_root_span_type or span._local_root.span_type
             else:
                 local_root_span_id = span._local_root.span_id
                 local_root_span_type = span._local_root.span_type
             _stack.link_span(span_id, local_root_span_id, local_root_span_type)
         elif isinstance(span, context.Context) and span.span_id is not None:
             local_root_span_id, span_type = context_meta.read_profiler_link(span)
-            _propagated_root.span_id = local_root_span_id
-            _propagated_root.span_type = span_type
             _stack.link_span(span.span_id, local_root_span_id, span_type)
 
     def link_origin_task(task_id: int, task_name: str) -> None:

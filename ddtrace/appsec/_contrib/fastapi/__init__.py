@@ -88,7 +88,6 @@ def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list
     if req_span is None:
         raise ValueError("request span not found")
     block_config = get_blocked() or Block_config()
-    ctype = None
     if block_config.type == "none":
         content = b""
         resp_headers = [
@@ -97,13 +96,10 @@ def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list
         ]
     else:
         content = http_utils._get_blocked_template(block_config.content_type, block_config.block_id).encode("UTF-8")
-        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
         resp_headers = [(b"content-type", block_config.content_type.encode())]
     status = block_config.status_code
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
         req_span._set_attribute(http.STATUS_CODE, str(status))
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware.integration_config, req_span, url, query_string)

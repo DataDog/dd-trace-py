@@ -3,11 +3,13 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod context_provider;
 mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
+mod debugger;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
@@ -22,6 +24,8 @@ mod rc_shm;
 mod remote_config;
 mod shared_runtime;
 mod span;
+mod symdb;
+mod telemetry;
 mod tracer_flare;
 
 use pyo3::prelude::*;
@@ -72,10 +76,14 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
+    telemetry::register_telemetry(m)?;
+    debugger::register_debugger(m)?;
+    symdb::register_symdb(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
     contextvar::register_contextvar(m)?;
+    context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;

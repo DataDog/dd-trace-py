@@ -29,6 +29,7 @@ class LLMObsTelemetryMetrics:
     DROPPED_EVAL_EVENTS = "dropped_eval_events"
     ANNOTATIONS = "annotations"
     EVALS_SUBMITTED = "evals_submitted"
+    FEEDBACK_SUBMITTED = "feedback_submitted"
     SPANS_EXPORTED = "spans_exported"
     USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
@@ -232,6 +233,19 @@ def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, e
     tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.EVALS_SUBMITTED, value=1, tags=tuple(tags)
+    )
+
+
+def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Optional[str]):
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json", "text") else "other"
+    _target_type = target_type if target_type in ("span_id", "trace_id", "session_id", "feedback_join_key") else "other"
+    tags = _base_tags(error)
+    tags.extend([("metric_type", _metric_type), ("target_type", _target_type)])
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.FEEDBACK_SUBMITTED,
+        value=1,
+        tags=tuple(tags),
     )
 
 

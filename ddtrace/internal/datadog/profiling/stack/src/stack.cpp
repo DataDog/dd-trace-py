@@ -171,6 +171,49 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
 PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
 
+static PyObject*
+stack_unlink_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &expected_span_id)) {
+        return nullptr;
+    }
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_clear_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+    if (!state) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
 // worker thread), matching how stack_link_span_impl resolves it.
@@ -958,6 +1001,11 @@ static PyMethodDef stack_methods[] = {
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "unlink_span",
+      stack_unlink_span,
+      METH_VARARGS,
+      "Clear the span linked to the current thread if its ID matches the expected span ID" },
+    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,

@@ -75,6 +75,28 @@ def test_inject(tracer):  # noqa: F811
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
 
+def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
+    """Injecting a deep child's context carries the trace-level _dd.p.* tags, origin,
+    and sampling priority (all shared trace state), with the child's OWN span_id as
+    the parent id — even though the child's context is materialized lazily.
+    """
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("root"):
+        with tracer.trace("child"):
+            with tracer.trace("grandchild") as grandchild:
+                headers = {}
+                HTTPPropagator.inject(grandchild.context, headers)
+
+                assert int(headers[HTTP_HEADER_PARENT_ID]) == grandchild.span_id
+                assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == 2
+                assert headers[HTTP_HEADER_ORIGIN] == "synthetics"
+                tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+                assert "_dd.p.test=value" in tags
+                assert "_dd.p.other=value" in tags
+
+
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
@@ -913,14 +935,15 @@ def test_extract_unicode(tracer):  # noqa: F811
     "x_datadog_tags, expected_trace_tags",
     [
         ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        (
-            "_dd.p.dm=-22",
-            {"_dd.propagation_error": "decoding_error"},
-        ),  # This test validates a value that does not exist in the SamplingMechanism enum
+        # Unenumerated but well-formed id: must still propagate. "-15" is the #19335 repro.
+        ("_dd.p.dm=-15", {"_dd.p.dm": "-15"}),
+        ("_dd.p.dm=-255", {"_dd.p.dm": "-255"}),
+        # Malformed syntax.
+        ("_dd.p.dm=-1a", {"_dd.propagation_error": "decoding_error"}),
+        # Out of the 0..255 range the mechanism is encoded in.
+        ("_dd.p.dm=-256", {"_dd.propagation_error": "decoding_error"}),
+        # Legacy service hash form, dropped from the spec and never emitted by dd-trace-py.
+        ("_dd.p.dm=934086a6-4", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):

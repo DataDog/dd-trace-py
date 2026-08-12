@@ -700,6 +700,47 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
+def test_wrapping_context_shared_code_object_closures():
+    """Closures sharing the same code object reuse a cached bytecode template
+    (see _UniversalWrappingContext._build_template), but each wrapped closure
+    must still be instrumented with its own, independent enter/return/exit
+    callables.
+    """
+
+    def make_closure(answer):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    closure1 = make_closure(1)
+    closure2 = make_closure(2)
+    assert closure1.__code__ is closure2.__code__
+
+    wc1 = DummyWrappingContext(closure1)
+    wc2 = DummyWrappingContext(closure2)
+    wc1.wrap()
+    wc2.wrap()
+
+    # Each closure gets its own _UniversalWrappingContext despite sharing the
+    # same cached bytecode template.
+    uwc1 = _UniversalWrappingContext.extract(closure1)
+    uwc2 = _UniversalWrappingContext.extract(closure2)
+    assert uwc1 is not uwc2
+
+    assert closure1(1, 2, 3) == (1, 2, 3, 1)
+    assert wc1.entered
+    assert wc1.return_value == (1, 2, 3, 1)
+    assert not wc2.entered
+    assert wc2.return_value is NOTSET
+
+    assert closure2(4, 5, 6) == (4, 5, 6, 2)
+    assert wc2.entered
+    assert wc2.return_value == (4, 5, 6, 2)
+    # wc1 state from the first call must be untouched by wrapping/calling closure2
+    assert wc1.return_value == (1, 2, 3, 1)
+
+
 def test_wrapping_context_deepcopy_with_lock():
     """Deepcopy of a route decorated with functools.wraps over a wrapped endpoint must not raise.
 
@@ -1344,6 +1385,210 @@ def test_wrapping_context_lazy_unwrap_before_call():
         assert not _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == 0
+
+
+def test_wrapping_context_lazy_no_memory_leak_uncalled():
+    """Ephemeral functions lazily wrapped but never invoked (trampoline installed,
+    permanent wrapping never triggered) must not leak the function or its context
+    once all external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, never-invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, never-invoked context(s) leaked"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_lazy_no_memory_leak_invoked():
+    """Ephemeral functions lazily wrapped and then invoked (promoted to universal
+    wrapping) must still be garbage-collected, along with their context, once all
+    external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    refs = []
+
+    def make_wrap_and_call():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_wrap_and_call())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_storage_vars_are_recycled():
+    """A ContextVar that has been set is retained by the running Context for the
+    lifetime of the thread. Wrapping ephemeral functions must therefore recycle
+    the storage variables of collected contexts, or the thread's context grows
+    without bound (two entries per wrapped function).
+    """
+    import contextvars
+    import gc
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    def make_wrap_and_call() -> contextvars.ContextVar:
+        def ephemeral() -> int:
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+
+        # Collect eagerly so that the number of storage variables in flight does
+        # not depend on when the garbage collector happens to run.
+        var = wc._storage
+        del wc, ephemeral
+        gc.collect()
+
+        return var
+
+    # The storage variable of a collected context is handed straight back out.
+    assert make_wrap_and_call() is make_wrap_and_call()
+
+    for _ in range(20):
+        make_wrap_and_call()
+    baseline = len(contextvars.copy_context())
+
+    for _ in range(n := 200):
+        make_wrap_and_call()
+
+    growth = len(contextvars.copy_context()) - baseline
+    assert growth == 0, f"{growth} context variables pinned by {n} ephemeral wrapped functions"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_recycled_storage_var_drops_stale_value():
+    """A context that is collected without exiting leaves its storage set, and the
+    finalizer cannot reset it because it runs in an unrelated Context. The next
+    owner of the recycled variable must drop the leftover value rather than chain
+    it into its own prev, which would restore it on every exit from then on.
+    """
+    import gc
+    import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    class Payload:
+        pass
+
+    def abandoned_function():
+        pass
+
+    def heir_function():
+        pass
+
+    abandoned = DummyLazyWrappingContext(abandoned_function)
+    abandoned.__enter__()
+    abandoned.set("payload", payload := Payload())
+    var = abandoned._storage
+
+    del abandoned
+    gc.collect()
+
+    # The variable went back to the pool with the stale storage still in it.
+    assert var.get() is not None, "expected the abandoned context to leave its storage set"
+
+    heir = DummyLazyWrappingContext(heir_function)
+    assert heir._storage is var, "expected the recycled variable to be handed back out"
+
+    heir.__enter__()
+    assert heir._storage.get()["__dd_wrapping_context_prev__"] is None, "stale storage chained into the new context"
+
+    heir._pop_storage()
+    assert heir._storage.get() is None, "storage variable not restored to its default"
+
+    # Overwriting the variable released the stale storage, so nothing keeps the
+    # payload it held alive.
+    payload_ref = wr.ref(payload)
+    del payload
+    gc.collect()
+    assert payload_ref() is None, "stale storage is still reachable"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_storage_var_pool_is_thread_safe():
+    """Storage variables are released from a finalizer, which can run on any thread,
+    including while another thread is acquiring one. No variable may be handed out
+    to two live contexts.
+    """
+    import threading
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    def f():
+        pass
+
+    live = set()
+    live_lock = threading.Lock()
+    errors = []
+
+    def churn():
+        try:
+            for _ in range(200):
+                contexts = [DummyLazyWrappingContext(f) for _ in range(8)]
+                acquired = {c._storage for c in contexts}
+                assert len(acquired) == len(contexts), "storage variable handed out twice on one thread"
+
+                with live_lock:
+                    assert not live & acquired, "storage variable handed out to two live contexts"
+                    live.update(acquired)
+
+                for context in contexts:
+                    context.__enter__()
+                for context in reversed(contexts):
+                    context._pop_storage()
+
+                # Stop advertising the variables before dropping the contexts, so
+                # that they are never reported as live once the finalizers have
+                # handed them back to the pool.
+                with live_lock:
+                    live.difference_update(acquired)
+                del contexts, acquired
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=churn) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, errors
 
 
 @pytest.mark.asyncio

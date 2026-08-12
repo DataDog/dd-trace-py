@@ -10,6 +10,10 @@ build_base_venvs:
     PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
+    # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
+    SCCACHE_BUCKET: 'dd-trace-py-builds'
+    SCCACHE_S3_KEY_PREFIX: 'sccache'
+    SCCACHE_REGION: 'us-east-1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
     # Pin resources and disable the VPA. This job compiles every native
     # extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12, set above) whenever
@@ -28,7 +32,7 @@ build_base_venvs:
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
     echo "NIGHTLY_BUILD: {nightly_build}"
-    if [[ {unpin_dependencies} == "true" ]]
+    if [[ "{unpin_dependencies}" == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
@@ -37,6 +41,7 @@ build_base_venvs:
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
     when: always
