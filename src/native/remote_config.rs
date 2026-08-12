@@ -16,7 +16,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
-use libdd_common::tag::Tag;
 use libdd_common::Endpoint;
 use libdd_remote_config::fetch::{
     ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
@@ -38,10 +37,12 @@ use crate::shared_runtime::SharedRuntimePy;
 
 #[pyclass(eq, hash, frozen, from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ConvertToPyO3Enum)]
+#[pyo3_enum(ident)]
 pub struct RemoteConfigProduct(pub RemoteConfigProductNative);
 
 #[pyclass(eq, hash, frozen, from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ConvertToPyO3Enum)]
+#[pyo3_enum(ident)]
 pub struct RemoteConfigCapabilities(pub RemoteConfigCapabilitiesNative);
 
 /// A single remote-config change as handed to Python.
@@ -92,8 +93,7 @@ fn tags_from(pairs: Option<Vec<(String, String)>>) -> Vec<String> {
     pairs
         .unwrap_or_default()
         .into_iter()
-        .filter_map(|(k, v)| Tag::new(k, v).ok())
-        .map(|tag| tag.to_string())
+        .map(|(k, v)| format!("{k}:{v}"))
         .collect()
 }
 
@@ -185,7 +185,7 @@ impl RemoteConfigClient {
             target,
             runtime_id,
             options,
-            NativeCapabilities::new_client(),
+            NativeCapabilities::new_without_connection_pooling(),
         )
         .with_client_id(client_id);
 

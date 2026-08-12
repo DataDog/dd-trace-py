@@ -183,7 +183,7 @@ class Block_config:
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
 
-    def get(self, key: str, default: Any = None) -> Union[str, int]:
+    def get(self, key: str, default: Optional[Union[str, int]] = None) -> Optional[Union[str, int]]:
         """
         Dictionary-like get method for backward compatibility with Lambda integration.
 
@@ -299,8 +299,14 @@ def _safe_userid(user_id: Any) -> Optional[Any]:
     return None
 
 
+class _UserExtraInfo(TypedDict, total=False):
+    login: Optional[str]
+    email: Optional[str]
+    name: Optional[str]
+
+
 class _UserInfoRetriever:
-    def __init__(self, user: Any) -> None:
+    def __init__(self, user: object) -> None:
         self.user = user
         self.possible_user_id_fields = ["pk", "id", "uid", "userid", "user_id", "PK", "ID", "UID", "USERID"]
         self.possible_login_fields = ["username", "user", "login", "USERNAME", "USER", "LOGIN"]
@@ -316,56 +322,63 @@ class _UserInfoRetriever:
             "FIRST_NAME",
         ]
 
-    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[str]:
+    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[object]:
         for field in possible_fields:
-            value = getattr(self.user, field, None)
+            value: object = getattr(self.user, field, None)
             if value is not None:
                 return value
 
         return None  # explicit to make clear it has a meaning
 
-    def get_userid(self) -> Any:
-        user_login = getattr(self.user, asm_config._user_model_login_field, None)
+    def get_userid(self) -> Optional[object]:
+        user_login: object = getattr(self.user, asm_config._user_model_login_field, None)
         if user_login is not None:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
         return user_login
 
-    def get_username(self) -> Any:
+    def get_username(self) -> Optional[str]:
         username = getattr(self.user, asm_config._user_model_name_field, None)
         if username is not None:
-            return username
+            return str(username)
 
         if hasattr(self.user, "get_username"):
             try:
-                return self.user.get_username()
+                username = self.user.get_username()
+                if username is not None:
+                    return str(username)
             except Exception:
                 log.debug("User model get_username member produced an exception: ", exc_info=True)
 
-        return self.find_in_user_model(self.possible_login_fields)
+        username = self.find_in_user_model(self.possible_login_fields)
+        return str(username) if username is not None else None
 
-    def get_user_email(self) -> Any:
+    def get_user_email(self) -> Optional[str]:
         email = getattr(self.user, asm_config._user_model_email_field, None)
         if email is not None:
-            return email
+            return str(email)
 
-        return self.find_in_user_model(self.possible_email_fields)
+        email = self.find_in_user_model(self.possible_email_fields)
+        return str(email) if email is not None else None
 
-    def get_name(self) -> Any:
+    def get_name(self) -> Optional[str]:
         name = getattr(self.user, asm_config._user_model_name_field, None)
         if name is not None:
-            return name
+            return str(name)
 
-        return self.find_in_user_model(self.possible_name_fields)
+        name = self.find_in_user_model(self.possible_name_fields)
+        return str(name) if name is not None else None
 
-    def get_user_info(self, login: bool = False, email: bool = False, name: bool = False) -> tuple[Any, dict[str, Any]]:
+    def get_user_info(
+        self, login: bool = False, email: bool = False, name: bool = False
+    ) -> tuple[Optional[object], _UserExtraInfo]:
         """
         In safe mode, try to get the user id from the user object.
         In extended mode, try to also get the username (which will be the returned user_id),
         email and name.
         """
-        user_extra_info = {}
+        user_extra_info: _UserExtraInfo = {}
 
         user_id = self.get_userid()
         if user_id is None:

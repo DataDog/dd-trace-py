@@ -518,9 +518,6 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
-        self._is_user_provided_service = self.service is not None
-        _service_state.set_is_user_provided_service(self._is_user_provided_service)
-
         self._inferred_base_service = detect_service(sys.argv)
 
         # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
@@ -535,6 +532,9 @@ class Config(object):
             default_span_service_name = self._inferred_base_service or None
         else:
             default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
+        self._is_user_provided_service = self.service is not None
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         if self.service is None and in_aws_lambda():
             self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)
@@ -736,6 +736,7 @@ class Config(object):
             )
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+        self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
         # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.

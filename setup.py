@@ -3,6 +3,7 @@ import contextlib
 from dataclasses import dataclass
 import hashlib
 from itertools import chain
+import json
 import os
 import platform
 import random
@@ -113,6 +114,13 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 NATIVE_CRATE = HERE / "src" / "native"
+# Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
+# crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
+# TODO: Integrate into the `src/native` workspace as a Cargo feature flag (e.g.
+# `[features] heap-gotter = [...]`) rather than maintaining a standalone crate and
+# separate build step. This would let the heap-gotter follow the same compile, link,
+# strip, and packaging path as the other profiling native artifacts.
+NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
@@ -124,11 +132,24 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
+# Opt-in build of the native heap-gotter cdylib.
+# Off by default so normal builds don't pay the extra cargo fetch/compile and
+# mainline wheels don't ship the artifact until it GA's.
+BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
+# Keep the staged cdylib unstripped when building with the upstream test-support
+# feature (hook-hit counter for e2e / integration tests).
+BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
+    "1",
+    "yes",
+    "on",
+    "true",
+)
+
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.0.0"
+LIBDDWAF_VERSION = "2.0.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -644,6 +665,8 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
         # Developer tooling
         ".plantuml",
         ".supp",
+        # ELF debug symbol sidecars (extracted by setup.py / extract_debug_symbols.py)
+        ".debug",
     ]
 )
 
@@ -844,6 +867,12 @@ class CustomBuildExt(build_ext):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
+        if BUILD_NATIVE_HEAP_GOTTER and CURRENT_OS == "Linux" and is_64_bit_python():
+            with _time_phase("build_heap_gotter"):
+                self.build_heap_gotter()
+        else:
+            self._clean_stale_heap_gotter()
+
         # Build all declared shared C++ dependencies before extension builds.
         with _time_phase("build_shared_deps"):
             self.build_shared_deps()
@@ -1006,6 +1035,114 @@ class CustomBuildExt(build_ext):
         else:
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
 
+    def build_heap_gotter(self) -> None:
+        """Build the native heap-gotter cdylib via cargo and stage it for packaging.
+
+        Produces ``libdd_heap_gotter<EXT_SUFFIX>.so`` under
+        ``ddtrace/internal/datadog/profiling/`` (mirroring the ``_native`` /
+        ``libdd_wrapper`` naming so the ctypes activator can resolve it with the
+        same EXT_SUFFIX logic). The wrapper crate has no Python linkage, so a
+        single ``target/`` dir is shared across interpreter versions.
+        """
+        suffix: str = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
+        gotter_name: str = f"libdd_heap_gotter{suffix}"
+
+        output_dir: Path
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        gotter_library: Path = output_dir / gotter_name
+
+        cargo_cmd: list[str] = [
+            "cargo",
+            "build",
+            "--release",
+            "--locked",
+            "--manifest-path",
+            str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
+            # Emit machine-readable artifact records so we can locate the built
+            # cdylib no matter where cargo actually wrote it. Diagnostics still
+            # render to stderr in human form.
+            "--message-format=json-render-diagnostics",
+        ]
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            cargo_cmd.extend(["--features", "test-support"])
+        cargo_cmd.extend(DD_CARGO_ARGS)
+        proc: subprocess.CompletedProcess[str] = subprocess.run(
+            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
+        )
+
+        # Locate the produced cdylib from cargo's own artifact output rather than
+        # assuming a fixed `target/release` path: cargo honors CARGO_TARGET_DIR
+        # (common in CI) and DD_CARGO_ARGS may pass --target-dir / --target,
+        # either of which moves the artifact out from under a hard-coded lookup.
+        # Each "compiler-artifact" message lists the absolute output paths in
+        # "filenames"; we take the crate's cdylib (.so/.dylib).
+        built: t.Optional[Path] = None
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            msg: dict[str, t.Any]
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if msg.get("reason") != "compiler-artifact":
+                continue
+            if (msg.get("target") or {}).get("name") != "dd_heap_gotter":
+                continue
+            for filename in msg.get("filenames") or []:
+                if filename.endswith((".so", ".dylib")):
+                    built = Path(filename)
+                    break
+        if built is None or not built.exists():
+            raise RuntimeError("Not able to find heap-gotter cdylib in cargo build output")
+
+        shutil.copy2(built, gotter_library)
+        print(f"Built and copied heap-gotter cdylib: {gotter_name}")
+
+        # Set SONAME so the loader records the staged name, matching build_rust.
+        if CURRENT_OS == "Linux":
+            subprocess.run(["patchelf", "--set-soname", gotter_name, gotter_library], check=True)
+        elif CURRENT_OS == "Darwin":
+            subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
+
+        if self._should_strip_heap_gotter():
+            debug_sidecar: t.Optional[Path] = self._extract_and_strip_staged_debug_symbols(gotter_library)
+            if debug_sidecar:
+                unstripped_size: int = built.stat().st_size
+                stripped_size: int = gotter_library.stat().st_size
+                print(
+                    f"Stripped heap-gotter cdylib for wheel packaging: "
+                    f"{unstripped_size} -> {stripped_size} bytes "
+                    f"(debug symbols: {debug_sidecar.name})"
+                )
+            else:
+                print(
+                    "WARNING: heap-gotter cdylib was not stripped (debug symbol extraction failed); "
+                    "wheel will ship the unstripped artifact",
+                    flush=True,
+                )
+
+    def _clean_stale_heap_gotter(self) -> None:
+        """Remove any previously staged heap-gotter artifacts so a default wheel
+        does not accidentally ship the opt-in cdylib.
+        """
+        candidates: list[Path] = [Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"]
+        if hasattr(self, "build_lib") and self.build_lib:
+            candidates.append(
+                Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+        for base in candidates:
+            if not base.is_dir():
+                continue
+            for stale in base.glob("libdd_heap_gotter*"):
+                stale.unlink()
+                print(f"Removed stale heap-gotter artifact: {stale}")
+
     def build_shared_deps(self) -> None:
         """Build all shared C++ dependencies declared in SHARED_DEPS.
 
@@ -1074,6 +1211,45 @@ class CustomBuildExt(build_ext):
                 print(
                     "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
                 )
+
+    @staticmethod
+    def _should_strip_heap_gotter() -> bool:
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            return False
+        if COMPILE_MODE.lower() == "debug":
+            return False
+        return CURRENT_OS == "Linux"
+
+    @staticmethod
+    def _extract_and_strip_staged_debug_symbols(so_file: Path) -> t.Optional[Path]:
+        """Extract debug symbols from a staged shared library and strip it in place.
+
+        Mirrors ``scripts/extract_debug_symbols.create_and_strip_debug_symbols`` so
+        shipping wheels match the linux/wheel CI path (_native and other .so files
+        are stripped post-build; heap-gotter is stripped at staging time because it
+        is built out-of-band from setuptools extensions).
+        """
+        objcopy: t.Optional[str] = shutil.which("objcopy")
+        strip_bin: t.Optional[str] = shutil.which("strip")
+        if not objcopy or not strip_bin:
+            print("WARNING: objcopy/strip not found, skipping heap-gotter symbol stripping", flush=True)
+            return None
+
+        so_path: str = str(so_file)
+        subprocess.run([objcopy, "--remove-section", ".llvmbc", so_path], check=False)
+        debug_out: str = f"{so_path}.debug"
+        try:
+            subprocess.run([objcopy, "--only-keep-debug", so_path, debug_out], check=True)
+            if not Path(debug_out).is_file() or Path(debug_out).stat().st_size == 0:
+                print(f"WARNING: failed to create heap-gotter debug sidecar for {so_file}", flush=True)
+                return None
+            subprocess.run([strip_bin, "-g", so_path], check=True)
+            subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_path], check=True)
+            return Path(debug_out)
+        except subprocess.CalledProcessError as e:
+            print(f"WARNING: failed to extract/strip heap-gotter debug symbols: {e}", flush=True)
+            Path(debug_out).unlink(missing_ok=True)
+            return None
 
     def build_extension(self, ext: Extension) -> None:
         if isinstance(ext, CMakeExtension):
@@ -1668,11 +1844,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
             ),
-            Extension(
-                "ddtrace.internal.telemetry.metrics_namespaces",
-                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                language="c",
-            ),
         ]
 
         if sys.version_info < (3, 15):
@@ -1750,7 +1921,9 @@ setup(
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"]
+            + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
+            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,

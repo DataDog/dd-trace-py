@@ -15,6 +15,12 @@
 using namespace Datadog;
 
 void
+StackRenderer::SampleDropper::operator()(Sample* _sample) const noexcept
+{
+    SampleManager::drop_sample(_sample);
+}
+
+void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    std::string_view name,
                                    int64_t wall_time_us,
@@ -26,7 +32,11 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
-    sample = SampleManager::start_sample();
+
+    // Return an incomplete Sample before asking the pool for its replacement.
+    sample.reset();
+    // Keep acquisition separate from the reset above so start_sample() can reuse the slot we just returned.
+    sample.reset(SampleManager::start_sample());
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
         failed = true;
@@ -79,7 +89,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
         // The very first task on a thread will already have a sample, since there's no way to deduce whether
         // a thread has tasks without checking, and checking before populating the sample would make the state
         // management very complicated.  The rest of the tasks will not have samples and will hit this code path.
-        sample = SampleManager::start_sample();
+        sample.reset(SampleManager::start_sample());
         if (sample == nullptr) {
             std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
             failed = true;
@@ -260,20 +270,14 @@ StackRenderer::render_stack_end()
     }
 
     sample->flush_sample();
-    SampleManager::drop_sample(sample);
-    sample = nullptr;
+    sample.reset();
 }
 
 void
 StackRenderer::abort_sample()
 {
-    if (sample == nullptr) {
-        return;
-    }
-
     // Return the partially-built sample to the pool without flushing it.
-    SampleManager::drop_sample(sample);
-    sample = nullptr;
+    sample.reset();
 }
 
 Datadog::StackRenderer::StackRenderer()
@@ -294,5 +298,8 @@ Datadog::StackRenderer::postfork_child()
     new (&string_id_cache) std::unordered_map<StringTable::Key, string_id>();
     new (&function_id_cache)
       std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq>();
-    sample = nullptr;
+
+    // The vanished sampling thread may have been mutating this Sample when fork captured it. Clearing or returning the
+    // child copy could traverse inconsistent vectors, so intentionally abandon at most this one in-flight child copy.
+    [[maybe_unused]] Sample* abandoned_sample = sample.release();
 }

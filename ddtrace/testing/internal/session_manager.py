@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import time
@@ -21,6 +22,7 @@ from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.env_tags import get_env_tags
@@ -129,24 +131,39 @@ class SessionManager:
             self.env = self.connector_setup.default_env()
 
         self.api_client: TestOptDataProvider
+        # Set only when reads come from a manifest but coverage reports must still be uploaded over HTTP.
+        self.coverage_upload_client: t.Optional[TestOptDataProvider] = None
         if offline.manifest_enabled:
             if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
                 raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            log.debug(
+                "Test Optimization SessionManager using manifest data provider: pid=%s worker=%s dir=%s",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                offline.test_optimization_dir,
+            )
             self.api_client = CachedFileDataProvider(
                 test_optimization_dir=offline.test_optimization_dir,
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
             )
+            # AIDEV-NOTE: Reads come from the manifest, but coverage reports still go over HTTP. This is the intended
+            # design, not a workaround: the intake merges the coverage reports of a session, so every process that ran
+            # tests is expected to upload its own (see TestOptPlugin.pytest_sessionfinish).
+            # CachedFileDataProvider cannot upload — manifest mode used to imply Bazel's payload-files mode, where
+            # there is no network, and that is exactly the assumption an xdist worker reusing its controller's cache
+            # breaks. Payload-files mode keeps no client: there, coverage is written to files and there is nowhere to
+            # upload to.
+            if not offline.payload_files_enabled:
+                self.coverage_upload_client = self._build_api_client()
         else:
-            self.api_client = APIClient(
-                service=self.service,
-                env=self.env,
-                env_tags=self.env_tags,
-                itr_skipping_level=self.itr_skipping_level,
-                configurations=self.platform_tags,
-                connector_setup=self.connector_setup,
-                telemetry_api=self.telemetry_api,
+            log.debug(
+                "Test Optimization SessionManager using online API data provider: pid=%s worker=%s manifest_env=%r",
+                os.getpid(),
+                env.get("PYTEST_XDIST_WORKER"),
+                env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE),
             )
+            self.api_client = self._build_api_client()
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
 
@@ -207,6 +224,9 @@ class SessionManager:
         self.configuration_errors = dict(self.api_client.configuration_errors)
 
         self.api_client.close()
+        if self.coverage_upload_client is not None:
+            # Reconnects on demand, like api_client does for coverage uploads at session end.
+            self.coverage_upload_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
@@ -272,7 +292,7 @@ class SessionManager:
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
-            self.retry_handlers.append(AttemptToFixHandler(self))
+            self.retry_handlers.append(AttemptToFixHandler(self.settings))
 
         if self.settings.early_flake_detection.enabled:
             if self.known_tests:
@@ -289,17 +309,28 @@ class SessionManager:
                     log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
-                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
+                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self.settings))
             else:
                 log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
-            self.retry_handlers.append(AutoTestRetriesHandler(self))
+            self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
     def start(self) -> None:
         self.writer.start()
         self.coverage_writer.start()
         atexit.register(self.finish)
+
+    def _build_api_client(self) -> APIClient:
+        return APIClient(
+            service=self.service,
+            env=self.env,
+            env_tags=self.env_tags,
+            itr_skipping_level=self.itr_skipping_level,
+            configurations=self.platform_tags,
+            connector_setup=self.connector_setup,
+            telemetry_api=self.telemetry_api,
+        )
 
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
@@ -309,6 +340,8 @@ class SessionManager:
 
         This creates a temporary API client connection to upload the coverage report.
 
+        Under xdist every process that ran tests uploads its own partial report; the intake merges them per session.
+
         Args:
             coverage_report_bytes: The coverage report content (will be gzipped by the API client)
             coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
@@ -317,8 +350,9 @@ class SessionManager:
         Returns:
             True if upload succeeded, False otherwise
         """
+        client = self.coverage_upload_client or self.api_client
         try:
-            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            result = client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
             return result
 
         except Exception as e:
@@ -808,9 +842,10 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
-            log.debug("Test Impact Analysis is disabled by environment variable")
-            self.settings.itr_enabled = False
+        ITR_FORCE_ENABLE_COVERAGE = asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
+        if ITR_FORCE_ENABLE_COVERAGE:
+            log.debug("TIA code coverage collection is enabled by environment variable")
+            self.settings.coverage_enabled = True
 
         if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
@@ -832,22 +867,40 @@ class SessionManager:
         if _coverage_upload_env.lower() in ("false", "0"):
             log.debug("Coverage report upload is disabled by environment variable")
             self.settings.coverage_report_upload_enabled = False
+        elif asbool(_coverage_upload_env):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+        ITR_PREVENT_TEST_SKIPPING = asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false"))
+        if ITR_PREVENT_TEST_SKIPPING:
             log.debug("TIA test skipping is disabled by environment variable")
             self.settings.skipping_enabled = False
 
         # Other overrides.
         # These variables default to false, and if explicitly given a true value, enable a feature.
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
-            log.debug("TIA code coverage collection is enabled by environment variable")
-            self.settings.coverage_enabled = True
 
-        if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
-            log.debug("Code coverage report upload is enabled by environment variable")
-            self.settings.coverage_report_upload_enabled = True
+        # If ITR is explicitly enabled via env var but the backend did not return skipping_enabled (e.g. because the
+        # service has not yet built up enough test history), and we are not in coverage-only mode
+        # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE), force skipping on
+        # so that tests are actually skipped once the skippable list is populated.
+
+        _itr_enabled_env = env.get("DD_CIVISIBILITY_ITR_ENABLED")
+        if _itr_enabled_env is not None and not asbool(_itr_enabled_env):
+            log.debug("Test Impact Analysis is disabled by environment variable")
+            self.settings.itr_enabled = False
+        elif _itr_enabled_env is not None and self.service == "dd-trace-py":
+            log.warning("Test Impact Analysis is ENABLED by environment variable")
+            self.settings.itr_enabled = True
+
+            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE:
+                if not self.settings.skipping_enabled:
+                    log.warning(
+                        "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
+                        "forcing skipping_enabled=True"
+                    )
+                self.settings.skipping_enabled = True
 
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)
