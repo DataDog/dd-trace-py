@@ -41,7 +41,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 class _SFTracedCursor(TracedCursor):
-    # AIDEV-NOTE: This adapter keeps Snowflake's command keyword without changing TracedCursor's public API.
     def execute(self, command: str, *args: object, **kwargs: object) -> object:
         return super(_SFTracedCursor, self).execute(command, *args, **kwargs)
 
