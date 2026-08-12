@@ -2,6 +2,7 @@
 Generic dbapi tracing code.
 """
 
+import inspect
 from typing import Mapping
 from typing import Optional
 
@@ -32,6 +33,19 @@ from .internal.trace_utils import iswrapped
 log = get_logger(__name__)
 
 _SQL_KEYWORD_ARGUMENT_NAMES = ("query", "command", "sql", "operation", "statement")
+_CURSOR_EXECUTE_SIGNATURE = inspect.Signature(
+    parameters=(
+        inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        inspect.Parameter("query", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        inspect.Parameter("args", inspect.Parameter.VAR_POSITIONAL),
+        inspect.Parameter("kwargs", inspect.Parameter.VAR_KEYWORD),
+    )
+)
+
+
+def _preserve_cursor_execute_signature(method):
+    setattr(method, "__signature__", _CURSOR_EXECUTE_SIGNATURE)
+    return method
 
 
 config._add(
@@ -147,6 +161,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
 
+    @_preserve_cursor_execute_signature
     def executemany(self, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         query = self._get_sql_statement(args, kwargs)
@@ -165,6 +180,7 @@ class TracedCursor(wrapt.ObjectProxy):
             **kwargs,
         )
 
+    @_preserve_cursor_execute_signature
     def execute(self, *args, **kwargs):
         """Wraps the cursor.execute method"""
         query = self._get_sql_statement(args, kwargs)

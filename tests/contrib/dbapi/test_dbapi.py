@@ -1,3 +1,5 @@
+import inspect
+
 import mock
 import pytest
 
@@ -17,6 +19,12 @@ class TestTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
+
+    @pytest.mark.parametrize("method_name", ["execute", "executemany"])
+    def test_execute_signature(self, method_name):
+        method = getattr(TracedCursor, method_name)
+        assert str(inspect.signature(method)) == "(self, query, *args, **kwargs)"
+        assert str(inspect.signature(method.__get__(self.cursor))) == "(query, *args, **kwargs)"
 
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
