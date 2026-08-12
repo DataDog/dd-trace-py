@@ -136,7 +136,7 @@ class Sampler
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
-    void update_greenlet_switch(uintptr_t origin_id,
+    void record_greenlet_switch(uintptr_t origin_id,
                                 PyObject* origin_frame,
                                 uintptr_t target_id,
                                 PyObject* target_frame,

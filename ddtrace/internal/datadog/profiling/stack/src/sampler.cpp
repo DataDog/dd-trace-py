@@ -924,7 +924,7 @@ Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 }
 
 void
-Sampler::update_greenlet_switch(uintptr_t origin_id,
+Sampler::record_greenlet_switch(uintptr_t origin_id,
                                 PyObject* origin_frame,
                                 uintptr_t target_id,
                                 PyObject* target_frame,

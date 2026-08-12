@@ -604,7 +604,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
     // Phase 1: Snapshot greenlet data under the lock.
     // This minimises the time we hold greenlet_info_map_lock, which is also
-    // acquired by update_greenlet_switch() on every greenlet switch. Holding
+    // acquired by record_greenlet_switch() on every greenlet switch. Holding
     // the lock during the expensive unwind (Phase 2) would block ALL greenlet
     // switches and lead to resource exhaustion (e.g. DB connection pools).
     {

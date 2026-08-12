@@ -47,7 +47,7 @@ TEST(SamplingCycleState, GreenletSwitchPreservesLinkedParentFrame)
     }
     sampler.link_greenlets(parent_id, child_id);
 
-    sampler.update_greenlet_switch(child_id, &child_suspended_frame, parent_id, &parent_resumed_frame, false);
+    sampler.record_greenlet_switch(child_id, &child_suspended_frame, parent_id, &parent_resumed_frame, false);
     {
         std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
         EXPECT_EQ(echion.greenlet_parent_map().at(child_id), parent_id);
@@ -55,7 +55,7 @@ TEST(SamplingCycleState, GreenletSwitchPreservesLinkedParentFrame)
         EXPECT_EQ(echion.greenlet_info_map().at(parent_id)->frame, &parent_suspended_frame);
     }
 
-    sampler.update_greenlet_switch(child_id, &child_running_frame, parent_id, &parent_resumed_frame, true);
+    sampler.record_greenlet_switch(child_id, &child_running_frame, parent_id, &parent_resumed_frame, true);
     {
         std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
         EXPECT_EQ(echion.greenlet_info_map().at(child_id)->frame, &child_running_frame);
