@@ -61,6 +61,7 @@ class ThreadSpanLinks
 
   private:
     using ThreadIdSet = std::unordered_set<uint64_t>;
+    using ThreadIdToSpanMap = std::unordered_map<uint64_t, Span>;
     using SpanToThreadMap = std::unordered_map<uint64_t, ThreadIdSet>;
 
     struct PendingSpanLink
@@ -72,7 +73,7 @@ class ThreadSpanLinks
     void remove_thread_locked(uint64_t thread_id);
 
     std::mutex mtx;
-    std::unordered_map<uint64_t, Span> thread_id_to_span;
+    ThreadIdToSpanMap thread_id_to_span;
     SpanToThreadMap span_to_threads;
 
     // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
