@@ -6,6 +6,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
+from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
