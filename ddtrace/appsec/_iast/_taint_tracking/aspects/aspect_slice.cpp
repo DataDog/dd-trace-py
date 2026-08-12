@@ -65,18 +65,16 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         index_range_map.emplace_back(nullptr);
         index++;
     }
-    PyObject* slice = PySlice_New(
-      (start != nullptr) ? start : Py_None, (stop != nullptr) ? stop : Py_None, (step != nullptr) ? step : Py_None);
-    if (slice == nullptr) {
+    py::object slice = py::reinterpret_steal<py::object>(PySlice_New(
+      (start != nullptr) ? start : Py_None, (stop != nullptr) ? stop : Py_None, (step != nullptr) ? step : Py_None));
+    if (!slice) {
         return {};
     }
 
     Py_ssize_t norm_start, norm_stop, norm_step, slicelength;
-    if (PySlice_GetIndicesEx(slice, length_text, &norm_start, &norm_stop, &norm_step, &slicelength) < 0) {
-        Py_DECREF(slice);
+    if (PySlice_GetIndicesEx(slice.ptr(), length_text, &norm_start, &norm_stop, &norm_step, &slicelength) < 0) {
         return {};
     }
-    Py_DECREF(slice);
 
     TaintRangeRefs index_range_map_result;
     Py_ssize_t map_size = static_cast<Py_ssize_t>(index_range_map.size());
@@ -124,26 +122,23 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (nargs == 4)
         step = args[3];
 
-    PyObject* slice = PySlice_New(start, stop, step);
-    if (slice == nullptr) {
+    py::object slice = py::reinterpret_steal<py::object>(PySlice_New(start, stop, step));
+    if (!slice) {
         PyErr_Print();
         return nullptr;
     }
 
-    PyObject* result_o = PyObject_GetItem(candidate_text, slice);
+    PyObject* result_o = PyObject_GetItem(candidate_text, slice.ptr());
 
-    TRY_CATCH_ASPECT("slice_aspect", return result_o, Py_XDECREF(slice), {
+    TRY_CATCH_ASPECT("slice_aspect", return result_o, , {
         // If no result or the params are not None|Number or the result is the same as the candidate text, nothing
         // to taint
         if (result_o == nullptr or (!is_text(candidate_text)) or (start != Py_None and !PyLong_Check(start)) or
             (stop != Py_None and !PyLong_Check(stop)) or (step != Py_None and !PyLong_Check(step)) or
             (get_unique_id(result_o) == get_unique_id(candidate_text))) {
-            Py_XDECREF(slice);
             return result_o;
         }
 
-        auto res = slice_aspect(result_o, candidate_text, start, stop, step);
-        Py_XDECREF(slice);
-        return res;
+        return slice_aspect(result_o, candidate_text, start, stop, step);
     });
 }
