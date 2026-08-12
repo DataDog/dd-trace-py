@@ -8,16 +8,12 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 from copy import deepcopy
 import re
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.aiguard._types import Message
 import ddtrace.internal.logger as ddlogger
-
-
-if TYPE_CHECKING:
-    from ddtrace.aiguard._api_client import Message
 
 
 logger = ddlogger.get_logger(__name__)
@@ -139,7 +135,7 @@ def _collect_replacements(replacements: object) -> dict[str, object]:
     return by_path
 
 
-def redact_messages(messages: "list[Message]", replacements: object) -> "list[Message]":
+def redact_messages(messages: list[Message], replacements: object) -> list[Message]:
     """Apply the replacements to the messages and return the redacted list.
 
     Copy-on-write: the caller's messages are never mutated, and the very same list object is returned
