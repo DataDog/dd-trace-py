@@ -66,9 +66,17 @@ def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenle
     return gl
 
 
-def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
-    _tracked_greenlets.add(greenlet_id)
-    stack.update_greenlet_frame(greenlet_id, frame)
+def update_greenlet_switch(
+    origin_id: int,
+    origin_frame: t.Union[FrameType, bool, None],
+    target_id: int,
+    target_frame: t.Union[FrameType, bool, None],
+    update_target_frame: bool,
+) -> None:
+    _tracked_greenlets.add(origin_id)
+    if update_target_frame:
+        _tracked_greenlets.add(target_id)
+    stack.update_greenlet_switch(origin_id, origin_frame, target_id, target_frame, update_target_frame)
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
@@ -97,16 +105,18 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         try:
             # If this is being set to None, it means the greenlet is likely
             # finished. We use the sentinel again to signal this.
-            update_greenlet_frame(
+            origin_frame = t.cast(t.Optional[FrameType], origin.gr_frame) or FRAME_NOT_SET
+            # We don't want to wipe the frame of a parent greenlet because
+            # we need to unwind it. We definitely know it is still running
+            # so if we allow the tracer to set its tracked frame to None,
+            # we won't be able to unwind the full stack.
+            update_greenlet_switch(
                 origin_id,
-                t.cast(t.Optional[FrameType], origin.gr_frame) or FRAME_NOT_SET,
+                origin_frame,
+                target_id,
+                target.gr_frame,  # This is None for the running target.
+                target_id not in _parent_greenlet_count,
             )
-            if target_id not in _parent_greenlet_count:
-                # We don't want to wipe the frame of a parent greenlet because
-                # we need to unwind it. We definitely know it is still running
-                # so if we allow the tracer to set its tracked frame to None,
-                # we won't be able to unwind the full stack.
-                update_greenlet_frame(target_id, target.gr_frame)  # this *is* None
         except KeyError:
             # TODO: Log missing greenlet
             pass

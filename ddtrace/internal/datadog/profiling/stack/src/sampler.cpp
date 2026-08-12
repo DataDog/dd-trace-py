@@ -924,15 +924,22 @@ Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 }
 
 void
-Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
+Sampler::update_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame)
 {
     std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-
     auto& greenlet_info_map = echion->greenlet_info_map();
-    auto entry = greenlet_info_map.find(greenlet_id);
-    if (entry != greenlet_info_map.end()) {
-        // Update the frame of the greenlet
-        entry->second->frame = frame;
+
+    if (auto origin = greenlet_info_map.find(origin_id); origin != greenlet_info_map.end()) {
+        origin->second->frame = origin_frame;
+    }
+    if (update_target_frame) {
+        if (auto target = greenlet_info_map.find(target_id); target != greenlet_info_map.end()) {
+            target->second->frame = target_frame;
+        }
     }
 }
 
