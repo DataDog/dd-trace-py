@@ -533,6 +533,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadog-live-debugger"
+version = "0.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=v40.0.0#ea75b04c3547037937730a14cf8a72a5ebf702d7"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "constcat",
+ "futures",
+ "http",
+ "libdd-capabilities",
+ "libdd-capabilities-impl",
+ "libdd-common",
+ "libdd-data-pipeline",
+ "libdd-remote-config",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "strum",
+ "strum_macros",
+ "sys-info",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
@@ -540,6 +566,7 @@ dependencies = [
  "build_common",
  "bytes",
  "datadog-ipc",
+ "datadog-live-debugger",
  "libc",
  "libdd-capabilities-impl",
  "libdd-common",
@@ -558,6 +585,7 @@ dependencies = [
  "libdd-trace-utils",
  "libdd-tracer-flare",
  "native-proc-macro",
+ "percent-encoding",
  "pyo3",
  "pyo3-build-config",
  "pyo3-ffi",
@@ -567,6 +595,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "strum",
+ "tokio",
  "tracing",
  "url",
 ]
