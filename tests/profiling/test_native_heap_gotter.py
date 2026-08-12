@@ -72,7 +72,7 @@ def test_native_heap_gotter_fork_install_and_allocations() -> None:
     pid = os.fork()
     if pid == 0:
         try:
-            # Child inherits mapping/GOT when armed; re-install must be harmless.
+            # Child inherits mapping/GOT when armed; `_armed` skips re-entering the cdylib.
             assert isinstance(heap_gotter.install(), bool)
             if heap_gotter.is_available:
                 assert heap_gotter.is_installed() is True
@@ -87,13 +87,13 @@ def test_native_heap_gotter_fork_install_and_allocations() -> None:
         assert os.WEXITSTATUS(status) == 0
         parent_blobs.append(("z" * 4096, 99))
         assert len(parent_blobs) == 51
-        # Parent re-install remains idempotent.
+        # Parent stays `_armed`; further install() calls skip the native path.
         assert isinstance(heap_gotter.install(), bool)
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
 def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
-    """A second profiler start (e.g. uWSGI worker) calls install() again; that must be harmless."""
+    """A second profiler start (e.g. uWSGI worker) calls install() again; `_armed` skips native re-entry."""
     from unittest import mock
 
     from ddtrace.internal.datadog.profiling import heap_gotter
