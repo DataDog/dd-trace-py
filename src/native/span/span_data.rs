@@ -475,6 +475,28 @@ impl SpanData {
         };
     }
 
+    // _is_top_level property (native for performance - avoids Python property hop).
+    // A span is top-level if it has no parent, or if its own service is set
+    // and differs from its parent's service.
+    #[getter(_is_top_level)]
+    #[inline(always)]
+    fn get_is_top_level(&self, py: Python<'_>) -> bool {
+        let Some(parent) = self._parent.as_ref() else {
+            return true;
+        };
+        if self.service.is_py_none(py) {
+            return false;
+        }
+        match parent.bind(py).cast::<SpanData>() {
+            Ok(parent_span) => {
+                let parent_span = parent_span.borrow();
+                parent_span.service.is_py_none(py) || parent_span.service != self.service
+            }
+            // Non-native parent object (shouldn't normally happen) - default to top-level.
+            Err(_) => true,
+        }
+    }
+
     // ── Attribute API (meta / metrics) ──────────────────────────────────────
 
     /// Set a tag/metric on the span. Stores the value in the unified `attributes` map,
