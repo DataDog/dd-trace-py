@@ -119,6 +119,11 @@ class Sampler
     // Singleton instance
     static Sampler& get();
 
+#ifdef DDTRACE_TESTING
+    static void set_thread_start_hook_for_testing(void (*hook)());
+    static void set_thread_running_hook_for_testing(void (*hook)());
+#endif
+
     // Accessor for EchionSampler
     EchionSampler& get_echion() { return *echion; }
 

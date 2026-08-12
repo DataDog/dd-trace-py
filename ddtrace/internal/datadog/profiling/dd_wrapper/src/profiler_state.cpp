@@ -129,8 +129,8 @@ ProfilerState::start()
                        []() { ProfilerState::get().postfork_parent(); },
                        []() { ProfilerState::get().postfork_child(); });
 
-        // Register cleanup function to free resources on exit
-        std::atexit([]() { ProfilerState::get().cleanup(); });
+        // Keep process-wide profiler resources alive until the OS reclaims them.
+        // Detached native callbacks can still access this state during process exit.
 
         // Set the global initialization flag
         initialized_.store(true, std::memory_order_release);

@@ -147,6 +147,7 @@ if(LIB_INSTALL_DIR)
 endif()
 
 if(BUILD_TESTING)
+    target_compile_definitions(${EXTENSION_NAME} PRIVATE DDTRACE_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()

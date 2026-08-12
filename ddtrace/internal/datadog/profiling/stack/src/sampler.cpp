@@ -20,12 +20,30 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
-#include <new>
 #include <pthread.h>
 #include <thread>
 #include <utility>
 
 using namespace Datadog;
+
+#ifdef DDTRACE_TESTING
+namespace {
+std::atomic<void (*)()> thread_start_hook{ nullptr };
+std::atomic<void (*)()> thread_running_hook{ nullptr };
+}
+
+void
+Sampler::set_thread_start_hook_for_testing(void (*hook)())
+{
+    thread_start_hook.store(hook);
+}
+
+void
+Sampler::set_thread_running_hook_for_testing(void (*hook)())
+{
+    thread_running_hook.store(hook);
+}
+#endif
 
 static void
 update_fast_copy_stats(ProfilerStats& stats)
@@ -355,8 +373,19 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
-    // Mark thread as running
+#ifdef DDTRACE_TESTING
+    if (auto hook = thread_start_hook.load()) {
+        hook();
+    }
+#endif
+
     thread_running.store(true);
+
+#ifdef DDTRACE_TESTING
+    if (auto hook = thread_running_hook.load()) {
+        hook();
+    }
+#endif
 
     seed_fast_copy_profiler_stats();
 
@@ -572,12 +601,8 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    // Native exit stops the detached sampling thread explicitly. Retain its state
-    // until process exit so a delayed thread can never observe destroyed members.
-    // Static storage keeps the object reachable without registering its destructor
-    // or leaking its allocation.
-    alignas(Sampler) static unsigned char storage[sizeof(Sampler)];
-    static Sampler* const instance = ::new (static_cast<void*>(storage)) Sampler();
+    // The detached sampling thread can outlive native exit handlers.
+    static Sampler* const instance = new Sampler();
     return *instance;
 }
 
