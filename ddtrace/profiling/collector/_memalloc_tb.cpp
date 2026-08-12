@@ -85,6 +85,9 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
      * heap tracker is torn down, in which case we fall back to interning every
      * frame directly. */
     Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+    if (cache != nullptr) {
+        Datadog::memalloc_code_cache_prepare_stack_walk();
+    }
 
     uint16_t pushed_frames = 0;
     size_t walked_frames = 0;

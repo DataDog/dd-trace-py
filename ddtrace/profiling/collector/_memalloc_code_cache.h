@@ -29,10 +29,12 @@ namespace Datadog {
  * allocating while we are servicing an allocation.
  *
  * Address reuse: the key is a raw PyCodeObject* and CPython may free a code object and
- * reassign its address to a new one. Each entry therefore also stores the code object's
- * identity (name/filename/firstlineno) at insert time; lookup returns a hit only if that
- * identity still matches the live code object, so a reused address is treated as a miss
- * instead of misattributing the frame.
+ * reassign its address to a new one. On Python 3.12+, a PyCode_AddWatcher callback bumps
+ * a generation counter on PY_CODE_EVENT_DESTROY; prepare_stack_walk() clears the cache
+ * when that generation changes so stale address-keyed entries are never reused. Each
+ * entry also stores the code object's identity (name/filename/firstlineno) at insert
+ * time as a secondary check. The cache is disabled on Python < 3.12 where no lifecycle
+ * invalidation hook exists.
  *
  * Concurrency: heap-profiler hooks run under the GIL; no internal locking needed.
  *
@@ -63,10 +65,14 @@ class CodeFunctionCache
     /* Drops every entry, retaining allocated capacity. */
     void clear();
 
+    /* Invalidate stale entries when code objects have been destroyed since the last walk. */
+    void prepare_stack_walk();
+
     /* Process-wide singleton, mirrors heap_tracker_t::instance. */
     static CodeFunctionCache* instance;
 
   private:
+    uint64_t validated_generation_ = 0;
     struct Set
     {
         PyCodeObject* codes[WAYS_PER_SET] = {};
@@ -92,5 +98,7 @@ void
 memalloc_code_cache_deinit();
 void
 memalloc_code_cache_clear();
+void
+memalloc_code_cache_prepare_stack_walk();
 
 } // namespace Datadog

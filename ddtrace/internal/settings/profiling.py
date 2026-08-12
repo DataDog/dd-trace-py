@@ -532,10 +532,9 @@ class ProfilingConfigHeap(DDConfig):
         default=True,
         help_type="Boolean",
         help=(
-            "Enable the heap profiler's internal code-object cache. "
-            "When enabled, the profiler caches the mapping from Python code objects to "
-            "Datadog function IDs, avoiding repeated string interning on hot allocation paths. "
-            "Set to false to disable the cache if it causes unexpected behavior."
+            "Speed up heap profiling by caching Python code object lookups. "
+            "Requires Python 3.12 or later. Set to false if heap profiles show "
+            "incorrect function names."
         ),
     )
 

@@ -145,6 +145,7 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
         incr_dropped_frames();
         return std::nullopt;
     }
+
     return push_frame_impl(name, filename, address, line);
 }
 

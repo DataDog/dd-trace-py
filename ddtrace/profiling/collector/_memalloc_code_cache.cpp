@@ -1,17 +1,52 @@
 #include "_memalloc_code_cache.h"
 
+#include "_pymacro.h"
+
 #include <algorithm>
+#include <atomic>
 #include <bit>
-#include <memory>
+#include <mutex>
+
+#if defined(_PY312_AND_LATER)
+#include <cpython/code.h>
+#endif
 
 namespace Datadog {
 
-/* g_instance_owned holds the memalloc cache singleton so the object is cleaned up at exit
- * even if memalloc_code_cache_deinit() is never called. CodeFunctionCache::instance
- * mirrors g_instance_owned.get() and is set to nullptr first in deinit(), so any
- * in-flight frame walk under the GIL sees nullptr and skips the cache cleanly before
- * the object is destroyed. */
-static std::unique_ptr<CodeFunctionCache> g_instance_owned;
+#if defined(_PY312_AND_LATER)
+static std::atomic<uint64_t> g_code_object_destroy_generation{ 0 };
+
+static int
+code_object_destroy_watcher(PyCodeEvent event, PyCodeObject* /*co*/)
+{
+    if (event == PY_CODE_EVENT_DESTROY) {
+        g_code_object_destroy_generation.fetch_add(1, std::memory_order_relaxed);
+    }
+    return 0;
+}
+
+static bool
+register_code_object_watcher()
+{
+    static std::once_flag once;
+    static bool registered = false;
+    std::call_once(once, []() {
+        registered = PyCode_AddWatcher(code_object_destroy_watcher) >= 0;
+    });
+    return registered;
+}
+
+static uint64_t
+current_code_object_generation()
+{
+    return g_code_object_destroy_generation.load(std::memory_order_relaxed);
+}
+#endif // _PY312_AND_LATER
+
+/* CodeFunctionCache::instance is set in memalloc_code_cache_init() and cleared before
+ * delete in memalloc_code_cache_deinit(). Avoid static destructors so the cache is not
+ * torn down during native static teardown while allocator hooks may still be installed
+ * when memalloc.stop() was skipped. */
 CodeFunctionCache* CodeFunctionCache::instance = nullptr;
 
 static size_t
@@ -30,6 +65,9 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity_hint)
     size_t num_sets = clamp_to_pow2_set_count(capacity_hint);
     sets_.assign(num_sets, Set{});
     log2_set_bits_ = static_cast<uint8_t>(std::countr_zero(num_sets));
+#if defined(_PY312_AND_LATER)
+    validated_generation_ = current_code_object_generation();
+#endif
 }
 
 size_t
@@ -96,22 +134,46 @@ void
 CodeFunctionCache::clear()
 {
     std::fill(sets_.begin(), sets_.end(), Set{});
+#if defined(_PY312_AND_LATER)
+    validated_generation_ = current_code_object_generation();
+#endif
+}
+
+void
+CodeFunctionCache::prepare_stack_walk()
+{
+#if defined(_PY312_AND_LATER)
+    uint64_t generation = current_code_object_generation();
+    if (generation != validated_generation_) {
+        clear();
+    }
+#endif
 }
 
 bool
 memalloc_code_cache_init(size_t capacity)
 {
-    memalloc_code_cache_deinit();
-    g_instance_owned = std::make_unique<CodeFunctionCache>(capacity);
-    CodeFunctionCache::instance = g_instance_owned.get();
+#if !defined(_PY312_AND_LATER)
+    (void)capacity;
     return true;
+#else
+    if (!register_code_object_watcher()) {
+        return true;
+    }
+
+    memalloc_code_cache_deinit();
+    CodeFunctionCache* cache = new CodeFunctionCache(capacity);
+    CodeFunctionCache::instance = cache;
+    return true;
+#endif
 }
 
 void
 memalloc_code_cache_deinit()
 {
+    CodeFunctionCache* cache = CodeFunctionCache::instance;
     CodeFunctionCache::instance = nullptr;
-    g_instance_owned.reset();
+    delete cache;
 }
 
 /* Called from heap_tracker_t::postfork_child() to reset the cache after fork.
@@ -125,6 +187,14 @@ memalloc_code_cache_clear()
 {
     if (CodeFunctionCache::instance != nullptr) {
         CodeFunctionCache::instance->clear();
+    }
+}
+
+void
+memalloc_code_cache_prepare_stack_walk()
+{
+    if (CodeFunctionCache::instance != nullptr) {
+        CodeFunctionCache::instance->prepare_stack_walk();
     }
 }
 

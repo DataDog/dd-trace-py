@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -49,11 +50,13 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
-        self.heap_code_cache_enabled = (
+        requested_code_cache = (
             heap_code_cache_enabled
             if heap_code_cache_enabled is not None
             else cast(bool, config.heap.code_cache_enabled)  # pyright: ignore
         )
+        # The native cache relies on PyCode_AddWatcher (3.12+) for invalidation.
+        self.heap_code_cache_enabled = requested_code_cache and sys.version_info >= (3, 12)
 
     def start(self) -> None:
         """Start collecting memory profiles."""
