@@ -246,10 +246,11 @@ class TestNativeHeapActivator:
 
         assert isinstance(heap_gotter.is_available, bool)
         assert isinstance(heap_gotter.failure_msg, str)
-        # Entry points must return a bool and never raise, armed or not.
-        assert isinstance(heap_gotter.install(), bool)
-        assert isinstance(heap_gotter.is_installed(), bool)
-        # When the library is absent/unsupported, both are no-ops returning False.
+        # When the library is absent/unsupported, entry points are no-ops that
+        # return False and do not rewrite GOT — safe to call in-process.
+        # When available, do not call install() here: GOT patching is permanent
+        # and would poison the shared pytest worker. That path is covered by the
+        # subprocess smoke/fork tests in test_native_heap_gotter.py.
         if not heap_gotter.is_available:
             assert heap_gotter.install() is False
             assert heap_gotter.is_installed() is False

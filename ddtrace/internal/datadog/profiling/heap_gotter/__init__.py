@@ -17,8 +17,15 @@ and `install()` is a no-op. Loading this module must never raise.
 Installation cannot be undone (the patched GOT entries point at functions inside the cdylib),
 so the library must stay mapped for the life of the process. We keep the `ctypes.CDLL` handle
 at module scope and never unload it.
-After `fork()` the child inherits both the mapping and the patched GOT, so
-a re-install in the child is a harmless idempotent no-op.
+
+After a successful `install()`, a child of `fork()` inherits the mapping and the patched GOT.
+Re-entering `install()` in that child is therefore unnecessary; we skip the native call when
+this module already recorded a successful arm (Python module state is also inherited). That
+avoids re-locking upstream's process-global registry mutex. Upstream does not yet implement a
+`pthread_atfork` child reset, so forking *during* an in-flight `install()`/`update()` can still
+leave that mutex locked in the child — prefer arming on the main thread, or after fork in the
+worker (gunicorn/uWSGI-style), and treat mid-install fork as unsafe until libdatadog lands
+atfork handling.
 """
 
 from __future__ import annotations
@@ -34,6 +41,8 @@ is_available: bool = False
 failure_msg: str = ""
 
 _lib: ctypes.CDLL | None = None  # kept alive for process lifetime; never dlclose'd
+# Set when install() has succeeded in this process (inherited across fork).
+_armed: bool = False
 
 
 def _library_path() -> str:
@@ -75,21 +84,31 @@ except Exception as e:
 def install() -> bool:
     """Install the native heap GOT overrides. Returns True if now installed; False otherwise.
 
-    Idempotent and safe to call more than once (e.g. after fork). No-op that
-    returns False when the cdylib is unavailable.
+    Idempotent at the Python layer: once a call has succeeded, further calls
+    (including in a forked child that inherited ``_armed``) return True without
+    re-entering the native installer. No-op that returns False when the cdylib
+    is unavailable. See the module docstring for fork-safety limits.
     """
+    global _armed
     if not is_available or _lib is None:
         return False
+    if _armed:
+        return True
     try:
-        return bool(_lib.ddtrace_heap_gotter_install())
+        ok = bool(_lib.ddtrace_heap_gotter_install())
     except Exception:
         return False
+    if ok:
+        _armed = True
+    return ok
 
 
 def is_installed() -> bool:
     """Return whether native heap GOT overrides are currently installed."""
     if not is_available or _lib is None:
         return False
+    if _armed:
+        return True
     try:
         return bool(_lib.ddtrace_heap_gotter_is_installed())
     except Exception:

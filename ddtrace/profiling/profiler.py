@@ -379,8 +379,8 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
-        # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent/idempotent;
-        # after fork the child inherits the patched GOT.
+        # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
+        # inherit the patched GOT (and the activator skips a redundant re-install).
         if profiling_config.native_heap.enabled:
             from ddtrace.internal.datadog.profiling import heap_gotter
 

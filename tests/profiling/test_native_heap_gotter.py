@@ -44,6 +44,53 @@ def test_native_heap_gotter_smoke() -> None:
         assert len(blobs) == 200
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="native heap gotter is Linux-only")
+@pytest.mark.subprocess
+def test_native_heap_gotter_fork_install_and_allocations() -> None:
+    """dlopen + install, then fork and keep allocating in parent and child.
+
+    Exercises the gunicorn/uWSGI-shaped path where the activator may run before
+    fork and again in the child. When the cdylib is present, GOT overrides are
+    inherited; when absent, install() stays a no-op. Either way, fork + alloc
+    must not crash.
+    """
+    import os
+
+    from ddtrace.internal.datadog.profiling import heap_gotter
+
+    # Import already dlopen'd (or fail-closed). Arm in the parent.
+    armed = heap_gotter.install()
+    if heap_gotter.is_available:
+        assert armed is True
+        assert heap_gotter.is_installed() is True
+    else:
+        assert armed is False
+        assert heap_gotter.is_installed() is False
+
+    parent_blobs: list[tuple[str, int]] = [("x" * 4096, i) for i in range(50)]
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            # Child inherits mapping/GOT when armed; re-install must be harmless.
+            assert isinstance(heap_gotter.install(), bool)
+            if heap_gotter.is_available:
+                assert heap_gotter.is_installed() is True
+            child_blobs = [("y" * 4096, i) for i in range(100)]
+            assert len(child_blobs) == 100
+            os._exit(0)
+        except Exception:
+            os._exit(1)
+    else:
+        _, status = os.waitpid(pid, 0)
+        assert not os.WIFSIGNALED(status), f"Child crashed with signal {os.WTERMSIG(status)}"
+        assert os.WEXITSTATUS(status) == 0
+        parent_blobs.append(("z" * 4096, 99))
+        assert len(parent_blobs) == 51
+        # Parent re-install remains idempotent.
+        assert isinstance(heap_gotter.install(), bool)
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
 def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
     """A second profiler start (e.g. uWSGI worker) calls install() again; that must be harmless."""

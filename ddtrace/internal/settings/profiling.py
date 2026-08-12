@@ -77,7 +77,7 @@ def _check_for_stack_available() -> tuple[str, bool]:
 def _check_for_native_heap_available() -> tuple[str, bool]:
     # Importing heap_gotter dlopen's the gotter cdylib (if present) but does
     # NOT install anything; installation is an explicit, separate call.
-    # The module is closed with failure and never raises on import.
+    # The module is fail-closed and never raises on import.
     from ddtrace.internal.datadog.profiling import heap_gotter
 
     return (heap_gotter.failure_msg, heap_gotter.is_available)
