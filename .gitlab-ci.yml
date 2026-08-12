@@ -422,9 +422,10 @@ detect_circular_imports:
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of cycles.py (has uv metadata)
+    # Analyse the merge base ddtrace using the PR version of cycles.py (has uv metadata)
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
     - |
@@ -463,9 +464,10 @@ detect_layering_violations:
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of layers.py/layers.json (has uv metadata)
+    # Analyse the merge base using the PR version of layers.py/layers.json (has uv metadata)
     - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-base.json
     - cat layers-base.json
     - |
@@ -678,6 +680,10 @@ profiling_native:
         - src/native/**/*.toml
         - src/native/**/*.txt
         - src/native/**/Cargo.lock
+        # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
+        - src/native_heap_gotter/**/*.rs
+        - src/native_heap_gotter/**/*.toml
+        - src/native_heap_gotter/**/Cargo.lock
         # Top-level build config
         - setup.py
         - pyproject.toml
