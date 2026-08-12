@@ -2,8 +2,8 @@ from contextvars import ContextVar
 from types import TracebackType
 from typing import Optional
 from typing import cast
-from urllib import parse
 
+from ddtrace import config
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
@@ -36,12 +36,8 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
 
-        if event.resource is None and event.request_method and event.request_url:
-            try:
-                parsed_url = parse.urlparse(event.request_url)
-                span_from_context(ctx).resource = f"{event.request_method.upper()} {parsed_url.path}"
-            except Exception:
-                log.debug("error computing resource from request URL", exc_info=True)
+        if config._otel_trace_semantics_enabled and event.request_method:
+            span_from_context(ctx).resource = event.request_method.upper()
 
         if _http_propagation_suppressed.get():
             return

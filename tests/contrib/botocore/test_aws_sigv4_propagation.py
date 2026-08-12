@@ -153,23 +153,17 @@ def test_subscriber_skips_injection_when_propagation_suppressed():
 
     ctx = mock.MagicMock()
     event = mock.MagicMock()
-    event.resource = None
-    event.request_method = "get"
-    event.request_url = "https://example.com/path?query=ignored"
     event.request_headers = {}
     event.integration_config = mock.MagicMock()
     event.integration_config.distributed_tracing_enabled = True
     ctx.event = event
-    span = mock.MagicMock()
-    ctx.__getitem__.return_value = span
-    span.context = mock.MagicMock()
+    span_from_context(ctx).context = mock.MagicMock()
 
     token = _http_propagation_suppressed.set(True)
     try:
         with mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject:
             HttpClientTracingSubscriber.on_started(ctx)
             inject.assert_not_called()
-            assert span.resource == "GET /path"
     finally:
         _http_propagation_suppressed.reset(token)
 

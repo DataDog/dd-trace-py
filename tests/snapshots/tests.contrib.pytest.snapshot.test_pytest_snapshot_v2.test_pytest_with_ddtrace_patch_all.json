@@ -56,7 +56,7 @@
      {
        "name": "http.request",
        "service": "pytest",
-       "resource": "GET /bad_path.cgi",
+       "resource": "http.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
