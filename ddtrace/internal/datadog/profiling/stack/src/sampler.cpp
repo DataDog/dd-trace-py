@@ -567,14 +567,12 @@ Sampler::set_max_frames(uint64_t value)
 {
     // StackCollector configures this before start(). Updating the limit while
     // the sampler thread is walking stacks would race with collection.
-    if ((thread_seq_num.load(std::memory_order_acquire) & 1U) != 0U || thread_running.load(std::memory_order_acquire)) {
+    if (sampler_active_.load(std::memory_order_acquire) || thread_running.load(std::memory_order_acquire)) {
         return false;
     }
 
-    // The configured value is already clamped to the backend limit in
-    // ddtrace/internal/settings/profiling.py; pass it through as-is. EchionSampler
-    // enforces a floor of 1 frame.
-    const size_t requested = static_cast<size_t>(value);
+    // Zero preserves the existing exporter behavior: retain the default limit.
+    const size_t requested = value == 0 ? g_default_max_nframes : static_cast<size_t>(value);
     echion->configure_max_frames(requested);
     return true;
 }

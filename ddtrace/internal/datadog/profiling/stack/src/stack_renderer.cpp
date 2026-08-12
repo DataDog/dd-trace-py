@@ -207,6 +207,14 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
+StackRenderer::render_truncated()
+{
+    if (sample != nullptr) {
+        sample->incr_dropped_frames();
+    }
+}
+
+void
 StackRenderer::render_native_frame(const std::string& name, const std::string& module)
 {
     if (sample == nullptr) {

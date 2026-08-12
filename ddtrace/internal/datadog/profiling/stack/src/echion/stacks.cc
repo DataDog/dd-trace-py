@@ -28,23 +28,38 @@ FrameStack::render(EchionSampler& echion)
 
         renderer.render_frame(frame);
     }
+
+    if (truncated) {
+        renderer.render_truncated();
+    }
 }
 
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param seen_frames: Cycle-detection set. Cleared on entry; capacity is reused
 //                     by callers (typically EchionSampler::seen_frames_scratch).
 // @param max_frames_to_add: Maximum number of frames to add during this walk.
+// @param truncated: Set when the walk stops at a frame limit with more frames remaining.
 // @return: Number of frames added to the stack.
 size_t
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
-             size_t max_frames_to_add)
+             size_t max_frames_to_add,
+             bool* truncated)
 {
     seen_frames.clear();
-    size_t count = 0;
+    if (truncated != nullptr) {
+        *truncated = false;
+    }
+    if (max_frames_to_add == 0) {
+        if (truncated != nullptr && frame_addr != nullptr) {
+            *truncated = true;
+        }
+        return 0;
+    }
 
+    size_t count = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL && stack.size() < MAX_TASK_FRAMES) {
         if (seen_frames.contains(current_frame_addr))
@@ -71,10 +86,16 @@ unwind_frame(EchionSampler& echion,
         count++;
 
         if (count >= max_frames_to_add) {
+            if (truncated != nullptr && current_frame_addr != nullptr) {
+                *truncated = true;
+            }
             break;
         }
     }
 
+    if (truncated != nullptr && current_frame_addr != nullptr && stack.size() >= MAX_TASK_FRAMES) {
+        *truncated = true;
+    }
     return count;
 }
 
@@ -91,6 +112,7 @@ void
 unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames)
 {
     stack.clear();
+    stack.truncated = false;
 #if PY_VERSION_HEX >= 0x030b0000
     if (stack_chunk == nullptr) {
         stack_chunk = std::make_unique<StackChunk>();
@@ -114,5 +136,5 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames);
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, &stack.truncated);
 }
