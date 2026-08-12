@@ -1,8 +1,8 @@
 import json
 import typing  # noqa:F401
-from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Optional
+from typing import Sequence
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
 from ddtrace.internal.threads import RLock
@@ -13,6 +13,7 @@ from ._encoding import BufferItemTooLarge
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
+from ._span_protocol import SpanProtocol
 from .compat import ensure_text
 from .logger import get_logger
 
@@ -25,9 +26,6 @@ __all__ = [
     "MSGPACK_ENCODERS",
 ]
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -43,14 +41,13 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces: Sequence[Sequence["SpanProtocol"]]) -> str:
         """
-        Encodes a list of traces, expecting a list of items where each items
-        is a list of spans. Before dumping the string in a serialized format all
-        traces are normalized according to the encoding format. The trace
-        nesting is not changed.
+        Encodes a list of traces. Before dumping the string in a serialized format all
+        traces are normalized according to the encoding format.
 
-        :param traces: A list of traces that should be serialized
+        :param traces: A list of traces that should be serialized.
+            Each list item is a list of Span-like objects
         """
         raise NotImplementedError()
 
@@ -63,7 +60,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span: "Span") -> dict[str, Any]:
+    def _span_to_dict(span: "SpanProtocol") -> dict[str, Any]:
         d: dict[str, Any] = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
@@ -144,12 +141,12 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces: Sequence[Sequence["SpanProtocol"]]) -> str:
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
-    def _convert_span(span: "Span") -> dict[str, Any]:
+    def _convert_span(span: "SpanProtocol") -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
@@ -211,7 +208,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return self._n_spans
 
     def put(self, item) -> None:
-        item = typing.cast(list["Span"], item)
+        item = typing.cast(Sequence["SpanProtocol"], item)
 
         if not item:
             return
@@ -246,7 +243,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             self._reset()
         return [(payload, count)]
 
-    def _item_to_dict(self, item: "Span") -> dict[str, Any]:
+    def _item_to_dict(self, item: "SpanProtocol") -> dict[str, Any]:
         if not item.parent_id:
             item._set_attribute("_trace_root", 1)
         if item._is_top_level:
