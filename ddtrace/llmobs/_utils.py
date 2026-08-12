@@ -20,6 +20,7 @@ from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
+from ddtrace.internal.encoding import _json_unserializable_default
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -235,20 +236,6 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     return None
 
 
-def _unserializable_default_repr(obj):
-    try:
-        # Pydantic v2
-        if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            return obj.model_dump(mode="json")
-        # Pydantic v1
-        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
-            return obj.dict()
-        return str(obj)
-    except Exception:
-        log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
-
-
 _MAX_NESTED_META_DEPTH = 12
 
 
@@ -288,7 +275,7 @@ def safe_json(obj, ensure_ascii=True):
         elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
             obj = obj.dict()
         return json.dumps(
-            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
+            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_json_unserializable_default
         )
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)

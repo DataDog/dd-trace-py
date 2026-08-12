@@ -33,10 +33,15 @@ log = get_logger(__name__)
 
 
 def _json_unserializable_default(obj: object) -> object:
-    """Fallback for span values that are not natively JSON serializable, e.g. Pydantic
-    models recorded in ``meta_struct`` by LLM Observability. The msgpack encoders replace
-    unserializable ``meta_struct`` values with a placeholder; without an equivalent
-    fallback here a single unserializable value would fail the whole agentless payload.
+    """json.dumps default= hook for values that are not natively JSON serializable.
+
+    Without it a single unserializable value anywhere in a span fails the whole payload.
+    Pydantic models are dumped so their structure survives; anything else falls back to
+    str(). Uses type(obj).__name__ rather than repr(obj) in the error path, so an object
+    whose own __str__/__repr__ raises cannot escape this handler.
+
+    Shared with ddtrace.llmobs._utils.safe_json — keep it here, at the layer both callers
+    can import from.
     """
     try:
         # Pydantic v2

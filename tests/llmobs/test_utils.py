@@ -397,6 +397,19 @@ def test_json_serialize_pydantic_model():
     assert encoded_model == '{"age": 123, "name": "hello world"}'
 
 
+def test_json_serialize_object_with_raising_str_and_repr():
+    # The fallback must not re-enter user code when rendering its own placeholder, or an
+    # object whose __str__ and __repr__ both raise would escape it and drop the payload.
+    class Unrenderable:
+        def __str__(self):
+            raise ValueError("no str")
+
+        def __repr__(self):
+            raise ValueError("no repr")
+
+    assert safe_json({"obj": Unrenderable()}) == '{"obj": "Can not serialize [Unrenderable] object"}'
+
+
 def test_json_serialize_pydantic_model_with_complex_field():
     class Metadata(BaseModel):
         key: str
