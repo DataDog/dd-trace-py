@@ -631,6 +631,8 @@ Sampler::get()
 void
 Sampler::postfork_child()
 {
+    greenlet_native_id_generation_.fetch_add(1, std::memory_order_relaxed);
+
     // Clear stale task/greenlet entries from parent process.
     // No lock needed: only one thread exists in child immediately after fork.
 
@@ -992,16 +994,35 @@ Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 }
 
 void
-Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
+Sampler::update_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame)
 {
-    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-
-    auto& greenlet_info_map = echion->greenlet_info_map();
-    auto entry = greenlet_info_map.find(greenlet_id);
-    if (entry != greenlet_info_map.end()) {
-        // Update the frame of the greenlet
-        entry->second->frame = frame;
+    thread_local uint64_t native_id = PyThread_get_thread_native_id();
+    thread_local uint64_t fork_generation = greenlet_native_id_generation_.load(std::memory_order_relaxed);
+    const uint64_t current_fork_generation = greenlet_native_id_generation_.load(std::memory_order_relaxed);
+    if (fork_generation != current_fork_generation) {
+        native_id = PyThread_get_thread_native_id();
+        fork_generation = current_fork_generation;
     }
+
+    {
+        std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+        auto& greenlet_info_map = echion->greenlet_info_map();
+
+        if (auto origin = greenlet_info_map.find(origin_id); origin != greenlet_info_map.end()) {
+            origin->second->frame = origin_frame;
+        }
+        if (update_target_frame) {
+            if (auto target = greenlet_info_map.find(target_id); target != greenlet_info_map.end()) {
+                target->second->frame = target_frame;
+            }
+        }
+    }
+
+    CpuTimer::Engine::get().set_current_greenlet(native_id, target_id);
 }
 
 void

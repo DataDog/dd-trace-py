@@ -531,6 +531,41 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 }
 
 // ----------------------------------------------------------------------------
+namespace {
+
+std::optional<GreenletSnapshot>
+snapshot_greenlet(EchionSampler& echion, GreenletInfo::ID greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+    auto& greenlets = echion.greenlet_info_map();
+    auto selected = greenlets.find(greenlet_id);
+    if (selected == greenlets.end() || selected->second->frame == FRAME_NOT_SET) {
+        return std::nullopt;
+    }
+
+    GreenletSnapshot snapshot{ greenlet_id, selected->second->name, selected->second->frame, {} };
+    auto& parents = echion.greenlet_parent_map();
+    std::unordered_set<GreenletInfo::ID> visited;
+    GreenletInfo::ID current = greenlet_id;
+    constexpr size_t max_greenlet_depth = 512;
+    for (size_t depth = 0; depth < max_greenlet_depth && visited.insert(current).second; depth++) {
+        auto parent = parents.find(current);
+        if (parent == parents.end()) {
+            break;
+        }
+        auto parent_info = greenlets.find(parent->second);
+        if (parent_info == greenlets.end() || parent_info->second->frame == FRAME_NOT_SET ||
+            parent_info->second->frame == Py_None) {
+            break;
+        }
+        snapshot.parent_chain.emplace_back(parent_info->second->name, parent_info->second->frame);
+        current = parent->second;
+    }
+    return snapshot;
+}
+
+} // namespace
+
 void
 ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
@@ -538,7 +573,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
     // Phase 1: Snapshot greenlet data under the lock.
     // This minimises the time we hold greenlet_info_map_lock, which is also
-    // acquired by update_greenlet_frame() on every greenlet switch.  Holding
+    // acquired by update_greenlet_switch() on every greenlet switch. Holding
     // the lock during the expensive unwind (Phase 2) would block ALL greenlet
     // switches and lead to resource exhaustion (e.g. DB connection pools).
     {
@@ -867,6 +902,53 @@ matching_active_fingerprint(EchionSampler& echion, const TaskInfo& task, const R
     return fingerprint_matches_frame(*fingerprint, active_stack[0]) ? fingerprint : nullptr;
 }
 
+bool
+greenlet_snapshot_matches(EchionSampler& echion,
+                          const GreenletSnapshot& snapshot,
+                          PyThreadState* tstate,
+                          unsigned long native_id,
+                          const FrameStack& captured_stack)
+{
+    if (snapshot.frame == Py_None) {
+        return Datadog::CpuTimer::Engine::get().current_greenlet(native_id) == snapshot.greenlet_id;
+    }
+
+    FrameStack snapshot_stack;
+    GreenletInfo selected(snapshot.greenlet_id, snapshot.frame, snapshot.name);
+    selected.unwind(echion, snapshot.frame, tstate, snapshot_stack);
+    return std::any_of(snapshot_stack.begin(), snapshot_stack.end(), [&](const Frame& snapshot_frame) {
+        return std::any_of(captured_stack.begin(), captured_stack.end(), [&](const Frame& captured_frame) {
+            return snapshot_frame.code_object == captured_frame.code_object &&
+                   snapshot_frame.first_lineno == captured_frame.first_lineno;
+        });
+    });
+}
+
+void
+append_greenlet_parents(EchionSampler& echion,
+                        const GreenletSnapshot& snapshot,
+                        PyThreadState* tstate,
+                        FrameStack& captured_stack)
+{
+    for (const auto& [parent_name, parent_frame] : snapshot.parent_chain) {
+        FrameStack parent_stack;
+        GreenletInfo parent(0, parent_frame, parent_name);
+        parent.unwind(echion, parent_frame, tstate, parent_stack);
+        for (const Frame& frame : parent_stack) {
+            if (captured_stack.size() >= max_frames) {
+                return;
+            }
+            const bool already_captured =
+              std::any_of(captured_stack.begin(), captured_stack.end(), [&](const Frame& captured) {
+                  return captured.cache_key == frame.cache_key;
+              });
+            if (!already_captured) {
+                captured_stack.push_back(frame);
+            }
+        }
+    }
+}
+
 FrameStack
 stitch_captured_stack(FrameStack captured_stack,
                       const FrameStack& logical_stack,
@@ -1028,9 +1110,17 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
         return;
     }
 
-    python_stack = std::move(captured_stack);
-    unwind_greenlets(echion, tstate, native_id);
-    this->render_unwound_stacks(echion);
+    if (raw.greenlet_id != 0) {
+        auto snapshot = snapshot_greenlet(echion, raw.greenlet_id);
+        if (snapshot && greenlet_snapshot_matches(echion, *snapshot, tstate, native_id, captured_stack)) {
+            snapshot->name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, true, snapshot->greenlet_id); });
+            append_greenlet_parents(echion, *snapshot, tstate, captured_stack);
+        }
+    }
+
+    captured_stack.render(echion);
+    renderer.render_stack_end();
 }
 
 Result<void>

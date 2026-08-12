@@ -12,9 +12,9 @@ namespace CpuTimer {
 // Sparse, signal-safe mapping from Linux TIDs to per-thread capture state.
 //
 // Linux TIDs are sparse values in [1, pid_max], so a single directly indexed
-// table consumes roughly 32 MiB for pointers and 4 MiB for handler activity on
-// a typical pid_max of 4,194,304. This table retains direct indexing without
-// materializing that entire range. The small top-level directory is allocated
+// table consumes roughly 64 MiB for pointers and identities plus 4 MiB for
+// handler activity on a typical pid_max of 4,194,304. This table retains direct
+// indexing without materializing that entire range. The small top-level directory is allocated
 // once, and fixed-size leaves are allocated on the control path before a timer
 // is armed for any TID in that leaf.
 //
@@ -27,11 +27,14 @@ class CpuTimerTidTable
 {
     static_assert(PageSize > 0, "TID table pages must contain at least one entry");
     static_assert(std::atomic<T*>::is_always_lock_free, "signal handler requires lock-free state pointer atomics");
+    static_assert(std::atomic<uintptr_t>::is_always_lock_free,
+                  "signal handler requires lock-free greenlet identity atomics");
     static_assert(std::atomic<bool>::is_always_lock_free, "signal handler requires lock-free activity atomics");
 
     struct Page
     {
         std::atomic<T*> states[PageSize];
+        std::atomic<uintptr_t> current_greenlet_ids[PageSize];
         std::atomic<bool> handler_active[PageSize];
 
         Page() noexcept { reset(); }
@@ -40,6 +43,7 @@ class CpuTimerTidTable
         {
             for (size_t i = 0; i < PageSize; i++) {
                 states[i].store(nullptr, std::memory_order_relaxed);
+                current_greenlet_ids[i].store(0, std::memory_order_relaxed);
                 handler_active[i].store(false, std::memory_order_relaxed);
             }
         }
@@ -148,7 +152,9 @@ class CpuTimerTidTable
     {
         Page* page = page_for(tid);
         if (page != nullptr) {
-            page->states[page_offset(tid)].store(nullptr, std::memory_order_seq_cst);
+            const size_t offset = page_offset(tid);
+            page->current_greenlet_ids[offset].store(0, std::memory_order_release);
+            page->states[offset].store(nullptr, std::memory_order_seq_cst);
         }
     }
 
@@ -159,6 +165,23 @@ class CpuTimerTidTable
             return nullptr;
         }
         return page->states[page_offset(tid)].load(std::memory_order_seq_cst);
+    }
+
+    void set_current_greenlet_id(uint64_t tid, uintptr_t greenlet_id) noexcept
+    {
+        Page* page = page_for(tid);
+        if (page != nullptr) {
+            page->current_greenlet_ids[page_offset(tid)].store(greenlet_id, std::memory_order_release);
+        }
+    }
+
+    [[nodiscard]] uintptr_t current_greenlet_id(uint64_t tid) const noexcept
+    {
+        Page* page = page_for(tid);
+        if (page == nullptr) {
+            return 0;
+        }
+        return page->current_greenlet_ids[page_offset(tid)].load(std::memory_order_acquire);
     }
 
     // Marks this TID active before loading its state. This ordering pairs with

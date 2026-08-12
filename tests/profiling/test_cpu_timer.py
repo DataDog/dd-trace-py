@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 
 CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.12+"
 CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 12)
+CPU_TIMER_GEVENT_SKIP = CPU_TIMER_SKIP or not os.getenv("DD_PROFILE_TEST_GEVENT") or sys.version_info < (3, 12, 5)
 
 
 @pytest.mark.subprocess(
@@ -57,6 +59,115 @@ def test_cpu_timer_profiler_emits_cpu_samples():
             cpu_time_by_function[function_name] = cpu_time_by_function.get(function_name, 0) + cpu_time_ns
 
     assert cpu_time_by_function.get("cpu_timer_busy_loop", 0) > 0, cpu_time_by_function
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_gevent_attribution",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_GEVENT_SKIP, reason="CPU timer gevent test requires Linux Python 3.12.5+")
+def test_cpu_timer_preserves_and_attributes_gevent_stacks():
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import time
+
+    import gevent
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def burn_cpu():
+        deadline = time.thread_time_ns() + 15_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    def cpu_timer_greenlet_alpha():
+        for _ in range(16):
+            burn_cpu()
+            gevent.sleep(0)
+
+    def cpu_timer_greenlet_beta():
+        for _ in range(16):
+            burn_cpu()
+            gevent.sleep(0)
+
+    def cpu_timer_greenlet_child():
+        for _ in range(16):
+            burn_cpu()
+            gevent.sleep(0)
+
+    def cpu_timer_greenlet_parent():
+        child = gevent.Greenlet(cpu_timer_greenlet_child)
+        child.name = "cpu-timer-greenlet-child"
+        child.start()
+        child.join()
+
+    workers = [
+        gevent.Greenlet(cpu_timer_greenlet_alpha),
+        gevent.Greenlet(cpu_timer_greenlet_beta),
+        gevent.Greenlet(cpu_timer_greenlet_parent),
+    ]
+    for worker, name in zip(
+        workers,
+        ("cpu-timer-greenlet-alpha", "cpu-timer-greenlet-beta", "cpu-timer-greenlet-parent"),
+    ):
+        worker.name = name
+
+    p = profiler.Profiler()
+    p.start()
+    for worker in workers:
+        worker.start()
+    gevent.joinall(workers, timeout=30, raise_error=True)
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")
+    cpu_samples = [
+        sample for sample in profile.sample if sample.value[cpu_time_index] > 0 and sample.value[wall_time_index] == 0
+    ]
+
+    def sample_has_function(sample, function_name):
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if not location.line:
+                continue
+            function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[function.name].endswith(function_name):
+                return True
+        return False
+
+    def labels_for(function_name):
+        samples = [sample for sample in cpu_samples if sample_has_function(sample, function_name)]
+        return pprof_utils.get_label_str_values(profile, samples, "task name")
+
+    alpha_labels = labels_for("cpu_timer_greenlet_alpha")
+    beta_labels = labels_for("cpu_timer_greenlet_beta")
+    assert "cpu-timer-greenlet-alpha" in alpha_labels, alpha_labels
+    assert "cpu-timer-greenlet-beta" not in alpha_labels, alpha_labels
+    assert set(alpha_labels) <= {"", "cpu-timer-greenlet-alpha"}, alpha_labels
+    assert "cpu-timer-greenlet-beta" in beta_labels, beta_labels
+    assert "cpu-timer-greenlet-alpha" not in beta_labels, beta_labels
+    assert set(beta_labels) <= {"", "cpu-timer-greenlet-beta"}, beta_labels
+    child_labels = labels_for("cpu_timer_greenlet_child")
+    assert "cpu-timer-greenlet-child" in child_labels, child_labels
+    assert set(child_labels) <= {"", "cpu-timer-greenlet-child"}, child_labels
+
+    child_samples = [
+        sample
+        for sample in cpu_samples
+        if sample_has_function(sample, "cpu_timer_greenlet_child")
+        and pprof_utils.get_label_str_values(profile, [sample], "task name") == ["cpu-timer-greenlet-child"]
+    ]
+    assert child_samples
+    assert any(sample_has_function(sample, "cpu_timer_greenlet_parent") for sample in child_samples)
 
 
 @pytest.mark.subprocess(

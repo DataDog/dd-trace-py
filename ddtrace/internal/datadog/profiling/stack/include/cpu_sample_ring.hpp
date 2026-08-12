@@ -35,6 +35,7 @@ struct RawSample
     uint64_t python_thread_id = 0;
     uint64_t native_tid = 0;
     uintptr_t asyncio_task = 0;
+    uintptr_t greenlet_id = 0;
     uint8_t coroutine_fingerprint_count = 0;
     uint16_t depth = 0;
     std::array<CoroutineFingerprint, kMaxCpuTimerCoroutineFingerprints> coroutine_fingerprints{};

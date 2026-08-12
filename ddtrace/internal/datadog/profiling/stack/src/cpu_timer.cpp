@@ -968,6 +968,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     sample->python_thread_id = state->python_thread_id;
     sample->native_tid = state->native_tid;
     sample->asyncio_task = 0;
+    sample->greenlet_id = g_state.tid_table.current_greenlet_id(state->native_tid);
     sample->coroutine_fingerprint_count = 0;
     sample->depth = 0;
 
@@ -1366,6 +1367,28 @@ Engine::has_thread(uint64_t python_thread_id, uint64_t native_id) const
     (void)python_thread_id;
     (void)native_id;
     return false;
+#endif
+}
+
+void
+Engine::set_current_greenlet(uint64_t native_id, uintptr_t greenlet_id)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    g_state.tid_table.set_current_greenlet_id(native_id, greenlet_id);
+#else
+    (void)native_id;
+    (void)greenlet_id;
+#endif
+}
+
+uintptr_t
+Engine::current_greenlet(uint64_t native_id) const
+{
+#if DD_CPU_TIMER_SUPPORTED
+    return g_state.tid_table.current_greenlet_id(native_id);
+#else
+    (void)native_id;
+    return 0;
 #endif
 }
 

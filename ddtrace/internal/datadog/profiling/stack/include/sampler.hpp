@@ -109,6 +109,7 @@ class Sampler
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
+    std::atomic<uint64_t> greenlet_native_id_generation_{ 0 };
 
     void atfork_child();
     friend void stack_atfork_prepare();
@@ -136,7 +137,11 @@ class Sampler
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
-    void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void update_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame);
     void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our

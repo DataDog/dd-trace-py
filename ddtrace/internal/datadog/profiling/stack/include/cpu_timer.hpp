@@ -62,6 +62,8 @@ class Engine
     void register_thread(uint64_t python_thread_id, uint64_t native_id, const char* name, PyThreadState* tstate);
     void unregister_thread(uint64_t python_thread_id);
     bool has_thread(uint64_t python_thread_id, uint64_t native_id) const;
+    void set_current_greenlet(uint64_t native_id, uintptr_t greenlet_id);
+    uintptr_t current_greenlet(uint64_t native_id) const;
     void drain(EchionSampler& echion);
 
     bool configured_enabled() const;

@@ -58,6 +58,22 @@ TEST(CpuTimerTidTable, AllocatesLeavesLazily)
     EXPECT_EQ(table.load(8), nullptr);
 }
 
+TEST(CpuTimerTidTable, PublishesCurrentGreenletIdentity)
+{
+    CpuTimerTidTable<TestState, 4> table;
+
+    ASSERT_TRUE(table.initialize(16));
+    ASSERT_TRUE(table.ensure(5));
+    EXPECT_EQ(table.current_greenlet_id(5), 0u);
+
+    table.set_current_greenlet_id(5, 123);
+    EXPECT_EQ(table.current_greenlet_id(5), 123u);
+    EXPECT_EQ(table.current_greenlet_id(6), 0u);
+
+    table.clear(5);
+    EXPECT_EQ(table.current_greenlet_id(5), 0u);
+}
+
 TEST(CpuTimerTidTable, TracksHandlerActivityPerTid)
 {
     CpuTimerTidTable<TestState, 4> table;
@@ -91,6 +107,8 @@ TEST(CpuTimerTidTable, ClearAndResetRetainAllocatedLeaves)
     ASSERT_TRUE(table.ensure(8));
     ASSERT_TRUE(table.publish(1, &first));
     ASSERT_TRUE(table.publish(8, &second));
+    table.set_current_greenlet_id(1, 101);
+    table.set_current_greenlet_id(8, 108);
     TestState* observed = nullptr;
     CpuTimerTidTable<TestState, 4>::HandlerToken first_token;
     CpuTimerTidTable<TestState, 4>::HandlerToken second_token;
@@ -99,12 +117,15 @@ TEST(CpuTimerTidTable, ClearAndResetRetainAllocatedLeaves)
 
     table.clear(1);
     EXPECT_EQ(table.load(1), nullptr);
+    EXPECT_EQ(table.current_greenlet_id(1), 0u);
     EXPECT_EQ(table.load(8), &second);
+    EXPECT_EQ(table.current_greenlet_id(8), 108u);
     EXPECT_TRUE(table.is_handler_active(1));
 
     table.reset();
     EXPECT_EQ(table.load(1), nullptr);
     EXPECT_EQ(table.load(8), nullptr);
+    EXPECT_EQ(table.current_greenlet_id(8), 0u);
     EXPECT_FALSE(table.is_handler_active(1));
     EXPECT_FALSE(table.is_handler_active(8));
     EXPECT_EQ(table.allocated_page_count(), 2u);

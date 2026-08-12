@@ -21,6 +21,7 @@ make_sample(uint64_t id)
     sample.python_thread_id = 2'000 + id;
     sample.native_tid = 3'000 + id;
     sample.asyncio_task = 4'000 + id;
+    sample.greenlet_id = 4'250 + id;
     sample.coroutine_fingerprint_count = 1;
     sample.coroutine_fingerprints[0].coroutine = 4'500 + id;
     sample.coroutine_fingerprints[0].code_object = reinterpret_cast<uintptr_t>(&first_code_object);
@@ -43,6 +44,7 @@ expect_sample_eq(const RawSample& actual, const RawSample& expected)
     EXPECT_EQ(actual.python_thread_id, expected.python_thread_id);
     EXPECT_EQ(actual.native_tid, expected.native_tid);
     EXPECT_EQ(actual.asyncio_task, expected.asyncio_task);
+    EXPECT_EQ(actual.greenlet_id, expected.greenlet_id);
     EXPECT_EQ(actual.coroutine_fingerprint_count, expected.coroutine_fingerprint_count);
     for (uint8_t i = 0; i < expected.coroutine_fingerprint_count; i++) {
         EXPECT_EQ(actual.coroutine_fingerprints[i].coroutine, expected.coroutine_fingerprints[i].coroutine);
