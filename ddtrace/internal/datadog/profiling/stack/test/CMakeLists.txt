@@ -95,6 +95,10 @@ function(configure_stack_internal_test name)
     endif()
 endfunction()
 
+dd_wrapper_add_test(test_native_shutdown test_native_shutdown.cpp)
+target_link_libraries(test_native_shutdown PRIVATE dd_wrapper)
+configure_stack_internal_test(test_native_shutdown)
+
 dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
 target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
 configure_stack_internal_test(test_sample_lifecycle)

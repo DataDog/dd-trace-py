@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <stdint.h>
 #include <string>
@@ -38,8 +39,12 @@ class OriginTaskLinks
   public:
     static OriginTaskLinks& get_instance()
     {
-        static OriginTaskLinks instance;
-        return instance;
+        // Sampler shutdown is asynchronous, so this callback-reachable state must
+        // outlive native exit handlers. Static storage keeps the instance reachable
+        // without registering its destructor or leaking its allocation.
+        alignas(OriginTaskLinks) static unsigned char storage[sizeof(OriginTaskLinks)];
+        static OriginTaskLinks* const instance = ::new (static_cast<void*>(storage)) OriginTaskLinks();
+        return *instance;
     }
 
     OriginTaskLinks(OriginTaskLinks const&) = delete;

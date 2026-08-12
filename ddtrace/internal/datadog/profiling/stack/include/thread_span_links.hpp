@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <stdint.h>
 #include <string>
@@ -35,8 +36,12 @@ class ThreadSpanLinks
   public:
     static ThreadSpanLinks& get_instance()
     {
-        static ThreadSpanLinks instance;
-        return instance;
+        // Sampler shutdown is asynchronous, so this callback-reachable state must
+        // outlive native exit handlers. Static storage keeps the instance reachable
+        // without registering its destructor or leaking its allocation.
+        alignas(ThreadSpanLinks) static unsigned char storage[sizeof(ThreadSpanLinks)];
+        static ThreadSpanLinks* const instance = ::new (static_cast<void*>(storage)) ThreadSpanLinks();
+        return *instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies
