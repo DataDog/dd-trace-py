@@ -345,8 +345,8 @@ venv = Venv(
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={"fastapi": "==0.94.1"},
+                    pys=["3.10", "3.14"],
+                    pkgs={"fastapi": "==0.141.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -4315,6 +4315,12 @@ venv = Venv(
                         "fastapi": "~=0.114.2",
                     },
                 ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -4353,6 +4359,12 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
                     },
                 ),
             ],
