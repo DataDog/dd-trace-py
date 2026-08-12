@@ -707,11 +707,16 @@ coroutine_chain_matches(PyObject* coroutine, const RawSample& raw)
         if (copy_type(coroutine, gen)) {
             return false;
         }
-        if (PyAsyncGenASend_CheckExact(&gen)) {
-            coroutine = reinterpret_cast<PyObject*>(reinterpret_cast<PyAsyncGenASend*>(&gen)->ags_gen);
+        PyTypeObject* type = gen.ob_base.ob_type;
+        if (type == &_PyAsyncGenASend_Type) {
+            PyAsyncGenASend asend;
+            if (copy_type(coroutine, asend)) {
+                return false;
+            }
+            coroutine = reinterpret_cast<PyObject*>(asend.ags_gen);
             continue;
         }
-        if (!PyCoro_CheckExact(&gen) && !PyAsyncGen_CheckExact(&gen)) {
+        if (type != &PyCoro_Type && type != &PyAsyncGen_Type) {
             return false;
         }
 
