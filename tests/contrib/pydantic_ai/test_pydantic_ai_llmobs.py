@@ -1118,7 +1118,9 @@ class TestPydanticAIAgentManifest:
         manifest = pydantic_ai._datadog_integration._build_agent_manifest(agent)
 
         assert manifest["system_prompts"] == ["real prompt"]
-        assert "object at 0x" not in safe_json(manifest)
+        # The sentinel's own repr, not a memory-address pattern: a provider sentinel like NOT_GIVEN
+        # reprs as a bare name, so checking for "object at 0x" would pass without filtering anything.
+        assert "Omit()" not in safe_json(manifest)
 
     async def test_wire_values_are_json_native(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """Only JSON-native values reach the wire.
