@@ -61,6 +61,33 @@ class TestTracedCursor(TracerTestCase):
 
             mock_sql_injection_report.assert_called_once_with(evidence_value=query, dialect="sqlite")
 
+    @pytest.mark.parametrize("query_keyword", ["query", "command", "sql", "operation", "statement"])
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
+    def test_tainted_query_keyword(self, query_keyword):
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+
+        with (
+            override_global_config(
+                dict(
+                    _iast_enabled=True,
+                )
+            ),
+            mock.patch(
+                "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
+            ) as mock_sql_injection_report,
+        ):
+            query = "SELECT * FROM db;"
+            query = taint_pyobject(query, source_name="query", source_value=query, source_origin=OriginType.PARAMETER)
+
+            cursor = self.cursor
+            cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
+            traced_cursor.execute(**{query_keyword: query})
+            cursor.execute.assert_called_once_with(**{query_keyword: query})
+
+            mock_sql_injection_report.assert_called_once_with(evidence_value=query, dialect="sqlite")
+
     @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_tainted_query_args(self):
         from ddtrace.appsec._iast._taint_tracking import OriginType

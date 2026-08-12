@@ -12,6 +12,9 @@ from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.settings.asm import config as asm_config
 
 
+_SQL_KEYWORD_ARGUMENT_NAMES = ("query", "command", "sql", "operation", "statement")
+
+
 class SqlInjection(VulnerabilityBase):
     vulnerability_type = VULN_SQL_INJECTION
     secure_mark = VulnerabilityType.SQL_INJECTION
@@ -36,14 +39,13 @@ def _on_report_sqli(*args, **kwargs) -> bool:
             query_args, kwargs, integration_name, method = args
 
             if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-                if (
-                    len(query_args)
-                    and query_args[0]
-                    and isinstance(query_args[0], IAST.TEXT_TYPES)
-                    and is_iast_request_enabled()
-                ):
-                    if SqlInjection.has_quota() and SqlInjection.is_tainted_pyobject(query_args[0]):
-                        SqlInjection.report(evidence_value=query_args[0], dialect=integration_name)
+                query = next(
+                    (kwargs[name] for name in _SQL_KEYWORD_ARGUMENT_NAMES if kwargs and name in kwargs),
+                    query_args[0] if query_args else None,
+                )
+                if query and isinstance(query, IAST.TEXT_TYPES) and is_iast_request_enabled():
+                    if SqlInjection.has_quota() and SqlInjection.is_tainted_pyobject(query):
+                        SqlInjection.report(evidence_value=query, dialect=integration_name)
                         reported = True
 
                     # Reports Span Metrics
