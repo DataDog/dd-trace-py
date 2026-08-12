@@ -113,6 +113,40 @@ def test_step_attempt_consistent_across_replay(test_spans):
     assert sorted(span.get_tag(aws_durable.TAG_REPLAYED) for span in step_spans) == ["false", "true"]
 
 
+def test_failed_step_attempt_consistent_across_replay(test_spans):
+    """A step that exhausts its retries and fails is, on replay, read from its FAILED
+    checkpoint (the SDK re-raises the stored error without running the body). That replay
+    span must be tagged replayed=true and report the same 0-indexed operation_attempt as
+    the live final attempt.
+
+    A FAILED checkpoint stores the 1-indexed attempt that failed (2 for a step whose 2nd
+    attempt failed), so without normalization the replay span would report 2 while the live
+    final attempt reports 1 -- the same off-by-one already handled for succeeded checkpoints.
+    """
+
+    def always_fails(step_context):
+        raise RuntimeError("permanent failure")
+
+    @ades.durable_execution
+    def workflow(event, context):
+        try:
+            context.step(always_fails, name="doomed", config=_fast_retry(max_attempts=2))
+        except Exception:
+            # Swallow the permanent failure so the workflow continues to the wait below,
+            # whose replay re-reads the now-FAILED step from its checkpoint.
+            pass
+        context.wait(Duration.from_seconds(1), name="pause")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    step_spans = list(test_spans.filter_spans(name=aws_durable.SPAN_STEP))
+    replayed_spans = [s for s in step_spans if s.get_tag(aws_durable.TAG_REPLAYED) == "true"]
+    assert replayed_spans, "expected a replay span for the failed step"
+    for span in replayed_spans:
+        assert span.get_metrics().get(aws_durable.TAG_OPERATION_ATTEMPT) == 1
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_parallel_propagates_trace_context():
     """context.parallel uses TracedThreadPoolExecutor so child step spans inherit the

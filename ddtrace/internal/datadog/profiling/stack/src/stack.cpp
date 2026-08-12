@@ -7,6 +7,7 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -26,6 +27,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -773,7 +775,11 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
 
-    set_fast_copy_enabled(static_cast<bool>(enabled));
+    const bool want = static_cast<bool>(enabled);
+    if (!want) {
+        fast_copy_user_disabled = true;
+    }
+    set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
 }
@@ -806,6 +812,15 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 }
 
 static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
 // process_vm_readv is always available on macOS
@@ -815,6 +830,41 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
 #endif
     Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double seconds_value = 0.0;
+
+    if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_fast_copy_warmup_seconds must be called before the sampler is started");
+        return NULL;
+    }
+
+    Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
+
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef stack_methods[] = {
@@ -867,6 +917,14 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "fast_copy_memory_active",
+      stack_fast_copy_memory_active,
+      METH_NOARGS,
+      "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_set_fast_copy_warmup_seconds",
+      stack_set_fast_copy_warmup_seconds,
+      METH_VARARGS,
+      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
@@ -875,6 +933,10 @@ static PyMethodDef stack_methods[] = {
       stack_reinstall_segv_handler,
       METH_NOARGS,
       "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,

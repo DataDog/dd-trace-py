@@ -16,15 +16,18 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -197,6 +200,41 @@ def parse_llmobs_metric_args(metrics):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
+
+def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
+    """Extract OpenRouter's returned cost (USD) from an OpenAI-compatible ``usage`` object.
+
+    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
+    every response. Returns an empty dict for responses without a cost (e.g. other providers).
+
+    BYOK (bring-your-own-key): when the customer calls the provider with their own credentials,
+    OpenRouter's billed ``cost`` covers only its own fee (often 0) while the provider inference
+    cost is incurred upstream and reported under ``cost_details.upstream_inference_cost``. In that
+    case (flagged by ``usage.is_byok``) add the upstream cost so the span reflects the cost the
+    customer actually incurred. For non-BYOK responses ``cost`` already includes the provider cost,
+    so the upstream figure is not added.
+    """
+    cost = _get_attr(token_usage, "cost", None)
+    if not isinstance(cost, (int, float)):
+        return {}
+    total_cost = float(cost)
+    cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    if _get_attr(token_usage, "is_byok", False):
+        upstream_cost = _get_attr(cost_details, "upstream_inference_cost", None)
+        if isinstance(upstream_cost, (int, float)):
+            total_cost += upstream_cost
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
+    input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
+    output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
+    if (
+        isinstance(input_cost, (int, float))
+        and isinstance(output_cost, (int, float))
+        and round((input_cost + output_cost) * 1e9) == round(total_cost * 1e9)
+    ):
+        metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
+        metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
 
 
 LANGCHAIN_ROLE_MAPPING = {
@@ -1143,7 +1181,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     if function_call_chunk:
         if not stored_tool_calls:
             stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
+        # so coerce to "" — getattr's default only applies when the attribute is absent.
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
         return
     if not tool_call_chunk:
         return
@@ -1171,9 +1211,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls.append(call_dict)
         list_idx = -1
     if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
+        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
     elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
+        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
 
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:

@@ -88,6 +88,9 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
+
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
@@ -138,18 +141,16 @@ class Sampler
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
 
-    // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
-    // Converted to us of CPU budget per adaptation window.
     void set_baseline_core_pct(double value)
     {
         baseline_cpu_us_per_adapt_window = value * 0.01 * g_adaptive_sampling_interval_us;
     }
 
-    // Set the rolling window duration (seconds) over which p_stable is computed.
     void set_p_stable_window_s(uint32_t value) { p_stable_window_s = value; }
 
-    // Set the percentile (0–100) used to compute p_stable from the rolling window.
     void set_p_stable_percentile(double percentile) { p_stable_percentile_frac = percentile / 100.0; }
+
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
@@ -163,5 +164,8 @@ class Sampler
     // Restart the sampler after fork if it was running
     void restart_after_fork();
 };
+
+void
+seed_fast_copy_profiler_stats();
 
 } // namespace Datadog

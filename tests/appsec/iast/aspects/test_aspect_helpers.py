@@ -99,6 +99,12 @@ def _build_sample_range(start, length, name):
     return TaintRange(start, length, Source(name, "sample_value", OriginType.PARAMETER))
 
 
+def _mapper_tag(text, taint_range, context_id):
+    set_ranges(text, (taint_range,), context_id)
+    escaped_text = as_formatted_evidence(text, tag_mapping_function=TagMappingMode.Mapper)
+    return escaped_text[len(":+-") : escaped_text.index(">") + 1]
+
+
 def test_as_formatted_evidence():  # type: () -> None
     context_id = _get_iast_context_id()
 
@@ -134,6 +140,61 @@ def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: 
         as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<1750328947>abcde<1750328947>-+:fgh"
     )
     assert _convert_escaped_text_to_tainted_text(":+-<1750328947>abcde<1750328947>-+:fgh", [ranges]) == "abcdefgh"
+
+
+@pytest.mark.parametrize("literal_marker", ["a:+-b", "a-+:b", "a:+-b-+:c"])
+def test_convert_escaped_text_to_tainted_text_preserves_literal_markers(literal_marker):  # type: (str) -> None
+    context_id = _get_iast_context_id()
+
+    taint_range = _build_sample_range(0, len(literal_marker), "literal_marker")
+    set_ranges(literal_marker, (taint_range,), context_id)
+
+    escaped_text = as_formatted_evidence(literal_marker, tag_mapping_function=TagMappingMode.Mapper)
+    result = _convert_escaped_text_to_tainted_text(escaped_text, [taint_range])
+
+    assert result == literal_marker
+    assert get_ranges(result) == [taint_range]
+
+
+def test_convert_escaped_text_to_tainted_text_preserves_outer_range_across_literal_marker():  # type: () -> None
+    context_id = _get_iast_context_id()
+
+    template = "a:+-%s"
+    template_range = _build_sample_range(0, len(template), "template")
+    set_ranges(template, (template_range,), context_id)
+    escaped_template = as_formatted_evidence(template, tag_mapping_function=TagMappingMode.Mapper)
+
+    parameter = "b"
+    parameter_range = _build_sample_range(0, len(parameter), "parameter")
+    set_ranges(parameter, (parameter_range,), context_id)
+    escaped_parameter = as_formatted_evidence(parameter, tag_mapping_function=TagMappingMode.Mapper)
+
+    result = _convert_escaped_text_to_tainted_text(
+        escaped_template % escaped_parameter, [template_range, parameter_range]
+    )
+
+    assert result == "a:+-b"
+    assert get_ranges(result) == [
+        TaintRange(0, len("a:+-"), Source("template", "sample_value", OriginType.PARAMETER)),
+        TaintRange(len("a:+-"), len("b"), Source("parameter", "sample_value", OriginType.PARAMETER)),
+    ]
+
+
+def test_convert_escaped_text_to_tainted_text_preserves_mismatched_end_marker():  # type: () -> None
+    context_id = _get_iast_context_id()
+
+    other_range = _build_sample_range(0, 1, "other")
+    other_tag = _mapper_tag("x", other_range, context_id)
+
+    text = f"a{other_tag}-+:b"
+    text_range = _build_sample_range(0, len(text), "text")
+    set_ranges(text, (text_range,), context_id)
+    escaped_text = as_formatted_evidence(text, tag_mapping_function=TagMappingMode.Mapper)
+
+    result = _convert_escaped_text_to_tainted_text(escaped_text, [text_range, other_range])
+
+    assert result == text
+    assert get_ranges(result) == [text_range]
 
 
 def test_set_ranges_on_splitted_str() -> None:
