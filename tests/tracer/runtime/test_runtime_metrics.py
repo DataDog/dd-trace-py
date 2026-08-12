@@ -5,6 +5,7 @@ import time
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
@@ -180,6 +181,33 @@ def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
         assert gauges, "expected at least one metric line to be sent"
         for gauge in gauges:
             assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+
+
+def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
+    # The dogstatsd client also derives service/env/version tags from DD_SERVICE/DD_ENV/DD_VERSION
+    # at construction. If ddtrace.config.service (etc.) changes afterwards -- e.g. a framework
+    # integration setting it once the app has started, after RuntimeWorker already snapshotted the
+    # client's tags -- flush() must only send the current value, not both the stale snapshot value
+    # and the current one.
+    monkeypatch.setenv("DD_SERVICE", "env-service")
+
+    with mock.patch("socket.socket") as sock:
+        sock.return_value.getsockopt.return_value = 0
+        worker = RuntimeWorker()
+        ddtrace.config.service = "override-service"
+        try:
+            worker.flush()
+        finally:
+            ddtrace.config.service = None
+
+        statsd_socket = worker._dogstatsd_client.socket
+        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+        assert received, "expected at least one packet to be sent"
+        gauges = [line for packet in received for line in packet.split("\n") if line]
+        assert gauges, "expected at least one metric line to be sent"
+        for gauge in gauges:
+            assert "service:env-service" not in gauge, gauge
+            assert gauge.count("service:override-service") == 1, gauge
 
 
 class TestRuntimeMetrics(BaseTestCase):

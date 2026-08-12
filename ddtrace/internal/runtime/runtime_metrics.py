@@ -8,6 +8,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
+from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -99,10 +100,18 @@ class RuntimeWorker(periodic.PeriodicService):
             self._platform_tags = self._format_tags(PlatformTags())
 
         self._process_tags: list[str] = list(ProcessTags())
-        # Tags the dogstatsd client derived at construction (e.g. dd.internal.entity_id from
-        # DD_ENTITY_ID). flush() below replaces constant_tags on every call, so without this
-        # snapshot those tags would be dropped after the first flush.
-        self._client_constant_tags: list[str] = list(self._dogstatsd_client.constant_tags or [])
+        # The dogstatsd client also derives service/env/version tags from DD_SERVICE/DD_ENV/
+        # DD_VERSION at construction, but those are already recomputed fresh from ddtrace.config
+        # on every flush() below via TracerTags(), so keeping them here would reintroduce a stale
+        # value alongside the current one whenever config.service/env/version changes afterwards
+        # (e.g. a framework integration setting it after this worker started). dd.internal.entity_id
+        # (from DD_ENTITY_ID) has no such fresh source, so it's the only one worth keeping: flush()
+        # replaces constant_tags on every call, and without this it would be dropped after the
+        # first flush.
+        entity_id_prefix = ENTITY_ID_TAG_NAME + ":"
+        self._client_constant_tags: list[str] = [
+            tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
+        ]
 
     @classmethod
     def disable(cls) -> None:
@@ -142,9 +151,8 @@ class RuntimeWorker(periodic.PeriodicService):
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        # Re-add the client's original constant tags (e.g. dd.internal.entity_id) on every flush,
-        # deduping exact-string repeats in case a tag (e.g. entity_id via a DD_TAGS workaround) ends
-        # up in both lists.
+        # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
+        # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
         constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
         log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
         self._dogstatsd_client.constant_tags = constant_tags
