@@ -613,7 +613,7 @@ link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 static PyObject*
-update_greenlet_switch(PyObject* Py_UNUSED(m), PyObject* args)
+record_greenlet_switch(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t origin_id;
     PyObject* origin_frame;
@@ -625,7 +625,7 @@ update_greenlet_switch(PyObject* Py_UNUSED(m), PyObject* args)
         return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().update_greenlet_switch(
+    Sampler::get().record_greenlet_switch(
       origin_id, origin_frame, target_id, target_frame, static_cast<bool>(update_target_frame));
     Py_END_ALLOW_THREADS;
 
@@ -1131,7 +1131,7 @@ static PyMethodDef stack_methods[] = {
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
-    { "update_greenlet_switch", update_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },
+    { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_target_overhead",

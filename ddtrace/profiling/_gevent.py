@@ -66,7 +66,7 @@ def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenle
     return gl
 
 
-def update_greenlet_switch(
+def record_greenlet_switch(
     origin_id: int,
     origin_frame: t.Union[FrameType, bool, None],
     target_id: int,
@@ -75,7 +75,7 @@ def update_greenlet_switch(
 ) -> None:
     _tracked_greenlets.add(origin_id)
     _tracked_greenlets.add(target_id)
-    stack.update_greenlet_switch(origin_id, origin_frame, target_id, target_frame, update_target_frame)
+    stack.record_greenlet_switch(origin_id, origin_frame, target_id, target_frame, update_target_frame)
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
@@ -109,7 +109,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
             # we need to unwind it. We definitely know it is still running
             # so if we allow the tracer to set its tracked frame to None,
             # we won't be able to unwind the full stack.
-            update_greenlet_switch(
+            record_greenlet_switch(
                 origin_id,
                 origin_frame,
                 target_id,

@@ -22,9 +22,9 @@ def test_greenlet_switch_uses_one_native_update() -> None:
     from ddtrace.profiling import _gevent as _gevent_module
 
     with patch.object(_gevent_module, "stack") as native_stack:
-        _gevent_module.update_greenlet_switch(1, False, 2, None, True)
+        _gevent_module.record_greenlet_switch(1, False, 2, None, True)
 
-    native_stack.update_greenlet_switch.assert_called_once_with(1, False, 2, None, True)
+    native_stack.record_greenlet_switch.assert_called_once_with(1, False, 2, None, True)
     assert {1, 2} <= _gevent_module._tracked_greenlets
 
 
