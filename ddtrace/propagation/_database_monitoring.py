@@ -35,6 +35,7 @@ DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
 DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
 DBM_PROPAGATION_MODE_DYNAMIC_SERVICE: Literal["dynamic_service"] = "dynamic_service"
 _DBM_INJECTION_MODES = ("full", "service", DBM_PROPAGATION_MODE_DYNAMIC_SERVICE)
+_SQL_KEYWORD_ARGUMENT_NAMES = ("query", "command", "sql", "operation", "statement")
 
 log = get_logger(__name__)
 
@@ -95,11 +96,15 @@ class _DBM_Propagator(object):
         if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
 
-        original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
+        sql_kw = self.sql_kw
+        if sql_kw not in kwargs and sql_kw in _SQL_KEYWORD_ARGUMENT_NAMES:
+            sql_kw = next((name for name in _SQL_KEYWORD_ARGUMENT_NAMES if name in kwargs), sql_kw)
+
+        original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, sql_kw)
         # add dbm comment to original_sql_statement
         sql_with_dbm_tags = self.comment_injector(dbm_comment, original_sql_statement)
         # replace the original query or procedure with sql_with_dbm_tags
-        args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
+        args, kwargs = set_argument_value(args, kwargs, self.sql_pos, sql_kw, sql_with_dbm_tags)
         return args, kwargs
 
     def _get_dbm_comment(self, db_span):

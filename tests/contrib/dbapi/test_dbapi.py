@@ -104,13 +104,15 @@ class TestTracedCursor(TracerTestCase):
     )
     def test_cursor_execute_with_keyword_and_dbm_injection(self):
         cursor = self.cursor
-        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "command"))
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
         traced_cursor = TracedCursor(cursor, cfg=cfg)
 
-        traced_cursor.execute(command="SELECT * FROM db;")
+        traced_cursor.execute(operation="SELECT * FROM db;")
+        traced_cursor.executemany(command="SELECT * FROM db;", seqparams=((),))
 
         dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
-        cursor.execute.assert_called_once_with(command=dbm_comment + "SELECT * FROM db;")
+        cursor.execute.assert_called_once_with(operation=dbm_comment + "SELECT * FROM db;")
+        cursor.executemany.assert_called_once_with(command=dbm_comment + "SELECT * FROM db;", seqparams=((),))
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
