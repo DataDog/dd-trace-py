@@ -680,6 +680,10 @@ profiling_native:
         - src/native/**/*.toml
         - src/native/**/*.txt
         - src/native/**/Cargo.lock
+        # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
+        - src/native_heap_gotter/**/*.rs
+        - src/native_heap_gotter/**/*.toml
+        - src/native_heap_gotter/**/Cargo.lock
         # Top-level build config
         - setup.py
         - pyproject.toml
