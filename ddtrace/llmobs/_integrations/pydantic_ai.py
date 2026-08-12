@@ -10,6 +10,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
+from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import put_field
 from ddtrace.llmobs._integrations.agent_manifest import type_name
@@ -33,25 +34,6 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 FRAMEWORK_NAME = "PydanticAI"
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
-
-
-def _is_flat_scalar_value(value: Any) -> bool:
-    """True for a JSON scalar, a flat list of scalars, or a flat mapping of scalars.
-
-    The allowlist protects the key, this protects the value: a nested blob is the shape a credential
-    travels in.
-    """
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return True
-    if isinstance(value, (list, tuple)):
-        return all(item is None or isinstance(item, (str, int, float, bool)) for item in value)
-    if isinstance(value, dict):
-        # Numeric only: logit_bias is token id to bias, so a string there is already invalid.
-        return all(
-            isinstance(key, (str, int)) and isinstance(item, (int, float)) and not isinstance(item, bool)
-            for key, item in value.items()
-        )
-    return False
 
 
 def _iter_agent_tools(agent: Any):
@@ -345,7 +327,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if isinstance(settings, dict):
             allowed: dict[str, Any] = {}
             for key, value in settings.items():
-                if key not in ALLOWED_MODEL_SETTINGS_KEYS or not _is_flat_scalar_value(value):
+                if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
                     continue
                 # Via put_field: wire_value returns None for what it cannot encode, and a direct
                 # assignment would ship that as an explicit null.

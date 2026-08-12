@@ -58,6 +58,25 @@ def type_name(candidate: Any) -> str:
     return "{}[{}]".format(getattr(origin, "__name__", None) or str(origin), ", ".join(names))
 
 
+def is_flat_scalar_value(value: Any) -> bool:
+    """True for a JSON scalar, a flat list of scalars, or a flat mapping of scalars.
+
+    The allowlist protects the key, this protects the value: a nested blob is the shape a credential
+    travels in.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(item is None or isinstance(item, (str, int, float, bool)) for item in value)
+    if isinstance(value, dict):
+        # Numeric only: logit_bias is token id to bias, so a string there is already invalid.
+        return all(
+            isinstance(key, (str, int)) and isinstance(item, (int, float)) and not isinstance(item, bool)
+            for key, item in value.items()
+        )
+    return False
+
+
 def put_field(fields: dict[str, Any], name: str, value: Any) -> None:
     """Assign an optional field, dropping values that mean "not configured". False and 0 are kept."""
     if value is None:
