@@ -54,6 +54,9 @@ log = get_logger(__name__)
 SOF = 0
 EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
+_INSTRUMENTED_OPCODES = frozenset(
+    opcode for name, opcode in getattr(dis, "_all_opmap", {}).items() if name.startswith("INSTRUMENTED_")
+)
 
 
 def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
@@ -105,6 +108,19 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
+def _has_instrumented_bytecode(code: CodeType) -> bool:
+    """Return whether reading code.co_code could enter unsafe de-instrumentation."""
+    try:
+        adaptive = getattr(code, "_co_code_adaptive")
+    except AttributeError:
+        return False
+
+    # Inline-cache data occupies code units too, so this can conservatively
+    # classify a cache value as an opcode. The only consequence is omitting
+    # optional inferred field metadata for that class.
+    return any(adaptive[offset] in _INSTRUMENTED_OPCODES for offset in range(0, len(adaptive), 2))
+
+
 def get_fields(cls: type) -> set[str]:
     # If the class has a __slots__ attribute, return it.
     try:
@@ -115,6 +131,8 @@ def get_fields(cls: type) -> set[str]:
     # Otherwise, look at the bytecode for the __init__ method.
     try:
         code = object.__getattribute__(cls, "__init__").__code__
+        if _has_instrumented_bytecode(code):
+            return set()
 
         return {
             code.co_names[b.arg]
@@ -122,7 +140,7 @@ def get_fields(cls: type) -> set[str]:
             # Python 3.14 changed this to LOAD_FAST_BORROW
             if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
         }
-    except AttributeError:
+    except Exception:
         return set()
 
 
