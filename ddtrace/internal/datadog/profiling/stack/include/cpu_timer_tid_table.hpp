@@ -22,10 +22,11 @@ namespace CpuTimer {
 // therefore perform two bounded atomic lookups without locks, allocation, or a
 // reclamation protocol for the table itself. reset() clears entries after fork
 // while retaining the already published leaves.
-template<typename T, size_t PageSize = 1024>
+constexpr size_t kCpuTimerTidTablePageSize = 1024;
+
+template<typename T>
 class CpuTimerTidTable
 {
-    static_assert(PageSize > 0, "TID table pages must contain at least one entry");
     static_assert(std::atomic<T*>::is_always_lock_free, "signal handler requires lock-free state pointer atomics");
     static_assert(std::atomic<uintptr_t>::is_always_lock_free,
                   "signal handler requires lock-free greenlet identity atomics");
@@ -33,15 +34,15 @@ class CpuTimerTidTable
 
     struct Page
     {
-        std::atomic<T*> states[PageSize];
-        std::atomic<uintptr_t> current_greenlet_ids[PageSize];
-        std::atomic<bool> handler_active[PageSize];
+        std::atomic<T*> states[kCpuTimerTidTablePageSize];
+        std::atomic<uintptr_t> current_greenlet_ids[kCpuTimerTidTablePageSize];
+        std::atomic<bool> handler_active[kCpuTimerTidTablePageSize];
 
         Page() noexcept { reset(); }
 
         void reset() noexcept
         {
-            for (size_t i = 0; i < PageSize; i++) {
+            for (size_t i = 0; i < kCpuTimerTidTablePageSize; i++) {
                 states[i].store(nullptr, std::memory_order_relaxed);
                 current_greenlet_ids[i].store(0, std::memory_order_relaxed);
                 handler_active[i].store(false, std::memory_order_relaxed);
@@ -56,9 +57,15 @@ class CpuTimerTidTable
     size_t directory_size_ = 0;
     size_t max_tid_ = 0;
 
-    [[nodiscard]] static size_t page_index(uint64_t tid) noexcept { return (static_cast<size_t>(tid) - 1) / PageSize; }
+    [[nodiscard]] static size_t page_index(uint64_t tid) noexcept
+    {
+        return (static_cast<size_t>(tid) - 1) / kCpuTimerTidTablePageSize;
+    }
 
-    [[nodiscard]] static size_t page_offset(uint64_t tid) noexcept { return (static_cast<size_t>(tid) - 1) % PageSize; }
+    [[nodiscard]] static size_t page_offset(uint64_t tid) noexcept
+    {
+        return (static_cast<size_t>(tid) - 1) % kCpuTimerTidTablePageSize;
+    }
 
     [[nodiscard]] Page* page_for(uint64_t tid) const noexcept
     {
@@ -93,7 +100,7 @@ class CpuTimerTidTable
             return false;
         }
 
-        const size_t directory_size = (max_tid - 1) / PageSize + 1;
+        const size_t directory_size = (max_tid - 1) / kCpuTimerTidTablePageSize + 1;
         auto* directory = new (std::nothrow) std::atomic<Page*>[directory_size];
         if (directory == nullptr) {
             return false;

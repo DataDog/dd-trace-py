@@ -37,7 +37,7 @@ struct sigaction g_old_bus;
 static_assert(std::atomic<ProfilingFaultRecover>::is_always_lock_free,
               "profiling fault handler requires a lock-free recovery callback atomic");
 
-std::atomic<ProfilingFaultRecover> g_external_recover{ nullptr };
+static std::atomic<ProfilingFaultRecover> g_external_recover{ nullptr };
 
 thread_local ThreadAltStack t_altstack;
 
