@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    kafka: When distributed tracing is enabled, the ``kafka.consume`` span now relates to
+    every consumed message's producer trace via span links, instead of continuing a single
+    producer's trace.
