@@ -31,6 +31,8 @@ from .internal.trace_utils import iswrapped
 
 log = get_logger(__name__)
 
+_SQL_KEYWORD_ARGUMENT_NAMES = ("query", "command", "sql", "operation", "statement")
+
 
 config._add(
     "dbapi2",
@@ -90,6 +92,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
+    @staticmethod
+    def _get_sql_statement(args, kwargs):
+        for name in _SQL_KEYWORD_ARGUMENT_NAMES:
+            if name in kwargs:
+                return get_argument_value(args, kwargs, 0, name, optional=True)
+        return get_argument_value(args, kwargs, 0, "query", optional=True)
+
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
@@ -138,14 +147,13 @@ class TracedCursor(wrapt.ObjectProxy):
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
 
-    def executemany(self, query, *args, **kwargs):
+    def executemany(self, *args, **kwargs):
         """Wraps the cursor.executemany method"""
+        query = self._get_sql_statement(args, kwargs)
         self._self_last_execute_operation = query
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        # FIXME[matt] properly handle kwargs here. arg names can be different
-        # with different libs.
         core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.executemany,
@@ -153,13 +161,13 @@ class TracedCursor(wrapt.ObjectProxy):
             query,
             {"sql.executemany": "true"},
             self._self_dbm_propagator,
-            query,
             *args,
             **kwargs,
         )
 
-    def execute(self, query, *args, **kwargs):
+    def execute(self, *args, **kwargs):
         """Wraps the cursor.execute method"""
+        query = self._get_sql_statement(args, kwargs)
         self._self_last_execute_operation = query
 
         # Always return the result as-is
@@ -172,7 +180,6 @@ class TracedCursor(wrapt.ObjectProxy):
             query,
             {},
             self._self_dbm_propagator,
-            query,
             *args,
             **kwargs,
         )

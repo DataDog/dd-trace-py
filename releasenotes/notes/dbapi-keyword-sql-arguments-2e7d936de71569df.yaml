@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dbapi: Fixes an issue where traced ``execute`` and ``executemany`` calls fail when the SQL statement is passed
+    with a driver-specific keyword argument, such as Snowflake's ``command`` argument.

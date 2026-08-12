@@ -27,6 +27,26 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
+        assert self.pop_spans()[0].resource == "__query__"
+
+    def test_execute_with_keyword_query(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.execute.return_value = "__result__"
+
+        traced_cursor = TracedCursor(cursor, {})
+        assert "__result__" == traced_cursor.execute(command="__query__")
+        cursor.execute.assert_called_once_with(command="__query__")
+        assert self.pop_spans()[0].resource == "__query__"
+
+    def test_execute_without_query(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+
+        traced_cursor = TracedCursor(cursor, {})
+        traced_cursor.execute()
+
+        cursor.execute.assert_called_once_with()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
@@ -66,6 +86,24 @@ class TestTracedCursor(TracerTestCase):
         # DBM comment should not be added procedure names
         cursor.callproc.assert_called_once_with("procedure_named_moon")
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    def test_cursor_execute_with_keyword_and_dbm_injection(self):
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "command"))
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
+
+        traced_cursor.execute(command="SELECT * FROM db;")
+
+        dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
+        cursor.execute.assert_called_once_with(command=dbm_comment + "SELECT * FROM db;")
+
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -75,6 +113,17 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
+        assert self.pop_spans()[0].resource == "__query__"
+
+    def test_executemany_with_keyword_query(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.executemany.return_value = "__result__"
+
+        traced_cursor = TracedCursor(cursor, {})
+        assert "__result__" == traced_cursor.executemany(command="__query__", seqparams=((),))
+        cursor.executemany.assert_called_once_with(command="__query__", seqparams=((),))
+        assert self.pop_spans()[0].resource == "__query__"
 
     def test_fetchone_wrapped_is_called_and_returned(self):
         cursor = self.cursor
