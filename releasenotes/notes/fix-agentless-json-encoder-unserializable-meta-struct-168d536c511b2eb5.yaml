@@ -1,5 +1,6 @@
 ---
 fixes:
   - |
-    LLM Observability: Resolves a ``TypeError`` that dropped all spans in a trace when span metadata
-    contained a value that is not JSON serializable, such as a ``uuid.UUID``. Affects agentless mode only.
+    tracing: Fixes an issue where agentless trace export dropped every span in a trace if any span
+    carried a value that is not JSON serializable, such as a ``uuid.UUID`` recorded in LLM
+    Observability span metadata. Such values are now serialized to their string representation.
