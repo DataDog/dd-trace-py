@@ -47,6 +47,7 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
         model=model_name,
         kind="agent",
         submit_to_llmobs=True,
+        _dd_agent=agent,
         **kwargs,
     )
 
