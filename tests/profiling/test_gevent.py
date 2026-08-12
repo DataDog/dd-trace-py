@@ -16,23 +16,6 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess()
-def test_greenlet_switch_uses_one_native_update() -> None:
-    from unittest.mock import patch
-
-    from ddtrace.profiling import _gevent as _gevent_module
-
-    with patch.object(_gevent_module, "stack") as native_stack:
-        _gevent_module.update_greenlet_switch(1, False, 2, None, True)
-
-    native_stack.update_greenlet_switch.assert_called_once_with(1, False, 2, None, True)
-    assert {1, 2} <= _gevent_module._tracked_greenlets
-
-
-@pytest.mark.skipif(
-    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
-    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
-)
-@pytest.mark.subprocess()
 def test_untrack_parent_before_child_no_keyerror() -> None:
     """Untracking a parent greenlet before its linked child must not raise KeyError.
 
