@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes  # noqa:F401
     from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
+    from ddtrace.internal._span_protocol import SpanProtocol  # noqa:F401
     from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
@@ -40,7 +40,7 @@ log = get_logger(__name__)
 
 
 def _ddmap(span, attribute, value):
-    # type: (DDSpan, str, Union[str, bytes, NumericType]) -> DDSpan
+    # type: (SpanProtocol, str, Union[str, bytes, NumericType]) -> SpanProtocol
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
@@ -88,7 +88,7 @@ class Span(OtelSpan):
 
     def __init__(
         self,
-        datadog_span,  # type: DDSpan
+        datadog_span,  # type: SpanProtocol
         kind=SpanKind.INTERNAL,  # type: SpanKind
         attributes=None,  # type: Optional[Mapping[str, AttributeValue]]
         start_time=None,  # type: Optional[int]

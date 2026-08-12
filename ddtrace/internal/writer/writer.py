@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Sequence
 from typing import TextIO
 
 from ddtrace.internal.dist_computing.utils import in_ray_job
@@ -37,6 +38,7 @@ from .. import process_tags
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
+from .._span_protocol import SpanProtocol
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..dogstatsd import get_dogstatsd_client
@@ -60,7 +62,6 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
     from .utils.http import ConnectionType  # noqa:F401
@@ -129,7 +130,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence["SpanProtocol"]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -161,7 +162,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence["SpanProtocol"]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -407,7 +408,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence["SpanProtocol"]] = None) -> None:
         if spans is None:
             return
 
@@ -1087,13 +1088,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence["SpanProtocol"]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence["SpanProtocol"]] = None) -> None:
         if spans is None:
             return
 
