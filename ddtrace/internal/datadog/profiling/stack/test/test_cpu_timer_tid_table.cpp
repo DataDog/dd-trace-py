@@ -9,6 +9,7 @@
 #include <vector>
 
 using Datadog::CpuTimer::CpuTimerTidTable;
+using Datadog::CpuTimer::kCpuTimerTidTablePageSize;
 
 namespace {
 
@@ -21,46 +22,49 @@ struct TestState
 
 TEST(CpuTimerTidTable, InitializesOnlyDirectory)
 {
-    CpuTimerTidTable<TestState, 4> table;
+    CpuTimerTidTable<TestState> table;
+    constexpr size_t max_tid = 4 * kCpuTimerTidTablePageSize;
 
-    ASSERT_TRUE(table.initialize(16));
-    EXPECT_EQ(table.max_tid(), 16u);
+    ASSERT_TRUE(table.initialize(max_tid));
+    EXPECT_EQ(table.max_tid(), max_tid);
     EXPECT_EQ(table.directory_size(), 4u);
     EXPECT_EQ(table.allocated_page_count(), 0u);
     EXPECT_FALSE(table.contains(0));
     EXPECT_TRUE(table.contains(1));
-    EXPECT_TRUE(table.contains(16));
-    EXPECT_FALSE(table.contains(17));
+    EXPECT_TRUE(table.contains(max_tid));
+    EXPECT_FALSE(table.contains(max_tid + 1));
     EXPECT_EQ(table.load(1), nullptr);
 }
 
 TEST(CpuTimerTidTable, AllocatesLeavesLazily)
 {
-    CpuTimerTidTable<TestState, 4> table;
+    CpuTimerTidTable<TestState> table;
     TestState first{ 1 };
     TestState same_page{ 2 };
     TestState next_page{ 3 };
+    constexpr size_t same_page_tid = kCpuTimerTidTablePageSize;
+    constexpr size_t next_page_tid = kCpuTimerTidTablePageSize + 1;
 
-    ASSERT_TRUE(table.initialize(16));
+    ASSERT_TRUE(table.initialize(4 * kCpuTimerTidTablePageSize));
     ASSERT_TRUE(table.ensure(1));
     EXPECT_EQ(table.allocated_page_count(), 1u);
-    ASSERT_TRUE(table.ensure(3));
+    ASSERT_TRUE(table.ensure(same_page_tid));
     EXPECT_EQ(table.allocated_page_count(), 1u);
-    ASSERT_TRUE(table.ensure(5));
+    ASSERT_TRUE(table.ensure(next_page_tid));
     EXPECT_EQ(table.allocated_page_count(), 2u);
 
     ASSERT_TRUE(table.publish(1, &first));
-    ASSERT_TRUE(table.publish(3, &same_page));
-    ASSERT_TRUE(table.publish(5, &next_page));
+    ASSERT_TRUE(table.publish(same_page_tid, &same_page));
+    ASSERT_TRUE(table.publish(next_page_tid, &next_page));
     EXPECT_EQ(table.load(1), &first);
-    EXPECT_EQ(table.load(3), &same_page);
-    EXPECT_EQ(table.load(5), &next_page);
-    EXPECT_EQ(table.load(8), nullptr);
+    EXPECT_EQ(table.load(same_page_tid), &same_page);
+    EXPECT_EQ(table.load(next_page_tid), &next_page);
+    EXPECT_EQ(table.load(2 * kCpuTimerTidTablePageSize), nullptr);
 }
 
 TEST(CpuTimerTidTable, PublishesCurrentGreenletIdentity)
 {
-    CpuTimerTidTable<TestState, 4> table;
+    CpuTimerTidTable<TestState> table;
 
     ASSERT_TRUE(table.initialize(16));
     ASSERT_TRUE(table.ensure(5));
@@ -76,12 +80,13 @@ TEST(CpuTimerTidTable, PublishesCurrentGreenletIdentity)
 
 TEST(CpuTimerTidTable, TracksHandlerActivityPerTid)
 {
-    CpuTimerTidTable<TestState, 4> table;
+    CpuTimerTidTable<TestState> table;
     TestState state{ 1 };
     TestState* observed = nullptr;
-    CpuTimerTidTable<TestState, 4>::HandlerToken token;
+    CpuTimerTidTable<TestState>::HandlerToken token;
+    constexpr size_t unallocated_page_tid = kCpuTimerTidTablePageSize + 1;
 
-    ASSERT_TRUE(table.initialize(16));
+    ASSERT_TRUE(table.initialize(2 * kCpuTimerTidTablePageSize));
     ASSERT_TRUE(table.ensure(5));
     ASSERT_TRUE(table.publish(5, &state));
     EXPECT_FALSE(table.is_handler_active(5));
@@ -92,49 +97,50 @@ TEST(CpuTimerTidTable, TracksHandlerActivityPerTid)
     table.leave_handler(token);
     EXPECT_FALSE(table.is_handler_active(5));
 
-    EXPECT_FALSE(table.enter_handler(9, observed, token));
-    EXPECT_FALSE(table.is_handler_active(9));
+    EXPECT_FALSE(table.enter_handler(unallocated_page_tid, observed, token));
+    EXPECT_FALSE(table.is_handler_active(unallocated_page_tid));
 }
 
 TEST(CpuTimerTidTable, ClearAndResetRetainAllocatedLeaves)
 {
-    CpuTimerTidTable<TestState, 4> table;
+    CpuTimerTidTable<TestState> table;
     TestState first{ 1 };
     TestState second{ 2 };
+    constexpr size_t second_page_tid = kCpuTimerTidTablePageSize + 1;
 
-    ASSERT_TRUE(table.initialize(16));
+    ASSERT_TRUE(table.initialize(2 * kCpuTimerTidTablePageSize));
     ASSERT_TRUE(table.ensure(1));
-    ASSERT_TRUE(table.ensure(8));
+    ASSERT_TRUE(table.ensure(second_page_tid));
     ASSERT_TRUE(table.publish(1, &first));
-    ASSERT_TRUE(table.publish(8, &second));
+    ASSERT_TRUE(table.publish(second_page_tid, &second));
     table.set_current_greenlet_id(1, 101);
-    table.set_current_greenlet_id(8, 108);
+    table.set_current_greenlet_id(second_page_tid, 108);
     TestState* observed = nullptr;
-    CpuTimerTidTable<TestState, 4>::HandlerToken first_token;
-    CpuTimerTidTable<TestState, 4>::HandlerToken second_token;
+    CpuTimerTidTable<TestState>::HandlerToken first_token;
+    CpuTimerTidTable<TestState>::HandlerToken second_token;
     ASSERT_TRUE(table.enter_handler(1, observed, first_token));
-    ASSERT_TRUE(table.enter_handler(8, observed, second_token));
+    ASSERT_TRUE(table.enter_handler(second_page_tid, observed, second_token));
 
     table.clear(1);
     EXPECT_EQ(table.load(1), nullptr);
     EXPECT_EQ(table.current_greenlet_id(1), 0u);
-    EXPECT_EQ(table.load(8), &second);
-    EXPECT_EQ(table.current_greenlet_id(8), 108u);
+    EXPECT_EQ(table.load(second_page_tid), &second);
+    EXPECT_EQ(table.current_greenlet_id(second_page_tid), 108u);
     EXPECT_TRUE(table.is_handler_active(1));
 
     table.reset();
     EXPECT_EQ(table.load(1), nullptr);
-    EXPECT_EQ(table.load(8), nullptr);
-    EXPECT_EQ(table.current_greenlet_id(8), 0u);
+    EXPECT_EQ(table.load(second_page_tid), nullptr);
+    EXPECT_EQ(table.current_greenlet_id(second_page_tid), 0u);
     EXPECT_FALSE(table.is_handler_active(1));
-    EXPECT_FALSE(table.is_handler_active(8));
+    EXPECT_FALSE(table.is_handler_active(second_page_tid));
     EXPECT_EQ(table.allocated_page_count(), 2u);
 }
 
 TEST(CpuTimerTidTable, ConcurrentEnsurePublishesOneLeaf)
 {
     constexpr size_t thread_count = 16;
-    CpuTimerTidTable<TestState, 64> table;
+    CpuTimerTidTable<TestState> table;
     ASSERT_TRUE(table.initialize(1024));
 
     std::atomic<bool> start{ false };
