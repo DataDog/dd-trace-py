@@ -546,8 +546,8 @@ class ProfilingConfigNativeHeap(DDConfig):
         help_type="Boolean",
         help=(
             "Whether to enable experimental native (C/C++) heap profiling. "
-            "Requires ``DD_PROFILING_ENABLED=true``, Linux, and a wheel built with "
-            "``DD_PROFILING_NATIVE_HEAP_BUILD=1``. Disabled by default."
+            "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
+            "DD_PROFILING_NATIVE_HEAP_BUILD=1. Disabled by default."
         ),
     )
 
@@ -681,7 +681,7 @@ exception_failure_msg, exception_is_available = _check_for_exception_available()
 if not exception_is_available and config.exception.enabled:
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# Native heap profiling only *arms* USDT probes via a separately-built cdylib.
+# Native heap profiling only arms USDT probes via a separately-built cdylib.
 # Check availability lazily (only when requested) so the common disabled path
 # never dlopen's the gotter library, and fail closed if it can't be loaded.
 if config.native_heap.enabled:
@@ -691,7 +691,7 @@ if config.native_heap.enabled:
         logger.warning("Native heap profiling requested but unavailable (%s), disabling", msg)
         telemetry_writer.add_log(
             TELEMETRY_LOG_LEVEL.ERROR,
-            "Native heap profiling requested but unavailable (%s), disabling" % msg,
+            f"Native heap profiling requested but unavailable ({msg}), disabling",
         )
         config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
