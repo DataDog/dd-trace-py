@@ -1099,7 +1099,7 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
 
     Before the fix, unwind_greenlets() held greenlet_info_map_lock for the
     entire stack unwinding of ALL tracked greenlets.  Every greenlet switch
-    calls update_greenlet_switch() under the same lock, so more tracked
+    calls record_greenlet_switch() under the same lock, so more tracked
     greenlets meant longer lock hold and more switch blocking.
 
     This test measures greenlet-switch wall time with zero vs many idle
