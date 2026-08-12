@@ -893,6 +893,23 @@ class TestPydanticAIAgentManifest:
 
         assert manifest["model"] == "gpt-4o"
 
+    async def test_non_string_model_name_never_ships(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """model_name is annotated str, but a custom Model returns whatever it likes.
+
+        The encoder reprs what it cannot encode, and a model object's repr is a plausible place for a
+        connection string, so this mirrors the str-only read on the tool description.
+        """
+        model = _function_model()
+        hostile = property(lambda self: _UnserializableSentinel())
+
+        with mock.patch.object(type(model), "model_name", hostile):
+            agent = pydantic_ai.Agent(model=model, name="test_agent")
+            await agent.run("Hello, world!")
+            manifest = _manifest_of(test_spans.pop_traces()[0][0])
+
+        assert "model" not in manifest
+        assert "Omit()" not in safe_json(manifest)
+
     @pytest.mark.parametrize(
         "declared,expected",
         [

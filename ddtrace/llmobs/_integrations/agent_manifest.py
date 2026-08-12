@@ -3,6 +3,7 @@
 import math
 import types
 from typing import Any
+from typing import Optional
 from typing import Union
 from typing import get_args
 from typing import get_origin
@@ -12,6 +13,11 @@ from typing import get_origin
 # past the interpreter's limit raises RecursionError here. The span sanitizer truncates deep values
 # too, but it runs after this and so cannot prevent that.
 MAX_WIRE_DEPTH = 20
+
+# Depth alone does not bound the work. A dict whose children are shared expands into a tree, so 20
+# levels of sharing is 2**20 emitted nodes built from 20 dicts in memory. Cycle detection cannot
+# catch that, because a shared child is a legitimate second visit rather than an ancestor.
+MAX_WIRE_NODES = 10_000
 
 # AIDEV-NOTE: allowlist, not denylist. model_settings is the one field whose key set the caller
 # controls, and the dangerous keys are provider-specific by name (extra_headers, openai_user,
@@ -61,8 +67,9 @@ def type_name(candidate: Any) -> str:
 def is_flat_scalar_value(value: Any) -> bool:
     """True for a JSON scalar, a flat list of scalars, or a flat mapping of scalars.
 
-    The allowlist protects the key, this protects the value: a nested blob is the shape a credential
-    travels in.
+    No allowlisted setting nests in its declared type, so this bounds a shape that should not
+    arrive: model_settings is a TypedDict, nothing validates it at run time, and wire_value would
+    coerce a nested value and pass it through rather than drop it.
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return True
@@ -87,15 +94,27 @@ def put_field(fields: dict[str, Any], name: str, value: Any) -> None:
 
 
 def is_number(value: Any) -> bool:
-    """A finite JSON number. bool is an int subclass, so True would otherwise pass as a count."""
+    """A finite JSON number. bool is an int subclass, so True would otherwise ship as true here."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
     # isfinite on floats only: an int is never non-finite, and converting a huge one would raise.
     return math.isfinite(value) if isinstance(value, float) else True
 
 
-def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> Any:
-    """Coerce a config value to a JSON-native one, or None when it cannot ship."""
+def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budget: Optional[list] = None) -> Any:
+    """Coerce a config value to a JSON-native one, or None when it cannot ship.
+
+    A dropped entry costs its whole list but only its own key in a mapping. Compacting a list would
+    shift the surviving indices, and an ordered field such as memory_policies then describes a
+    pipeline the agent does not run, so omitting the field beats misreporting it.
+
+    budget is internal: a single-element list counting nodes still allowed across the whole walk.
+    """
+    if budget is None:
+        budget = [MAX_WIRE_NODES]
+    if budget[0] <= 0:
+        return None
+    budget[0] -= 1
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
@@ -106,12 +125,12 @@ def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = ()) -> A
             return None
         ancestors = ancestors + (id(value),)
     if isinstance(value, (list, tuple)):
-        items = [wire_value(item, depth + 1, ancestors) for item in value]
+        items = [wire_value(item, depth + 1, ancestors, budget) for item in value]
         return None if any(item is None for item in items) else items
     if isinstance(value, dict):
         coerced: dict[str, Any] = {}
         for key, item in value.items():
-            wired = wire_value(item, depth + 1, ancestors)
+            wired = wire_value(item, depth + 1, ancestors, budget)
             if wired is not None:
                 coerced[str(key)] = wired
         return coerced or None

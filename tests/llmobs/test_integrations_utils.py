@@ -26,6 +26,7 @@ from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_s
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import safe_json
 
 
 def test_format_audio_part_from_bytes():
@@ -701,7 +702,7 @@ class TestAgentManifestPrimitives:
 
     def test_is_number_rejects_bool_and_non_finite(self):
         assert is_number(0) and is_number(1.5) and is_number(-3)
-        assert not is_number(True), "bool is an int subclass and would pass as a count"
+        assert not is_number(True), "bool is an int subclass and would otherwise ship as true"
         assert not is_number(float("nan"))
         assert not is_number(float("inf"))
         assert not is_number(float("-inf"))
@@ -725,3 +726,27 @@ class TestAgentManifestPrimitives:
             current["n"] = {}
             current = current["n"]
         wire_value(deep)
+
+    def test_wire_value_bounds_shared_subtrees(self):
+        """Depth alone does not bound the work: shared children expand into a tree.
+
+        Twenty dicts each referencing the same child twice is 2**20 nodes, which took seconds and
+        tens of megabytes before the node budget. Cycle detection cannot catch it, because a shared
+        child is a second visit rather than an ancestor.
+        """
+        node = {"leaf": 1}
+        for _ in range(20):
+            node = {"a": node, "b": node}
+
+        wired = wire_value(node)
+
+        assert len(safe_json(wired)) < 200_000, "the node budget is what keeps this off the wire"
+
+    def test_wire_value_keeps_a_shared_subtree_that_fits(self):
+        """A repeated child is legitimate, so the budget must not turn sharing into a drop."""
+        child = {"region": "us1", "tier": "gold"}
+
+        assert wire_value({"primary": child, "replica": child}) == {
+            "primary": {"region": "us1", "tier": "gold"},
+            "replica": {"region": "us1", "tier": "gold"},
+        }

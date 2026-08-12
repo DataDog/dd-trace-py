@@ -2,6 +2,7 @@ import functools
 from typing import Any
 from typing import Optional
 from typing import Sequence
+from typing import cast
 from typing import get_origin
 
 from ddtrace.internal import core
@@ -20,6 +21,7 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AgentManifest
 from ddtrace.trace import Span
 
 
@@ -258,7 +260,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, agent_manifest=self._build_agent_manifest(agent))
 
-    def _build_agent_manifest(self, agent: Any) -> dict[str, Any]:
+    def _build_agent_manifest(self, agent: Any) -> AgentManifest:
         """Build the shared agent manifest from a pydantic-ai Agent.
 
         Sections are built independently so a framework change inside one cannot blank the rest. Only
@@ -280,7 +282,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 manifest.update(section(agent))
             except Exception:
                 log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
-        return manifest
+        # Cast rather than build a TypedDict directly: sections are assembled independently and
+        # merged, and test_shape_is_one_flat_document is what actually enforces the key set.
+        return cast(AgentManifest, manifest)
 
     def _manifest_labels(self, agent: Any) -> dict[str, Any]:
         """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
@@ -322,7 +326,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
             put_field(fields, "model", declared_name or model)
         elif model:
             model_name, _ = self._get_model_and_provider(model)
-            put_field(fields, "model", model_name)
+            # AIDEV-NOTE: str-only, for the same reason as the tool description read. model_name is
+            # annotated str, but a custom Model subclass returns whatever it likes and the encoder
+            # reprs what it cannot encode, which can carry a connection string.
+            put_field(fields, "model", model_name if isinstance(model_name, str) else None)
         settings = getattr(agent, "model_settings", None)
         if isinstance(settings, dict):
             allowed: dict[str, Any] = {}
