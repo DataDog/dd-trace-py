@@ -32,6 +32,7 @@ from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
 from ddtrace.debugging._safety import safe_getattr
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
@@ -149,6 +150,9 @@ def serialize(
     if _isinstance(value, CALLABLE_TYPES):
         return object.__repr__(value)
 
+    if redact_type(safe_qualname(type(value))):
+        return REDACTED_PLACEHOLDER
+
     if type(value) in SIMPLE_TYPES:
         r = repr(value)
         return "".join((r[:maxlen], "..." + ("'" if r[0] == "'" else "") if len(r) > maxlen else ""))
@@ -241,11 +245,11 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
 
 
 def redacted_value(v: Any) -> dict[str, Any]:
-    return {"type": type(v).__qualname__, "notCapturedReason": "redactedIdent"}
+    return {"type": safe_qualname(type(v)), "notCapturedReason": "redactedIdent"}
 
 
 def redacted_type(t: Any) -> dict[str, Any]:
-    return {"type": t.__qualname__, "notCapturedReason": "redactedType"}
+    return {"type": safe_qualname(t), "notCapturedReason": "redactedType"}
 
 
 def capture_pairs(
@@ -274,7 +278,7 @@ def capture_value(
 
     _type = type(value)
 
-    if redact_type(_type.__qualname__):
+    if redact_type(safe_qualname(_type)):
         return redacted_type(_type)
 
     if _type in SIMPLE_TYPES:

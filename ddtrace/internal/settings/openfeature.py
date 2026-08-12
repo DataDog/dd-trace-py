@@ -2,9 +2,41 @@
 OpenFeature configuration settings.
 """
 
+from typing import Callable
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+
+
+log = get_logger(__name__)
+
+
+# AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
+# module scope (see the bottom of this file), so letting envier raise on an unparsable value
+# turns it into an ImportError for ddtrace.openfeature and takes the whole application down at
+# startup rather than degrading one setting. dd-trace-java substitutes the default in the same
+# situation; match that.
+def _lenient_int(env_name: str, default: int) -> Callable[[str], int]:
+    def parse(raw: str) -> int:
+        try:
+            return int(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not an integer; using the default", env_name, raw)
+            return default
+
+    return parse
+
+
+def _lenient_float(env_name: str, default: float) -> Callable[[str], float]:
+    def parse(raw: str) -> float:
+        try:
+            return float(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not a number; using the default", env_name, raw)
+            return default
+
+    return parse
 
 
 class OpenFeatureConfig(DDConfig):
@@ -48,6 +80,7 @@ class OpenFeatureConfig(DDConfig):
         float,
         "DD_FFE_INTAKE_HEARTBEAT_INTERVAL",
         default=1.0,
+        parser=_lenient_float("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", 1.0),
     )
 
     # Provider initialization timeout in milliseconds. Controls how long initialize()
@@ -61,6 +94,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
         default=10000,
+        parser=_lenient_int("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", 10000),
     )
 
     # Stable Feature Flagging kill switch. When False, the provider is disabled
@@ -96,6 +130,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
         default=30,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS", 30),
     )
 
     # Agentless UFC per-request timeout in seconds.
@@ -103,6 +138,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
         default=5,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 5),
     )
 
     _openfeature_config_keys = [
