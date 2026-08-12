@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-from importlib.metadata import version
 import threading
 import typing
 
@@ -37,10 +36,9 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 
 # Handle different import paths between openfeature-sdk versions
 # Versions 0.7.0+ reorganized submodules
-pkg_version = version("openfeature-sdk")
-if pkg_version >= "0.7.0":
+try:
     from openfeature.provider import AbstractProvider
-else:
+except ModuleNotFoundError:
     from openfeature.provider.provider import AbstractProvider
 
 
