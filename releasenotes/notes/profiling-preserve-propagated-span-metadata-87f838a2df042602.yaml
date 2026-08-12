@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes an issue where child spans created from propagated tracing contexts can lose
+    local-root and endpoint attribution when greenlets share a thread.

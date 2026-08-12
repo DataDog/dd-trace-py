@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
@@ -3268,5 +3269,31 @@ class TestLLMObsOpenAIOpenRouter:
         assert "total_cost" in metrics
         assert metrics["total_cost"] > 0
         # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
+        if "input_cost" in metrics or "output_cost" in metrics:
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+    def test_chat_completion_openrouter_byok_cost(self, openai, openai_llmobs, test_spans):
+        """OpenRouter BYOK upstream cost is surfaced on the span's cost metrics.
+
+        With BYOK, OpenRouter bills ``usage.cost=0`` and reports the real provider cost under
+        ``usage.cost_details.upstream_inference_cost`` (flagged by ``usage.is_byok=True``). The
+        integration should surface that upstream cost as ``total_cost`` rather than the billed 0.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter_byok.yaml"):
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
+            resp = client.chat.completions.create(
+                model="openai/gpt-4o-mini",
+                messages=[{"role": "user", "content": "What is the capital of France?"}],
+            )
+
+        assert _get_attr(resp.usage, "is_byok", None) is True
+        assert _get_attr(resp.usage, "cost", None) == 0
+        cost_details = _get_attr(resp.usage, "cost_details", {})
+        assert _get_attr(cost_details, "upstream_inference_cost", 0) > 0
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = get_llmobs_metrics(spans[0])
+        # BYOK bills cost=0; the upstream inference cost must still be surfaced as a non-zero total_cost.
+        assert metrics["total_cost"] > 0
         if "input_cost" in metrics or "output_cost" in metrics:
             assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

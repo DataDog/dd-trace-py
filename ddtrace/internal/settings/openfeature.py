@@ -2,7 +2,41 @@
 OpenFeature configuration settings.
 """
 
+from typing import Callable
+from typing import Optional
+
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+
+
+log = get_logger(__name__)
+
+
+# AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
+# module scope (see the bottom of this file), so letting envier raise on an unparsable value
+# turns it into an ImportError for ddtrace.openfeature and takes the whole application down at
+# startup rather than degrading one setting. dd-trace-java substitutes the default in the same
+# situation; match that.
+def _lenient_int(env_name: str, default: int) -> Callable[[str], int]:
+    def parse(raw: str) -> int:
+        try:
+            return int(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not an integer; using the default", env_name, raw)
+            return default
+
+    return parse
+
+
+def _lenient_float(env_name: str, default: float) -> Callable[[str], float]:
+    def parse(raw: str) -> float:
+        try:
+            return float(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not a number; using the default", env_name, raw)
+            return default
+
+    return parse
 
 
 class OpenFeatureConfig(DDConfig):
@@ -46,15 +80,65 @@ class OpenFeatureConfig(DDConfig):
         float,
         "DD_FFE_INTAKE_HEARTBEAT_INTERVAL",
         default=1.0,
+        parser=_lenient_float("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", 1.0),
     )
 
-    # Provider initialization timeout in milliseconds.
-    # Controls how long initialize() blocks waiting for the first Remote Config payload.
-    # Default is 10000ms (10 seconds).
+    # Provider initialization timeout in milliseconds. Controls how long initialize()
+    # blocks waiting for the first configuration payload, from either configuration
+    # source. Expiry is not an error; the provider stays NOT_READY and becomes READY when
+    # configuration arrives.
+    # Default is 10000ms: long enough for a healthy delivery path, and short enough that a
+    # pre-fork worker boots inside gunicorn's 30s default worker timeout. Raising it much
+    # further risks the worker being killed before it finishes starting.
     initialization_timeout_ms = DDConfig.var(
         int,
         "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
         default=10000,
+        parser=_lenient_int("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", 10000),
+    )
+
+    # Stable Feature Flagging kill switch. When False, the provider is disabled
+    # regardless of the configured source. Default on.
+    feature_flags_enabled = DDConfig.var(
+        bool,
+        "DD_FEATURE_FLAGS_ENABLED",
+        default=True,
+    )
+
+    # Where Feature Flagging loads Universal Flag Configuration from.
+    # Supported: "agentless" (default) and "remote_config"; "offline" is reserved
+    # and currently unsupported. Normalized to trimmed lowercase; validity and
+    # grandfathering are resolved by the source-selection layer.
+    configuration_source = DDConfig.var(
+        str,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+        default="agentless",
+        parser=lambda v: v.strip().lower(),
+    )
+
+    # Optional override of the agentless UFC endpoint or base URL. A root/origin
+    # URL receives the standard rules-based path; a non-root URL is used verbatim.
+    configuration_source_agentless_base_url = DDConfig.var(
+        Optional[str],
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL",
+        default=None,
+        parser=lambda v: v.strip() or None,
+    )
+
+    # Agentless UFC polling interval in seconds, capped at one hour by the source.
+    configuration_source_agentless_poll_interval_seconds = DDConfig.var(
+        int,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
+        default=30,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS", 30),
+    )
+
+    # Agentless UFC per-request timeout in seconds.
+    configuration_source_agentless_request_timeout_seconds = DDConfig.var(
+        int,
+        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
+        default=5,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 5),
     )
 
     _openfeature_config_keys = [
@@ -64,6 +148,11 @@ class OpenFeatureConfig(DDConfig):
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
+        "feature_flags_enabled",
+        "configuration_source",
+        "configuration_source_agentless_base_url",
+        "configuration_source_agentless_poll_interval_seconds",
+        "configuration_source_agentless_request_timeout_seconds",
     ]
 
 

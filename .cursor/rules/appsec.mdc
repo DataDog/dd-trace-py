@@ -17,7 +17,8 @@ Datadog Application Security provides multiple layers of protection for Python a
 5. **AI Guard** - LLM input/output safety monitoring
 6. **User Event Tracking** - Login/signup event monitoring
 
-**All features are configured via environment variables** defined in `ddtrace/internal/settings/asm.py`.
+**All features are configured via environment variables.** Most are defined in `ddtrace/internal/settings/asm.py`;
+SCA and endpoint-collection telemetry settings live in `ddtrace/internal/settings/appsec_telemetry.py`.
 
 ---
 
@@ -291,7 +292,7 @@ Automatic discovery and cataloging of your APIs:
 | `DD_API_SECURITY_SAMPLE_DELAY` | `30.0` | Seconds between samples per endpoint |
 | `DD_API_SECURITY_PARSE_RESPONSE_BODY` | `true` | Capture response body schemas |
 | `DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED` | `true` | Enable endpoint collection |
-| `DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT` | `5000` | Max endpoints to track |
+| `DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT` | `300` | Max endpoints to track |
 | `DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE` | `0.5` | Rate for downstream request analysis |
 | `DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS` | `1` | Max downstream requests analyzed per request |
 

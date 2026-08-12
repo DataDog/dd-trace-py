@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the OpenAI and LiteLLM integrations reported zero cost for OpenRouter requests using a bring-your-own-key setup.

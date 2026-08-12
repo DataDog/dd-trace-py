@@ -8,6 +8,7 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -32,6 +33,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -168,6 +170,49 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 }
 
 PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
+
+static PyObject*
+stack_unlink_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &expected_span_id)) {
+        return nullptr;
+    }
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_clear_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+    if (!state) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
 
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
@@ -876,7 +921,11 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         return nullptr;
     }
 
-    set_fast_copy_enabled(static_cast<bool>(enabled));
+    const bool want = static_cast<bool>(enabled);
+    if (!want) {
+        fast_copy_user_disabled = true;
+    }
+    set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
 }
@@ -909,6 +958,15 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 }
 
 static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
 // process_vm_readv is always available on macOS
@@ -918,6 +976,41 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
 #endif
     Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double seconds_value = 0.0;
+
+    if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_fast_copy_warmup_seconds must be called before the sampler is started");
+        return NULL;
+    }
+
+    Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
+
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef stack_methods[] = {
@@ -934,6 +1027,11 @@ static PyMethodDef stack_methods[] = {
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "unlink_span",
+      stack_unlink_span,
+      METH_VARARGS,
+      "Clear the span linked to the current thread if its ID matches the expected span ID" },
+    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -984,6 +1082,14 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "fast_copy_memory_active",
+      stack_fast_copy_memory_active,
+      METH_NOARGS,
+      "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_set_fast_copy_warmup_seconds",
+      stack_set_fast_copy_warmup_seconds,
+      METH_VARARGS,
+      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
@@ -992,6 +1098,10 @@ static PyMethodDef stack_methods[] = {
       stack_reinstall_segv_handler,
       METH_NOARGS,
       "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,

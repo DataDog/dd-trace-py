@@ -18,6 +18,7 @@ from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -630,3 +631,44 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
+
+
+class TestOpenAIConstructToolCallFromStreamedChunk:
+    """OpenAI-compatible backends (e.g. DashScope/Qwen) may stream a tool-call delta with
+    ``function.arguments`` / ``custom.input`` set to ``None`` rather than ``""``. ``getattr``
+    returns that ``None`` (the default only applies when the attribute is absent), so the
+    ``str += None`` accumulation used to raise TypeError and drop the whole LLMObs span.
+    """
+
+    def test_function_call_chunk_with_none_arguments(self):
+        function_call = SimpleNamespace(name="get_weather", arguments=None)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, function_call_chunk=function_call)
+        assert stored[0]["arguments"] == ""
+
+    def test_tool_call_chunk_with_none_function_arguments(self):
+        function = SimpleNamespace(name="get_weather", arguments=None)
+        tool_call = SimpleNamespace(index=0, id="call_1", type="function", function=function, custom=None)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, tool_call_chunk=tool_call)
+        assert stored[0]["function"]["arguments"] == ""
+
+    def test_tool_call_chunk_with_none_custom_input(self):
+        custom = SimpleNamespace(name="my_tool", input=None)
+        tool_call = SimpleNamespace(index=0, id="call_2", type="custom", function=None, custom=custom)
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(stored, tool_call_chunk=tool_call)
+        assert stored[0]["custom"]["input"] == ""
+
+    def test_none_then_value_arguments_accumulate(self):
+        # DashScope emits arguments=None in the first tool-call delta, then the JSON in later deltas.
+        first = SimpleNamespace(name="get_weather", arguments=None)
+        later = SimpleNamespace(name=None, arguments='{"city": "NYC"}')
+        stored = []
+        openai_construct_tool_call_from_streamed_chunk(
+            stored, tool_call_chunk=SimpleNamespace(index=0, id="call_1", type="function", function=first, custom=None)
+        )
+        openai_construct_tool_call_from_streamed_chunk(
+            stored, tool_call_chunk=SimpleNamespace(index=0, id=None, type=None, function=later, custom=None)
+        )
+        assert stored[0]["function"]["arguments"] == '{"city": "NYC"}'

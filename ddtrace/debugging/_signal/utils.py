@@ -16,6 +16,7 @@ from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Iterable
 from typing import Optional
 
@@ -30,6 +31,8 @@ from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
+from ddtrace.debugging._safety import safe_getattr
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
@@ -106,6 +109,25 @@ def _(numpy: ModuleType) -> None:
     ARRAY_TYPES = frozenset((list, deque)) | ndarray_set
 
 
+def _is_namedtuple_type(cls: type) -> bool:
+    mro = safe_getattr(cls, "__mro__", None)
+    if type(mro) is not tuple or len(mro) < 3:
+        return False
+
+    if not (mro[-2] is tuple or (mro[-2] is Generic and mro[-3] is tuple)):
+        return False
+
+    fields = safe_getattr(cls, "_fields", None)
+    return type(fields) is tuple and all(type(f) is str for f in fields)
+
+
+def _fields_of(value: Any) -> dict[str, Any]:
+    if _is_namedtuple_type(type(value)):
+        return dict(zip(value._fields, value))
+
+    return get_fields(value)
+
+
 def _serialize_collection(
     value: Collection[Any], brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
 ) -> str:
@@ -127,6 +149,9 @@ def serialize(
 
     if _isinstance(value, CALLABLE_TYPES):
         return object.__repr__(value)
+
+    if redact_type(safe_qualname(type(value))):
+        return REDACTED_PLACEHOLDER
 
     if type(value) in SIMPLE_TYPES:
         r = repr(value)
@@ -163,7 +188,7 @@ def serialize(
         ", ".join(
             (
                 "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                for k, v in islice(get_fields(value).items(), maxfields)
+                for k, v in islice(_fields_of(value).items(), maxfields)
                 if not redact(k)
             )
         ),
@@ -220,11 +245,11 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
 
 
 def redacted_value(v: Any) -> dict[str, Any]:
-    return {"type": type(v).__qualname__, "notCapturedReason": "redactedIdent"}
+    return {"type": safe_qualname(type(v)), "notCapturedReason": "redactedIdent"}
 
 
 def redacted_type(t: Any) -> dict[str, Any]:
-    return {"type": t.__qualname__, "notCapturedReason": "redactedType"}
+    return {"type": safe_qualname(t), "notCapturedReason": "redactedType"}
 
 
 def capture_pairs(
@@ -253,7 +278,7 @@ def capture_value(
 
     _type = type(value)
 
-    if redact_type(_type.__qualname__):
+    if redact_type(safe_qualname(_type)):
         return redacted_type(_type)
 
     if _type in SIMPLE_TYPES:
@@ -401,7 +426,7 @@ def capture_value(
             "notCapturedReason": cond.__name__,
         }
 
-    fields = get_fields(value)
+    fields = _fields_of(value)
 
     # Capture exception chain for exceptions
     if _isinstance(value, BaseException):

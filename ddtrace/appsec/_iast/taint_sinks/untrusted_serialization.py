@@ -1,3 +1,6 @@
+from types import ModuleType
+from typing import Any
+from typing import Optional
 from typing import Text
 
 from ddtrace.appsec._constants import IAST
@@ -12,6 +15,7 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -29,7 +33,14 @@ def get_version() -> Text:
 
 _IS_PATCHED = False
 
-_MODULES = {
+# Sentinel used until (and unless) the application itself imports yaml: a ModuleWatchdog
+# hook then replaces it with yaml.SafeLoader, so we never force-import yaml ourselves during
+# bootstrap. Using a sentinel instead of None means a loader can never accidentally match
+# before the hook fires, without an extra None check in `_is_yaml_safe_load`.
+_UNSET = object()
+_yaml_safe_loader: Any = _UNSET
+
+_MODULES: set[tuple[str, str]] = {
     ("pickle", "load"),  # maps to pickle._load/_pickle.load
     ("pickle", "loads"),  # maps to pickle.loads/_pickle.loads
     ("pickle", "_load"),
@@ -49,7 +60,7 @@ _MODULES = {
 }
 
 
-def patch():
+def patch() -> None:
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -71,8 +82,15 @@ def patch():
 
     _set_metric_iast_instrumented_sink(VULN_UNTRUSTED_SERIALIZATION)
 
+    # Cache yaml.SafeLoader without ever importing yaml ourselves: the hook only fires once
+    # (if) the application (or another dependency) imports yaml on its own.
+    @ModuleWatchdog.after_module_imported("yaml")
+    def _(module: ModuleType) -> None:
+        global _yaml_safe_loader
+        _yaml_safe_loader = getattr(module, "SafeLoader", _UNSET)
 
-def _wrap_serializers(wrapped, instance, args, kwargs):
+
+def _wrap_serializers(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     # YAML safe loader handling. If caller uses yaml.load with SafeLoader
     # (either as second positional arg or via Loader kwarg), do not report.
     if not _is_yaml_safe_load(args, kwargs):
@@ -80,25 +98,21 @@ def _wrap_serializers(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def _is_yaml_safe_load(args, kwargs):
+def _is_yaml_safe_load(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
     """Return True when a yaml "safe" loader is explicitly provided.
 
     Detects yaml.load(..., SafeLoader) or yaml.load(..., Loader=SafeLoader) patterns.
-    The function imports yaml lazily to avoid hard dependency at import time.
+    Relies on ``_yaml_safe_loader``, populated by a ModuleWatchdog hook, instead of
+    importing yaml here: this function also runs for non-yaml sinks (e.g. pickle.load),
+    and importing yaml on demand would force-load it during application bootstrap.
     """
-    try:
-        import yaml
-
-        loader_kw = kwargs.get("Loader") or kwargs.get("loader")
-        loader_pos = args[1] if len(args) > 1 else None
-        loader = loader_kw or loader_pos
-        return loader is not None and (loader is getattr(yaml, "SafeLoader", object()))
-    except Exception:
-        # If yaml is not importable or anything fails, do not treat as safe
-        return False
+    loader_kw = kwargs.get("Loader") or kwargs.get("loader")
+    loader_pos = args[1] if len(args) > 1 else None
+    loader = loader_kw or loader_pos
+    return loader is not None and loader is _yaml_safe_loader
 
 
-def _iast_report_untrusted_serializastion(code_string: Text):
+def _iast_report_untrusted_serializastion(code_string: Optional[Text]) -> None:
     try:
         if is_iast_request_enabled():
             if (

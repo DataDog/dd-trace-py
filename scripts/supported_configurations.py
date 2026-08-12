@@ -30,6 +30,9 @@ INPUT_FILE = REPO_ROOT / "supported-configurations.json"
 OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_supported_configurations.py"
 CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
+# Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
+IGNORED_ENVIRONMENT_VARIABLES = ["_DD_CONTEXTVAR"]
+
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
 # Run: python scripts/supported_configurations.py
@@ -388,7 +391,7 @@ def check_registry(data: dict) -> int:
             continue
         for m in pattern.finditer(text):
             var = m.group(1)
-            if var not in all_known:
+            if var not in all_known and var not in IGNORED_ENVIRONMENT_VARIABLES:
                 missing.add(var)
         # ast.parse is expensive; skip files that can't define envier configs.
         if "DDConfig" in text:

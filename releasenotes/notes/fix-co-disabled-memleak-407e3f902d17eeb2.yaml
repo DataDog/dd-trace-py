@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    code origin for spans: fix a potential memory leak triggered by having code
+    origin for span explicitly disabled via environment variables.

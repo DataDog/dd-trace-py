@@ -1,0 +1,48 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.mistral.ai/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "User-Agent": "mistral-client-python/2.0.5",
+      "Content-Type": "application/json",
+      "Content-Length": "168"
+    },
+    "body": "{\"model\":\"magistral-medium-latest\",\"messages\":[{\"content\":\"What is 2+2?\",\"role\":\"user\"}],\"temperature\":0.7,\"top_p\":0.9,\"max_tokens\":500,\"stream\":false,\"random_seed\":42}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Mon, 20 Jul 2026 16:58:37 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "set-cookie": "__cf_bm=HHyHO5eNA8t5VoiztNDW2qFheY5JsWVkQOvmK0CZsxs-1784566715.9270642-1.0.1.1-EWjIT3RFIQ1PrikTbxlQG2dSOWaNBrBvNzEJPCfDGsH2hUEoZqHWMbC8FsPGUsNKrhLVT06lq6bP3lSRFvluE70VZCZqCdcqGLT_Vn2KhvuDH2hxdp9smWUnv3A9nbmT; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Mon, 20 Jul 2026 17:28:37 GMT",
+      "mistral-correlation-id": "019f8077-164f-7407-80c2-b286d36648be",
+      "x-kong-request-id": "019f8077-164f-7407-80c2-b286d36648be",
+      "x-max-retry-attempts-reached": "false",
+      "x-ratelimit-limit-tokens-minute": "75000",
+      "x-ratelimit-remaining-tokens-minute": "74932",
+      "x-ratelimit-tokens-query-cost": "68",
+      "x-ratelimit-limit-req-minute": "5",
+      "x-ratelimit-remaining-req-minute": "4",
+      "x-envoy-upstream-service-time": "1569",
+      "Server": "cloudflare",
+      "access-control-allow-origin": "*",
+      "x-kong-upstream-latency": "1570",
+      "x-kong-proxy-latency": "10",
+      "X-Content-Type-Options": "nosniff",
+      "cf-cache-status": "DYNAMIC",
+      "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a1e382f68c5d83fb-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"id\":\"0a6e16070048404cbabdb8fc772f5d17\",\"created\":1784566716,\"model\":\"magistral-medium-latest\",\"usage\":{\"prompt_tokens\":10,\"total_tokens\":73,\"completion_tokens\":63,\"prompt_tokens_details\":{\"cached_tokens\":5}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"Okay, the user has asked \\\"What is 2+2?\\\" This is a simple arithmetic question. I know that 2+2 equals 4. So, the answer should be straightforward.\"}],\"closed\":true},{\"type\":\"text\",\"text\":\"What is 2+2?\\n\\\\[ 2 + 2 = 4 \\\\]\\n\\n${answer}\"}]}}]}"
+  }
+}
