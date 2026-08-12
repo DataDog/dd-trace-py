@@ -1,10 +1,7 @@
 import functools
-import types
 from typing import Any
 from typing import Optional
 from typing import Sequence
-from typing import Union
-from typing import get_args
 from typing import get_origin
 
 from ddtrace.internal import core
@@ -12,8 +9,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import put_field
+from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -80,27 +79,6 @@ def _iter_agent_tools(agent: Any):
                 continue
             seen.add(name)
             yield name, tool
-
-
-def _callable_name(fn: Any) -> str:
-    """Best recoverable name for a callable. Two lambdas both report <lambda>, as Python does."""
-    return getattr(fn, "__name__", None) or getattr(getattr(fn, "func", None), "__name__", None) or type(fn).__name__
-
-
-def _type_name(candidate: Any) -> str:
-    """Readable name for an output-type candidate, such as list[Fruit].
-
-    Assembled from the type's parts because str() qualifies each argument with its defining module.
-    """
-    if candidate is type(None):
-        return "None"
-    origin, args = get_origin(candidate), get_args(candidate)
-    if origin is None or not args:
-        return getattr(candidate, "__name__", None) or str(candidate)
-    names = [_type_name(arg) for arg in args]
-    if origin is Union or origin is getattr(types, "UnionType", None):
-        return " | ".join(names)
-    return "{}[{}]".format(getattr(origin, "__name__", None) or str(origin), ", ".join(names))
 
 
 def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
@@ -348,7 +326,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ("dynamic_instructions", dynamic_instructions),
             ("dynamic_system_prompt", _collect_dynamic_system_prompts(agent)),
         ):
-            extra.extend({"type": kind, "name": _callable_name(fn)} for fn in resolvers)
+            extra.extend({"type": kind, "name": callable_name(fn)} for fn in resolvers)
         put_field(fields, "extra_instructions", extra)
         return fields
 
@@ -389,7 +367,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ("mcp", self._mcp_server_names(agent)),
             ("builtin", self._builtin_tool_names(agent)),
             ("custom", self._toolset_names(agent)),
-            ("tool_preparation", [_callable_name(fn) for fn in prepared]),
+            ("tool_preparation", [callable_name(fn) for fn in prepared]),
         ):
             capabilities.extend({"name": name, "type": kind} for name in names if name)
         put_field(fields, "capabilities", capabilities)
@@ -407,7 +385,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         fields: dict[str, Any] = {}
         processors = [fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)]
-        put_field(fields, "memory_policies", [_callable_name(fn) for fn in processors])
+        put_field(fields, "memory_policies", [callable_name(fn) for fn in processors])
         return fields
 
     def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
@@ -415,7 +393,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         fields: dict[str, Any] = {}
         validators = getattr(agent, "_output_validators", None) or []
         fns = [getattr(v, "function", v) for v in validators]
-        put_field(fields, "guardrails", [_callable_name(fn) for fn in fns if callable(fn)])
+        put_field(fields, "guardrails", [callable_name(fn) for fn in fns if callable(fn)])
         return fields
 
     def _manifest_agent_settings(self, agent: Any) -> dict[str, Any]:
@@ -505,7 +483,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             names.append(self._toolset_name(toolset))
         for toolset in getattr(agent, "_dynamic_toolsets", None) or []:
             fn = getattr(toolset, "toolset_func", None)
-            names.append(_callable_name(fn) if callable(fn) else self._toolset_name(toolset))
+            names.append(callable_name(fn) if callable(fn) else self._toolset_name(toolset))
         return names
 
     def _output_type_name(self, agent: Any) -> str:
@@ -513,7 +491,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if not hasattr(agent, "output_type"):
             return ""
         candidates = [c for c in self._unwrap_output_markers(agent.output_type) if not self._is_output_function(c)]
-        return " | ".join(_type_name(c) for c in candidates)
+        return " | ".join(type_name(c) for c in candidates)
 
     @staticmethod
     @functools.lru_cache(maxsize=1)

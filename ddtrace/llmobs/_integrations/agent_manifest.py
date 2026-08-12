@@ -1,7 +1,11 @@
 """Value coercion shared by integrations that build an agent manifest."""
 
 import math
+import types
 from typing import Any
+from typing import Union
+from typing import get_args
+from typing import get_origin
 
 
 # Bounds this function's own recursion, not the payload. metadata is a caller dict, and nesting it
@@ -31,6 +35,27 @@ ALLOWED_MODEL_SETTINGS_KEYS = frozenset(
         "top_p",
     }
 )
+
+
+def callable_name(fn: Any) -> str:
+    """Best recoverable name for a callable. Two lambdas both report <lambda>, as Python does."""
+    return getattr(fn, "__name__", None) or getattr(getattr(fn, "func", None), "__name__", None) or type(fn).__name__
+
+
+def type_name(candidate: Any) -> str:
+    """Readable name for a declared type, such as list[Fruit].
+
+    Assembled from the type's parts because str() qualifies each argument with its defining module.
+    """
+    if candidate is type(None):
+        return "None"
+    origin, args = get_origin(candidate), get_args(candidate)
+    if origin is None or not args:
+        return getattr(candidate, "__name__", None) or str(candidate)
+    names = [type_name(arg) for arg in args]
+    if origin is Union or origin is getattr(types, "UnionType", None):
+        return " | ".join(names)
+    return "{}[{}]".format(getattr(origin, "__name__", None) or str(origin), ", ".join(names))
 
 
 def put_field(fields: dict[str, Any], name: str, value: Any) -> None:
