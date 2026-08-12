@@ -4,6 +4,7 @@ from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 import pytest
 
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
@@ -230,6 +231,7 @@ def otel_flask_app_env(flask_wsgi_application):
 @pytest.mark.snapshot(
     wait_for_num_traces=1,
     ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:

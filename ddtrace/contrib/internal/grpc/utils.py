@@ -114,14 +114,12 @@ def _parse_rpc_repr_string(rpc_string, module):
 
 
 def is_otlp_export(metadata: tuple) -> bool:
-    """
-    Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter.
-    """
+    """Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter."""
     if not (config._otel_logs_enabled or config._otel_metrics_enabled):
         return False
 
     for key, value in metadata:
-        if key == USER_AGENT_HEADER:
+        if key in (USER_AGENT_HEADER, "grpc.primary_user_agent"):
             normalized_value = value.lower().replace(" ", "-")
             if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_value:
                 return True

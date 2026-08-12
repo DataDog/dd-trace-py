@@ -186,6 +186,11 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
     if not is_tracing_enabled():
         return channel
 
+    options_index = 2 if wrapped.__name__ == "secure_channel" else 1
+    options = get_argument_value(args, kwargs, options_index, "options", True)
+    if utils.is_otlp_export(options or ()):
+        return channel
+
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
     interceptor_function = create_client_interceptor(host, port)
