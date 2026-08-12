@@ -103,6 +103,18 @@ def test_snowflake_fetchone(client):
         assert cur.fetchone() == ("4.30.2",)
 
 
+@req_mock.activate
+def test_snowflake_execute_accepts_command_keyword(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with client.cursor() as cur:
+        res = cur.execute(command="select current_version();")
+        assert res == cur
+        assert cur.fetchone() == ("4.30.2",)
+
+
 @snapshot()
 @req_mock.activate
 def test_snowflake_settings_override(client):
@@ -192,6 +204,25 @@ def test_snowflake_executemany_insert(client):
         res = cur.executemany(
             "insert into t (a, b) values (%s, %s);",
             [
+                ("1a", "1b"),
+                ("2a", "2b"),
+            ],
+        )
+        assert res == cur
+        assert res.rowcount == 2
+
+
+@req_mock.activate
+def test_snowflake_executemany_accepts_command_keyword(client):
+    add_snowflake_query_response(
+        rowtype=[],
+        rows=[],
+        total=2,
+    )
+    with client.cursor() as cur:
+        res = cur.executemany(
+            command="insert into t (a, b) values (%s, %s);",
+            seqparams=[
                 ("1a", "1b"),
                 ("2a", "2b"),
             ],

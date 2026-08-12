@@ -19,12 +19,15 @@ from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_fr
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
 from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.internal import core
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -130,6 +133,26 @@ def iast_span_defaults(tracer):
     for _ in iast_context(dict(DD_IAST_ENABLED="true")):
         with tracer.trace("test") as span:
             yield span
+
+
+@pytest.fixture(autouse=True)
+def reset_iast_process_state():
+    """Restore the process-wide IAST state (patches, counters, native contexts) so that a test
+    that drives IAST directly, or fails before its own cleanup, cannot poison its neighbours.
+    """
+    yield
+    # testing_unpatch() is a no-op unless _iast_is_testing is set, and the test's own override
+    # is already gone by teardown time.
+    with override_global_config(dict(_iast_is_testing=True)):
+        _testing_unpatch_iast()
+    weak_hash_unpatch()
+    _reset_global_limit()
+    VulnerabilityBase._prepare_report._reset_cache()
+    core.discard_item(IAST.REQUEST_CONTEXT_KEY)
+    clear_all_request_context_slots()
+    IAST_CONTEXT.set(None)
+    reset_taint_range_limit_cache()
+    reset_source_truncation_cache()
 
 
 def pytest_configure(config):

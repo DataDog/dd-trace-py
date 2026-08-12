@@ -299,11 +299,11 @@ def test_scope_context_upload_skips_empty_batch():
     """Empty scope batches must not produce a SymDB upload request."""
     context = ScopeContext()
 
-    with mock.patch("ddtrace.internal.symbol_db.symbols.connector") as mock_connector:
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as mock_sender:
         with context._scopes_lock:
             context._upload_locked()
 
-    mock_connector.assert_not_called()
+    mock_sender.assert_not_called()
 
 
 def test_scope_context_upload_metadata():
@@ -347,16 +347,11 @@ def test_scope_context_upload_metadata():
         captured["bytes"] = data
         return real_compress(data, *args, **kwargs)
 
-    mock_response = mock.MagicMock()
-    mock_response.status = 200
-    mock_conn = mock.MagicMock()
-    mock_conn.getresponse.return_value = mock_response
-
     with (
-        mock.patch("ddtrace.internal.symbol_db.symbols.connector") as connector_mock,
+        mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock,
         mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
     ):
-        connector_mock.return_value.return_value.__enter__.return_value = mock_conn
+        sender_mock.return_value.send.return_value.accepted = True
 
         # First upload: batchNum starts at 1 and the attachment carries the
         # same upload metadata as the event envelope.
@@ -391,7 +386,7 @@ def test_symbols_upload_enabled():
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     assert not SymbolDatabaseUploader.is_installed()
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is not None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None
 
 
 @pytest.mark.subprocess(
@@ -556,9 +551,9 @@ def test_symbols_fork_forces_reenable_and_install():
 
     # Simulate that this process was already correctly disabled by the guard,
     # e.g. some ancestor already decided this branch shouldn't upload symbols.
-    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggerSymbolDb)
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is None
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is None
 
     upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
 
@@ -566,7 +561,7 @@ def test_symbols_fork_forces_reenable_and_install():
         if not (child := os.fork()):
             # The after-fork hook (ProductManager.restart_products -> symbol_db.restart())
             # has already run by this point, before any of our own code executes here.
-            assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is not None, (
+            assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None, (
                 "fork should have force re-registered the RC callback despite the earlier disable"
             )
 
