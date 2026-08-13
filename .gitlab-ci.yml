@@ -735,7 +735,7 @@ deploy_to_reliability_env:
     - job: "upload all"
       artifacts: false
   variables:
-    RELIABILITY_ENV_BRANCH: "dd/migrate-bazel-cache-buildbarn-202608071526"
+    RELIABILITY_ENV_BRANCH: "erikayasuda/fix-python-appsec"
 
 # Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
 # stage-based ordering and waits for all prior stages before publishing.
