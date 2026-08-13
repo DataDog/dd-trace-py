@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import threading
 import time
 
@@ -174,6 +175,39 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or sys.implementation.name != "cpython" or sys.version_info < (3, 14),
+    reason="requires the CPython 3.14 context watcher on Linux",
+)
+@pytest.mark.asyncio
+async def test_otel_thread_context_follows_async_context_switches(oteltracer, monkeypatch):
+    from ddtrace.internal.opentelemetry import thread_context
+
+    published_spans = []
+    monkeypatch.setattr(
+        thread_context,
+        "update_otel_thread_context",
+        lambda span, local_root, trace_flags: published_spans.append(span),
+    )
+    first_started = asyncio.Event()
+    second_started = asyncio.Event()
+
+    async def first():
+        with oteltracer.start_as_current_span("first") as first_span:
+            first_started.set()
+            await second_started.wait()
+            assert published_spans and published_spans[-1] is first_span._ddspan
+
+    async def second():
+        await first_started.wait()
+        with oteltracer.start_as_current_span("second"):
+            published_spans.clear()
+            second_started.set()
+            await asyncio.sleep(0)
+
+    await asyncio.gather(first(), second())
 
 
 def test_otel_get_current_span(oteltracer):
