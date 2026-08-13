@@ -161,13 +161,10 @@ def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
     from types import FunctionType
     import weakref
 
-    import _interpreters
-
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    interpreter = _interpreters.create("legacy")
     test_name = "test_code_object_address_reuse_does_not_return_stale_frame"
     tmp_path = Path(tempfile.mkdtemp(prefix=test_name))
     pprof_prefix = str(tmp_path / test_name)
@@ -218,7 +215,6 @@ def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
     }
     assert replacement_name in sampled_names
     assert old_name not in sampled_names
-    _interpreters.destroy(interpreter)
 
 
 def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
