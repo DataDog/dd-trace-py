@@ -5,6 +5,19 @@
 
 #include <memory>
 
+#if defined PL_LINUX
+TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
+{
+    // Linux limits TIDs to less than 2^22, so this exercises clock_gettime(EINVAL).
+    constexpr unsigned long invalid_native_id = 1UL << 24;
+    auto thread = ThreadInfo::create(1, invalid_native_id, "test-thread");
+
+    ASSERT_TRUE(thread);
+    EXPECT_EQ((*thread)->thread_id, 1);
+    EXPECT_EQ((*thread)->cpu_time, 0);
+}
+#endif
+
 TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
 {
     EchionSampler echion;
