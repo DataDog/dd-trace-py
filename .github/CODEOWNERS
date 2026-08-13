@@ -200,6 +200,7 @@ tests/profiling                                   @DataDog/profiling-python
 .gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
+src/native_heap_gotter/                           @DataDog/profiling-python
 
 
 # Crashtracker
