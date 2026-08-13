@@ -483,6 +483,11 @@ check_added_file_size:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
   rules:
     - if: !reference [.is_main]
       when: never

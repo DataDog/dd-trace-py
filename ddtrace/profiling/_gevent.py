@@ -74,7 +74,8 @@ def record_greenlet_switch(
     update_target_frame: bool,
 ) -> None:
     _tracked_greenlets.add(origin_id)
-    _tracked_greenlets.add(target_id)
+    if update_target_frame:
+        _tracked_greenlets.add(target_id)
     stack.record_greenlet_switch(origin_id, origin_frame, target_id, target_frame, update_target_frame)
 
 

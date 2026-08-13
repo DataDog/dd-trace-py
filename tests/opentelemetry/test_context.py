@@ -1,4 +1,6 @@
 import asyncio
+import ctypes
+import sys
 import threading
 import time
 
@@ -115,10 +117,12 @@ def test_otel_trace_across_fork():
 
     oteltracer = get_tracer(__name__)
 
-    errors = multiprocessing.Queue()
+    # Python 3.14 defaults to forkserver on POSIX, but this test exercises fork propagation.
+    multiprocessing_context = multiprocessing.get_context("fork")
+    errors = multiprocessing_context.Queue()
     with oteltracer.start_as_current_span("root") as root:
         ddtracer.sample(root._ddspan)
-        p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
+        p = multiprocessing_context.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()
         finally:
@@ -146,9 +150,11 @@ def test_sampling_decisions_across_processes():
     decision = os.environ["SAMPLING_DECISION"]
     oteltracer = get_tracer(__name__)
 
-    errors = multiprocessing.Queue()
+    # Python 3.14 defaults to forkserver on POSIX, but this test exercises fork propagation.
+    multiprocessing_context = multiprocessing.get_context("fork")
+    errors = multiprocessing_context.Queue()
     with oteltracer.start_as_current_span("root", attributes={decision: ""}) as root:
-        p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
+        p = multiprocessing_context.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()
         finally:
@@ -170,6 +176,62 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or sys.implementation.name != "cpython" or sys.version_info < (3, 14),
+    reason="requires the CPython 3.14 context watcher on Linux",
+)
+@pytest.mark.asyncio
+async def test_otel_thread_context_follows_async_context_switches(oteltracer):
+    """The published thread context follows each OTel span as asyncio switches tasks."""
+    from ddtrace.internal.native import _native
+
+    class _ThreadContextRecord(ctypes.Structure):
+        _fields_ = [
+            ("trace_id", ctypes.c_ubyte * 16),
+            ("span_id", ctypes.c_ubyte * 8),
+            ("valid", ctypes.c_ubyte),
+        ]
+
+    native_library = ctypes.CDLL(_native.__file__)
+
+    def published_context():
+        slot = ctypes.c_void_p.in_dll(native_library, "otel_thread_ctx_v1")
+        if slot.value is None:
+            return None
+
+        record = _ThreadContextRecord.from_address(slot.value)
+        if not record.valid:
+            return None
+        return int.from_bytes(record.trace_id, byteorder="big"), int.from_bytes(record.span_id, byteorder="big")
+
+    def span_context(span):
+        context = span.get_span_context()
+        return context.trace_id, context.span_id
+
+    first_started = asyncio.Event()
+    second_started = asyncio.Event()
+
+    async def first():
+        with oteltracer.start_as_current_span("first") as first_span:
+            expected_context = span_context(first_span)
+            assert published_context() == expected_context
+            first_started.set()
+            await second_started.wait()
+            assert published_context() == expected_context
+
+    async def second():
+        await first_started.wait()
+        with oteltracer.start_as_current_span("second") as second_span:
+            expected_context = span_context(second_span)
+            assert published_context() == expected_context
+            second_started.set()
+            await asyncio.sleep(0)
+            assert published_context() == expected_context
+
+    await asyncio.gather(first(), second())
+    assert published_context() is None
 
 
 def test_otel_get_current_span(oteltracer):
