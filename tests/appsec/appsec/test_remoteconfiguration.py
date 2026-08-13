@@ -40,6 +40,13 @@ def patch_remoteconfig_poller_for_appsec(rc_poller):
         yield
 
 
+@pytest.mark.subprocess(env={"DD_APPSEC_RULES": ""})
+def test_empty_appsec_rules_is_unset():
+    from ddtrace.internal.settings.asm import config
+
+    assert config._asm_static_rule_file is None
+
+
 def _set_and_get_appsec_tags(tracer, check_client_id=False):
     with asm_context(tracer) as span:
         set_http_meta(
