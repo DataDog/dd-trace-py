@@ -3734,15 +3734,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3790,15 +3781,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python >= 3.11 (excluding 3.14)
@@ -3829,15 +3811,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3872,15 +3845,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
