@@ -4,6 +4,7 @@ platformdirs==4.2.2
 https://pypi.org/project/platformdirs/
 """
 
+import contextlib
 import os
 
 from flask import Blueprint
@@ -27,14 +28,14 @@ def pkg_platformdirs_view():
         # Get the user data directory for the application
         data_dir = user_data_dir(app_name)
 
-        # Create the directory if it doesn't exist
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+        # The path derives from the app name, so every xdist worker shares it and two requests
+        # can create and remove it concurrently.
+        os.makedirs(data_dir, exist_ok=True)
 
         result_output = f"User data directory for {app_name}: {data_dir}"
 
         # Clean up the created directory
-        if os.path.exists(data_dir):
+        with contextlib.suppress(OSError):
             os.rmdir(data_dir)
 
         response.result1 = result_output
