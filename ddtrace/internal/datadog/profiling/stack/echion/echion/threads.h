@@ -52,7 +52,7 @@ class ThreadInfo
 #elif defined PL_DARWIN
     mach_port_t mach_port;
 #endif
-    microsecond_t cpu_time;
+    microsecond_t cpu_time = 0;
 
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
@@ -87,10 +87,13 @@ class ThreadInfo
                                                                     const char* name)
     {
 #if defined PL_LINUX
-        clockid_t cpu_clock_id;
-        if (pthread_getcpuclockid(static_cast<pthread_t>(thread_id), &cpu_clock_id)) {
-            return ErrorKind::ThreadInfoError;
-        }
+        // pthread_getcpuclockid() dereferences pthread_t, but Python's thread_id can be
+        // a gevent greenlet ID or a stale value. Derive the Linux per-thread clock from
+        // the kernel TID instead. clock_gettime() safely rejects an invalid TID with EINVAL.
+        constexpr uint64_t CPUCLOCK_SCHED = 2;
+        constexpr uint64_t CPUCLOCK_PERTHREAD_MASK = 4;
+        auto cpu_clock_id =
+          static_cast<clockid_t>((~static_cast<uint64_t>(native_id) << 3) | (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK));
 
         auto result = std::make_unique<ThreadInfo>(thread_id, native_id, name, cpu_clock_id);
 #elif defined PL_DARWIN
