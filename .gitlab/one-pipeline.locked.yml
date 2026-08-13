@@ -5,4 +5,6 @@ include:
 
 # See incident 59180
 publish_dora_metrics:
-  allow_failure: true
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: dd-sts
