@@ -1,5 +1,3 @@
-import contextlib
-import contextvars
 from typing import Optional
 
 from ddtrace.appsec._constants import IAST
@@ -7,41 +5,20 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
+from ddtrace.appsec._iast._request_taint_state import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
+from ddtrace.appsec._iast_request_state import IAST_CONTEXT
+from ddtrace.appsec._iast_request_state import _get_iast_context_id
+from ddtrace.appsec._iast_request_state import iast_suppress_context as iast_suppress_context  # noqa: F401
+from ddtrace.appsec._iast_request_state import is_iast_request_enabled as is_iast_request_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-
-# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
-
-IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
-
-# Keep source suppression separate from IAST_CONTEXT. Clearing the
-# request context id disables request-scoped taint queries and propagation and
-# can send no-context queries through unsafe native fallback paths.
-_IAST_TAINT_SOURCES_SUPPRESSED: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "iast_taint_sources_suppressed", default=False
-)
-
-
-@contextlib.contextmanager
-def iast_suppress_context():
-    """Temporarily disable IAST taint *source* generation for the current context."""
-    token = _IAST_TAINT_SOURCES_SUPPRESSED.set(True)
-    try:
-        yield
-    finally:
-        _IAST_TAINT_SOURCES_SUPPRESSED.reset(token)
-
-
-def _is_iast_taint_source_enabled() -> bool:
-    return not _IAST_TAINT_SOURCES_SUPPRESSED.get()
 
 
 def _set_span_tag_iast_request_tainted(span):
@@ -102,11 +79,6 @@ def _iast_start_request(span=None) -> Optional[int]:
     return context_id
 
 
-def _get_iast_context_id() -> Optional[int]:
-    """Retrieve the current IAST context identifier from the ContextVar."""
-    return IAST_CONTEXT.get()
-
-
 def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
     """Finalize the IAST request context and optionally update global limits.
 
@@ -127,22 +99,6 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
         return True
 
     return False
-
-
-def is_iast_request_enabled() -> bool:
-    """Check whether IAST is currently operating within an active request context."""
-    return _get_iast_context_id() is not None
-
-
-def _num_objects_tainted_in_request() -> int:
-    """Get the count of tainted objects tracked in the active IAST request context.
-
-    Useful for span metrics and internal telemetry.
-    """
-    context_id = _get_iast_context_id()
-    if context_id is not None:
-        return debug_num_tainted_objects(context_id)
-    return 0
 
 
 def get_hash_object_tracking_len():

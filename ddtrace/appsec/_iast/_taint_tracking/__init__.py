@@ -43,35 +43,24 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_ta
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import str_to_origin  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_range as TaintRange  # noqa: F401
+from ddtrace.appsec._iast_request_state import _get_iast_context_id
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: _get_iast_context_id is imported lazily — a top-level import here
-# circularly bootstraps via _iast_request_context_base -> _taint_tracking._context
-# -> _taint_tracking/__init__.py. The cached module-global avoids the per-call
-# import dance on this hot path.
-_CACHE_GET_IAST_CONTEXT_ID = None
+# AIDEV-NOTE: Resolve the active native context through the lightweight request-state
+# module. Keeping lifecycle imports out of taint tracking avoids circular initialization
+# and makes this hot path a direct ContextVar lookup.
 
 
 def _current_iast_context_id() -> Optional[int]:
-    global _CACHE_GET_IAST_CONTEXT_ID
-    if _CACHE_GET_IAST_CONTEXT_ID is None:
-        from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-
-        _CACHE_GET_IAST_CONTEXT_ID = _get_iast_context_id
-    return _CACHE_GET_IAST_CONTEXT_ID()
+    return _get_iast_context_id()
 
 
 def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
     if context_id is None:
-        global _CACHE_GET_IAST_CONTEXT_ID
-        if _CACHE_GET_IAST_CONTEXT_ID is None:
-            from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-
-            _CACHE_GET_IAST_CONTEXT_ID = _get_iast_context_id
-        context_id = _CACHE_GET_IAST_CONTEXT_ID()
+        context_id = _get_iast_context_id()
     if context_id is None:
         return []
     return _native_get_ranges(string_input, context_id)

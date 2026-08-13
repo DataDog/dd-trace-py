@@ -4,8 +4,6 @@ from typing import Sequence
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _is_iast_taint_source_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -13,6 +11,8 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
+from ddtrace.appsec._iast_request_state import _get_iast_context_id
+from ddtrace.appsec._iast_request_state import _is_iast_taint_source_enabled
 from ddtrace.internal.logger import get_logger
 
 

@@ -16,6 +16,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast_request_state import iast_suppress_context
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
@@ -788,7 +789,5 @@ def asm_listen() -> None:
 
 def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
-
         return iast_suppress_context()
     return contextlib.nullcontext()
