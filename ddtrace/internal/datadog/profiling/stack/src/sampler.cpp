@@ -258,26 +258,37 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 {
     auto* const runtime = &_PyRuntime;
 
+    interpreter_candidates.clear();
+    const bool interpreter_snapshot_complete =
+      for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
+#if PY_VERSION_HEX >= 0x030e0000
+    if (!echion->update_code_object_generations(interpreter_candidates, interpreter_snapshot_complete)) {
+        return;
+    }
+#else
+    (void)interpreter_snapshot_complete;
+#endif
+
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
     if (max_threads_per_sample == 0) {
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
             });
-        });
+        }
     } else {
         thread_candidates.clear();
 
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
                 thread_candidates.push_back(*tstate);
             });
-        });
+        }
 
         // Algorithm R: if we have more threads than the cap, select a uniform random subset.
         // Selected threads are placed in [0, sample_count). Overflow threads remain in

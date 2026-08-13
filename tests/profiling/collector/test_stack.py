@@ -150,6 +150,77 @@ def test_stack_locations(tmp_path: Path) -> None:
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="requires CPython's code object generation")
+@pytest.mark.subprocess()
+def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
+    import gc
+    import os
+    from pathlib import Path
+    import tempfile
+    import time
+    from types import FunctionType
+    import weakref
+
+    import _interpreters
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    interpreter = _interpreters.create("legacy")
+    test_name = "test_code_object_address_reuse_does_not_return_stale_frame"
+    tmp_path = Path(tempfile.mkdtemp(prefix=test_name))
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    code_filename = "echion-code-reuse.py"
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    namespace = {"time": time}
+    source = "def template(deadline):\n    while time.monotonic() < deadline:\n        pass\n"
+    exec(compile(source, code_filename, "exec"), namespace)
+    template_code = namespace["template"].__code__
+
+    def make_function(name: str):
+        code = template_code.replace(co_name=name, co_qualname=name)
+        return FunctionType(code, {"time": time})
+
+    old_name = "old_dynamic_function"
+    old_function = make_function(old_name)
+
+    with stack.StackCollector():
+        old_function(time.monotonic() + 0.3)
+        ddup.upload()
+
+        old_address = id(old_function.__code__)
+        old_code = weakref.ref(old_function.__code__)
+        del old_function
+        gc.collect()
+        assert old_code() is None
+
+        replacement_name = "new_dynamic_function"
+        replacement_function = make_function(replacement_name)
+        assert id(replacement_function.__code__) == old_address
+        replacement_function(time.monotonic() + 0.3)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    sampled_names = {
+        location.function_name
+        for sample in samples
+        for location in (pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id)
+        if location.filename == code_filename
+    }
+    assert replacement_name in sampled_names
+    assert old_name not in sampled_names
+    _interpreters.destroy(interpreter)
+
+
 def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
