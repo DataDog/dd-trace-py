@@ -12,6 +12,7 @@ from typing_extensions import TypedDict
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AgentManifest
 from tests.contrib.pydantic_ai.utils import ABSENT
 from tests.contrib.pydantic_ai.utils import MANIFEST_FIELD_CASES
 from tests.contrib.pydantic_ai.utils import MANIFEST_LEAK_CASES
@@ -523,25 +524,11 @@ class TestPydanticAIAgentManifest:
 
     # Every top-level key the shared schema allows. A key outside this set is either a typo or an
     # invention, and both are caught by test_shape_is_one_flat_document rather than by review.
-    SCHEMA_KEYS = frozenset(
-        {
-            "framework",
-            "name",
-            "metadata",
-            "model",
-            "model_settings",
-            "instructions",
-            "system_prompts",
-            "extra_instructions",
-            "tools",
-            "capabilities",
-            "data_contracts",
-            "memory_policies",
-            "guardrails",
-            "handoffs",
-            "agent_settings",
-        }
-    )
+    # Derived from the type rather than restated, so AgentManifest is the one definition of the
+    # schema. A key emitted without being added to the type fails here, which is the check the type
+    # cannot give statically: sections are assembled through put_field on a plain dict, and mypy
+    # cannot see key names through that.
+    SCHEMA_KEYS = frozenset(AgentManifest.__annotations__)
 
     async def _run(self, pydantic_ai, test_spans, **agent_kwargs):
         agent_kwargs.setdefault("model", _function_model())
