@@ -3,7 +3,7 @@ Benchmarks
 
 These benchmarks are intended to provide stable and reproducible measurements of the performance characteristics of the ``ddtrace`` library. A scenario is defined using a simple Python framework. Docker is used to build images for the execution of scenarios against different versions of ``ddtrace``.
 
-This document covers running benchmarks locally. For how these scenarios run in CI, and what to do when a performance quality gate blocks your pull request or a release, see `.gitlab/benchmarks/README.rst <https://github.com/DataDog/dd-trace-py/blob/main/.gitlab/benchmarks/README.rst>`_.
+This document covers running benchmarks locally. For how these scenarios run in CI, and what to do when a performance quality gate blocks your pull request or a release, see `.gitlab/benchmarks/README.md <https://github.com/DataDog/dd-trace-py/blob/main/.gitlab/benchmarks/README.md>`_.
 
 .. _developer_workflow:
 
