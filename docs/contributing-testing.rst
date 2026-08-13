@@ -125,6 +125,90 @@ Anatomy of a Riot Command
 * ``-vv``: Be loud about which tests are being run
 * ``-k 'test1 or test2'``: Test selection by `keyword expression <https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run>`_
 
+How CI allocates Riot environments
+----------------------------------
+
+Semantic test ownership remains in ``tests/suitespec.py`` and the distributed
+``suitespec.yml`` files. CI resolves every selected suite to its Riot environment
+hashes, then assigns those hashes to physical GitLab shards. A Riot environment is
+the smallest allocation unit, so duration-based balancing cannot change its command,
+Python version, services, environment, retry policy, or timeout.
+
+``scripts/gen_gitlab_config.py`` writes ``.gitlab/ci-allocation-plan.json`` with the
+current round-robin plan and a duration-balanced plan. Generation fails unless both
+plans contain the exact same Riot hash set, with no duplicates or empty shards, and
+the execution metadata is represented by the same digest. The plan is retained as a
+CI artifact for review.
+
+The active strategy and promotion thresholds are in
+``ci/ci-allocation-policy.json``. ``legacy`` is the rollback-safe default. The
+duration estimates in ``ci/ci-allocation-runtime-model.json`` are generated from
+Datadog Test Visibility session exports joined by
+``test.configuration.riot_hash``. The model uses a time-decayed p90, conservative
+fallbacks for sparse hashes, and a recent holdout that is not used for fitting.
+CI job events are joined by pipeline and job identity to account for setup overhead,
+queue time, and total runner consumption. Failed and cancelled observations are
+retained as censored reliability evidence but are not treated as normal durations.
+
+Use the allocation helper to normalize an export, build a candidate model, and
+replay it against the untouched holdout:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py ingest-datadog \
+        --input test-sessions.json --output observations.jsonl
+    $ scripts/ci_allocation_cli.py ingest-jobs \
+        --input ci-jobs.json --output jobs.jsonl
+    $ scripts/ci_allocation_cli.py build-model \
+        --observations observations.jsonl --jobs jobs.jsonl \
+        --output candidate-model.json --report historical-replay.json
+    $ scripts/ci_allocation_cli.py check-ratchet \
+        --report historical-replay.json
+
+Historical pull-request paths provide a second workload view. They are replayed
+through the current suitespec rules, so common PR cohorts cannot hide a regression
+in less frequent AppSec, integration, CI, or core workloads:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py export-pr-history \
+        --since "2 years ago" --output pr-shapes.jsonl
+    $ scripts/ci_allocation_cli.py replay-pr-history \
+        --pr-history pr-shapes.jsonl --model candidate-model.json \
+        --output pr-replay.json
+    $ scripts/ci_allocation_cli.py check-ratchet --report pr-replay.json
+
+After historical validation, set ``CI_ALLOCATION_SHADOW=true`` on an explicitly
+requested pipeline to add non-blocking balanced jobs beside the required legacy
+jobs. Export both strategies' Test Visibility sessions, then build and check the
+same-head report:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py build-live-report \
+        --observations shadow-observations.jsonl --jobs shadow-jobs.jsonl \
+        --output live-shadow.json
+    $ scripts/ci_allocation_cli.py check-ratchet --report live-shadow.json
+
+Before promotion, download the legacy and balanced JUnit artifacts and prove that
+the collected ``(Riot hash, class, test, file)`` identity multisets and Riot
+execution metadata are identical. Allocation jobs encode the strategy and Riot hash
+in each JUnit filename as a fallback for xdist runs that omit testsuite properties:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py verify-junit \
+        --legacy legacy/test-results/junit*.xml \
+        --balanced balanced/test-results/junit*.xml \
+        --output junit-parity.json
+
+Promotion requires the checked thresholds for sample count, median improvement,
+p75, p90, runner time, clean-success rate, and retry rate. A scheduled retuning task
+may propose a new model, but it must not change the active strategy automatically.
+Activate ``balanced`` only after the historical and live ratchets pass; reverting
+the policy to ``legacy`` restores the previous assignment without changing suite
+authoring.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 

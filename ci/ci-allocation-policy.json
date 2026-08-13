@@ -1,0 +1,35 @@
+{
+  "allocation": {
+    "active_strategy": "legacy",
+    "maximum_parallelism_per_suite": 25,
+    "target_jobs": 200,
+    "target_shard_seconds": 600
+  },
+  "model": {
+    "estimate_quantile": 0.9,
+    "half_life_days": 30,
+    "history_window_days": 90,
+    "holdout_days": 14,
+    "minimum_samples": 5,
+    "sparse_safety_factor": 1.25
+  },
+  "ratchets": {
+    "historical_replay": {
+      "maximum_runner_seconds_increase_ratio": 0.05,
+      "minimum_median_improvement_ratio": 0.05,
+      "minimum_runs": 30
+    },
+    "live_shadow": {
+      "maximum_queue_p90_increase_ratio": 0.05,
+      "maximum_runner_seconds_increase_ratio": 0.05,
+      "minimum_median_improvement_ratio": 0.15,
+      "minimum_runs": 15
+    },
+    "pr_shape_replay": {
+      "maximum_runner_seconds_increase_ratio": 0.05,
+      "minimum_median_improvement_ratio": 0.05,
+      "minimum_shapes": 30
+    }
+  },
+  "schema_version": 1
+}

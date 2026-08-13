@@ -1,0 +1,38 @@
+{
+  "dataset": {
+    "fingerprint_sha256": null,
+    "job_fingerprint_sha256": null,
+    "history_window_days": 90,
+    "holdout_days": 14,
+    "holdout_observations": 0,
+    "job_observations": 0,
+    "censored_observations": 0,
+    "source": "uninitialized",
+    "training_end": null,
+    "training_observations": 0,
+    "status_counts": {},
+    "window_end": null
+  },
+  "estimates": {},
+  "fallbacks": {
+    "global_seconds": 60.0,
+    "suite_seconds": {}
+  },
+  "generated_at": null,
+  "parameters": {
+    "estimate_quantile": 0.9,
+    "half_life_days": 30,
+    "history_window_days": 90,
+    "holdout_days": 14,
+    "minimum_samples": 5,
+    "sparse_safety_factor": 1.25
+  },
+  "overheads": {
+    "global_seconds": 0.0,
+    "queue_p90_seconds": 0.0,
+    "sample_count": 0,
+    "suite_seconds": {}
+  },
+  "planner_version": "weighted-lpt-v1",
+  "schema_version": 1
+}

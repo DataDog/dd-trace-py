@@ -40,7 +40,9 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
+        export RIOT_HASH="${hash}"
+        export RIOT_CI_ALLOCATION_STRATEGY="${CI_ALLOCATION_STRATEGY:-legacy}"
+        export _CI_DD_TAGS="test.configuration.riot_hash:${RIOT_HASH},test.configuration.ci_allocation_strategy:${RIOT_CI_ALLOCATION_STRATEGY}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \

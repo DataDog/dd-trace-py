@@ -51,13 +51,23 @@ def pytest_configure(config):
     if os.getenv("CI") != "true":
         return
 
-    # Write JUnit xml results to a file that contains this process' PID
-    # This ensures running pytest multiple times does not overwrite previous results
-    # e.g. test-results/junit.xml -> test-results/junit.1797.xml
+    # AIDEV-NOTE: Keep the allocation identity in the filename even though it is also
+    # recorded as a testsuite property; record_testsuite_property is unreliable under xdist.
+    # Write JUnit XML results to a unique file so consecutive Riot environments do not
+    # overwrite one another. Allocation CI also encodes its strategy and atomic Riot
+    # hash in the filename because testsuite properties are not reliable under xdist.
     if config.option.xmlpath:
         fname, ext = os.path.splitext(config.option.xmlpath)
-        # DEV: `ext` will contain the `.`, e.g. `.xml`
-        config.option.xmlpath = "{0}.{1}{2}".format(fname, os.getpid(), ext)
+        identity = filter(
+            None,
+            (
+                os.getenv("RIOT_CI_ALLOCATION_STRATEGY"),
+                os.getenv("RIOT_HASH"),
+                str(os.getpid()),
+            ),
+        )
+        # DEV: ext includes the leading period, for example .xml.
+        config.option.xmlpath = "{}.{}{}".format(fname, ".".join(identity), ext)
 
     # Save per-interpreter benchmark results.
     if config.pluginmanager.hasplugin("benchmark"):
