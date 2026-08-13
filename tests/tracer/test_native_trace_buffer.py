@@ -422,7 +422,7 @@ def test_recreate_shuts_the_replaced_buffer_down():
         replaced_buffer = writer._buffer
         replacement = writer.recreate()
         try:
-            assert replaced_buffer.write([_finished_span()], None) == "AlreadyShutdown"
+            assert replaced_buffer.write([_finished_span()], None) == "AlreadyClosed"
         finally:
             replacement.stop(3.0)
 
@@ -757,7 +757,7 @@ def test_a_malformed_agent_response_does_not_raise_into_user_code(body):
 
 def test_writes_after_stop_do_not_warn_once_per_trace():
     # Spans keep finishing while the tracer tears down, and every one of those writes reports
-    # AlreadyShutdown. A warning each buries the shutdown itself in the log.
+    # AlreadyClosed. A warning each buries the shutdown itself in the log.
     writer = NativeTraceBuffer("http://%s:%s" % (_HOST, _BUFFER_PORT))
     writer.stop(1.0)
     with mock.patch.object(writer_module.log, "warning") as warning:

@@ -888,9 +888,9 @@ class TraceBuffer:
         timeout_ns of 0 only triggers the flush, the same as force_flush.
 
         Raises RuntimeError("TimedOut...") if the export did not finish in time, or
-        RuntimeError("AlreadyShutdown...") if the buffer no longer accepts chunks or a concurrent
-        shutdown ended the wait. Neither means the data was lost: a timed-out export is still
-        queued, and a shutdown drain can still export data left over from an AlreadyShutdown wait.
+        RuntimeError("AlreadyClosed...") if the buffer no longer accepts chunks or a concurrent
+        close ended the wait. Neither means the data was lost: a timed-out export is still
+        queued, and a shutdown drain can still export data left over from an AlreadyClosed wait.
         """
         ...
     def shutdown(self, timeout_ns: int) -> None:

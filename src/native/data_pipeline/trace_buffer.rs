@@ -20,7 +20,7 @@ use libdd_data_pipeline::trace_exporter::{
     TraceExporter,
 };
 use libdd_shared_runtime::{
-    BlockingRuntime as _, ForkSafeRuntime, SharedRuntime as _, WorkerHandle,
+    BlockOnTimeoutError, BlockingRuntime as _, ForkSafeRuntime, SharedRuntime as _, WorkerHandle,
 };
 use libdd_trace_utils::span::v04::Span;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -324,7 +324,7 @@ impl TraceBufferPy {
     /// # Errors
     /// * `TimedOut` -- the export did not finish in time. The data is still queued, and the
     ///   worker keeps trying to export it.
-    /// * `AlreadyShutdown` -- the buffer no longer accepts chunks, or a concurrent shutdown ended
+    /// * `AlreadyClosed` -- the buffer no longer accepts chunks, or a concurrent close ended
     ///   the wait. The shutdown drain can still export the data that was buffered.
     fn flush(&self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
         py.detach(|| {
@@ -374,22 +374,20 @@ impl TraceBufferPy {
             // regardless, so a timeout here does not mean the shutdown itself failed.
             let _ = self.buffer.flush_and_wait(Some(flush_budget));
 
-            // `tokio::time::timeout` reads the runtime's timer driver the moment it is constructed,
-            // not when it is polled, so building it outside this async block would run it on the
-            // calling thread before `block_on` enters the runtime context and panic with "no reactor
-            // running".
             let stop_budget = remaining.saturating_sub(start.elapsed());
-            let stopped = match runtime.block_on(async move { tokio::time::timeout(stop_budget, worker.stop()).await }) {
+            let stopped = match runtime.block_on_with_timeout(worker.stop(), stop_budget) {
                 // The runtime itself could not drive the future, not the worker.
-                Err(io_err) => Err(PyRuntimeError::new_err(format!("{io_err}"))),
+                Err(BlockOnTimeoutError::Io(io_err)) => {
+                    Err(PyRuntimeError::new_err(format!("{io_err}")))
+                }
                 // `worker.stop()` did not finish in time. It never reached `Worker::shutdown`, so
                 // the buffer may still accept chunks that no drain will ever export: close it now.
                 // The flush above already sent what was buffered before this call started.
-                Ok(Err(_elapsed)) => {
-                    let _ = self.buffer.flush_and_shutdown(Some(Duration::ZERO));
+                Err(BlockOnTimeoutError::TimedOut(_)) => {
+                    let _ = self.buffer.flush_and_close(Some(Duration::ZERO));
                     Ok(())
                 }
-                Ok(Ok(result)) => result.map_err(|err| PyRuntimeError::new_err(format!("{err}"))),
+                Ok(result) => result.map_err(|err| PyRuntimeError::new_err(format!("{err}"))),
             };
 
             // However long the steps above took, the exporter still gets its reserved slice, not

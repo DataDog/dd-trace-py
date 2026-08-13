@@ -240,6 +240,10 @@ impl SpanText for PyBackedString {
             storage: None,
         }
     }
+
+    fn from_owned(value: String) -> Self {
+        value.into()
+    }
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]

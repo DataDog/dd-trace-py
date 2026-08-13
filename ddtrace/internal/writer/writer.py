@@ -1360,7 +1360,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             _safelog(log.warning, "native trace buffer timed out waiting for the export: %s", reason)
         elif self._stopped:
             # Spans keep finishing while the tracer tears down, and every write after the shutdown
-            # reports AlreadyShutdown. One warning per trace would bury the shutdown itself.
+            # reports AlreadyClosed. One warning per trace would bury the shutdown itself.
             _safelog(log.debug, "native trace buffer dropped spans after shutdown: %s", reason)
         else:
             _safelog(log.warning, "native trace buffer dropped spans: %s", reason)
@@ -1384,7 +1384,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         """Log why a blocking flush did not confirm delivery, at a level that matches the reason.
 
         Unlike _log_write_reason, a flush failure is never "dropped spans": the data stays queued
-        after a timeout, and a shutdown drain can still export it after AlreadyShutdown.
+        after a timeout, and a shutdown drain can still export it after AlreadyClosed.
         """
         reason = str(exc)
         if self._stopped:
