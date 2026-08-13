@@ -62,6 +62,17 @@ You can access it by running
 
     $ scripts/ddtest
 
+**Podman compatibility**
+
+When Podman cannot configure CNI port forwarding, set
+``DD_TEST_PODMAN_COMPAT=1``. The test scripts then apply
+``docker-compose.podman.yml``, which uses host networking while preserving the
+service endpoints expected by the suites.
+
+.. code-block:: bash
+
+    $ DD_TEST_PODMAN_COMPAT=1 scripts/run-tests tests/contrib/redis/
+
 Some of our test suites are managed with Riot.
 
 You can run riot commands and lint checks in the test runner container with commands like these:

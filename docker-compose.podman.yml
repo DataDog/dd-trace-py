@@ -1,0 +1,83 @@
+# Use with `DD_TEST_PODMAN_COMPAT=1` and the test scripts, or pass this file
+# after docker-compose.yml to podman-compose. Host networking avoids Podman's
+# CNI port-forwarding requirement. Start only the services needed by a suite
+# because alternatives share their default ports.
+x-podman-host-network: &podman-host-network
+    network_mode: host
+
+services:
+    elasticsearch:
+        <<: *podman-host-network
+    opensearch:
+        <<: *podman-host-network
+    cassandra:
+        <<: *podman-host-network
+    consul:
+        <<: *podman-host-network
+    postgres:
+        <<: *podman-host-network
+    mariadb:
+        <<: *podman-host-network
+    mysql:
+        <<: *podman-host-network
+    redis:
+        <<: *podman-host-network
+    kafka:
+        <<: *podman-host-network
+        platform: ${PODMAN_PLATFORM:-linux/amd64}
+        environment:
+            KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:19093,EXTERNAL://:29092
+            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:19092,EXTERNAL://localhost:29092
+            KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:19093
+    rediscluster:
+        <<: *podman-host-network
+        environment:
+            LC_ALL: C
+            LANG: C
+    mongo:
+        <<: *podman-host-network
+    memcached:
+        <<: *podman-host-network
+    moto:
+        <<: *podman-host-network
+    rabbitmq:
+        <<: *podman-host-network
+    ddagent:
+        <<: *podman-host-network
+    testagent:
+        <<: *podman-host-network
+        command: ["ddapm-test-agent", "--port=9126"]
+    vertica:
+        <<: *podman-host-network
+    azurecosmosemulator:
+        <<: *podman-host-network
+        environment:
+            BLOB_SERVER: 127.0.0.1
+            METADATA_SERVER: 127.0.0.1
+    azureeventhubsemulator:
+        <<: *podman-host-network
+        environment:
+            BLOB_SERVER: 127.0.0.1
+            METADATA_SERVER: 127.0.0.1
+    azureservicebusemulator:
+        <<: *podman-host-network
+        environment:
+            SQL_SERVER: 127.0.0.1
+    azuresqledge:
+        <<: *podman-host-network
+    azurite:
+        <<: *podman-host-network
+    localstack:
+        <<: *podman-host-network
+    httpbin:
+        <<: *podman-host-network
+        command: ["gunicorn", "-b", "127.0.0.1:8001", "httpbin:app", "-k", "gevent"]
+    valkey:
+        <<: *podman-host-network
+    pubsub:
+        <<: *podman-host-network
+    valkeycluster:
+        <<: *podman-host-network
+        environment:
+            LC_ALL: C
+            LANG: C
