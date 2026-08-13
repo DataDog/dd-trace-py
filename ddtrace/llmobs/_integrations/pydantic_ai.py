@@ -2,7 +2,6 @@ import functools
 from typing import Any
 from typing import Optional
 from typing import Sequence
-from typing import cast
 from typing import get_origin
 
 from ddtrace.internal import core
@@ -13,6 +12,7 @@ from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_K
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import put_field
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
@@ -21,6 +21,8 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AgentCapability
+from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
 from ddtrace.trace import Span
 
@@ -269,7 +271,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         declared configuration is read, so the manifest is identical run to run, and a field
         pydantic-ai does not expose is omitted rather than invented.
         """
-        manifest: dict[str, Any] = {}
+        manifest: AgentManifest = {}
         for name, section in (
             ("labels", self._manifest_labels),
             ("instructions", self._manifest_instructions),
@@ -284,54 +286,57 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 manifest.update(section(agent))
             except Exception:
                 log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
-        # Cast rather than build a TypedDict directly: sections are assembled independently and
-        # merged, and test_shape_is_one_flat_document is what actually enforces the key set.
-        return cast(AgentManifest, manifest)
+        # Sections assign unconditionally so mypy can check every key name against the type; one
+        # prune here is what drops the fields that mean "not configured".
+        return prune_empty(manifest)
 
-    def _manifest_labels(self, agent: Any) -> dict[str, Any]:
+    def _manifest_labels(self, agent: Any) -> AgentManifest:
         """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
-        fields: dict[str, Any] = {"framework": FRAMEWORK_NAME}
+        fields: AgentManifest = {"framework": FRAMEWORK_NAME}
         # AIDEV-NOTE: placeholder per review, matching the span name fallback. Two unnamed agents
         # therefore share it, so name is not an identity.
         agent_name = getattr(agent, "name", None)
-        put_field(fields, "name", agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent")
+        fields["name"] = agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent"
         metadata = getattr(agent, "_metadata", None)
         # metadata may be a callable from 1.39.0 on. Only a static dict is captured; the resolver
         # is never invoked.
-        put_field(fields, "metadata", wire_value(metadata) if isinstance(metadata, dict) else None)
+        wired_metadata = wire_value(metadata) if isinstance(metadata, dict) else None
+        if wired_metadata is not None:
+            fields["metadata"] = wired_metadata
         return fields
 
-    def _manifest_instructions(self, agent: Any) -> dict[str, Any]:
+    def _manifest_instructions(self, agent: Any) -> AgentManifest:
         """What the agent is told. A resolver's text is only known at run time, so it ships by name."""
-        fields: dict[str, Any] = {}
+        fields: AgentManifest = {}
         static_texts, dynamic_instructions = _collect_instructions(agent)
-        put_field(fields, "instructions", "\n".join(text for text in static_texts if text))
+        fields["instructions"] = "\n".join(text for text in static_texts if text)
         # Not validated upstream; a non-string would ship as a repr.
         prompts = [p for p in (getattr(agent, "_system_prompts", None) or ()) if isinstance(p, str)]
-        put_field(fields, "system_prompts", prompts)
-        extra: list[dict[str, Any]] = []
+        fields["system_prompts"] = prompts
+        extra: list[AgentInstructionResolver] = []
         for kind, resolvers in (
             ("dynamic_instructions", dynamic_instructions),
             ("dynamic_system_prompt", _collect_dynamic_system_prompts(agent)),
         ):
             extra.extend({"type": kind, "name": callable_name(fn)} for fn in resolvers)
-        put_field(fields, "extra_instructions", extra)
+        fields["extra_instructions"] = extra
         return fields
 
-    def _manifest_model(self, agent: Any) -> dict[str, Any]:
+    def _manifest_model(self, agent: Any) -> AgentManifest:
         """The model and the inference params the user set, filtered by ALLOWED_MODEL_SETTINGS_KEYS."""
-        fields: dict[str, Any] = {}
+        fields: AgentManifest = {}
         model = getattr(agent, "model", None)
         if isinstance(model, str):
             # First colon, not last: rpartition reads "bedrock:anthropic.claude-v1:0" as "0".
             _, _, declared_name = model.partition(":")
-            put_field(fields, "model", declared_name or model)
+            fields["model"] = declared_name or model
         elif model:
             model_name, _ = self._get_model_and_provider(model)
             # AIDEV-NOTE: str-only, for the same reason as the tool description read. model_name is
             # annotated str, but a custom Model subclass returns whatever it likes and the encoder
             # reprs what it cannot encode, which can carry a connection string.
-            put_field(fields, "model", model_name if isinstance(model_name, str) else None)
+            if isinstance(model_name, str):
+                fields["model"] = model_name
         settings = getattr(agent, "model_settings", None)
         if isinstance(settings, dict):
             allowed: dict[str, Any] = {}
@@ -341,19 +346,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 # Via put_field: wire_value returns None for what it cannot encode, and a direct
                 # assignment would ship that as an explicit null.
                 put_field(allowed, key, wire_value(value))
-            put_field(fields, "model_settings", allowed)
+            fields["model_settings"] = allowed
         return fields
 
-    def _manifest_capabilities(self, agent: Any) -> dict[str, Any]:
+    def _manifest_capabilities(self, agent: Any) -> AgentManifest:
         """Function tools, plus the powers that are not plain functions, by name."""
-        fields: dict[str, Any] = {}
-        put_field(fields, "tools", self._get_agent_tools(agent))
+        fields: AgentManifest = {}
+        fields["tools"] = self._get_agent_tools(agent)
         prepared = [
             fn
             for fn in (getattr(agent, "_prepare_tools", None), getattr(agent, "_prepare_output_tools", None))
             if callable(fn)
         ]
-        capabilities: list[dict[str, Any]] = []
+        capabilities: list[AgentCapability] = []
         for kind, names in (
             ("mcp", self._mcp_server_names(agent)),
             ("builtin", self._builtin_tool_names(agent)),
@@ -361,33 +366,33 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ("tool_preparation", [callable_name(fn) for fn in prepared]),
         ):
             capabilities.extend({"name": name, "type": kind} for name in names if name)
-        put_field(fields, "capabilities", capabilities)
+        fields["capabilities"] = capabilities
         return fields
 
-    def _manifest_data_contracts(self, agent: Any) -> dict[str, Any]:
+    def _manifest_data_contracts(self, agent: Any) -> AgentManifest:
         """The declared output type by name. pydantic-ai declares no input schema."""
         name = self._output_type_name(agent)
         return {"data_contracts": {"output": {"name": name}}} if name else {}
 
-    def _manifest_memory_policies(self, agent: Any) -> dict[str, Any]:
+    def _manifest_memory_policies(self, agent: Any) -> AgentManifest:
         """The message-history pipeline, order preserved: [trim, summarize] is not [summarize, trim].
 
         A repeat is kept for the same reason order is: [trim, trim] runs trim twice.
         """
-        fields: dict[str, Any] = {}
+        fields: AgentManifest = {}
         processors = [fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)]
-        put_field(fields, "memory_policies", [callable_name(fn) for fn in processors])
+        fields["memory_policies"] = [callable_name(fn) for fn in processors]
         return fields
 
-    def _manifest_guardrails(self, agent: Any) -> dict[str, Any]:
+    def _manifest_guardrails(self, agent: Any) -> AgentManifest:
         """Output validators by name, matching the shape the other integrations already emit."""
-        fields: dict[str, Any] = {}
+        fields: AgentManifest = {}
         validators = getattr(agent, "_output_validators", None) or []
         fns = [getattr(v, "function", v) for v in validators]
-        put_field(fields, "guardrails", [callable_name(fn) for fn in fns if callable(fn)])
+        fields["guardrails"] = [callable_name(fn) for fn in fns if callable(fn)]
         return fields
 
-    def _manifest_agent_settings(self, agent: Any) -> dict[str, Any]:
+    def _manifest_agent_settings(self, agent: Any) -> AgentManifest:
         """Loop-level knobs, as opposed to model params.
 
         retries is the output-validation budget and tool_retries the per-tool one, so

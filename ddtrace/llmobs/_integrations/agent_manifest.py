@@ -4,7 +4,9 @@ import math
 import types
 from typing import Any
 from typing import Optional
+from typing import TypeVar
 from typing import Union
+from typing import cast
 from typing import get_args
 from typing import get_origin
 
@@ -82,6 +84,31 @@ def is_flat_scalar_value(value: Any) -> bool:
             for key, item in value.items()
         )
     return False
+
+
+T = TypeVar("T")
+
+
+def prune_empty(node: T) -> T:
+    """Drop every value that means "not configured", depth-first. 0, 0.0 and False are kept.
+
+    Runs once over a finished manifest so a section can assign a field without guarding it, and so a
+    container emptied by its own children drops too. The cast is internal: the walk rebuilds plain
+    containers, and the caller's type is preserved by construction.
+    """
+    if isinstance(node, dict):
+        kept: dict[Any, Any] = {}
+        for key, value in node.items():
+            pruned = prune_empty(value)
+            if pruned is None:
+                continue
+            if isinstance(pruned, (str, bytes, list, tuple, dict, set, frozenset)) and len(pruned) == 0:
+                continue
+            kept[key] = pruned
+        return cast(T, kept)
+    if isinstance(node, list):
+        return cast(T, [prune_empty(item) for item in node])
+    return node
 
 
 def put_field(fields: dict[str, Any], name: str, value: Any) -> None:
