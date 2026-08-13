@@ -27,7 +27,8 @@ def pkg_virtualenv_view():
         # Private directory per request: xdist workers share a cwd, so under a fixed path one
         # request's cleanup deletes the environment another request is still creating.
         with tempfile.TemporaryDirectory() as tmp_dir:
-            env_path = os.path.join(tmp_dir, env_name)
+            # basename so the env cannot land outside tmp_dir and escape its cleanup.
+            env_path = os.path.join(tmp_dir, os.path.basename(env_name) or "env")
 
             try:
                 # Create a virtual environment

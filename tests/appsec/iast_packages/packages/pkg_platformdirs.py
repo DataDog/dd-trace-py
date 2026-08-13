@@ -34,8 +34,8 @@ def pkg_platformdirs_view():
 
         result_output = f"User data directory for {app_name}: {data_dir}"
 
-        # Clean up the created directory
-        with contextlib.suppress(OSError):
+        # Clean up the created directory; another worker may have removed it already.
+        with contextlib.suppress(FileNotFoundError):
             os.rmdir(data_dir)
 
         response.result1 = result_output
