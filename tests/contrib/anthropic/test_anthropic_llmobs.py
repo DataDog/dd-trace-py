@@ -1,10 +1,14 @@
+import json
 from pathlib import Path
 
 import mock
 from mock import patch
 import pytest
 
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
+from ddtrace.llmobs._integrations.anthropic import _extract_anthropic_image_source
+from ddtrace.llmobs._integrations.utils import LLMOBS_IMAGE_INLINE_MAX_BYTES
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -709,6 +713,183 @@ class TestLLMObsAnthropic:
                 metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
+
+    def test_image_base64_captured_as_image_parts(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """An inline base64 image source is captured as image_parts, with no '([IMAGE DETECTED])' marker."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_create_image.yaml"):
+            llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Hello, what do you see in the following image?"},
+                            {
+                                "type": "image",
+                                "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="},
+                            },
+                        ],
+                    },
+                ],
+            )
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            assert len(spans) == 1
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="llm",
+                model_name="claude-3-opus-20240229",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": "Hello, what do you see in the following image?", "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "image_parts": [{"mime_type": "image/png", "content": "iVBORw0KGgo="}],
+                    },
+                ],
+                output_messages=[
+                    {
+                        "content": 'The image shows the logo for a company or product called "Datadog',
+                        "role": "assistant",
+                    }
+                ],
+                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+            )
+
+    def test_extract_anthropic_image_source_unit(self):
+        """Only inline base64 str/bytes sources yield (data, mime); Path/URL/non-inline sources return None."""
+        b64_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}
+        assert _extract_anthropic_image_source(b64_block) == ("iVBORw0KGgo=", "image/png")
+        # Raw bytes are returned unencoded so the caller's guard can size them before encoding.
+        bytes_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b"\x89PNG"}}
+        assert _extract_anthropic_image_source(bytes_block) == (b"\x89PNG", "image/png")
+        # Non-inline data (a file Path) is not read -> None (falls back to the marker).
+        path_block = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": Path("x.png")}}
+        assert _extract_anthropic_image_source(path_block) is None
+        # A URL image source is not fetched -> None.
+        url_block = {"type": "image", "source": {"type": "url", "url": "https://example.com/x.png"}}
+        assert _extract_anthropic_image_source(url_block) is None
+        # Missing data -> None.
+        no_data = {"type": "image", "source": {"type": "base64", "media_type": "image/png"}}
+        assert _extract_anthropic_image_source(no_data) is None
+        # Missing media_type -> None (images have no sensible default mime, unlike audio).
+        no_mime = {"type": "image", "source": {"type": "base64", "data": "iVBORw0KGgo="}}
+        assert _extract_anthropic_image_source(no_mime) is None
+        # Unrenderable mime -> None here rather than at the guard, so the caller cannot mislabel it as
+        # oversized. Anthropic's media_type Literal only permits the four renderable types anyway.
+        html = {"type": "image", "source": {"type": "base64", "media_type": "text/html", "data": "PHNjcmlwdD4="}}
+        assert _extract_anthropic_image_source(html) is None
+        # Non-ASCII str is not base64. Sizing it by len() would undercount its UTF-8 wire cost 4x and
+        # sneak a 16 MiB payload past a 4 MiB guard, so it must not reach the guard at all.
+        non_ascii = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "\U0001f600" * 4}}
+        assert _extract_anthropic_image_source(non_ascii) is None
+        # Extract-only: the caller applies the size guard, so an oversized inline image still extracts.
+        big = "A" * (LLMOBS_IMAGE_INLINE_MAX_BYTES + 1)
+        oversized = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": big}}
+        assert _extract_anthropic_image_source(oversized) == (big, "image/png")
+
+    @pytest.mark.parametrize(
+        "source,expected_content",
+        [
+            # Not inline bytes, so not fetched -- each falls back to the pre-existing generic marker.
+            ({"type": "base64", "media_type": "image/png", "data": Path("x.png")}, "([IMAGE DETECTED])"),
+            ({"type": "url", "url": "https://example.com/x.png"}, "([IMAGE DETECTED])"),
+            ({"type": "file", "file_id": "file_abc"}, "([IMAGE DETECTED])"),
+            # Inline but unrenderable mime -> not captured (guard rejects before the size check).
+            ({"type": "base64", "media_type": "text/html", "data": "PHNjcmlwdD4="}, "([IMAGE DETECTED])"),
+        ],
+    )
+    def test_extract_input_message_uncaptured_image_sources(self, source, expected_content):
+        """Sources we don't inline leave a text marker and no image_parts."""
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(mock.MagicMock())
+        msgs = integration._extract_input_message([{"role": "user", "content": [{"type": "image", "source": source}]}])
+        assert msgs[0]["content"] == expected_content
+        assert "image_parts" not in msgs[0]
+
+    def test_extract_input_message_captures_inline_image(self):
+        """A captured image rides its own message as image_parts with empty text, and sibling blocks are
+        untouched -- including a second image in the same content list.
+        """
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(mock.MagicMock())
+        png = {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}
+        jpeg = {"type": "base64", "media_type": "image/jpeg", "data": "QUJDRA=="}
+        msgs = integration._extract_input_message(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "compare these"},
+                        {"type": "image", "source": png},
+                        {"type": "image", "source": jpeg},
+                        {"type": "text", "text": "which is sharper?"},
+                    ],
+                }
+            ]
+        )
+        assert [m["content"] for m in msgs] == ["compare these", "", "", "which is sharper?"]
+        assert msgs[1]["image_parts"] == [{"mime_type": "image/png", "content": "iVBORw0KGgo="}]
+        assert msgs[2]["image_parts"] == [{"mime_type": "image/jpeg", "content": "QUJDRA=="}]
+
+    def test_extract_input_message_oversized_image_preserves_sibling_text(self):
+        """Regression: an oversized inline image becomes a marker while the surrounding text survives, so
+        the event stays small enough that the writer never blanks the span's input+output.
+        """
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(mock.MagicMock())
+        oversized = {"type": "base64", "media_type": "image/png", "data": "A" * (5 * 1024 * 1024)}
+        msgs = integration._extract_input_message(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "what is in this image?"},
+                        {"type": "image", "source": oversized},
+                    ],
+                }
+            ]
+        )
+        assert [m["content"] for m in msgs] == [
+            "what is in this image?",
+            "[image omitted: too large]",
+        ]
+        assert all("image_parts" not in m for m in msgs)
+        assert len(json.dumps(msgs)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
+
+    def test_extract_input_message_cumulative_images_known_gap(self):
+        """KNOWN GAP: the guard is per-image, so images that each fit are all captured even when their sum
+        blows the per-event limit -- and the writer then drops the whole span I/O. Asserts the oversize
+        consequence, so adding a shared budget flips this test. See MLOB-6408 follow-ups.
+        """
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(mock.MagicMock())
+        just_under_cap = "A" * (LLMOBS_IMAGE_INLINE_MAX_BYTES - 1)
+        msgs = integration._extract_input_message(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": "image/png", "data": just_under_cap},
+                        }
+                    ],
+                }
+            ]
+            * 2
+        )
+        assert [len(m.get("image_parts", [])) for m in msgs] == [1, 1]
+        assert len(json.dumps(msgs)) > DEFAULT_EVP_EVENT_SIZE_LIMIT
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     def test_tools_sync(self, anthropic, anthropic_llmobs, test_spans, request_vcr):

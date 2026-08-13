@@ -29,11 +29,12 @@ from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
 
 # Audio helpers were moved to audio_utils.py to keep this module manageable; re-export the
 # public names here so existing ``from ...utils import <helper>`` imports keep working.
-from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
-from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import _base64_encoded_len
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part  # noqa: F401
@@ -386,6 +387,52 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     """Build an ``ImagePart`` from raw image bytes (base64-encoded) or an existing base64 string."""
     content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
     return ImagePart(mime_type=mime_type, content=content)
+
+
+# AIDEV-NOTE: Budget for one inline image, measured on the base64 that actually rides the span event.
+# Kept under the 5 MB per-event limit with headroom: over it, _writer._truncate_span_event blanks the
+# span's whole input AND output. This bounds a single image only -- several that each fit can still
+# collectively exceed the limit. The general cross-field fix belongs in the writer (MLOB-6408 follow-up).
+LLMOBS_IMAGE_INLINE_MAX_BYTES = 4 * 1024 * 1024
+
+# What a browser can render from an inline data URI, and exactly Anthropic's Base64ImageSourceParam
+# media_type Literal. Mirrors is_renderable_audio_mime: an unrenderable mime is not worth the bytes.
+_RENDERABLE_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
+
+
+def is_renderable_image_mime(mime_type: str) -> bool:
+    """True if an inline image of this MIME type is worth capturing (the UI can render it)."""
+    return isinstance(mime_type, str) and mime_type.strip().lower() in _RENDERABLE_IMAGE_MIME_TYPES
+
+
+def _encoded_image_len(data: Union[bytes, str]) -> int:
+    """Serialized byte length of an image payload: base64 text as UTF-8, raw bytes once encoded."""
+    if not isinstance(data, str):
+        return _base64_encoded_len(len(data))
+    # len() counts characters. Real base64 is ASCII so the two agree, but a caller that hands us
+    # non-ASCII text would otherwise be undercounted up to 4x and slip past the budget.
+    return len(data) if data.isascii() else len(data.encode("utf-8"))
+
+
+def format_image_part_with_guard(
+    data: Union[bytes, str], mime_type: str, max_bytes: int = LLMOBS_IMAGE_INLINE_MAX_BYTES
+) -> Optional[ImagePart]:
+    """Build an ``ImagePart`` only for a renderable inline image within the size budget, else ``None``.
+
+    Returns ``None`` for an unrenderable MIME type or an encoded size over ``max_bytes``, so the caller
+    can keep a text marker instead. Mirrors ``format_audio_part_with_guard``.
+    """
+    if not is_renderable_image_mime(mime_type):
+        return None
+    encoded_len = _encoded_image_len(data)
+    if encoded_len > max_bytes:
+        logger.debug(
+            "Image (%d encoded bytes) exceeds inline budget %d; omitting inline image content",
+            encoded_len,
+            max_bytes,
+        )
+        return None
+    return format_image_part(data, mime_type)
 
 
 def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:

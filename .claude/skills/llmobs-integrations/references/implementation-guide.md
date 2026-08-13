@@ -118,8 +118,18 @@ Different libraries structure messages differently — implement only the helper
 - `_extract_usage(response)` — map library-specific token field names to metric keys
 - `_extract_tools(kwargs)` — convert `tools` kwarg to `ToolDefinition` list
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
+- `_extract_<lib>_image_source(...)` — for multimodal image providers, populate `Message.image_parts` with `ImagePart` entries of the same shape. See `ddtrace/llmobs/_integrations/anthropic.py`
 
 `MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper.
+
+### Inline Media Size Guards
+
+Inline base64 media counts against the 5 MB per-span-event limit, and `_writer._truncate_span_event` responds by blanking the span's entire input **and** output — not just the oversized field. So capture media through a guard rather than inlining it directly:
+
+- `format_audio_part_with_guard()` (`_integrations/audio_utils.py`) and `format_image_part_with_guard()` (`_integrations/utils.py`) return `None` instead of an oversized part; the caller keeps a short text marker so the surrounding text and the model response still ship.
+- Size the payload **before** encoding it — pass raw data to the guard, not a pre-encoded string, so an oversized image is rejected without paying for the encode.
+- Do all non-size rejection (unrenderable MIME type, non-ASCII "base64", a `Path`/file handle) in the *extractor*, not the guard. If the guard can return `None` for a non-size reason, the caller's "too large" marker starts lying about images that are not too large.
+- These guards bound **one** part at a time. Several that each fit can still collectively exceed the event limit; there is no cross-field budget in the writer yet.
 
 ### Metadata Hygiene
 
