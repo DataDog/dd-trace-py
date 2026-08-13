@@ -522,6 +522,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
         } catch (const std::exception& e) {
             std::cerr << "Unexpected error in sampling thread: " << e.what() << std::endl;
 
+            // If the exception interrupted a sample mid-build (after render_thread_begin
+            // but before render_stack_end), return it to the pool instead of leaking it.
+            echion->renderer().abort_sample();
+
             // Mark the sampler inactive so a subsequent fork does not restart this
             // sampler that has stopped due to an error (see prefork).
             sampler_active_.store(false);

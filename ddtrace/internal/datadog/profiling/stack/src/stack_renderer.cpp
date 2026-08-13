@@ -11,7 +11,6 @@
 #include "echion/strings.h"
 #include <ddup_interface.hpp>
 #include <unordered_map>
-#include <utility>
 
 using namespace Datadog;
 
@@ -21,26 +20,7 @@ StackRenderer::SampleDropper::operator()(Sample* _sample) const noexcept
     SampleManager::drop_sample(_sample);
 }
 
-StackRenderer::RenderCycle::RenderCycle(StackRenderer& _renderer, std::uint64_t _cycle_id) noexcept
-  : renderer(&_renderer)
-  , cycle_id(_cycle_id)
-{
-}
-
-StackRenderer::RenderCycle::RenderCycle(RenderCycle&& other) noexcept
-  : renderer(std::exchange(other.renderer, nullptr))
-  , cycle_id(std::exchange(other.cycle_id, 0))
-{
-}
-
-StackRenderer::RenderCycle::~RenderCycle() noexcept
-{
-    if (renderer != nullptr) {
-        renderer->finish_cycle(cycle_id);
-    }
-}
-
-StackRenderer::RenderCycle
+void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    std::string_view name,
                                    int64_t wall_time_us,
@@ -48,26 +28,19 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    unsigned long native_id)
 {
     (void)tstate;
-
-    // Starting a new generation invalidates an older guard, so its eventual destruction cannot abort this cycle.
-    const std::uint64_t cycle_id = ++next_cycle_id;
-    active_cycle_id = cycle_id;
-    RenderCycle cycle(*this, cycle_id);
+    static bool failed = false;
+    if (failed) {
+        return;
+    }
 
     // Return an incomplete Sample before asking the pool for its replacement.
     sample.reset();
-
-    static bool failed = false;
-    if (failed) {
-        return cycle;
-    }
-
     // Keep acquisition separate from the reset above so start_sample() can reuse the slot we just returned.
     sample.reset(SampleManager::start_sample());
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
         failed = true;
-        return cycle;
+        return;
     }
 
     // See clock.hpp for platform-specific details.
@@ -102,8 +75,6 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         sample->push_origin_task_id(origin_task->task_id);
         sample->push_origin_task_name(std::string_view(origin_task->task_name));
     }
-
-    return cycle;
 }
 
 void
@@ -111,12 +82,6 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
 {
     static bool failed = false;
     if (failed) {
-        return;
-    }
-
-    // Unlike the other render methods, this method can acquire a new Sample, so require an owning render cycle.
-    if (active_cycle_id == 0) {
-        std::cerr << "Received a task without an active render cycle. Some profiling data has been lost." << std::endl;
         return;
     }
 
@@ -309,16 +274,10 @@ StackRenderer::render_stack_end()
 }
 
 void
-StackRenderer::finish_cycle(std::uint64_t cycle_id) noexcept
+StackRenderer::abort_sample()
 {
-    // A guard may be destroyed after another cycle has started. In that case, the newer cycle owns the active sample
-    // and the stale guard must not return it to the pool.
-    if (active_cycle_id != cycle_id) {
-        return;
-    }
-
+    // Return the partially-built sample to the pool without flushing it.
     sample.reset();
-    active_cycle_id = 0;
 }
 
 Datadog::StackRenderer::StackRenderer()
@@ -343,5 +302,4 @@ Datadog::StackRenderer::postfork_child()
     // The vanished sampling thread may have been mutating this Sample when fork captured it. Clearing or returning the
     // child copy could traverse inconsistent vectors, so intentionally abandon at most this one in-flight child copy.
     [[maybe_unused]] Sample* abandoned_sample = sample.release();
-    active_cycle_id = 0;
 }
