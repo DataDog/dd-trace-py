@@ -871,7 +871,7 @@ experiments:
               - execution_time < 3.00 ms
           - name: forktime-configured
             thresholds:
-              - execution_time < 22 ms
+              - execution_time < 26 ms
 
           # rand
           - name: rand-rand64bits

@@ -13,12 +13,14 @@ import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
-from ddtrace.appsec._remoteconfiguration import enable_asm
+from ddtrace.appsec._remoteconfiguration import AppSecCallback
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.appsec.product import _disable_asm
+from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import tracer
@@ -218,13 +220,12 @@ def test_metrics_when_appsec_block(telemetry_writer, test_agent_session, tracer)
 
 
 def test_metrics_when_appsec_block_custom(telemetry_writer, test_agent_session, tracer):
+    appsec_callback = AppSecCallback(_enable_asm, _disable_asm)
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_asm) as span:
-        from ddtrace.appsec._remoteconfiguration import _appsec_callback
-
         actions = {
             "actions": [{"id": "block", "type": "block_request", "parameters": {"status_code": 429, "type": "json"}}]
         }
-        _appsec_callback(
+        appsec_callback(
             [
                 build_payload("ASM", actions, "actions"),
             ],
@@ -502,7 +503,7 @@ def test_appsec_enabled_metric(
     ):
         tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)
         if rc_enabled:
-            enable_asm()
+            _enable_asm()
 
         # Drain telemetry queued while configuring, then capture only the change-driven
         # DD_APPSEC_ENABLED report for the final state.
