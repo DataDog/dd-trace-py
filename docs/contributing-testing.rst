@@ -150,6 +150,13 @@ CI job events are joined by pipeline and job identity to account for setup overh
 queue time, and total runner consumption. Failed and cancelled observations are
 retained as censored reliability evidence but are not treated as normal durations.
 
+The balanced strategy targets five minutes of modeled work per Riot shard. Promotion
+requires at least a 50 percent reduction in the median Riot critical path over paired
+live shadow runs. This objective covers the generated Riot child pipeline, not the
+entire required-check wall clock. Package builds, microbenchmarks, downstream
+pipelines, and GitHub System Tests have independent execution graphs and must be
+measured and optimized separately for an end-to-end feedback-time target.
+
 Use the allocation helper to normalize an export, build a candidate model, and
 replay it against the untouched holdout:
 

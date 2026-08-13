@@ -3,7 +3,7 @@
     "active_strategy": "legacy",
     "maximum_parallelism_per_suite": 25,
     "target_jobs": 200,
-    "target_shard_seconds": 600
+    "target_shard_seconds": 300
   },
   "model": {
     "estimate_quantile": 0.9,
@@ -22,7 +22,7 @@
     "live_shadow": {
       "maximum_queue_p90_increase_ratio": 0.05,
       "maximum_runner_seconds_increase_ratio": 0.05,
-      "minimum_median_improvement_ratio": 0.15,
+      "minimum_median_improvement_ratio": 0.5,
       "minimum_runs": 15
     },
     "pr_shape_replay": {
