@@ -111,15 +111,6 @@ def prune_empty(node: T) -> T:
     return node
 
 
-def put_field(fields: dict[str, Any], name: str, value: Any) -> None:
-    """Assign an optional field, dropping values that mean "not configured". False and 0 are kept."""
-    if value is None:
-        return
-    if isinstance(value, (str, bytes, list, tuple, dict, set, frozenset)) and len(value) == 0:
-        return
-    fields[name] = value
-
-
 def is_number(value: Any) -> bool:
     """A finite JSON number. bool is an int subclass, so True would otherwise ship as true here."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):

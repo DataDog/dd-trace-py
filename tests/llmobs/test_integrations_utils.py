@@ -5,7 +5,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
-from ddtrace.llmobs._integrations.agent_manifest import put_field
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
@@ -688,19 +687,6 @@ class TestAgentManifestPrimitives:
     span batched with it.
     """
 
-    def test_put_field_drops_what_means_not_configured(self):
-        fields = {}
-        for name, value in (("a", None), ("b", ""), ("c", []), ("d", {}), ("e", ()), ("f", set())):
-            put_field(fields, name, value)
-        assert fields == {}
-
-    def test_put_field_keeps_false_and_zero(self):
-        """Filtering on truthiness instead is what loses a configured temperature=0."""
-        fields = {}
-        put_field(fields, "temperature", 0)
-        put_field(fields, "parallel_tool_calls", False)
-        assert fields == {"temperature": 0, "parallel_tool_calls": False}
-
     def test_prune_empty_drops_what_means_not_configured(self):
         """Sections assign unconditionally so mypy can check key names; this is what drops the blanks."""
         assert prune_empty(
@@ -714,7 +700,7 @@ class TestAgentManifestPrimitives:
         ) == {"framework": "PydanticAI"}
 
     def test_prune_empty_keeps_false_and_zero(self):
-        """Same contract put_field had: a configured temperature of 0 is not an absent one."""
+        """A configured temperature of 0 is not an absent one, which truthiness filtering loses."""
         assert prune_empty({"temperature": 0, "parallel_tool_calls": False, "top_p": 0.0}) == {
             "temperature": 0,
             "parallel_tool_calls": False,

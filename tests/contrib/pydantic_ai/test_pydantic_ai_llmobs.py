@@ -525,9 +525,8 @@ class TestPydanticAIAgentManifest:
     # Every top-level key the shared schema allows. A key outside this set is either a typo or an
     # invention, and both are caught by test_shape_is_one_flat_document rather than by review.
     # Derived from the type rather than restated, so AgentManifest is the one definition of the
-    # schema. A key emitted without being added to the type fails here, which is the check the type
-    # cannot give statically: sections are assembled through put_field on a plain dict, and mypy
-    # cannot see key names through that.
+    # schema. mypy already rejects an unknown key at the assignment; this catches the same mistake
+    # from the wire side, where a key could be introduced by a nested dict it cannot see.
     SCHEMA_KEYS = frozenset(AgentManifest.__annotations__)
 
     async def _run(self, pydantic_ai, test_spans, **agent_kwargs):

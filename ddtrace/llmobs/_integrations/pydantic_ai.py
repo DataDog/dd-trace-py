@@ -13,7 +13,6 @@ from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
-from ddtrace.llmobs._integrations.agent_manifest import put_field
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -343,9 +342,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             for key, value in settings.items():
                 if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
                     continue
-                # Via put_field: wire_value returns None for what it cannot encode, and a direct
-                # assignment would ship that as an explicit null.
-                put_field(allowed, key, wire_value(value))
+                # prune_empty drops what wire_value could not encode, so assign it either way.
+                allowed[key] = wire_value(value)
             fields["model_settings"] = allowed
         return fields
 
@@ -415,11 +413,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 settings[name] = value
         end_strategy = getattr(agent, "end_strategy", None)
         if isinstance(end_strategy, str):
-            put_field(settings, "end_strategy", end_strategy)
+            settings["end_strategy"] = end_strategy
         deps_type = getattr(agent, "_deps_type", None)
         # Omit the "no deps" default, NoneType below 2.x and object from 2.x on, so it is not noise.
         if isinstance(deps_type, type) and deps_type not in (type(None), object):
-            put_field(settings, "deps_type", deps_type.__name__)
+            settings["deps_type"] = deps_type.__name__
         return {"agent_settings": settings} if settings else {}
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
@@ -434,8 +432,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
             # what it cannot encode, which can carry credentials.
             description = getattr(tool_instance, "description", None)
-            put_field(entry, "description", description if isinstance(description, str) else None)
-            put_field(entry, "parameters", self._tool_parameters(tool_instance))
+            entry["description"] = description if isinstance(description, str) else None
+            entry["parameters"] = self._tool_parameters(tool_instance)
             tools.append(entry)
         return tools
 
@@ -457,7 +455,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # here. The span sanitizer stringifies keys too, so this is belt and braces.
             param_dict: dict[str, Any] = {}
             if isinstance(schema, dict):
-                put_field(param_dict, "type", wire_value(schema.get("type")))
+                param_dict["type"] = wire_value(schema.get("type"))
             if str(param) in required_params:
                 param_dict["required"] = True
             parameters[str(param)] = param_dict
