@@ -19,6 +19,7 @@ suites:
       - tests/profiling/*
     pattern: profile$
     retry: 2
+    timeout: 30m
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
