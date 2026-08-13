@@ -108,6 +108,12 @@ def start():
     from ddtrace.internal.products import manager
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
+    # AIDEV-NOTE: Handlers must exist before APM_TRACING is enabled so the poller's
+    # first response cannot outrun dependent product startup.
+    for name, product in manager.__products__.items():
+        if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
+            on("apm-tracing.rc", rc_handler, name)
+
     remoteconfig_poller.register_callback(
         RemoteConfigProduct.ApmTracing,
         APMTracingCallback(),
@@ -116,11 +122,6 @@ def start():
         ],
     )
     remoteconfig_poller.enable_product(RemoteConfigProduct.ApmTracing)
-
-    # Register remote config handlers
-    for name, product in manager.__products__.items():
-        if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
-            on("apm-tracing.rc", rc_handler, name)
 
 
 def restart(join=False):

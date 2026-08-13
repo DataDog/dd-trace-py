@@ -6002,6 +6002,14 @@
         "internal": true
       }
     ],
+    "_DD_PROFILING_REMOTE_CONFIG_POC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": [
       {
         "implementation": "A",

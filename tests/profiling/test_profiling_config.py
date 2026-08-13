@@ -7,6 +7,16 @@ import pytest
 from ddtrace.internal.settings.profiling import ProfilingConfig
 
 
+class TestRemoteConfigPOC:
+    def test_disabled_by_default(self) -> None:
+        assert ProfilingConfig().remote_config_poc_enabled is False
+
+    def test_private_environment_variable_enables_poc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_REMOTE_CONFIG_POC_ENABLED", "true")
+
+        assert ProfilingConfig().remote_config_poc_enabled is True
+
+
 class TestMaxFramesConfig:
     def test_default(self) -> None:
         assert ProfilingConfig().max_frames == 64
