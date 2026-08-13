@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
-from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Sequence
+from typing import TypedDict
+from typing import cast
 
 from ddtrace.appsec._capabilities import _ALL_ASM_CAPABILITIES
 from ddtrace.appsec._capabilities import _asm_feature_is_required
@@ -28,6 +29,23 @@ APPSEC_PRODUCTS = {
     RemoteConfigProduct.AsmData,
     RemoteConfigProduct.AsmDd,
 }
+
+
+class _AsmFeatureState(TypedDict, total=False):
+    enabled: bool
+
+
+class _AutoUserInstrumState(TypedDict, total=False):
+    mode: Optional[str]
+
+
+class AsmFeaturesResult(TypedDict, total=False):
+    """Shape of an ASM_FEATURES RC payload's content, and of the dict _update_asm_features
+    derives from a batch of such payloads.
+    """
+
+    asm: _AsmFeatureState
+    auto_user_instrum: _AutoUserInstrumState
 
 
 def enable_appsec_rc(callback: "AppSecCallback") -> None:
@@ -76,8 +94,7 @@ class AppSecCallback(RCCallback):
 
     def __init__(self, enable_asm: Callable[[], None], disable_asm: Callable[[], None]) -> None:
         """Initialize the AppSec callback."""
-        self._cache: dict[str, dict[str, Any]] = {}
-        self._asm_features_cache: dict[str, dict[str, Any]] = {}
+        self._cache: dict[str, AsmFeaturesResult] = {}
         self._enable_asm = enable_asm
         self._disable_asm = disable_asm
 
@@ -89,6 +106,11 @@ class AppSecCallback(RCCallback):
         """
         if not payloads:
             return
+        # ASM_FEATURES payloads are folded into `result` here, once, and reused below for both
+        # the immediate product (de)registration and the enable_asm/disable_asm decision. Calling
+        # _update_asm_features a second time on the same payloads against the same cache would
+        # consume the pop-on-removal transition it just recorded and silently drop the second
+        # decision (e.g. missing a disable_asm() call on an ASM_FEATURES removal payload).
         result = _update_asm_features(payloads, self._cache)
         if "asm" in result:
             if asm_config._asm_static_rule_file is None:
@@ -110,33 +132,27 @@ class AppSecCallback(RCCallback):
                     remoteconfig_poller.unregister_callback(RemoteConfigProduct.AsmDd)
                     remoteconfig_poller.disable_product(RemoteConfigProduct.AsmDd)
         debug_info = (
-            f"appsec._remoteconfiguration.deb::_appsec_callback::payload"
+            f"appsec._remoteconfiguration.deb::AppSecCallback::payload"
             f"{tuple(p.path for p in payloads)}[{os.getpid()}][P: {os.getppid()}]"
         )
         log.debug(debug_info)
 
         for_the_waf_updates: list[tuple[str, str, PayloadType]] = []
         for_the_waf_removals: list[tuple[str, str]] = []
-        for_the_tracer: list[Payload] = []
         for payload in payloads:
             if payload.metadata.product_name == "ASM_FEATURES":
-                for_the_tracer.append(payload)
+                continue  # already folded into `result` above
             elif payload.content is None:
                 for_the_waf_removals.append((payload.metadata.product_name, payload.path))
             else:
                 for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
-        _process_asm_features(
-            for_the_tracer,
-            self._asm_features_cache,
-            enable_asm=self._enable_asm,
-            disable_asm=self._disable_asm,
-        )
+        _process_asm_features(result, enable_asm=self._enable_asm, disable_asm=self._disable_asm)
         if (for_the_waf_removals or for_the_waf_updates) and asm_config._asm_enabled:
             core.dispatch("waf.update", (for_the_waf_removals, for_the_waf_updates))
 
 
-def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    res: dict[str, dict[str, Optional[bool]]] = {}
+def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, AsmFeaturesResult]) -> AsmFeaturesResult:
+    res: AsmFeaturesResult = {}
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
             payload_content = payload.content
@@ -148,14 +164,14 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[
                         res["auto_user_instrum"] = {"mode": None}
                 cache.pop(payload.path, None)
             else:
-                res.update(payload_content)
-                cache[payload.path] = payload_content
+                asm_features_content = cast(AsmFeaturesResult, payload_content)
+                res.update(asm_features_content)
+                cache[payload.path] = asm_features_content
     return res
 
 
 def _process_asm_features(
-    payload_list: list[Payload],
-    cache: dict[str, dict[str, Any]],
+    result: AsmFeaturesResult,
     enable_asm: Callable[[], None],
     disable_asm: Callable[[], None],
 ) -> None:
@@ -171,8 +187,11 @@ def _process_asm_features(
     | false             | true       | Disabled |
     | true              | true       | Enabled  |
     ```
+
+    `result` is the dict already produced by _update_asm_features for the current payload batch;
+    callers must not call _update_asm_features again for the same batch (it pops the cache entry
+    on a removal payload, so a second call would silently miss the enable/disable decision).
     """
-    result = _update_asm_features(payload_list, cache)
     if "asm" in result and asm_config._asm_can_be_enabled:
         if result["asm"].get("enabled", False):
             enable_asm()
