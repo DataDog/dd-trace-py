@@ -115,10 +115,12 @@ def test_otel_trace_across_fork():
 
     oteltracer = get_tracer(__name__)
 
-    errors = multiprocessing.Queue()
+    # Python 3.14 defaults to forkserver on POSIX, but this test exercises fork propagation.
+    multiprocessing_context = multiprocessing.get_context("fork")
+    errors = multiprocessing_context.Queue()
     with oteltracer.start_as_current_span("root") as root:
         ddtracer.sample(root._ddspan)
-        p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
+        p = multiprocessing_context.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()
         finally:
@@ -146,9 +148,11 @@ def test_sampling_decisions_across_processes():
     decision = os.environ["SAMPLING_DECISION"]
     oteltracer = get_tracer(__name__)
 
-    errors = multiprocessing.Queue()
+    # Python 3.14 defaults to forkserver on POSIX, but this test exercises fork propagation.
+    multiprocessing_context = multiprocessing.get_context("fork")
+    errors = multiprocessing_context.Queue()
     with oteltracer.start_as_current_span("root", attributes={decision: ""}) as root:
-        p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
+        p = multiprocessing_context.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()
         finally:
