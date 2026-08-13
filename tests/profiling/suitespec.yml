@@ -17,7 +17,7 @@ suites:
       - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
-    pattern: profile(?:-cpu-timer)?$
+    pattern: profile$
     retry: 2
   profile-uwsgi:
     env:
