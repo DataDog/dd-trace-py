@@ -640,6 +640,9 @@ class TraceExporterBuilder:
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -707,6 +710,10 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
 
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """

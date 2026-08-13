@@ -69,6 +69,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+_OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})
 
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
@@ -761,6 +762,16 @@ def _build_base_exporter_builder(
         builder.set_app_version(config.version)
     if test_session_token is not None:
         builder.set_test_session_token(test_session_token)
+    if otlp_metrics_enabled:
+        tracer_tags = [
+            f"{key}:{value}"
+            for key, value in sorted(config.tags.items())
+            if key.lower() not in _OTLP_TRACER_TAG_RESERVED_KEYS and value
+        ]
+        if tracer_tags:
+            builder.set_tracer_tags(tracer_tags)
+    if config._trace_stats_additional_tags:
+        builder.set_additional_metric_tag_keys(config._trace_stats_additional_tags)
     # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
     if otlp_metrics_enabled or (compute_stats_enabled and not stats_opt_out):
         if otlp_metrics_enabled:
