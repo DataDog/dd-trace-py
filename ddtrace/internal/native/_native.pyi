@@ -174,6 +174,14 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
     def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
