@@ -52,7 +52,8 @@ aspect_join_str(PyObject* sep,
 
     py::object new_result = new_pyobject_id_owned(result);
     if (!new_result) {
-        throw py::error_already_set();
+        PyErr_Clear();
+        return;
     }
     set_tainted_object(new_result.ptr(), result_to, tx_taint_map);
     result = std::move(new_result);
@@ -133,7 +134,8 @@ aspect_join(PyObject* sep, py::object& result, PyObject* iterable_elements, cons
 
     py::object new_result = new_pyobject_id_owned(result);
     if (!new_result) {
-        throw py::error_already_set();
+        PyErr_Clear();
+        return;
     }
     set_tainted_object(new_result.ptr(), result_to, tx_taint_map);
     result = std::move(new_result);
@@ -179,6 +181,10 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         result = py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
     } else if (PyByteArray_Check(sep)) {
         result = py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
+    } else {
+        PyErr_Format(
+          PyExc_TypeError, "join separator must be str, bytes, or bytearray, not %.200s", Py_TYPE(sep)->tp_name);
+        return nullptr;
     }
 
     if (has_pyerr() or !result) {
