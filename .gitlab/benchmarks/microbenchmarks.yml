@@ -19,7 +19,7 @@ variables:
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
   # Known flaky benchmarks
-  FLAKY_BENCHMARKS_REGEX: "iast_aspects-re_|iastaspects-lstrip_aspect|iastaspects-swapcase_aspect|iastaspects-strip_aspect|iastaspects-upper_noaspect|iastaspects-bytesio_aspect|iastaspects-stringio_aspect|iastaspects-modulo_noaspect|iastaspectsospath-|startup-|errortrackingdjangosimple-baseline|codeprovenancefork-fork-10|httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match"
+  FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect)$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^span-start$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
 .benchmarks:
   stage: test
