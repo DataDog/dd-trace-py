@@ -32,6 +32,10 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # interface_type="agent" is set only by the top-level Bedrock agent trace() call.
+        return "agent" if kwargs.get("interface_type") == "agent" else None
+
     def _llmobs_set_tags(
         self,
         span: Span,
