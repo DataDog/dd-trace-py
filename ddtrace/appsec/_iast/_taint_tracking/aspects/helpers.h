@@ -8,6 +8,10 @@
 #include <unordered_map>
 #include <utility>
 
+#ifdef __GLIBCXX__
+#include <cxxabi.h>
+#endif
+
 #include "api/safe_context.h"
 #include "api/safe_initializer.h"
 #include "api/utils.h"
@@ -365,6 +369,16 @@ Example calling:
     });
 */
 
+#ifdef __GLIBCXX__
+#define RETHROW_FORCED_UNWIND                                                                                          \
+    catch (abi::__forced_unwind&)                                                                                      \
+    {                                                                                                                  \
+        throw;                                                                                                         \
+    }
+#else
+#define RETHROW_FORCED_UNWIND
+#endif
+
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
@@ -377,7 +391,9 @@ Example calling:
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
-    } catch (...) {                                                                                                    \
+    }                                                                                                                  \
+    RETHROW_FORCED_UNWIND catch (...)                                                                                  \
+    {                                                                                                                  \
         const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \

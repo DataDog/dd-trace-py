@@ -1,6 +1,16 @@
 #include "python_error_guard.h"
 #include <pybind11/pybind11.h>
 
+#ifdef __GLIBCXX__
+#include <cxxabi.h>
+#endif
+
+#if PY_VERSION_HEX >= 0x030D0000
+#define py_is_finalizing Py_IsFinalizing
+#else
+#define py_is_finalizing _Py_IsFinalizing
+#endif
+
 static py::str
 format_traceback(PyObject* ptraceback, PyObject* exc_type, PyObject* exc_value)
 {
@@ -42,7 +52,7 @@ PythonErrorGuard::PythonErrorGuard()
     PyErr_Clear();
 }
 
-PythonErrorGuard::~PythonErrorGuard() noexcept
+PythonErrorGuard::~PythonErrorGuard() noexcept(false)
 {
     restore();
 }
@@ -91,20 +101,43 @@ PythonErrorGuard::traceback_as_stdstring() const
 }
 
 void
-PythonErrorGuard::restore() noexcept
+PythonErrorGuard::abandon() noexcept
+{
+    ptype.release();
+    pvalue.release();
+    ptraceback.release();
+}
+
+void
+PythonErrorGuard::restore() noexcept(false)
 {
     if (ptype || pvalue || ptraceback) {
-        // Keep destructor cleanup on CPython's non-throwing GIL API.
-        const PyGILState_STATE gil_state = PyGILState_Ensure();
-
-        if (had_exception) {
-            // Restore the fetched Python error
-            PyErr_Restore(ptype.release().ptr(), pvalue.release().ptr(), ptraceback.release().ptr());
-        } else {
-            ptype = {};
-            pvalue = {};
-            ptraceback = {};
+        if (py_is_finalizing()) {
+            // Reference decrements are unsafe after finalization starts. The
+            // process is exiting, so abandon the owned references instead.
+            abandon();
+            return;
         }
-        PyGILState_Release(gil_state);
+
+#ifdef __GLIBCXX__
+        try {
+#endif
+            const PyGILState_STATE gil_state = PyGILState_Ensure();
+
+            if (had_exception) {
+                // Restore the fetched Python error
+                PyErr_Restore(ptype.release().ptr(), pvalue.release().ptr(), ptraceback.release().ptr());
+            } else {
+                ptype = {};
+                pvalue = {};
+                ptraceback = {};
+            }
+            PyGILState_Release(gil_state);
+#ifdef __GLIBCXX__
+        } catch (abi::__forced_unwind&) {
+            abandon();
+            throw;
+        }
+#endif
     }
 }

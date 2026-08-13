@@ -48,7 +48,8 @@ index_aspect_owned(py::object& result_o,
 
     py::object res_new_id = new_pyobject_id_owned(result_o);
     if (!res_new_id) {
-        throw py::error_already_set();
+        PyErr_Clear();
+        return;
     }
 
     if (!ranges_to_set.empty()) {
