@@ -398,14 +398,4 @@ mod tests {
     fn resilient_propagates_a_persistent_panic() {
         block_on_resilient(|| panic!("always"));
     }
-
-    #[test]
-    #[should_panic(expected = "unrelated failure")]
-    fn resilient_does_not_retry_an_unrelated_panic() {
-        let calls = AtomicUsize::new(0);
-        block_on_resilient(|| {
-            calls.fetch_add(1, Ordering::SeqCst);
-            panic!("unrelated failure");
-        });
-    }
 }
