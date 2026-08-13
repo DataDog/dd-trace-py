@@ -3762,23 +3762,9 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                                 "protobuf": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "greenlet": latest,
-                                        "protobuf": latest,
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "protobuf": latest,
-                                    },
-                                ),
-                            ],
                         ),
                         # uvloop
                         Venv(
