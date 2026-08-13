@@ -148,8 +148,8 @@ def test_otlp_trace_metrics_exported_via_http():
     # No InstrumentationScope is emitted (redundant with the resource's telemetry.sdk.* attributes).
     assert "scope" not in scope_metrics
     # Service identity lives on the resource.
-    resource_attrs = {a["key"]: a["value"]["stringValue"] for a in resource_metrics["resource"]["attributes"]}
-    assert resource_attrs["service.name"] == "test-svc"
+    resource_attrs = {a["key"]: a["value"] for a in resource_metrics["resource"]["attributes"]}
+    assert resource_attrs["service.name"]["stringValue"] == "test-svc"
     assert metric["histogram"]["dataPoints"], "No data points in exported histogram"
 
 

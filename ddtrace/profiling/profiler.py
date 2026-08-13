@@ -379,6 +379,19 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
+        # inherit the patched GOT (and the activator skips a redundant re-install).
+        if profiling_config.native_heap.enabled:
+            from ddtrace.internal.datadog.profiling import heap_gotter
+
+            try:
+                if heap_gotter.install():
+                    LOG.info("Native heap profiling armed (GOT overrides installed)")
+                else:
+                    LOG.warning("Native heap profiling requested but GOT overrides were not installed")
+            except Exception:
+                LOG.error("Failed to arm native heap profiling", exc_info=True)
+
         collectors = []
         for col in self._collectors:
             try:

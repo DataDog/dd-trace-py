@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -55,7 +56,7 @@ def _on_lambda_start_request(
 def _on_lambda_start_response(
     span: Span,
     status_code: str,
-    response_headers: dict[str, str],
+    response_headers: Mapping[str, object],
 ) -> None:
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return

@@ -11,6 +11,10 @@ from ddtrace.appsec import _http_utils
             {"X-Custom-None": "", "Content-Type": "application/json", "X-Custom-Spacing ": " trim spaces  "},
             {"x-custom-none": "", "content-type": "application/json", "x-custom-spacing": "trim spaces"},
         ),
+        (
+            {"Content-Length": 42, "Multi-Value": ["one", "two"]},
+            {"content-length": "42", "multi-value": "['one', 'two']"},
+        ),
     ],
 )
 def test_normalize_headers(input_headers, expected):

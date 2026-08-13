@@ -25,6 +25,7 @@ if sys.platform == "linux":
             ("trace_id", ctypes.c_ubyte * 16),
             ("span_id", ctypes.c_ubyte * 8),
             ("valid", ctypes.c_ubyte),
+            ("trace_flags", ctypes.c_ubyte),
         ]
 
     _NATIVE_LIBRARY = ctypes.CDLL(_native.__file__)
@@ -39,6 +40,17 @@ def _published_span_id():
     if not record.valid:
         return None
     return int.from_bytes(record.span_id, byteorder="big")
+
+
+def _published_trace_flags():
+    slot = ctypes.c_void_p.in_dll(_NATIVE_LIBRARY, "otel_thread_ctx_v1")
+    if slot.value is None:
+        return None
+
+    record = _ThreadContextRecord.from_address(slot.value)
+    if not record.valid:
+        return None
+    return record.trace_flags
 
 
 @pytest.fixture(autouse=True)
@@ -56,6 +68,17 @@ def test_span_context_is_published_and_detached(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
     assert _published_span_id() is None
+
+
+def test_span_context_publishes_trace_flags(tracer: Tracer):
+    with tracer.trace("test") as span:
+        span.context.sampling_priority = 1
+        tracer.context_provider.activate(span)
+        assert _published_trace_flags() == 1
+
+        span.context.sampling_priority = 0
+        tracer.context_provider.activate(span)
+        assert _published_trace_flags() == 0
 
 
 def test_span_context_is_thread_local(tracer: Tracer):

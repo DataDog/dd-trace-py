@@ -571,6 +571,20 @@ stack_cpu_timer_debug_set_fault_injection(PyObject* Py_UNUSED(self), PyObject* a
 }
 
 static PyObject*
+stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_tasks;
+
+    if (!PyArg_ParseTuple(args, "I", &max_tasks)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_max_tasks_per_sample(max_tasks);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
 {
     uintptr_t thread_id;
@@ -1194,6 +1208,10 @@ static PyMethodDef stack_methods[] = {
       stack_cpu_timer_debug_set_fault_injection,
       METH_VARARGS,
       "Enable private CPU timer fault injection" },
+    { "set_max_tasks",
+      stack_set_max_tasks,
+      METH_VARARGS,
+      "Set max leaf tasks/greenlets to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },

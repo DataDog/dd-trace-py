@@ -10,10 +10,15 @@
 /// Returns the result of `install_heap_overrides`, i.e. whether at least one
 /// allocator symbol's GOT entry was resolved and patched (so hooks will run).
 ///
-/// Idempotent: safe to call more than once (e.g. after `fork()`). The resolved
-/// ORIG slots are process-global and inherited across `fork()`, and upstream
-/// re-runs `apply_overrides` on every call, so a re-install in the child still
-/// returns `true`.
+/// After a successful install, a `fork()` child inherits the mapping and the
+/// patched GOT, so a second native install is usually unnecessary. Upstream has
+/// no `pthread_atfork` child reset for the process-global registry mutex
+/// (`GLOBAL_OVERRIDES`); forking during an in-flight `install()`/`update()` can
+/// leave that mutex locked in the child — treat mid-install fork as unsafe.
+/// Prefer installing on the main thread (or in the worker after fork). The
+/// Python activator's `_armed` skip avoids re-entering this cdylib after a
+/// successful install on the common post-fork path; that is not a claim that
+/// all inherited native state is fork-safe.
 ///
 /// # Safety
 ///

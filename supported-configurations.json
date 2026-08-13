@@ -2949,6 +2949,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_NATIVE_HEAP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
@@ -6055,6 +6062,14 @@
         "implementation": "B",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_MAX_TASKS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50",
         "internal": true
       }
     ],

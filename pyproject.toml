@@ -38,6 +38,7 @@ dependencies = [
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
+    "ddtrace-internal==0.1.0",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that

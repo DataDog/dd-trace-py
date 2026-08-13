@@ -4656,6 +4656,7 @@ venv = Venv(
         Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
+            pkgs={"jsonschema": latest},
             pys=select_pys(),
         ),
     ],

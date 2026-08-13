@@ -212,19 +212,20 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        # Look for GHSA-652x-xj99-gmcc in the requests dependency metadata
-        dep, cve_value = _find_dep_with_cve(events, "requests", "GHSA-652x-xj99-gmcc")
+        # Every heartbeat re-reports the dependency, so an event emitted before the vulnerable
+        # call carries reached=[]. Take the entry that recorded the call, not the first one.
+        cve_values = _find_all_cve_metadata(events, "requests", "GHSA-652x-xj99-gmcc")
 
-        assert dep is not None, (
+        assert cve_values, (
             "GHSA-652x-xj99-gmcc not found in requests dependency metadata. "
             f"Events: {json.dumps(events, indent=2)[:2000]}"
         )
-        assert dep["name"] == "requests"
-        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
+        assert all(value["id"] == "GHSA-652x-xj99-gmcc" for value in cve_values)
         # AIDEV-NOTE: RFC v3 — reached is now an array of {path, method, line} objects.
-        assert isinstance(cve_value["reached"], list)
-        assert len(cve_value["reached"]) >= 1
-        hit = cve_value["reached"][0]
+        assert all(isinstance(value["reached"], list) for value in cve_values)
+        reported = [value for value in cve_values if value["reached"]]
+        assert reported, f"No reached entry reported for the CVE after the vulnerable call: {cve_values}"
+        hit = reported[0]["reached"][0]
         # AIDEV-NOTE: path/method/line report the *caller* (user code that
         # invoked the vulnerable function), not the target function itself.
         assert "app.py" in hit["path"], f"Expected caller path containing 'app.py', got: {hit['path']}"
