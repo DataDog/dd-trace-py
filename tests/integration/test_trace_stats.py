@@ -110,11 +110,9 @@ def test_stats_additional_tags_v06_payload():
     from tests.integration.test_trace_stats import _trace_stats_context
 
     def generate_stats(tracer):
-        span = tracer.trace("additional-tags", service="test")
-        span._set_attribute("customer.tier", "gold")
-        span._set_attribute("region", "us-east-1")
-        span.start_ns = 1
-        span.finish(finish_time=1)
+        with tracer.trace("additional-tags", service="test") as span:
+            span._set_attribute("customer.tier", "gold")
+            span._set_attribute("region", "us-east-1")
 
     with _trace_stats_context(generate_stats) as payloads:
         groups = [group for payload in payloads for bucket in payload["Stats"] for group in bucket["Stats"]]
