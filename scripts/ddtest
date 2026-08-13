@@ -77,9 +77,23 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         docker compose ${COMPOSE_FILES[@]} build testrunner
     fi
     RUN_ARGS=(--rm)
+    RUN_AS_USER="${DD_TEST_USER-$(id -u):$(id -g)}"
+    if [ -n "$RUN_AS_USER" ]; then
+        RUN_ARGS+=(--user "$RUN_AS_USER")
+        RUN_ARGS+=(
+            -e "PATH=/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            -e "CARGO_HOME=/home/bits/.cargo"
+            -e "RUSTUP_HOME=/home/bits/.rustup"
+        )
+    fi
     if [ -n "${DD_TRACE_AGENT_URL+x}" ]; then
         RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
     fi
+    for variable in $(compgen -e); do
+        case "$variable" in
+            TEST_*) RUN_ARGS+=(-e "${variable}=${!variable}") ;;
+        esac
+    done
     docker compose ${COMPOSE_FILES[@]} run "${RUN_ARGS[@]}" \
            testrunner \
            bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"

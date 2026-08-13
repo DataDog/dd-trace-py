@@ -162,6 +162,14 @@ suites:
       - '**/conftest.py'
     pattern: meta-testing
     snapshot: false
+  docker_compose:
+    parallelism: 1
+    paths:
+      - docker-compose.yml
+      - docker-compose.podman.yml
+      - tests/meta/test_docker_compose.py
+    pattern: meta-testing
+    snapshot: false
   ddtracerun:
     parallelism: 3
     paths:
