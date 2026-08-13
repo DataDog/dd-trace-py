@@ -18,7 +18,6 @@ from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
@@ -465,25 +464,29 @@ def test_rc_activation_reports_appsec_product_when_enabled(tracer, rc_poller, ap
     disable_appsec_rc()
 
 
-def test_rc_enable_then_disable_asm_reports_telemetry(tracer, rc_poller, appsec_callback):
-    """When AppSec is enabled/disabled via RC, telemetry should reflect the changes."""
-    with override_global_config(dict(_asm_enabled=False, _asm_can_be_enabled=True, _remote_config_enabled=True)):
-        with mock.patch.object(telemetry_writer, "product_activated") as product_activated:
-            enable_appsec_rc(appsec_callback)
+def test_enable_asm_reports_telemetry():
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", False),
+        mock.patch.object(asm_config, "_asm_can_be_enabled", True),
+        mock.patch("ddtrace.appsec._listeners.load_appsec", return_value=True) as load_appsec,
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated,
+    ):
+        _enable_asm()
 
-            # Initially not activated
-            product_activated.assert_not_called()
+    load_appsec.assert_called_once_with(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC)
+    product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
 
-            # Simulate RC enabling AppSec
-            enable_config = [build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")]
-            appsec_callback(enable_config)
-            product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
 
-            product_activated.reset_mock()
+def test_disable_asm_reports_telemetry():
+    def disable_appsec(*, reconfigure_tracer):
+        assert reconfigure_tracer is True
+        asm_config._asm_enabled = False
 
-            # Simulate RC disabling AppSec
-            disable_config = [build_payload("ASM_FEATURES", {"asm": {}}, "config")]
-            appsec_callback(disable_config)
-            product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, False)
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch("ddtrace.appsec._listeners.disable_appsec", side_effect=disable_appsec),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated,
+    ):
+        _disable_asm()
 
-    disable_appsec_rc()
+    product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, False)
