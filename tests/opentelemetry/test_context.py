@@ -1,4 +1,5 @@
 import asyncio
+import ctypes
 import sys
 import threading
 import time
@@ -182,32 +183,55 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
     reason="requires the CPython 3.14 context watcher on Linux",
 )
 @pytest.mark.asyncio
-async def test_otel_thread_context_follows_async_context_switches(oteltracer, monkeypatch):
-    from ddtrace.internal.opentelemetry import thread_context
+async def test_otel_thread_context_follows_async_context_switches(oteltracer):
+    """The published thread context follows each OTel span as asyncio switches tasks."""
+    from ddtrace.internal.native import _native
 
-    published_spans = []
-    monkeypatch.setattr(
-        thread_context,
-        "update_otel_thread_context",
-        lambda span, local_root, trace_flags: published_spans.append(span),
-    )
+    class _ThreadContextRecord(ctypes.Structure):
+        _fields_ = [
+            ("trace_id", ctypes.c_ubyte * 16),
+            ("span_id", ctypes.c_ubyte * 8),
+            ("valid", ctypes.c_ubyte),
+        ]
+
+    native_library = ctypes.CDLL(_native.__file__)
+
+    def published_context():
+        slot = ctypes.c_void_p.in_dll(native_library, "otel_thread_ctx_v1")
+        if slot.value is None:
+            return None
+
+        record = _ThreadContextRecord.from_address(slot.value)
+        if not record.valid:
+            return None
+        return int.from_bytes(record.trace_id, byteorder="big"), int.from_bytes(record.span_id, byteorder="big")
+
+    def span_context(span):
+        context = span.get_span_context()
+        return context.trace_id, context.span_id
+
     first_started = asyncio.Event()
     second_started = asyncio.Event()
 
     async def first():
         with oteltracer.start_as_current_span("first") as first_span:
+            expected_context = span_context(first_span)
+            assert published_context() == expected_context
             first_started.set()
             await second_started.wait()
-            assert published_spans and published_spans[-1] is first_span._ddspan
+            assert published_context() == expected_context
 
     async def second():
         await first_started.wait()
-        with oteltracer.start_as_current_span("second"):
-            published_spans.clear()
+        with oteltracer.start_as_current_span("second") as second_span:
+            expected_context = span_context(second_span)
+            assert published_context() == expected_context
             second_started.set()
             await asyncio.sleep(0)
+            assert published_context() == expected_context
 
     await asyncio.gather(first(), second())
+    assert published_context() is None
 
 
 def test_otel_get_current_span(oteltracer):
