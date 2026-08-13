@@ -700,6 +700,47 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
+def test_wrapping_context_shared_code_object_closures():
+    """Closures sharing the same code object reuse a cached bytecode template
+    (see _UniversalWrappingContext._build_template), but each wrapped closure
+    must still be instrumented with its own, independent enter/return/exit
+    callables.
+    """
+
+    def make_closure(answer):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    closure1 = make_closure(1)
+    closure2 = make_closure(2)
+    assert closure1.__code__ is closure2.__code__
+
+    wc1 = DummyWrappingContext(closure1)
+    wc2 = DummyWrappingContext(closure2)
+    wc1.wrap()
+    wc2.wrap()
+
+    # Each closure gets its own _UniversalWrappingContext despite sharing the
+    # same cached bytecode template.
+    uwc1 = _UniversalWrappingContext.extract(closure1)
+    uwc2 = _UniversalWrappingContext.extract(closure2)
+    assert uwc1 is not uwc2
+
+    assert closure1(1, 2, 3) == (1, 2, 3, 1)
+    assert wc1.entered
+    assert wc1.return_value == (1, 2, 3, 1)
+    assert not wc2.entered
+    assert wc2.return_value is NOTSET
+
+    assert closure2(4, 5, 6) == (4, 5, 6, 2)
+    assert wc2.entered
+    assert wc2.return_value == (4, 5, 6, 2)
+    # wc1 state from the first call must be untouched by wrapping/calling closure2
+    assert wc1.return_value == (1, 2, 3, 1)
+
+
 def test_wrapping_context_deepcopy_with_lock():
     """Deepcopy of a route decorated with functools.wraps over a wrapped endpoint must not raise.
 

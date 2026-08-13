@@ -8,6 +8,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
+from ddtrace.internal.settings import env
 
 from ..compat import ensure_text
 
@@ -94,6 +95,22 @@ def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
             # only add the tag if the key is not empty
             res[key] = val
     return res
+
+
+def get_test_session_token() -> Optional[str]:
+    """Resolve the dd-apm-test-agent session token from the environment.
+
+    Reads the token from the canonical ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` env var
+    (the ``X-Datadog-Test-Session-Token`` header that the trace writer, Remote Config
+    client, and telemetry worker all forward via ``Endpoint.test_token``); returns
+    ``None`` when unset. Extracted here so callers share one parse, and so Remote Config
+    and telemetry can resolve the token without importing the trace writer module (which
+    drags in ``settings.asm`` — an unnecessary coupling on their runtime paths).
+    """
+    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if not additional_headers:
+        return None
+    return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
 
 
 def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> Text:

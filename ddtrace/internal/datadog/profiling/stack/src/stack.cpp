@@ -162,9 +162,18 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
+    auto& links = ThreadSpanLinks::get_instance();
+    links.on_link_start(span_id);
+
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
     Py_END_ALLOW_THREADS;
+
+    if (links.on_link_end(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
 
     Py_RETURN_NONE;
 }
@@ -210,6 +219,26 @@ stack_clear_span(PyObject* self, PyObject* args)
     Py_BEGIN_ALLOW_THREADS;
     ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
     Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_unlink_finished_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &span_id)) {
+        return nullptr;
+    }
+
+    auto& links = ThreadSpanLinks::get_instance();
+    if (links.on_span_finish(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
 
     Py_RETURN_NONE;
 }
@@ -510,16 +539,20 @@ link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 static PyObject*
-update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
+record_greenlet_switch(PyObject* Py_UNUSED(m), PyObject* args)
 {
-    uintptr_t greenlet_id;
-    PyObject* frame;
+    uintptr_t origin_id;
+    PyObject* origin_frame;
+    uintptr_t target_id;
+    PyObject* target_frame;
+    int update_target_frame;
 
-    if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &frame))
+    if (!PyArg_ParseTuple(args, "lOlOp", &origin_id, &origin_frame, &target_id, &target_frame, &update_target_frame))
         return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().update_greenlet_frame(greenlet_id, frame);
+    Sampler::get().record_greenlet_switch(
+      origin_id, origin_frame, target_id, target_frame, static_cast<bool>(update_target_frame));
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -1006,6 +1039,10 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "unlink_finished_span",
+      stack_unlink_finished_span,
+      METH_VARARGS,
+      "Clear every physical-thread link derived from a finished span" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -1023,7 +1060,7 @@ static PyMethodDef stack_methods[] = {
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
-    { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
+    { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_target_overhead",

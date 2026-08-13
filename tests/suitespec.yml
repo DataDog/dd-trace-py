@@ -2,6 +2,8 @@
 components:
   $harness:
     - docker/*
+    - docker-compose.base.yml
+    - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
     - .riot/requirements/*
@@ -42,6 +44,7 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_service_state.py
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -88,6 +91,7 @@ components:
     - ddtrace/ext/schema.py
   openfeature:
     - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
     - ddtrace/ext/git.py

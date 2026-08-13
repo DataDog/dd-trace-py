@@ -15,7 +15,6 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
@@ -136,33 +135,41 @@ def test_request_userblock_403(client, test_spans, tracer):
             assert result.headers["content-type"] == "application/json"
 
 
-def _flush_user_auth_metrics(telemetry_writer):
-    metrics = (
-        telemetry_writer._namespace.flush()
-        .get(TELEMETRY_EVENT_TYPE.METRICS, {})
-        .get(TELEMETRY_NAMESPACE.APPSEC.value, [])
-    )
-    return [m for m in metrics if m["metric"].startswith("instrum.user_auth.")]
+def _get_user_auth_metrics(test_agent_session, telemetry_writer):
+    """Flush the native worker and return the appsec-namespace user_auth generate-metrics series."""
+    telemetry_writer.periodic(force_flush=True)
+    return [
+        series
+        for series in test_agent_session.get_metrics()
+        if series.get("namespace") == TELEMETRY_NAMESPACE.APPSEC.value
+        and series["metric"].startswith("instrum.user_auth.")
+    ]
 
 
-def _assert_user_auth_metrics(telemetry_writer, event_type, expected_metric_names):
-    metrics = _flush_user_auth_metrics(telemetry_writer)
+def _assert_user_auth_metrics(test_agent_session, telemetry_writer, event_type, expected_metric_names):
+    metrics = _get_user_auth_metrics(test_agent_session, telemetry_writer)
     assert {m["metric"] for m in metrics} == expected_metric_names
     assert len(metrics) == len(expected_metric_names), metrics
     for metric in metrics:
         assert "framework:django" in metric["tags"]
         assert f"event_type:{event_type}" in metric["tags"]
         assert len(metric["tags"]) == 2
+    # The previous in-process aggregator returned and cleared metrics on each flush; the test
+    # agent instead accumulates every flushed series for the session, so clear it here to keep
+    # each flow's assertion scoped to the metrics that that flow emitted.
+    test_agent_session.clear()
 
 
 @pytest.mark.django_db
-def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer):
+def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer, test_agent_session):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
     User.objects.create_user(username="fred", password="secret")
 
-    telemetry_writer._namespace.flush()
+    # Drain telemetry queued during setup so the first assertion only sees the login flow.
+    telemetry_writer.periodic(force_flush=True)
+    test_agent_session.clear()
     with (
         override_global_config(
             dict(
@@ -181,6 +188,7 @@ def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer)
     ):
         assert not client.login(username="fred", password="wrong")
         _assert_user_auth_metrics(
+            test_agent_session,
             telemetry_writer,
             "login_failure",
             {"instrum.user_auth.missing_user_login"},
@@ -189,6 +197,7 @@ def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer)
         response = client.get("/appsec/signup/?login=john&pwd=secret")
         assert response.status_code == 200
         _assert_user_auth_metrics(
+            test_agent_session,
             telemetry_writer,
             "signup",
             {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
@@ -197,6 +206,7 @@ def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer)
         assert client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
         _assert_user_auth_metrics(
+            test_agent_session,
             telemetry_writer,
             "login_success",
             {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
@@ -205,6 +215,7 @@ def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer)
         response = client.get("/")
         assert response.status_code == 200
         _assert_user_auth_metrics(
+            test_agent_session,
             telemetry_writer,
             "authenticated_request",
             {"instrum.user_auth.missing_user_id"},

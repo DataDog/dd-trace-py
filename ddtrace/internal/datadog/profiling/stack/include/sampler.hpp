@@ -136,7 +136,11 @@ class Sampler
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
-    void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void record_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame);
     void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
