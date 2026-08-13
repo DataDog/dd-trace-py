@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
 from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import put_field
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
@@ -699,6 +700,32 @@ class TestAgentManifestPrimitives:
         put_field(fields, "temperature", 0)
         put_field(fields, "parallel_tool_calls", False)
         assert fields == {"temperature": 0, "parallel_tool_calls": False}
+
+    def test_prune_empty_drops_what_means_not_configured(self):
+        """Sections assign unconditionally so mypy can check key names; this is what drops the blanks."""
+        assert prune_empty(
+            {
+                "framework": "PydanticAI",
+                "instructions": "",
+                "system_prompts": [],
+                "capabilities": [],
+                "metadata": {},
+            }
+        ) == {"framework": "PydanticAI"}
+
+    def test_prune_empty_keeps_false_and_zero(self):
+        """Same contract put_field had: a configured temperature of 0 is not an absent one."""
+        assert prune_empty({"temperature": 0, "parallel_tool_calls": False, "top_p": 0.0}) == {
+            "temperature": 0,
+            "parallel_tool_calls": False,
+            "top_p": 0.0,
+        }
+
+    def test_prune_empty_is_depth_first(self):
+        """A container emptied by its own children has to drop too, or an empty husk ships."""
+        assert prune_empty({"agent_settings": {"retries": None}, "tools": [{"name": "x", "description": ""}]}) == {
+            "tools": [{"name": "x"}]
+        }
 
     def test_is_number_rejects_bool_and_non_finite(self):
         assert is_number(0) and is_number(1.5) and is_number(-3)
