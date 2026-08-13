@@ -268,6 +268,17 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
     // Per-task wall-time scaling. Slot 0 keeps the unscaled thread wall time and the remaining
     // n_selected-1 slots each represent (n_total-1)/(n_selected-1) tasks, so the per-thread total is correct.
+    // XXX: Known limitation
+    // Slot 0 cannot be scaled, which is why the factor is spread over n_selected-1 slots
+    // rather than applied uniformly. StackRenderer::render_thread_begin has already committed
+    // push_walltime(thread_walltime) before we know n_total, and render_task_begin reuses that sample
+    // for the first task on the thread, taking the branch that never reads walltime_ns_override. So an
+    // override on slot 0 is silently dropped, and push_walltime accumulates rather than assigns, so it
+    // cannot be corrected after the fact either.
+    // Consequence: max_tasks == 1 under-reports task wall time by a factor of n_total, because slot 0
+    // is then the only slot and there is nothing left to carry the other n_total-1 tasks. Fixing that
+    // means deferring the walltime push out of render_thread_begin, which affects every non-task
+    // thread too. See test_task_reservoir_sampling_single_slot_under_reports for the characterization.
     const int64_t thread_walltime_ns = static_cast<int64_t>(1000) * static_cast<int64_t>(wall_time_us);
     int64_t scaled_walltime_ns = thread_walltime_ns;
     if (n_selected > 1 && n_selected < n_total) {

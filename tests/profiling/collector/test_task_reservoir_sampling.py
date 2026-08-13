@@ -4,8 +4,10 @@ Verifies that when the number of leaf asyncio tasks exceeds
 _DD_PROFILING_STACK_MAX_TASKS, the profiler:
   1. Emits at most MAX_TASKS wall-time samples per sampling tick (bounded count).
   2. Scales non-slot-0 wall time so the per-thread wall-time total is preserved.
+  3. Under-reports when the cap is 1, which is a known limitation rather than intended
+     behaviour -- see test_task_reservoir_sampling_single_slot_under_reports.
 
-Both tests reconstruct sampling ticks from the numeric "end_timestamp_ns" label: every
+These tests reconstruct sampling ticks from the numeric "end_timestamp_ns" label: every
 sample produced during one thread-sampling cycle carries the same monotonic timestamp,
 because render_task_begin reuses thread_state.now_time_ns recorded by render_thread_begin.
 
@@ -180,4 +182,96 @@ def test_task_reservoir_sampling_walltime_scaling() -> None:
         f"Median per-tick wall-time ratio {median_ratio:.1f} deviates from the expected "
         f"{N_TASKS} by more than {TOLERANCE:.0%} (scaling should preserve the per-thread total). "
         f"Sampled {len(ratios)} full ticks."
+    )
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_task_reservoir_single_slot",
+        _DD_PROFILING_STACK_MAX_TASKS="1",
+    ),
+    err=None,
+)
+def test_task_reservoir_sampling_single_slot_under_reports() -> None:
+    """Characterization test: a cap of 1 loses task wall time. This is a known limitation.
+
+    The scaling that keeps the per-thread total intact spreads the factor over the
+    n_selected-1 slots that follow slot 0, because slot 0's wall time is committed by
+    render_thread_begin before n_total is known and render_task_begin reuses that sample
+    without consulting walltime_ns_override. With a cap of 1 slot 0 is the only slot, so
+    nothing is left to carry the other n_total-1 tasks and the reported total collapses from
+    n_total * elapsed to roughly 1 * elapsed.
+
+    The bounds here are deliberately loose: the point is to pin down that the loss happens and
+    is order-of-n_total, not to lock in an exact figure. If the walltime push ever moves out of
+    render_thread_begin so slot 0 becomes scalable, this test should start failing -- at which
+    point it should be replaced by the same aggregate check the MAX_TASKS>1 test performs.
+    """
+    import asyncio
+    from collections import defaultdict
+    import os
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    assert stack.is_available, stack.failure_msg
+
+    N_TASKS = 60
+
+    async def sleeper() -> None:
+        await asyncio.sleep(3.0)
+
+    async def main() -> None:
+        tasks = [asyncio.create_task(sleeper(), name=f"worker-{i}") for i in range(N_TASKS)]
+        await asyncio.gather(*tasks)
+
+    p = profiler.Profiler()
+    p.start()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
+
+    p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+
+    wall_time_idx = pprof_utils.get_sample_type_index(profile, "wall-time")
+    task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(task_samples) > 0, "Expected at least one task-name sample"
+
+    walltimes_per_tick: dict[tuple[int, int], list[int]] = defaultdict(list)
+    for sample in task_samples:
+        tick = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
+        thread = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        assert tick is not None, "Task sample is missing the 'end_timestamp_ns' label"
+        assert thread is not None, "Task sample is missing the 'thread id' label"
+        walltimes_per_tick[(thread.num, tick.num)].append(sample.value[wall_time_idx])
+
+    # The cap itself still holds: one slot means one task sample per tick.
+    assert max(len(w) for w in walltimes_per_tick.values()) == 1, (
+        "A cap of 1 should emit exactly one task sample per tick, saw "
+        f"{sorted({len(w) for w in walltimes_per_tick.values()})}"
+    )
+
+    # Ticks carry the sampling interval as their wall time, so the span between the first and
+    # last tick that saw a task approximates how long the tasks were alive. Preserving the
+    # aggregate would require ~N_TASKS * span; we get ~span instead.
+    ticks = sorted(tick for _, tick in walltimes_per_tick)
+    span_ns = ticks[-1] - ticks[0]
+    assert span_ns > 0, "Expected task samples spread over more than one tick"
+
+    total_task_walltime_ns = sum(sum(w) for w in walltimes_per_tick.values())
+    aggregate_preserving_ns = N_TASKS * span_ns
+
+    # Very lax: only assert the loss is large, well clear of any sampling jitter.
+    assert total_task_walltime_ns < aggregate_preserving_ns / 4, (
+        f"Expected a cap of 1 to under-report task wall time (known limitation), but got "
+        f"{total_task_walltime_ns} ns against an aggregate-preserving {aggregate_preserving_ns} ns. "
+        f"If slot 0 became scalable this test is obsolete -- see the docstring."
     )
