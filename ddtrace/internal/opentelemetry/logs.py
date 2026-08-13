@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from typing import Optional
 
@@ -168,6 +169,43 @@ def _import_exporter(protocol):
         return None
 
 
+class _SelfTelemetryLogFilter(logging.Filter):
+    """Reject log records emitted by ddtrace's own loggers and by the OpenTelemetry SDK/exporter loggers.
+
+    ``_init_logging`` attaches a ``LoggingHandler`` to the root logger that captures every log record
+    that propagates to root. Without this filter, the tracer's own telemetry-pipeline logs (``ddtrace.*``,
+    e.g. the per-batch export debug line) and the OpenTelemetry exporter's logs (``opentelemetry.*``,
+    e.g. export-failure warnings/errors) would be captured, exported, and -- because exporting emits
+    further log records -- captured again, producing a self-amplifying export loop. A tracer must never
+    feed its own telemetry-pipeline logs back into its own telemetry export.
+    """
+
+    _EXCLUDED_NAMESPACES = ("ddtrace", "opentelemetry")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        name = record.name
+        return not any(name == namespace or name.startswith(namespace + ".") for namespace in self._EXCLUDED_NAMESPACES)
+
+
+def _exclude_self_telemetry_from_otlp_handler(preexisting_handler_ids: set[int]) -> None:
+    """Attach the self-telemetry filter to the OTLP logs handler that ``_init_logging`` just added.
+
+    Only the newly added handler is filtered (found by diffing against ``preexisting_handler_ids``),
+    leaving application-configured handlers untouched. The filter binds to the handler instance, so it
+    persists when the OpenTelemetry SDK re-adds that same instance after ``logging.basicConfig`` (the
+    one reconfiguration API the SDK patches; ``dictConfig``/``fileConfig`` are not).
+    """
+    try:
+        from opentelemetry.sdk._logs import LoggingHandler
+    except ImportError:
+        return
+
+    telemetry_filter = _SelfTelemetryLogFilter()
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, LoggingHandler) and id(handler) not in preexisting_handler_ids:
+            handler.addFilter(telemetry_filter)
+
+
 def _initialize_logging(exporter_class, protocol, resource):
     """Configures and sets up the OpenTelemetry Logs exporter."""
     try:
@@ -176,7 +214,11 @@ def _initialize_logging(exporter_class, protocol, resource):
         # Ensure logs exporter is configured to send payloads to a Datadog Agent.
         if "OTEL_EXPORTER_OTLP_ENDPOINT" not in env and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in env:
             env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
+        preexisting_handler_ids = {id(handler) for handler in logging.getLogger().handlers}
         _init_logging({protocol: exporter_class}, resource=resource)
+        # Stop the OTLP logs handler ddtrace just installed from capturing and re-exporting ddtrace's
+        # own log records (and the OpenTelemetry exporter's), which would create a self-amplifying loop.
+        _exclude_self_telemetry_from_otlp_handler(preexisting_handler_ids)
         return True
     except ImportError as e:
         log.warning(

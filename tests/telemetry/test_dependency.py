@@ -12,12 +12,12 @@ from ddtrace.internal.telemetry.dependency import register_cve_metadata
 
 @pytest.fixture(autouse=True)
 def _restore_sca_config():
-    """Save and restore tracer_config._sca_enabled to prevent cross-test contamination."""
-    from ddtrace.internal.settings._config import config as tracer_config
+    """Save and restore appsec_telemetry_config.SCA_ENABLED to prevent cross-test contamination."""
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-    saved = tracer_config._sca_enabled
+    saved = appsec_telemetry_config.SCA_ENABLED
     yield
-    tracer_config._sca_enabled = saved
+    appsec_telemetry_config.SCA_ENABLED = saved
 
 
 class TestReachabilityMetadata:
@@ -286,19 +286,19 @@ class TestRegisterCveMetadata:
 def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
     """Shared factory for writer-level tests.
 
-    Sets tracer_config._sca_enabled so DependencyTracker reads the live
+    Sets appsec_telemetry_config.SCA_ENABLED so DependencyTracker reads the live
     config flag.  Callers should use the _restore_sca_config fixture
     (autouse in this module) to ensure cleanup.
     """
     from unittest.mock import MagicMock
 
-    from ddtrace.internal.settings._config import config as tracer_config
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
     from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
     from ddtrace.internal.telemetry.writer import TelemetryWriter
 
-    tracer_config._sca_enabled = sca_enabled
+    appsec_telemetry_config.SCA_ENABLED = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
-    writer._service_lock = MagicMock()
+    writer._metric_lock = MagicMock()
     writer._enabled = enabled
     tracker = DependencyTracker()
     if deps:
@@ -391,7 +391,14 @@ class TestWriterEnableScaMetadata:
 
 
 class TestWriterReReporting:
-    """Tests for _report_dependencies re-reporting behavior with metadata."""
+    """Tests for dependency re-reporting behavior with metadata.
+
+    Dependency *reporting* now happens inside ``TelemetryWriter.periodic()`` which calls
+    ``DependencyTracker.collect_report()`` and forwards the result to the native worker via
+    ``worker.add_dependency``. The thin ``writer._report_dependencies()`` wrapper no longer
+    returns the payload, so these tests assert against ``tracker.collect_report()`` (the public
+    collect method) directly — the same payload the writer forwards.
+    """
 
     def test_report_dependencies_rereports_on_new_metadata(self):
         from unittest.mock import patch
@@ -408,12 +415,12 @@ class TestWriterReReporting:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
 
-            result = writer._report_dependencies()
+            result = tracker.collect_report()
 
         assert result is not None
         assert len(result) == 1
@@ -438,12 +445,12 @@ class TestWriterReReporting:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
 
-            result = writer._report_dependencies()
+            result = tracker.collect_report()
 
         # No new deps, no new metadata -> None
         assert result is None
@@ -467,12 +474,12 @@ class TestWriterReReporting:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
 
-            result = writer._report_dependencies()
+            result = tracker.collect_report()
 
         assert result is not None
         assert len(result) == 1
@@ -495,12 +502,12 @@ class TestWriterReReporting:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
 
-            result = writer._report_dependencies()
+            result = tracker.collect_report()
 
         assert result is not None
         assert len(result) == 1
@@ -518,7 +525,7 @@ class TestWriterReReporting:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
             patch(
                 "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
                 return_value=("requests", "2.28.0"),
@@ -527,7 +534,7 @@ class TestWriterReReporting:
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = {"requests"}
 
-            result = writer._report_dependencies()
+            result = tracker.collect_report()
 
         assert result is not None
         assert len(result) == 1
@@ -624,10 +631,10 @@ class TestTrackerNameNormalization:
         """_ensure_entry should not create a duplicate when the same package has different casing."""
         from unittest.mock import patch
 
-        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
         from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
-        tracer_config._sca_enabled = True
+        appsec_telemetry_config.SCA_ENABLED = True
         tracker = DependencyTracker()
 
         with patch("importlib.metadata.version", return_value="6.0"):
@@ -735,32 +742,18 @@ class TestTrackerNameNormalization:
         assert result[0]["name"] == "requests"
         assert "requests" in already_imported
 
-    def test_update_imported_dependencies_swallows_tracer_config_failure(self):
-        """If reading tracer_config fails (e.g. during shutdown), return [] without raising."""
+    def test_update_imported_dependencies_swallows_config_read_failure(self):
+        """If reading the AppSec telemetry config fails (e.g. during shutdown), return [] without raising."""
         from unittest.mock import patch
 
         from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
 
         class BrokenConfig:
             @property
-            def _sca_enabled(self):
+            def SCA_ENABLED(self):
                 raise RuntimeError("config module torn down")
 
-        with patch("ddtrace.internal.settings._config.config", BrokenConfig()):
-            result = update_imported_dependencies({}, ["requests"])
-
-        assert result == []
-
-    def test_update_imported_dependencies_swallows_tracer_config_import_failure(self):
-        """If the tracer_config import itself fails (e.g. sys.modules torn down), return [] without raising."""
-        import sys
-        from unittest.mock import patch
-
-        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
-
-        broken_module = type(sys)("ddtrace.internal.settings._config")
-
-        with patch.dict(sys.modules, {"ddtrace.internal.settings._config": broken_module}):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.appsec_telemetry_config", BrokenConfig()):
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []
@@ -776,7 +769,7 @@ class TestTrackerNameNormalization:
 
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
             patch(
                 "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
                 return_value=("PyYAML", "6.0"),
@@ -795,89 +788,3 @@ class TestTrackerNameNormalization:
         key = _normalize_dep_name("PyYAML")
         assert key in tracker._imported_dependencies
         assert tracker._imported_dependencies[key]._initial_report_sent is True
-
-
-class TestSnapshotForHeartbeat:
-    """Tests for DependencyTracker.snapshot_for_heartbeat — lock-protected extended-heartbeat payload."""
-
-    def test_empty_tracker_returns_empty_list(self):
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        tracker = DependencyTracker()
-        assert tracker.snapshot_for_heartbeat() == []
-
-    def test_returns_all_entries_serialized(self):
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        tracker = DependencyTracker()
-        tracker._imported_dependencies = {
-            "requests": DependencyEntry(name="requests", version="2.28.0", metadata=[]),
-            "flask": DependencyEntry(name="flask", version="3.0.0"),
-        }
-        tracker._imported_dependencies["requests"].add_metadata("CVE-1", "mod", "func", 10)
-
-        snapshot = tracker.snapshot_for_heartbeat()
-
-        assert len(snapshot) == 2
-        by_name = {d["name"]: d for d in snapshot}
-        assert by_name["requests"]["version"] == "2.28.0"
-        assert "metadata" in by_name["requests"]
-        assert len(by_name["requests"]["metadata"]) == 1
-        # flask has metadata=None -> no "metadata" key
-        assert "metadata" not in by_name["flask"]
-
-    def test_includes_already_sent_metadata(self):
-        """Extended heartbeat must re-send sent metadata (include_all_metadata=True)."""
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
-        entry.add_metadata("CVE-1", "mod", "func", 10)
-        entry.mark_all_metadata_sent()
-
-        tracker = DependencyTracker()
-        tracker._imported_dependencies = {"requests": entry}
-
-        snapshot = tracker.snapshot_for_heartbeat()
-        assert len(snapshot[0]["metadata"]) == 1
-
-    def test_serialization_holds_lock_against_concurrent_mutation(self):
-        """Concurrent attach_metadata must not race iteration inside json.dumps.
-
-        Spawns a writer thread repeatedly adding CVEs to a tracked entry while the
-        heartbeat serializer builds snapshots. Without the lock, the writer thread
-        could append to ReachabilityMetadata.value["reached"] mid-serialization —
-        json.dumps on a list being mutated in another thread is not safe.
-        """
-        import threading
-
-        from ddtrace.internal.settings._config import config as tracer_config
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        tracer_config._sca_enabled = True
-        tracker = DependencyTracker()
-        tracker._imported_dependencies["requests"] = DependencyEntry(name="requests", version="2.28.0", metadata=[])
-
-        stop = threading.Event()
-        errors: list[BaseException] = []
-
-        def writer():
-            i = 0
-            while not stop.is_set():
-                try:
-                    tracker.attach_metadata("requests", f"CVE-{i}", "mod", "func", i)
-                    i += 1
-                except BaseException as exc:  # pragma: no cover — asserted below
-                    errors.append(exc)
-                    return
-
-        t = threading.Thread(target=writer, daemon=True)
-        t.start()
-        try:
-            for _ in range(200):
-                snapshot = tracker.snapshot_for_heartbeat()
-                assert snapshot and snapshot[0]["name"] == "requests"
-        finally:
-            stop.set()
-            t.join(timeout=2)
-
-        assert not errors, errors

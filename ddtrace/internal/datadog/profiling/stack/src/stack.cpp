@@ -8,6 +8,7 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -32,6 +33,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -160,14 +162,86 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
+    auto& links = ThreadSpanLinks::get_instance();
+    links.on_link_start(span_id);
+
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
     Py_END_ALLOW_THREADS;
+
+    if (links.on_link_end(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
 
     Py_RETURN_NONE;
 }
 
 PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
+
+static PyObject*
+stack_unlink_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t expected_span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &expected_span_id)) {
+        return nullptr;
+    }
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return nullptr;
+    }
+
+    uint64_t thread_id = state->thread_id;
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_clear_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+
+    PyThreadState* state = PyThreadState_Get();
+    if (!state) {
+        return nullptr;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_unlink_finished_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t span_id;
+
+    if (!PyArg_ParseTuple(args, "K", &span_id)) {
+        return nullptr;
+    }
+
+    auto& links = ThreadSpanLinks::get_instance();
+    if (links.on_span_finish(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
+    }
+
+    Py_RETURN_NONE;
+}
 
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
@@ -394,6 +468,20 @@ stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_tasks;
+
+    if (!PyArg_ParseTuple(args, "I", &max_tasks)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_max_tasks_per_sample(max_tasks);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
 {
     uintptr_t thread_id;
@@ -465,16 +553,20 @@ link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 static PyObject*
-update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
+record_greenlet_switch(PyObject* Py_UNUSED(m), PyObject* args)
 {
-    uintptr_t greenlet_id;
-    PyObject* frame;
+    uintptr_t origin_id;
+    PyObject* origin_frame;
+    uintptr_t target_id;
+    PyObject* target_frame;
+    int update_target_frame;
 
-    if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &frame))
+    if (!PyArg_ParseTuple(args, "lOlOp", &origin_id, &origin_frame, &target_id, &target_frame, &update_target_frame))
         return nullptr;
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().update_greenlet_frame(greenlet_id, frame);
+    Sampler::get().record_greenlet_switch(
+      origin_id, origin_frame, target_id, target_frame, static_cast<bool>(update_target_frame));
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -850,7 +942,11 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         return nullptr;
     }
 
-    set_fast_copy_enabled(static_cast<bool>(enabled));
+    const bool want = static_cast<bool>(enabled);
+    if (!want) {
+        fast_copy_user_disabled = true;
+    }
+    set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
 }
@@ -883,6 +979,15 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 }
 
 static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
 // process_vm_readv is always available on macOS
@@ -892,6 +997,41 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
 #endif
     Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double seconds_value = 0.0;
+
+    if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_fast_copy_warmup_seconds must be called before the sampler is started");
+        return NULL;
+    }
+
+    Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
+
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef stack_methods[] = {
@@ -908,6 +1048,15 @@ static PyMethodDef stack_methods[] = {
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "unlink_span",
+      stack_unlink_span,
+      METH_VARARGS,
+      "Clear the span linked to the current thread if its ID matches the expected span ID" },
+    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "unlink_finished_span",
+      stack_unlink_finished_span,
+      METH_VARARGS,
+      "Clear every physical-thread link derived from a finished span" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -925,7 +1074,7 @@ static PyMethodDef stack_methods[] = {
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
-    { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
+    { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_target_overhead",
@@ -949,6 +1098,10 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
+    { "set_max_tasks",
+      stack_set_max_tasks,
+      METH_VARARGS,
+      "Set max leaf tasks/greenlets to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },
@@ -956,6 +1109,14 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "fast_copy_memory_active",
+      stack_fast_copy_memory_active,
+      METH_NOARGS,
+      "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_set_fast_copy_warmup_seconds",
+      stack_set_fast_copy_warmup_seconds,
+      METH_VARARGS,
+      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
@@ -964,6 +1125,10 @@ static PyMethodDef stack_methods[] = {
       stack_reinstall_segv_handler,
       METH_NOARGS,
       "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,

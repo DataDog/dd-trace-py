@@ -10,7 +10,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -42,6 +41,7 @@ from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
@@ -242,7 +242,7 @@ class _DatadogMultiHeader:
 
         # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+        if not asm_config._apm_tracing_enabled and (TRACE_SOURCE_PROPAGATION_KEY not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
@@ -357,10 +357,10 @@ class _DatadogMultiHeader:
                 # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.
-                if not meta or APPSEC.PROPAGATION_HEADER not in meta:
+                if not meta or TRACE_SOURCE_PROPAGATION_KEY not in meta:
                     sampling_priority = None
                 # If the trace has appsec propagation tag, the default priority is user keep
-                elif meta and APPSEC.PROPAGATION_HEADER in meta:
+                elif meta and TRACE_SOURCE_PROPAGATION_KEY in meta:
                     sampling_priority = 2  # type: ignore[assignment]
 
             return Context(

@@ -7,6 +7,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -124,7 +125,7 @@ def set_user(
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
     if span is None:
-        span = core.get_root_span()
+        span = span_bus.get_root_span()
     if span:
         if user_id:
             str_user_id = str(user_id)

@@ -32,19 +32,20 @@ _RASP_SYSTEM = "rasp_os.system"
 _RASP_POPEN = "rasp_Popen"
 
 
-def patch_common_modules():
+def _patch_subprocess(module):
+    # ensure that the subprocess patch is applied even after one click activation
+    subprocess_patch.patch()
+    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+    log.debug("Patching common modules: subprocess_patch")
+
+
+def patch_common_modules() -> None:
     global _is_patched
-
-    @ModuleWatchdog.after_module_imported("subprocess")
-    def _(module):
-        # ensure that the subprocess patch is applied even after one click activation
-        subprocess_patch.patch()
-        subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-        subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
-        log.debug("Patching common modules: subprocess_patch")
-
     if _is_patched:
         return
+
+    ModuleWatchdog.register_module_hook("subprocess", _patch_subprocess)
 
     try_wrap_function_wrapper(
         "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request_6D4E8B2A1F095C73
@@ -71,6 +72,7 @@ def unpatch_common_modules():
         return
 
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
@@ -78,14 +80,14 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
-    try_unwrap("_io", "BytesIO.read")
-    try_unwrap("_io", "StringIO.read")
+    core.reset_listeners("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
 
     unpatch_stripe_for_appsec()
 
     subprocess_patch.unpatch()
     subprocess_patch.del_str_callback(_RASP_SYSTEM)
     subprocess_patch.del_lst_callback(_RASP_POPEN)
+    ModuleWatchdog.unregister_module_hook("subprocess", _patch_subprocess)
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
@@ -105,10 +107,9 @@ def _get_rasp_capability(capability: str) -> bool:
 
         try:
             from ddtrace.appsec._processor import AppSecSpanProcessor
-        except Exception as e:
-            from ddtrace.appsec._listeners import _abort_appsec
-
-            _abort_appsec(str(e))
+        except Exception:
+            # load_appsec owns fatal processor load failures; wrappers only need to
+            # report the capability as unavailable while imports are in progress.
             return False
 
         return AppSecSpanProcessor._instance is not None and getattr(

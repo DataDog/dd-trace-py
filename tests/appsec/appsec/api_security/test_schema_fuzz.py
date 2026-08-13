@@ -116,6 +116,10 @@ def test_limits(obj, res):
 @pytest.mark.parametrize(
     "obj, res",
     [
+        (
+            {"mastercard": "5123456789123456"},
+            [{"mastercard": [8, {"card_type": "mastercard", "category": "payment", "type": "card"}]}],
+        ),
         ({"US PASSPORT": "C03005988"}, [{"US PASSPORT": [8, {"category": "pii", "type": "passport_number"}]}]),
         ({"ViN": "1HGBH41JXMN109186"}, [{"ViN": [8, {"category": "pii", "type": "vin"}]}]),
     ],

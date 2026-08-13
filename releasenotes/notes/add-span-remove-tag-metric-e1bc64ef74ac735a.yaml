@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracing: Adds ``Span.remove_tag(key)`` and ``Span.remove_metric(key)`` for removing
+    a previously set tag or metric from a span. Both are no-ops if the key is not set.

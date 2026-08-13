@@ -45,9 +45,6 @@ class Sampler
     // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
     // where stop() could miss the notification and hang forever (or until timeout).
     std::atomic<bool> thread_running{ false };
-    std::mutex thread_exit_mutex;
-    std::condition_variable thread_exit_cv;
-
     // Whether the sampler is currently active. Unlike thread_running (which tracks
     // the thread's actual lifecycle) this is set synchronously in start/stop, so
     // it is not subject to the sampling-thread startup race.
@@ -56,6 +53,8 @@ class Sampler
     // prefork reads this to decide whether to restart the sampler after fork,
     // ensuring a sampler that stopped due to an error is not silently restarted.
     std::atomic<bool> sampler_active_{ false };
+    std::mutex thread_exit_mutex;
+    std::condition_variable thread_exit_cv;
 
     // Pause synchronization — allows the faulthandler wrapper to temporarily
     // suspend sampling so signal handlers can be safely swapped without racing
@@ -101,6 +100,9 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
+
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
@@ -134,7 +136,11 @@ class Sampler
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
-    void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void record_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame);
     void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
@@ -150,6 +156,7 @@ class Sampler
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
+    void set_max_tasks_per_sample(unsigned int value);
 
     // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
     // Converted to us of CPU budget per adaptation window.
@@ -164,6 +171,8 @@ class Sampler
     // Set the percentile (0–100) used to compute p_stable from the rolling window.
     void set_p_stable_percentile(double percentile) { p_stable_percentile_frac = percentile / 100.0; }
 
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
+
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
 
@@ -177,5 +186,8 @@ class Sampler
     // Returns true if start() was invoked and succeeded.
     bool restart_after_fork();
 };
+
+void
+seed_fast_copy_profiler_stats();
 
 } // namespace Datadog

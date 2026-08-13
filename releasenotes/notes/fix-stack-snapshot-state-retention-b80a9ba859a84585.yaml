@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes potential process memory growth in asyncio and gevent workloads after stack profiling sampling
+    cycles exit before completion.

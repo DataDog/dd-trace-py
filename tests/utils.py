@@ -1440,7 +1440,7 @@ def call_program(*args, **kwargs):
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
-    return stdout, stderr, subp.wait(), subp.pid
+    return stdout, stderr, subp.returncode, subp.pid
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

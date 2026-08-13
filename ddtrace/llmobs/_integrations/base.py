@@ -29,7 +29,8 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._integration_api import annotate
+from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_tracked_prompt
@@ -49,7 +50,7 @@ class BaseLLMIntegration:
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
-        return LLMObs.enabled
+        return is_enabled()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -93,7 +94,45 @@ class BaseLLMIntegration:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         self._annotate_integration_tag(span)
+        if span_type == SpanTypes.LLM:
+            self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
+
+    def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
+        """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
+
+        Called automatically by ``BaseLLMIntegration.trace()`` and ``LlmTracingSubscriber.on_started``.
+        Integrations should not call this directly; instead override ``_llmobs_span_kind`` and
+        ``_llmobs_agent_name_at_start``.
+        """
+        if span.span_type != SpanTypes.LLM:
+            return
+        span_kind = self._llmobs_span_kind(operation_id, span, **kwargs)
+        if span_kind is None:
+            return
+        agent_name = self._llmobs_agent_name_at_start(span, **kwargs)
+        if agent_name:
+            _annotate_llmobs_span_data(span, kind=span_kind, name=agent_name)
+        else:
+            _annotate_llmobs_span_data(span, kind=span_kind)
+
+    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+        """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.
+
+        Integrations that have the agent name available at trace()-call time should override this.
+        The finish-time write in _llmobs_set_tags still runs and is idempotent.
+        """
+        return None
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        """Return the LLMObs span kind to stamp at creation, or None to skip start-time stamping.
+
+        Override in integrations that signal agent spans via a kwarg other than ``kind``
+        (e.g. ``operation="agent"``).  Must be determinable at ``trace()`` call time —
+        do NOT rely on data available only at span finish, because child spans resolve
+        agent attribution when they are activated.
+        """
+        return "agent" if kwargs.get("kind") == "agent" else None
 
     def llmobs_set_tags(
         self,
@@ -118,7 +157,7 @@ class BaseLLMIntegration:
             try:
                 prompt = get_tracked_prompt(args, kwargs)
                 if prompt is not None:
-                    LLMObs.annotate(
+                    annotate(
                         span,
                         prompt=prompt,
                         tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_AUTO},

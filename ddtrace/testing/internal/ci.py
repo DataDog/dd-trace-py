@@ -30,6 +30,9 @@ class CITag:
     # Pipeline Name
     PIPELINE_NAME = "ci.pipeline.name"
 
+    # Pipeline Display Name
+    PIPELINE_DISPLAY_NAME = "ci.pipeline.display_name"
+
     # Pipeline Number
     PIPELINE_NUMBER = "ci.pipeline.number"
 
@@ -211,6 +214,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         GitTag.TAG: env.get("BUILDKITE_TAG"),
         CITag.PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
         CITag.PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
+        CITag.PIPELINE_DISPLAY_NAME: env.get("BUILDKITE_PIPELINE_NAME"),
         CITag.PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         CITag.PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
         CITag.JOB_ID: env.get("BUILDKITE_JOB_ID"),

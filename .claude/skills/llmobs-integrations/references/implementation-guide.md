@@ -145,6 +145,56 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
 
+## Agent Integrations: Stamp Kind and Name at Span Start
+
+Agent integrations have a critical ordering constraint. `_resolve_parent_agent()` in `ddtrace/llmobs/_utils.py` resolves agent attribution when a **child** span activates, not when the parent finishes. Under LIFO nesting the parent span is still open when the child starts — so any field written at span *finish* time is invisible to children that have already been attributed.
+
+**Contract: any integration that produces `kind="agent"` LLMObs spans must stamp kind at span creation, not at finish.**
+
+`BaseLLMIntegration.trace()` and `LlmTracingSubscriber.on_started` both call `_stamp_llmobs_span_kind_at_start()` automatically. Integrations should not call it directly; instead override the two hooks below.
+
+### Hooks to implement for agent spans
+
+**`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
+
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+
+**`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
+
+Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
+
+If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph), `_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. In that case, stamp the name directly in the integration's `trace()` override after calling `super()`:
+
+```python
+def trace(self, operation_id, submit_to_llmobs=False, **kwargs):
+    span = super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
+    # instance captured before **kwargs; stamp name after super() has written the kind
+    if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
+        agent_name = getattr(instance, "name", None) if instance else None
+        if agent_name:
+            _annotate_llmobs_span_data(span, name=agent_name)
+    return span
+```
+
+### Example: Google ADK
+
+Patch layer passes the agent object via a private kwarg:
+```python
+span = integration.trace(
+    "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+    kind="agent",
+    submit_to_llmobs=True,
+    _dd_agent=agent,   # <-- agent instance available at trace() call time
+)
+```
+
+Integration overrides the hook:
+```python
+def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+    agent = kwargs.get("_dd_agent")
+    return getattr(agent, "name", None) if agent else None
+```
+
 ## LLM-Specific Registration Checklist
 
 In addition to the full checklist in the apm-integrations [Implementation Guide](../../apm-integrations/references/implementation-guide.md):

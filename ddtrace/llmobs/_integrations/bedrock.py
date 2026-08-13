@@ -9,7 +9,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
@@ -31,6 +31,10 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # interface_type="agent" is set only by the top-level Bedrock agent trace() call.
+        return "agent" if kwargs.get("interface_type") == "agent" else None
 
     def _llmobs_set_tags(
         self,

@@ -5,6 +5,9 @@ import sys
 from types import ModuleType
 import typing
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
@@ -63,6 +66,7 @@ class StackCollector(collector.Collector):
         stack.set_p_stable_window_s(config.stack.adaptive_sampling_p_stable_window_s)
         stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
+        stack.set_max_tasks(config.stack.max_tasks)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
@@ -70,11 +74,6 @@ class StackCollector(collector.Collector):
         if not stack.start():
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable
-
-        # Register the span-link hook only after the sampler has started successfully,
-        # so we never leave a stale listener behind if startup fails.
-        if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", stack.link_span)
 
         # Start native C function call tracking (Python 3.12+ only)
         if sys.version_info >= (3, 12) and config.stack.native_frames:
@@ -89,6 +88,25 @@ class StackCollector(collector.Collector):
         # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
+
+        # Register only after every fallible initialization step. A failed collector is dropped without
+        # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
+        if self.tracer is not None:
+            try:
+                core.on("ddtrace.context_provider.activate", self._link_span)
+                core.on("trace.span_finish", stack._unlink_finished_span)
+            except Exception:
+                core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
+                core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
+                raise
+
+    def _link_span(
+        self,
+        provider: BaseContextProvider,
+        span: typing.Optional[typing.Union[Context, Span]],
+    ) -> None:
+        if self.tracer is not None and provider is self.tracer.context_provider:
+            stack.link_span(span)
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -105,7 +123,8 @@ class StackCollector(collector.Collector):
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
+            core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
+            core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
