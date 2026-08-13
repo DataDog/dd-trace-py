@@ -185,18 +185,23 @@ def test_metric_instrumented_vulnerability(no_request_sampling, telemetry_writer
 
 
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, test_agent_session):
+    # Drain metrics emitted before this test so the session below holds only our own.
+    _get_iast_metrics(test_agent_session, telemetry_writer)
+    test_agent_session.clear()
+
     with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [
+    # A set, not a list: the native telemetry worker can flush mid-patching, splitting
+    # instrumented.propagation across series. executed.*/instrumented.sink come from the lib's own
+    # internal usage, not the module under test.
+    filtered_metrics = {
         metric["metric"]
         for metric in generate_metrics
-        if metric["metric"] not in ["executed.sink", "instrumented.sink"]
-    ]
-    assert filtered_metrics == ["instrumented.propagation"]
+        if metric["metric"] != "instrumented.sink" and not metric["metric"].startswith("executed.")
+    }
+    assert filtered_metrics == {"instrumented.propagation"}
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agent_session, tracer):
