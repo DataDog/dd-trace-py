@@ -1,9 +1,11 @@
 # Microbenchmarks in CI
 
 The microbenchmark suite runs the scenarios under `benchmarks/` against two `ddtrace` wheels —
-a baseline and your commit — on a dedicated bare-metal runner, and gates the pull request on the
-result. This document covers the CI side. For running the same scenarios locally, see
-[benchmarks/README.rst](../../benchmarks/README.rst); for the pipeline as a whole and for what to
+a baseline and a candidate (your commit) — on dedicated bare-metal runners, and gates the pull request on the
+result based on performance SLOs. 
+
+This document covers the CI side. For running the same scenarios locally, see
+[benchmarks/README.rst](../../benchmarks/README.rst). For the pipeline as a whole and for what to
 do about a breached gate, see [README.md](README.md).
 
 ## Setup
@@ -21,9 +23,10 @@ CPUs one run needs. This is what decides whether your commit runs a given scenar
 which need a live Datadog agent alongside the benchmark. Everything else goes straight to the
 platform's `run-benchmarks.sh`.
 
-**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** — One SLO threshold per scenario config.
-Scenario names here are `<lowercased scenario class name>-<config name>` — the `start-finish` config
-of the `Span` class in `benchmarks/span/` is `span-start-finish`.
+**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** — The SLOs the `check-slo-breaches` gate
+checks results against: one threshold per scenario config. Scenario names here are
+`<lowercased scenario class name>-<config name>` — the `start-finish` config of the `Span` class in
+`benchmarks/span/` is `span-start-finish`.
 
 Execution, once per pipeline:
 
@@ -75,8 +78,8 @@ Execution, once per pipeline:
    `type: 'microbenchmark'` is required; the generator selects on it. `cpus_per_run` groups
    scenarios into jobs — leave it at `1` unless the scenario genuinely needs more.
 
-4. Add a threshold per config to `bp-runner.microbenchmarks.fail-on-breach.template.yml`, keyed
-   `<lowercased class name>-<config name>`:
+4. Add an SLO per config to `bp-runner.microbenchmarks.fail-on-breach.template.yml` so
+   `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`:
 
    ```yaml
    - name: <classname>-<config>
@@ -113,23 +116,13 @@ genuinely looks much the same from a single failed pipeline.
 Measure variance with the same code on both sides. If baseline and candidate are identical and the
 results still move, the benchmark is unstable; if they do not, you have a real regression.
 
-There is no one-click way to do this from a dd-trace-py pipeline today. Use the
-[stability scripts in benchmarking-platform-tools](https://github.com/DataDog/benchmarking-platform-tools/tree/main/scripts/stability),
-which run a scenario repeatedly and report run-to-run variance.
-
-A cheaper first check locally, comparing a version against itself:
-
-```bash
-scripts/run-benchmarks --scenario <name> --baseline ddtrace==<version> --candidate ddtrace==<version> --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/
-```
-
-Any change reported between two identical versions is noise, and tells you the floor below which
-this scenario cannot resolve a regression. Note that a laptop is noisier than the CI bare metal, so
-this can only confirm instability, never rule it out.
+The easiest way is the `generate-dd-trace-py` manual job in the
+[`monitor-stability` pipeline](https://github.com/DataDog/benchmarking-platform-tools/blob/main/scripts/stability/.gitlab/monitor-stability.yml)
+in `benchmarking-platform-tools`, run against the ref you want to check. It generates and runs benchmarks multiple times, then the `trigger-dd-trace-py` and `collect-dd-trace-py` jobs
+that need it collect the samples from S3 and report run-to-run variance.
 
 Also check whether the gate is already telling you: an `(unstable)` line in the
-`check-slo-breaches` log means the platform itself found the variance too high to judge.
+`check-slo-breaches` log means the platform itself found, within a single benchmark, the variance too high to judge.
 
 ### Recording it
 
