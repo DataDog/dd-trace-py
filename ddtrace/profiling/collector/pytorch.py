@@ -89,7 +89,9 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
     def unpatch(self) -> None:
         """Unpatch the torch.profiler module for tracking profiling data."""
-        self._set_patch_target(self._original)
+        if self._original is not None:
+            self._set_patch_target(self._original)
+            self._original = None
 
 
 class TorchProfilerCollector(MLProfilerCollector):

@@ -29,7 +29,14 @@ class _ProfiledThreadingCondition(_lock._ProfiledLock):
     pass
 
 
-class ThreadingLockCollector(_lock.LockCollector):
+class _LockCollector(_lock.LockCollector):
+    def _rollback_start(self) -> None:
+        if self._original_lock is None:
+            return
+        super()._rollback_start()
+
+
+class ThreadingLockCollector(_LockCollector):
     """Record threading.Lock usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingLock] = _ProfiledThreadingLock
@@ -37,7 +44,7 @@ class ThreadingLockCollector(_lock.LockCollector):
     PATCHED_LOCK_NAME: str = "Lock"
 
 
-class ThreadingRLockCollector(_lock.LockCollector):
+class ThreadingRLockCollector(_LockCollector):
     """Record threading.RLock usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
@@ -45,7 +52,7 @@ class ThreadingRLockCollector(_lock.LockCollector):
     PATCHED_LOCK_NAME: str = "RLock"
 
 
-class ThreadingSemaphoreCollector(_lock.LockCollector):
+class ThreadingSemaphoreCollector(_LockCollector):
     """Record threading.Semaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
@@ -53,7 +60,7 @@ class ThreadingSemaphoreCollector(_lock.LockCollector):
     PATCHED_LOCK_NAME: str = "Semaphore"
 
 
-class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
+class ThreadingBoundedSemaphoreCollector(_LockCollector):
     """Record threading.BoundedSemaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
@@ -61,7 +68,7 @@ class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
     PATCHED_LOCK_NAME: str = "BoundedSemaphore"
 
 
-class ThreadingConditionCollector(_lock.LockCollector):
+class ThreadingConditionCollector(_LockCollector):
     """Record threading.Condition usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition

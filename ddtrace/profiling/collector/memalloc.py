@@ -85,6 +85,14 @@ class MemoryCollector:
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
+    def _rollback_start(self) -> None:
+        if _memalloc is not None:
+            try:
+                _memalloc.stop()
+            except RuntimeError as error:
+                if str(error) != "the memalloc module was not started":
+                    raise
+
     def snapshot(self) -> None:
         """Take a snapshot of collected data, to be exported."""
 
