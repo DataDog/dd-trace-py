@@ -51,11 +51,11 @@ PythonErrorGuard::error_as_pystr() const
         return {};
     }
 
-    const auto pyo = PyObject_Str(pvalue);
+    PyObject* pyo = PyObject_Str(pvalue);
     if (pyo == nullptr) {
         return {};
     }
-    return py::str(pyo);
+    return py::reinterpret_steal<py::str>(pyo);
 }
 
 std::string
@@ -64,7 +64,6 @@ PythonErrorGuard::error_as_stdstring() const
     if (not had_exception) {
         return {};
     }
-    auto pystr = error_as_pystr();
     return error_as_pystr().cast<std::string>();
 }
 
@@ -75,7 +74,6 @@ PythonErrorGuard::traceback_as_pystr() const
         return {};
     }
 
-    auto res = format_traceback(ptraceback, ptype, pvalue);
     return format_traceback(ptraceback, ptype, pvalue);
 }
 

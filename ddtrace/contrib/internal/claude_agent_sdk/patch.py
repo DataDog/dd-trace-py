@@ -36,6 +36,7 @@ def traced_query_async_generator(func, _instance, args, kwargs):
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
         span_name="claude_agent_sdk.query",
+        kind="agent",  # known at start for agent attribution
     )
 
     if prompt_wrapper:
@@ -66,6 +67,7 @@ async def traced_client_query(func, instance, args, kwargs):
         submit_to_llmobs=True,
         span_name="claude_agent_sdk.ClaudeSDKClient.query",
         instance=instance,
+        kind="agent",  # known at start for agent attribution
     )
 
     if prompt_wrapper:

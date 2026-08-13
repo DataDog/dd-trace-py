@@ -203,7 +203,7 @@ def attach_reachability_metadata(
     """Attach reachability metadata to an already-tracked dependency.
 
     This function is called by SCA when a vulnerable symbol executes.
-    The caller must hold the appropriate lock (e.g. TelemetryWriter._service_lock).
+    The caller must hold the appropriate lock (e.g. DependencyTracker._lock).
 
     Returns:
         True if metadata was attached, False if the package is not tracked

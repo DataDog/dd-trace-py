@@ -171,6 +171,17 @@ class Prompt(TypedDict, total=False):
     prompt_version_uuid: str
 
 
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that identifies a versioned agent.
+        version: str - user tag for the version of the agent.
+
+    Set as an `agent_version` tag on the agent span only, never on its children.
+    """
+
+    version: str
+
+
 class _MetaIO(TypedDict, total=False):
     parameters: dict[str, Any]
     value: str
