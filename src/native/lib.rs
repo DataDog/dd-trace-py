@@ -4,11 +4,14 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod config;
 mod context_provider;
+#[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+mod context_watcher;
 mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
+mod debugger;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
@@ -23,6 +26,7 @@ mod rc_shm;
 mod remote_config;
 mod shared_runtime;
 mod span;
+mod symdb;
 mod telemetry;
 mod tracer_flare;
 
@@ -75,6 +79,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
     telemetry::register_telemetry(m)?;
+    debugger::register_debugger(m)?;
+    symdb::register_symdb(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
@@ -97,6 +103,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add tracer_flare submodule
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
+
+    #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+    context_watcher::register(m)?;
 
     Ok(())
 }

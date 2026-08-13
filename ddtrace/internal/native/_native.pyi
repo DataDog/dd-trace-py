@@ -174,6 +174,14 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
     def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
@@ -402,6 +410,141 @@ class TelemetryWorker:
         :param request_body_type: declared request media types (API Security inventory).
         :param response_body_type: declared response media types (API Security inventory).
         :param response_code: declared response status codes (API Security inventory).
+        """
+        ...
+
+class DebuggerTrackType:
+    """Which debugger track a payload belongs to. (decides the endpoint)"""
+
+    Diagnostics: "DebuggerTrackType"
+    Snapshots: "DebuggerTrackType"
+    Logs: "DebuggerTrackType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DebuggerResponse:
+    """A response from the debugger payload receiver"""
+
+    @property
+    def accepted(self) -> bool:
+        """Whether the intake took the payload."""
+        ...
+    @property
+    def status(self) -> Optional[int]:
+        """The response status, or ``None`` when the payload was accepted."""
+        ...
+    @property
+    def body(self) -> str:
+        """The response body. Empty unless the payload was rejected."""
+        ...
+    def __repr__(self) -> str: ...
+
+class DebuggerSenderError(Exception):
+    """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
+
+class DebuggerSender:
+    """Sender for debugger-related payloads.
+
+    Wraps the ``datadog-live-debugger`` sender.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "DebuggerSender":
+        """Build a sender on ``runtime``.
+
+        :param url: the trace agent URL (``http``, ``https`` or
+            ``unix:///path.sock``) for agent-proxied uploads. Combined with
+            ``api_key`` it becomes a direct intake URL, which is how tests point
+            agentless mode at a local intake.
+        :param site: e.g. ``"datadoghq.com"``; with ``api_key`` and no ``url``
+            the endpoint becomes ``https://debugger-intake.{site}``.
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path).
+        :param tags: unencoded ``"key:value,key:value"``, percent-encoded here
+            for the ``ddtags`` query string.
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def downgrade_to_diagnostics(self) -> bool:
+        """Point the logs and snapshots tracks at the diagnostics endpoint.
+
+        For agents that do not proxy ``/debugger/v2/input``. A no-op in agentless
+        mode, where all three tracks already share one intake path. Returns
+        whether anything changed.
+        """
+        ...
+    def reset_endpoints(self) -> None:
+        """Undo a downgrade, restoring the endpoints derived at construction."""
+        ...
+    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> DebuggerResponse:
+        """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
+
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+
+class SymDBSender:
+    """Sender for symbol database (SymDB) uploads.
+
+    Reaches Datadog through the same intake host as :class:`DebuggerSender`, but
+    shares nothing else: the body is forwarded verbatim, the tags travel in
+    ``X-Datadog-Additional-Tags`` rather than a ``ddtags`` query string, and there
+    is no track negotiation or downgrade.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "SymDBSender":
+        """Build a sender on ``runtime``.
+
+        ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
+        for :class:`DebuggerSender`. ``tags`` is sent verbatim in the
+        ``X-Datadog-Additional-Tags`` header.
+
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def send(self, payload: bytes, content_type: str) -> DebuggerResponse:
+        """POST a SymDB payload verbatim, blocking on the response.
+
+        :param content_type: the caller's multipart content type.
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
         """
         ...
 
@@ -892,6 +1035,8 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
