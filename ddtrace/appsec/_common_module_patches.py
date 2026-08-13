@@ -40,9 +40,8 @@ def _patch_subprocess(module):
     log.debug("Patching common modules: subprocess_patch")
 
 
-def patch_common_modules():
+def patch_common_modules() -> None:
     global _is_patched
-
     if _is_patched:
         return
 
@@ -108,10 +107,9 @@ def _get_rasp_capability(capability: str) -> bool:
 
         try:
             from ddtrace.appsec._processor import AppSecSpanProcessor
-        except Exception as e:
-            from ddtrace.appsec._listeners import _abort_appsec
-
-            _abort_appsec(str(e))
+        except Exception:
+            # load_appsec owns fatal processor load failures; wrappers only need to
+            # report the capability as unavailable while imports are in progress.
             return False
 
         return AppSecSpanProcessor._instance is not None and getattr(

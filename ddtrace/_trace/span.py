@@ -657,14 +657,3 @@ class Span(SpanData):
             self.parent_id,
             self.name,
         )
-
-    @property
-    def _is_top_level(self) -> bool:
-        """Return whether the span is a "top level" span.
-
-        Top level meaning the root of the trace or a child span
-        whose service is different from its parent.
-        """
-        return (self._local_root is self) or (
-            self._parent is not None and self._parent.service != self.service and self.service is not None
-        )
