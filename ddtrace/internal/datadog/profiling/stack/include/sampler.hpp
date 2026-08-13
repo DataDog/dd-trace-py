@@ -156,6 +156,7 @@ class Sampler
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
+    void set_max_tasks_per_sample(unsigned int value);
 
     // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
     // Converted to us of CPU budget per adaptation window.

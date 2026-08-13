@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <random>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -10,6 +11,7 @@
 #include <echion/strings.h>
 #include <echion/threads.h>
 
+#include "constants.hpp"
 #include "stack_renderer.hpp"
 
 // Forward declaration
@@ -52,6 +54,13 @@ class EchionSampler
     // reflects tasks from the sampled subset, not all threads in the process.
     // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
+
+    // Maximum number of leaf tasks / greenlets to unwind and emit per cycle.
+    // 0 means unlimited.
+    unsigned int max_tasks_per_sample_ = g_default_max_tasks_per_sample;
+
+    // RNG used for task / greenlet reservoir sampling.
+    std::minstd_rand rng_{ std::random_device{}() };
 
     // Caches
     StringTable string_table_;
@@ -100,6 +109,11 @@ class EchionSampler
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
+    unsigned int max_tasks_per_sample() const { return max_tasks_per_sample_; }
+    void set_max_tasks_per_sample(unsigned int value) { max_tasks_per_sample_ = value; }
+
+    std::minstd_rand& rng() { return rng_; }
+
     // Accessor for StringTable operations
     StringTable& string_table() { return string_table_; }
     const StringTable& string_table() const { return string_table_; }
@@ -138,6 +152,7 @@ class EchionSampler
         asyncio_frame_cache_key_.reset();
         uvloop_frame_cache_key_.reset();
         asyncio_task_count_ = 0;
+        rng_ = std::minstd_rand{ std::random_device{}() };
 
         new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
