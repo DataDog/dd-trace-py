@@ -188,6 +188,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     def _reset(self) -> None:
         self._buffer = bytearray(self._PREFIX)
         self._count = 0
+        self._n_spans = 0
 
     def __len__(self) -> int:
         with self._lock:
@@ -197,6 +198,17 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     def size(self) -> int:
         with self._lock:
             return len(self._buffer) + len(self._SUFFIX)
+
+    @property
+    def pending_spans(self) -> int:
+        """Number of spans currently buffered (across all buffered traces).
+
+        Used by the writer to report ``spans_dropped`` telemetry when a payload cannot be
+        encoded or delivered, since the buffer/encode/HTTP layers otherwise only know the
+        trace (chunk) count.
+        """
+        with self._lock:
+            return self._n_spans
 
     def put(self, item) -> None:
         item = typing.cast(list["Span"], item)
@@ -222,6 +234,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                 self._buffer += self._SEPARATOR
             self._buffer += encoded_trace
             self._count += 1
+            self._n_spans += len(item)
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
