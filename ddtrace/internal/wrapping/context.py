@@ -688,12 +688,19 @@ class _UniversalWrappingContext(BaseWrappingContext):
         storage["__frame__"] = sys._getframe(1)
 
         # Freeze the list of contexts so that we know exactly which ones to
-        # exit, in case new contexts are registered during the execution of the
-        # wrapped function.
-        contexts = storage["__contexts__"] = tuple(self._contexts)
-
-        for context in contexts:
-            context.__enter__()
+        # exit, in case new contexts are registered during the execution of
+        # the wrapped function. Contexts are appended only once entered, so
+        # that a failure partway through does not leave contexts that never
+        # entered in the snapshot.
+        entered: list[WrappingContext] = []
+        storage["__contexts__"] = entered
+        for context in self._contexts:
+            try:
+                context.__enter__()
+            except Exception:
+                log.debug("Failed to enter wrapping context %r", context, exc_info=True)
+                continue
+            entered.append(context)
 
         return self
 
