@@ -14,16 +14,16 @@ import ddtrace.vendor.xmltodict as xmltodict
 
 
 def normalize_headers(
-    request_headers: Mapping[str, str],
+    raw_headers: Mapping[str, object],
 ) -> dict[str, str]:
     """Normalize headers according to the WAF expectations.
     The WAF expects headers to be lowercased.
     """
     headers: dict[str, str] = {}
-    for key, value in request_headers.items():
+    for key, value in raw_headers.items():
         normalized_key = http_utils.normalize_header_name(key)
         if normalized_key is not None:
-            headers[normalized_key] = value.strip()
+            headers[normalized_key] = str(value).strip()
     return headers
 
 

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 from typing import TypeVar
@@ -59,7 +60,7 @@ def _asm_manual_keep(span: Span) -> None:
     add_trace_source(span, TraceSource.ASM)
 
 
-def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) -> None:
+def _handle_metadata(entry_span: Span, prefix: str, metadata: Mapping[str, object]) -> None:
     MAX_DEPTH = 6
     stack: list[tuple[str, Any, int]] = [(prefix, metadata, 1)]
     while stack:
@@ -68,7 +69,7 @@ def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) ->
             if level < MAX_DEPTH:
                 for i, v in enumerate(data):
                     stack.append((f"{current_prefix}.{i}", v, level + 1))
-        elif isinstance(data, dict):
+        elif isinstance(data, Mapping):
             if level < MAX_DEPTH:
                 for k, v in data.items():
                     stack.append((f"{current_prefix}.{k}", v, level + 1))
@@ -81,7 +82,7 @@ def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) ->
 def _track_user_login_common(
     tracer: Any,
     success: bool,
-    metadata: Optional[dict[str, object]] = None,
+    metadata: Optional[Mapping[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -137,7 +138,7 @@ def _track_user_login_common(
 def track_user_login_success_event(
     tracer: Any,
     user_id: Optional[object],
-    metadata: Optional[dict[str, object]] = None,
+    metadata: Optional[Mapping[str, object]] = None,
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
@@ -210,7 +211,7 @@ def track_user_login_failure_event(
     tracer: Any,
     user_id: Optional[object],
     exists: Optional[bool] = None,
-    metadata: Optional[dict[str, object]] = None,
+    metadata: Optional[Mapping[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
