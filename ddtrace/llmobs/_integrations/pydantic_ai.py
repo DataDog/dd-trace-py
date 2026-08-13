@@ -258,7 +258,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
-        _annotate_llmobs_span_data(span, agent_manifest=self._build_agent_manifest(agent))
+        # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict is not
+        # assignable to dict[str, Any] because a dict value is invariant.
+        _annotate_llmobs_span_data(span, agent_manifest=dict(self._build_agent_manifest(agent)))
 
     def _build_agent_manifest(self, agent: Any) -> AgentManifest:
         """Build the shared agent manifest from a pydantic-ai Agent.

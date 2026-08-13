@@ -101,7 +101,7 @@ def is_number(value: Any) -> bool:
     return math.isfinite(value) if isinstance(value, float) else True
 
 
-def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budget: Optional[list] = None) -> Any:
+def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budget: Optional[list[int]] = None) -> Any:
     """Coerce a config value to a JSON-native one, or None when it cannot ship.
 
     A dropped entry costs its whole list but only its own key in a mapping. Compacting a list would
