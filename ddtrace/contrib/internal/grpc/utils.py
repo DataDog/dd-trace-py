@@ -119,7 +119,7 @@ def is_otlp_export(metadata: tuple) -> bool:
         return False
 
     for key, value in metadata:
-        if key in (USER_AGENT_HEADER, "grpc.primary_user_agent"):
+        if key in (USER_AGENT_HEADER, constants.GRPC_PRIMARY_USER_AGENT_OPTION):
             normalized_value = value.lower().replace(" ", "-")
             if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_value:
                 return True

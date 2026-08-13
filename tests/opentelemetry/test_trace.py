@@ -228,6 +228,7 @@ def otel_flask_app_env(flask_wsgi_application):
         "with_opentelemetry_instrument",
     ],
 )
+# Flask 2.2 removed the before_first_request hook and its corresponding integration span.
 @pytest.mark.snapshot(
     wait_for_num_traces=1,
     ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"],

@@ -188,6 +188,8 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
     options_index = 2 if wrapped.__name__ == "secure_channel" else 1
     options = get_argument_value(args, kwargs, options_index, "options", True)
+    # Newer OTLP exporters identify the channel through this option instead of RPC metadata.
+    # Do not instrument exporter channels, or telemetry exports generate client spans.
     if utils.is_otlp_export(options or ()):
         return channel
 
