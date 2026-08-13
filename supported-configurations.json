@@ -6065,6 +6065,14 @@
         "internal": true
       }
     ],
+    "_DD_PROFILING_STACK_MAX_TASKS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50",
+        "internal": true
+      }
+    ],
     "_DD_PROFILING_STACK_MAX_THREADS": [
       {
         "implementation": "A",
