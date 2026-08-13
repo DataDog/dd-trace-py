@@ -81,7 +81,7 @@ def _handle_metadata(entry_span: Span, prefix: str, metadata: dict[Any, Any]) ->
 def _track_user_login_common(
     tracer: Any,
     success: bool,
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -137,7 +137,7 @@ def _track_user_login_common(
 def track_user_login_success_event(
     tracer: Any,
     user_id: Optional[object],
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
@@ -210,7 +210,7 @@ def track_user_login_failure_event(
     tracer: Any,
     user_id: Optional[object],
     exists: Optional[bool] = None,
-    metadata: Optional[dict] = None,
+    metadata: Optional[dict[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -283,7 +283,7 @@ def track_user_signup_event(
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT}.sdk", "true")
         else:
-            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", str(login_events_mode))
+            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", login_events_mode)
 
         return
     else:

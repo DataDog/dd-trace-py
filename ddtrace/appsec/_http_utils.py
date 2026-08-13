@@ -2,12 +2,11 @@ import base64
 from collections.abc import Mapping
 from http.cookies import SimpleCookie
 import json
-from typing import Any
 from typing import MutableMapping
 from typing import Optional
-from typing import Union
 from urllib.parse import parse_qs
 
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
@@ -24,7 +23,7 @@ def normalize_headers(
     for key, value in request_headers.items():
         normalized_key = http_utils.normalize_header_name(key)
         if normalized_key is not None:
-            headers[normalized_key] = str(value).strip()
+            headers[normalized_key] = value.strip()
     return headers
 
 
@@ -32,7 +31,7 @@ def parse_http_body(
     normalized_headers: dict[str, str],
     body: Optional[str],
     is_body_base64: bool,
-) -> Union[str, dict[str, Any], None]:
+) -> DDWafInputType:
     """Parse a request body based on the content-type header."""
     if body is None:
         return None
@@ -45,11 +44,11 @@ def parse_http_body(
     try:
         category = classify_media_type(normalized_headers.get("content-type"))
         if category is MediaType.JSON:
-            return json.loads(body)
+            return json.loads(body)  # type: ignore[no-any-return]
         elif category is MediaType.FORM_URLENCODED:
             return parse_qs(body)
         elif category is MediaType.XML:
-            return xmltodict.parse(body)
+            return xmltodict.parse(body)  # type: ignore[no-any-return]
         elif category is MediaType.MULTIPART:
             return http_utils.parse_form_multipart(body, normalized_headers)
         else:
