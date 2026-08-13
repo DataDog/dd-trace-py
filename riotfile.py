@@ -3887,8 +3887,9 @@ venv = Venv(
                     ],
                 ),
                 # Run the full profiling suite with both wall and CPU timer sampling enabled.
-                # Match the standard profile dependencies so Riot can reuse its existing venv hashes.
+                # Use a distinct name so these full-suite runs get separate CI shards.
                 Venv(
+                    name="profile-cpu-timer",
                     pys=select_pys(min_version="3.12"),
                     env={
                         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
