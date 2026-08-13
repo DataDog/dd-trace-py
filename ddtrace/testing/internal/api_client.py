@@ -4,6 +4,7 @@ import gzip
 import json
 import logging
 from pathlib import Path
+import time
 import typing as t
 import uuid
 
@@ -11,6 +12,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -27,6 +29,8 @@ from ddtrace.testing.internal.test_data import TestTag
 log = logging.getLogger(__name__)
 
 _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+_MIN_KNOWN_TESTS_TIMEOUT_SECONDS = 45.0
+_MAX_KNOWN_TESTS_TIMEOUT_SECONDS = 300.0
 
 
 def _get_known_tests_max_pages() -> int:
@@ -47,6 +51,25 @@ def _get_known_tests_max_pages() -> int:
         )
         return _DEFAULT_KNOWN_TESTS_MAX_PAGES
     return value
+
+
+def _get_known_tests_timeout_seconds() -> float:
+    """Total pagination budget configured by _DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS."""
+    default_timeout_seconds = max(_MIN_KNOWN_TESTS_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS)
+    raw = env.get("_DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS")
+    if raw:
+        try:
+            timeout_seconds = float(raw) / 1000.0
+            if not (0 < timeout_seconds <= _MAX_KNOWN_TESTS_TIMEOUT_SECONDS):
+                raise ValueError
+            return timeout_seconds
+        except ValueError:
+            log.warning(
+                "Invalid value for _DD_CIVISIBILITY_KNOWN_TESTS_TIMEOUT_MILLIS: %r; using default %.1fs",
+                raw,
+                default_timeout_seconds,
+            )
+    return default_timeout_seconds
 
 
 class APIClient:
@@ -140,8 +163,20 @@ class APIClient:
         page_state: t.Optional[str] = None
         known_test_ids: set[TestRef] = set()
         max_pages = _get_known_tests_max_pages()
+        timeout_seconds = _get_known_tests_timeout_seconds()
+        started_at = time.monotonic()
 
         for page_number in range(max_pages):
+            # AIDEV-NOTE: This interim budget is checked between pages. It prevents unbounded
+            # pagination but cannot interrupt an actively streaming response; that requires a
+            # deadline-aware BackendConnector.
+            if page_number > 0:
+                elapsed_seconds = time.monotonic() - started_at
+                if elapsed_seconds >= timeout_seconds:
+                    log.warning("Known tests pagination exceeded %.1fs after %d page(s)", timeout_seconds, page_number)
+                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
+                    return set()
+
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
@@ -168,11 +203,18 @@ class APIClient:
                 return set()
 
             try:
-                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result = self.connector.post_json(
+                    "/api/v2/ci/libraries/tests", request_data, telemetry=telemetry, max_attempts=2
+                )
                 result.on_error_raise_exception()
 
             except Exception as e:
-                log.warning("Error getting known tests from API: %s", e)
+                log.warning(
+                    "Error getting known tests page %d after %.1fs: %s",
+                    page_number + 1,
+                    time.monotonic() - started_at,
+                    e,
+                )
                 self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
 
