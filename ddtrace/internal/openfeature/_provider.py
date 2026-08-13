@@ -28,6 +28,8 @@ from openfeature.provider import ProviderStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._config import _register_provider
+from ddtrace.internal.openfeature._config import _unregister_provider
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -717,25 +719,3 @@ def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> No
 
     if not process_ffe_configuration(configuration):
         raise ValueError("Feature Flagging configuration was rejected by the evaluator")
-
-
-# Module-level registry for active provider instances
-_provider_instances: list[DataDogProvider] = []
-
-
-def _register_provider(provider: DataDogProvider) -> None:
-    """Register a provider instance for configuration callbacks."""
-    if provider not in _provider_instances:
-        _provider_instances.append(provider)
-
-
-def _unregister_provider(provider: DataDogProvider) -> None:
-    """Unregister a provider instance."""
-    if provider in _provider_instances:
-        _provider_instances.remove(provider)
-
-
-def _notify_providers_config_received() -> None:
-    """Notify all registered providers that configuration was received."""
-    for provider in _provider_instances:
-        provider.on_configuration_received()
