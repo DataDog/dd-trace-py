@@ -16,13 +16,19 @@ REGEX_CONFORMANCE_PATH = (
 
 
 with REGEX_CONFORMANCE_PATH.open() as f:
-    REGEX_CASES = json.load(f)["cases"]
+    REGEX_FIXTURE = json.load(f)
 
+assert REGEX_FIXTURE["schema"] == "datadog.ffe.targeting-regex-conformance/v1"
+assert REGEX_FIXTURE["schemaVersion"] == 1
+assert REGEX_FIXTURE["contractVersion"] == "targeting-regex-v1"
+REGEX_CASES = REGEX_FIXTURE["cases"]
+assert len(REGEX_CASES) == 75
+assert len({test_case["id"] for test_case in REGEX_CASES}) == 75
 
 def _rust_rules_based_expectation(test_case):
-    engine_expectations = test_case.get("engineExpectations")
-    if engine_expectations is not None:
-        return engine_expectations["rustRulesBased"]
+    engine_expectation = test_case.get("engineExpectations", {}).get("rustRulesBased")
+    if engine_expectation is not None:
+        return engine_expectation
     return {
         "compile": test_case["expectedCompile"],
         "match": test_case["expectedMatch"],
