@@ -13,6 +13,8 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_sampling import OtelSamplingState
+from ddtrace.internal.otel_sampling import build_tracestate as _build_tracestate
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
@@ -22,10 +24,11 @@ _ContextState = tuple[
     Optional[int],  # span_id
     dict[str, str],  # _meta
     dict[str, NumericType],  # _metrics
-    list[SpanLink],  #  span_links
+    list[SpanLink],  # span_links
     dict[str, Any],  # baggage
     bool,  # is_remote
     bool,  # _reactivate
+    OtelSamplingState,  # locally made OTel-compatible sampling decision
 ]
 
 
@@ -49,6 +52,7 @@ class Context(object):
         "_baggage",
         "_is_remote",
         "_reactivate",
+        "_otel_sampling_state",
         "__weakref__",
     ]
 
@@ -73,6 +77,7 @@ class Context(object):
         self.span_id: Optional[int] = span_id
         self._is_remote: bool = is_remote
         self._reactivate: bool = False
+        self._otel_sampling_state = OtelSamplingState()
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
@@ -101,6 +106,7 @@ class Context(object):
             self._baggage,
             self._is_remote,
             self._reactivate,
+            self._otel_sampling_state,
             # Note: self._lock is not serializable
         )
 
@@ -114,6 +120,7 @@ class Context(object):
             self._baggage,
             self._is_remote,
             self._reactivate,
+            self._otel_sampling_state,
         ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = RLock()
@@ -163,20 +170,13 @@ class Context(object):
     @property
     def _tracestate(self) -> str:
         dd_list_member = _w3c_get_dd_list_member(self)
-
-        # if there's a preexisting tracestate we need to update it to preserve other vendor data
-        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
-        if ts and dd_list_member:
-            # cut out the original dd list member from tracestate so we can replace it with the new one we created
-            ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
-            if ts_w_out_dd:
-                ts = f"dd={dd_list_member},{ts_w_out_dd}"
-            else:
-                ts = f"dd={dd_list_member}"
-        # if there is no original tracestate value then tracestate is just the dd list member we created
-        elif dd_list_member:
-            ts = f"dd={dd_list_member}"
-        return ts
+        return _build_tracestate(
+            self._meta.get(W3C_TRACESTATE_KEY, ""),
+            dd_list_member,
+            self.trace_id,
+            self.sampling_priority,
+            self._otel_sampling_state,
+        )
 
     @property
     def dd_origin(self) -> Optional[Text]:
@@ -239,6 +239,7 @@ class Context(object):
         ctx.span_id = span_id
         ctx._is_remote = False
         ctx._reactivate = False
+        ctx._otel_sampling_state = self._otel_sampling_state
         ctx._span_links = []
         return ctx
 
@@ -253,6 +254,7 @@ class Context(object):
         ctx._meta = self._meta
         ctx._metrics = self._metrics
         ctx._baggage = new_baggage
+        ctx._otel_sampling_state = self._otel_sampling_state
         return ctx
 
     def get_baggage_item(self, key: str) -> Optional[Any]:
@@ -282,6 +284,7 @@ class Context(object):
                     and self._span_links == other._span_links
                     and self._baggage == other._baggage
                     and self._is_remote == other._is_remote
+                    and self._otel_sampling_state == other._otel_sampling_state
                 )
         return False
 

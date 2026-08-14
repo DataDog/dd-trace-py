@@ -225,8 +225,14 @@ class Span(SpanData):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-    def _override_sampling_decision(self, decision: Optional[NumericType]):
+    def _override_sampling_decision(
+        self, decision: Optional[NumericType], *, otel_probabilistic_decision: bool = False
+    ):
         self.context.sampling_priority = decision
+        if otel_probabilistic_decision:
+            self.context._otel_sampling_state.clear()
+        else:
+            self.context._otel_sampling_state.set_non_probabilistic_decision()
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
