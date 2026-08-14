@@ -376,6 +376,7 @@ venv = Venv(
                 "pip": "<25",
             },
             env={
+                "BROWSER": "true",  # Prevent webbrowser tests from launching the host browser.
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
