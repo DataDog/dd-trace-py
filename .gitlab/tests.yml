@@ -36,13 +36,24 @@ include:
         echo "No riot hashes found for ${SUITE_NAME}"
         exit 1
       fi
-      for hash in "${hashes[@]}"
+      for unit in "${hashes[@]}"
       do
+        hash="${unit%%@*}"
+        if [[ "${unit}" =~ ^[0-9a-f]+@([1-9][0-9]*)/([1-9][0-9]*)$ ]]; then
+          test_shard_index="${BASH_REMATCH[1]}"
+          test_shard_total="${BASH_REMATCH[2]}"
+        else
+          test_shard_index=1
+          test_shard_total=1
+        fi
         echo "Running riot hash: ${hash}"
+        echo "Runtime test shard: ${test_shard_index}/${test_shard_total}"
         riot list "${hash}"
         export RIOT_HASH="${hash}"
+        export RIOT_TEST_SHARD_INDEX="${test_shard_index}"
+        export RIOT_TEST_SHARD_TOTAL="${test_shard_total}"
         export RIOT_CI_ALLOCATION_STRATEGY="${CI_ALLOCATION_STRATEGY:-legacy}"
-        export _CI_DD_TAGS="test.configuration.riot_hash:${RIOT_HASH},test.configuration.ci_allocation_strategy:${RIOT_CI_ALLOCATION_STRATEGY}"
+        export _CI_DD_TAGS="test.configuration.riot_hash:${RIOT_HASH},test.configuration.ci_allocation_strategy:${RIOT_CI_ALLOCATION_STRATEGY},test.configuration.runtime_shard_index:${RIOT_TEST_SHARD_INDEX},test.configuration.runtime_shard_total:${RIOT_TEST_SHARD_TOTAL}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \

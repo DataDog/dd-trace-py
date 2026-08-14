@@ -2062,6 +2062,57 @@
     "minimum_samples": 5,
     "sparse_safety_factor": 1.25
   },
+  "suite_estimates": {
+    "contrib::integration_registry": {
+      "2e9f3b5": 127.23747
+    },
+    "integration_registry": {
+      "2e9f3b5": 129.210514
+    },
+    "tracer": {
+      "16f089d": 651.383996,
+      "190d82d": 651.383996,
+      "1c97cf2": 651.383996,
+      "3d924d3": 651.383996,
+      "f953f1c": 651.383996
+    },
+    "tracer-uwsgi": {
+      "16f089d": 75.349606,
+      "190d82d": 75.349606,
+      "1c97cf2": 75.349606,
+      "3d924d3": 75.349606,
+      "f953f1c": 75.349606
+    }
+  },
+  "test_sharding": {
+    "command_fingerprints": {
+      "21c32b52591cbd41dd16f7df087cb15963733fe59de2ce9b011bf033a77c76b7": {
+        "minimum_items": 820,
+        "observed_hash": "759749c",
+        "source_commit": "3bd95510c20255b89fa41e1ad9822d617c1ffe3d",
+        "source_pipeline_id": "131076783"
+      },
+      "3d6032832c5128ba1764834c1340c9e50a459fb876aab90bb20c6c13585cb148": {
+        "minimum_items": 6922,
+        "observed_hash": "107d2ec",
+        "source_commit": "3bd95510c20255b89fa41e1ad9822d617c1ffe3d",
+        "source_pipeline_id": "131076783"
+      },
+      "6c31901e916dd7d21856d6795591a3f3f0be7bbaf6d5c3d5e1d1d1661c08bef9": {
+        "minimum_items": 187,
+        "observed_hash": "dbf2d5f",
+        "source_commit": "aa623634dbf9e9ff55ba89f822ad7dda228ce087",
+        "source_pipeline_id": "131104148"
+      },
+      "986b1f7f162587fd9fda02ea4a2430b87751117fe67cfa6d3273aa8b301604c8": {
+        "minimum_items": 2086,
+        "observed_hash": "b783dae",
+        "source_commit": "3bd95510c20255b89fa41e1ad9822d617c1ffe3d",
+        "source_pipeline_id": "131076783"
+      }
+    },
+    "source": "datadog-test-visibility-items"
+  },
   "overheads": {
     "global_seconds": 0,
     "suite_seconds": {},

@@ -13,8 +13,12 @@ import xml.etree.ElementTree as ET
 from .planner import AllocationError
 
 
-JUNIT_IDENTITY = re.compile(r"(?:^|/)junit\.(legacy|balanced)\.([^.]+)(?:\.([0-9a-f]{64}))?\.\d+\.xml$")
+JUNIT_IDENTITY = re.compile(
+    r"(?:^|/)junit\.(legacy|balanced)\.([^.]+)(?:\.s([1-9][0-9]*)of([1-9][0-9]*))?"
+    r"(?:\.([0-9a-f]{64}))?\.\d+\.xml$"
+)
 REQUIRED_EXECUTION_PROPERTIES = {"riot.python.version"}
+PARTITION_PROPERTIES = {"riot.test.shard_index", "riot.test.shard_total"}
 
 
 def _execution_digest(execution: t.Mapping[str, str]) -> str:
@@ -54,12 +58,20 @@ def collect_junit(paths: t.Iterable[Path], expected_strategy: str) -> tuple[Coun
             embedded_strategy = properties.get("riot.ci.allocation_strategy")
             if embedded_strategy and embedded_strategy != expected_strategy:
                 raise AllocationError(f"JUnit strategy does not match {expected_strategy}: {path}")
+            embedded_index = properties.get("riot.test.shard_index")
+            embedded_total = properties.get("riot.test.shard_total")
+            if bool(embedded_index) != bool(embedded_total):
+                raise AllocationError(f"JUnit runtime shard identity is incomplete: {path}")
+            if filename_identity and filename_identity.group(3):
+                if (embedded_index, embedded_total) != (filename_identity.group(3), filename_identity.group(4)):
+                    raise AllocationError(f"JUnit runtime shard identity does not match {path}")
             execution = {
                 key: value
                 for key, value in properties.items()
-                if key.startswith("riot.") and key not in {"riot.hash", "riot.ci.allocation_strategy"}
+                if key.startswith("riot.")
+                and key not in {"riot.hash", "riot.ci.allocation_strategy", *PARTITION_PROPERTIES}
             }
-            filename_digest = filename_identity.group(3) if filename_identity else None
+            filename_digest = filename_identity.group(5) if filename_identity else None
             if execution:
                 missing_properties = REQUIRED_EXECUTION_PROPERTIES - set(execution)
                 if missing_properties:

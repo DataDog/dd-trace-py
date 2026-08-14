@@ -12,7 +12,10 @@ from .history import validate_runtime_model
 from .planner import AllocationError
 from .planner import build_suite_plan
 from .planner import verify_assignments
+from .planner import verify_runtime_assignments
 from .suites import SuiteVenvInfo
+from .suites import runtime_setup_seconds
+from .suites import runtime_test_item_counts
 
 
 def _json_value(value: t.Any) -> t.Any:
@@ -40,12 +43,12 @@ def build_allocation_manifest(
     balanced_shard_counts: t.Mapping[str, int],
     runtime_model: t.Mapping[str, t.Any],
     active_strategy: str,
+    target_shard_seconds: float = 300.0,
+    maximum_slices_per_hash: int = 1,
 ) -> dict[str, t.Any]:
     validate_runtime_model(runtime_model)
-    estimates, global_fallback = runtime_estimates(runtime_model)
+    _estimates, global_fallback = runtime_estimates(runtime_model)
     suite_fallbacks = runtime_model["fallbacks"].get("suite_seconds", {})
-    suite_overheads = runtime_model["overheads"].get("suite_seconds", {})
-    global_overhead = float(runtime_model["overheads"]["global_seconds"])
 
     plans = []
     if active_strategy not in {"legacy", "balanced"}:
@@ -59,6 +62,7 @@ def build_allocation_manifest(
             raise AllocationError(f"selected suite has no Riot hashes: {suite}")
         config = _json_value(suite_configs[suite])
         fallback = float(suite_fallbacks.get(suite, global_fallback))
+        estimates, _unused_fallback = runtime_estimates(runtime_model, suite)
         plans.append(
             build_suite_plan(
                 suite=suite,
@@ -68,13 +72,16 @@ def build_allocation_manifest(
                 estimates=estimates,
                 fallback_seconds=fallback,
                 execution_metadata=config,
-                overhead_seconds=float(suite_overheads.get(suite, global_overhead)),
+                overhead_seconds=runtime_setup_seconds(runtime_model, suite),
+                target_shard_seconds=target_shard_seconds,
+                test_item_counts=runtime_test_item_counts(info, runtime_model),
+                maximum_slices_per_hash=maximum_slices_per_hash,
             )
         )
 
     manifest: dict[str, t.Any] = {
         "schema_version": 1,
-        "planner_version": "weighted-lpt-v1",
+        "planner_version": "runtime-sliced-lpt-v2",
         "active_strategy": active_strategy,
         "runtime_model_sha256": _digest(runtime_model),
         "suites": plans,
@@ -85,7 +92,7 @@ def build_allocation_manifest(
 
 
 def verify_allocation_manifest(manifest: t.Mapping[str, t.Any]) -> None:
-    if manifest.get("schema_version") != 1 or manifest.get("planner_version") != "weighted-lpt-v1":
+    if manifest.get("schema_version") != 1 or manifest.get("planner_version") != "runtime-sliced-lpt-v2":
         raise AllocationError("unsupported allocation manifest schema or planner version")
     if manifest.get("active_strategy") not in {"legacy", "balanced"}:
         raise AllocationError("allocation manifest active strategy is invalid")
@@ -114,9 +121,18 @@ def verify_allocation_manifest(manifest: t.Mapping[str, t.Any]) -> None:
                 isinstance(shard, list) and all(isinstance(item, str) for item in shard) for shard in assignments
             ):
                 raise AllocationError(f"allocation manifest {suite} {strategy} assignments are malformed")
-            verify_assignments(hashes, assignments)
+            if strategy == "legacy":
+                verify_assignments(hashes, assignments)
+            else:
+                verify_runtime_assignments(hashes, assignments)
         parity = raw_plan.get("parity")
-        expected_parity = {"exact_union", "no_overlap", "no_empty_shards", "execution_metadata_equal"}
+        expected_parity = {
+            "exact_union",
+            "no_overlap",
+            "no_empty_shards",
+            "execution_metadata_equal",
+            "complete_runtime_slices",
+        }
         if not isinstance(parity, dict) or set(parity) != expected_parity or not all(parity.values()):
             raise AllocationError(f"allocation manifest parity proof failed for {suite}")
     if len(suite_names) != len(set(suite_names)):

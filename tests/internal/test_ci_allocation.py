@@ -4,7 +4,9 @@ from dataclasses import replace
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -14,16 +16,24 @@ from scripts.ci_allocation.history import live_shadow_report
 from scripts.ci_allocation.history import observation_from_datadog
 from scripts.ci_allocation.history import ratchet_violations
 from scripts.ci_allocation.history import replay_observations
+from scripts.ci_allocation.history import runtime_estimates
 from scripts.ci_allocation.jobs import JobObservation
 from scripts.ci_allocation.jobs import job_from_datadog
 from scripts.ci_allocation.junit import verify_junit_parity
 from scripts.ci_allocation.manifest import build_allocation_manifest
 from scripts.ci_allocation.manifest import verify_allocation_manifest
+from scripts.ci_allocation.manifest import write_manifest
 from scripts.ci_allocation.planner import AllocationError
+from scripts.ci_allocation.planner import expand_runtime_units
 from scripts.ci_allocation.planner import legacy_round_robin
 from scripts.ci_allocation.planner import predicted_makespan
 from scripts.ci_allocation.planner import verify_assignments
+from scripts.ci_allocation.planner import verify_runtime_assignments
 from scripts.ci_allocation.planner import weighted_lpt
+from scripts.ci_allocation.planner import weighted_runtime_lpt
+from scripts.ci_allocation.runtime import build_runtime_inventory
+from scripts.ci_allocation.runtime import verify_runtime_inventories
+from scripts.ci_allocation.runtime import write_runtime_inventory
 from scripts.ci_allocation.suites import SuiteVenvInfo
 from scripts.ci_allocation.suites import compute_runtime_parallelism
 
@@ -49,6 +59,38 @@ def test_weighted_lpt_is_exact_and_reduces_the_predicted_long_pole():
 def test_assignment_verifier_fails_on_overlap():
     with pytest.raises(AllocationError, match="more than one shard"):
         verify_assignments(["a", "b"], [["a"], ["a", "b"]])
+
+
+def test_runtime_slices_break_one_measured_hash_across_distinct_jobs():
+    units, weights = expand_runtime_units(
+        ["abc"],
+        {"abc": 650},
+        60,
+        target_shard_seconds=300,
+        setup_seconds=50,
+        test_item_counts={"abc": 100},
+        maximum_slices_per_hash=5,
+    )
+
+    assignments = weighted_runtime_lpt(units, 3, weights)
+
+    assert units == ["abc@1/3", "abc@2/3", "abc@3/3"]
+    assert assignments == [["abc@1/3"], ["abc@2/3"], ["abc@3/3"]]
+    verify_runtime_assignments(["abc"], assignments)
+    assert predicted_makespan(assignments, weights, 60) < 300
+
+
+def test_runtime_slices_require_real_test_item_evidence():
+    units, _weights = expand_runtime_units(
+        ["abc"],
+        {"abc": 650},
+        60,
+        target_shard_seconds=300,
+        setup_seconds=50,
+        maximum_slices_per_hash=5,
+    )
+
+    assert units == ["abc"]
 
 
 def test_runtime_parallelism_targets_modeled_shard_duration():
@@ -85,6 +127,25 @@ def test_runtime_parallelism_reallocates_within_legacy_job_budget():
     )
 
     assert result == {"long": 2, "short": 2}
+
+
+def test_runtime_parallelism_can_allocate_more_jobs_than_hashes_for_measured_tests():
+    suites = {"core": SuiteVenvInfo(("a",), frozenset({"3.13"}))}
+
+    result = compute_runtime_parallelism(
+        suites,
+        ["core"],
+        {"a": 650},
+        {},
+        60,
+        target_shard_seconds=300,
+        maximum_parallelism_per_suite=5,
+        suite_overheads={"core": 50},
+        test_item_counts_by_suite={"core": {"a": 100}},
+        maximum_slices_per_hash=5,
+    )
+
+    assert result == {"core": 3}
 
 
 def test_datadog_session_normalization_uses_riot_hash_as_atomic_identity():
@@ -302,6 +363,71 @@ def test_manifest_proves_both_topologies_cover_the_same_suite():
         verify_allocation_manifest(tampered)
 
 
+def test_manifest_and_runtime_inventories_prove_exact_sub_hash_coverage(tmp_path):
+    command = "pytest tests/example"
+    fingerprint = hashlib.sha256(command.encode()).hexdigest()
+    model = {
+        "schema_version": 1,
+        "planner_version": "weighted-lpt-v1",
+        "dataset": {"source": "test"},
+        "parameters": {},
+        "overheads": {
+            "global_seconds": 0,
+            "suite_seconds": {},
+            "unit_global_seconds": 50,
+            "unit_suite_seconds": {},
+            "sample_count": 1,
+            "matched_session_count": 1,
+        },
+        "fallbacks": {"global_seconds": 60, "suite_seconds": {}},
+        "estimates": {"abc": 650},
+        "test_sharding": {"command_fingerprints": {fingerprint: {"minimum_items": 6}}},
+    }
+    manifest = build_allocation_manifest(
+        suite_venv_info={
+            "core": SuiteVenvInfo(
+                ("abc",),
+                frozenset({"3.13"}),
+                commands={"abc": (command,)},
+                python_version_by_hash={"abc": "3.13"},
+            )
+        },
+        suite_configs={"core": {"pattern": "core"}},
+        legacy_shard_counts={"core": 1},
+        balanced_shard_counts={"core": 3},
+        runtime_model=model,
+        active_strategy="legacy",
+        target_shard_seconds=300,
+        maximum_slices_per_hash=5,
+    )
+    plan_path = tmp_path / "plan.json"
+    write_manifest(plan_path, manifest)
+    nodeids = [f"tests/example/test_values.py::test_value[{index}]" for index in range(6)]
+    paths: list[Path] = []
+    for shard_index in range(1, 4):
+        inventory = build_runtime_inventory(
+            suite="core",
+            riot_hash="abc",
+            shard_index=shard_index,
+            shard_total=3,
+            collected_nodeids=nodeids,
+        )
+        path = tmp_path / f"inventory-{shard_index}.json"
+        write_runtime_inventory(path, inventory)
+        paths.append(path)
+
+    report = verify_runtime_inventories(paths, plan_path)
+
+    assert report["runtime_slice_count"] == 3
+    assert report["test_identity_count"] == 6
+    assert report["exact_union"] is True
+    tampered = json.loads(paths[1].read_text())
+    tampered["selected_nodeids"] = tampered["selected_nodeids"][:-1]
+    paths[1].write_text(json.dumps(tampered))
+    with pytest.raises(AllocationError, match="union differs"):
+        verify_runtime_inventories(paths, plan_path)
+
+
 def test_live_shadow_report_requires_exact_hash_parity_and_compares_actual_shards():
     when = datetime(2026, 1, 1, tzinfo=timezone.utc)
     observations = []
@@ -347,6 +473,8 @@ def test_live_shadow_report_requires_exact_hash_parity_and_compares_actual_shard
     assert report["exact_hash_parity"] is True
     assert report["timing_source"] == "ci-jobs"
     assert report["balanced"]["median_seconds"] < report["legacy"]["median_seconds"]
+    assert report["legacy"]["median_seconds"] == 18
+    assert report["balanced"]["median_seconds"] == 10
 
     unresolved_jobs = [replace(job, strategy="unknown") for job in jobs]
     assert live_shadow_report(observations, unresolved_jobs)["timing_source"] == "ci-jobs"
@@ -401,6 +529,59 @@ def test_junit_parity_compares_test_multisets_and_execution_metadata(tmp_path):
     balanced.write_text(template.format(strategy="balanced").replace("test_value", "test_other"))
     with pytest.raises(AllocationError, match="test identity parity failed"):
         verify_junit_parity([legacy], [balanced])
+
+
+def test_junit_parity_combines_runtime_slices_into_the_legacy_multiset(tmp_path):
+    def xml(strategy, cases, shard_index=None):
+        partition = ""
+        if shard_index is not None:
+            partition = (
+                f'<property name="riot.test.shard_index" value="{shard_index}"/>'
+                '<property name="riot.test.shard_total" value="2"/>'
+            )
+        testcases = "".join(
+            f'<testcase classname="tests.test_module" name="{case}" file="tests/test_module.py"/>' for case in cases
+        )
+        return (
+            '<testsuites><testsuite name="suite"><properties>'
+            '<property name="riot.hash" value="abc"/>'
+            f'<property name="riot.ci.allocation_strategy" value="{strategy}"/>'
+            '<property name="riot.python.version" value="3.13"/>'
+            f"{partition}</properties>{testcases}</testsuite></testsuites>"
+        )
+
+    legacy = tmp_path / "junit.legacy.abc.100.xml"
+    balanced_1 = tmp_path / "junit.balanced.abc.s1of2.200.xml"
+    balanced_2 = tmp_path / "junit.balanced.abc.s2of2.300.xml"
+    legacy.write_text(xml("legacy", ["test_one", "test_two"]))
+    balanced_1.write_text(xml("balanced", ["test_one"], 1))
+    balanced_2.write_text(xml("balanced", ["test_two"], 2))
+
+    report = verify_junit_parity([legacy], [balanced_1, balanced_2])
+
+    assert report["test_identity_count"] == 2
+    assert report["exact_multiset_parity"] is True
+
+
+def test_suite_scoped_runtime_estimates_override_shared_riot_hash():
+    model = {
+        "schema_version": 1,
+        "planner_version": "weighted-lpt-v1",
+        "dataset": {},
+        "parameters": {},
+        "overheads": {
+            "global_seconds": 0,
+            "unit_global_seconds": 0,
+            "sample_count": 1,
+            "matched_session_count": 1,
+        },
+        "fallbacks": {"global_seconds": 60},
+        "estimates": {"abc": 600},
+        "suite_estimates": {"short": {"abc": 10}},
+    }
+
+    assert runtime_estimates(model, "long")[0]["abc"] == 600
+    assert runtime_estimates(model, "short")[0]["abc"] == 10
 
 
 def test_live_ratchet_requires_real_job_timing_and_exact_hash_parity():

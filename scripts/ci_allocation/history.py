@@ -274,8 +274,9 @@ def build_runtime_model(
         raise AllocationError(f"runtime modeling is missing CI job timing for {len(missing_jobs)} training jobs")
 
     # AIDEV-NOTE: Riot activation and dependency checks occur outside pytest's
-    # Test Visibility session. Distribute that measured gap over the atomic hashes
-    # in the job so reducing shard count cannot make setup work disappear.
+    # Test Visibility session. Distribute that measured gap over the executed
+    # Riot environments so packing cannot make setup work disappear; runtime
+    # slicing explicitly repeats this cost for each new physical execution.
     effective_training: list[Observation] = []
     unit_overhead_values: list[tuple[float, str]] = []
     unit_overhead_by_suite: dict[str, list[tuple[float, str]]] = defaultdict(list)
@@ -294,9 +295,11 @@ def build_runtime_model(
             unit_overhead_by_suite[item.suite].append(value)
 
     by_hash: dict[str, list[Observation]] = defaultdict(list)
+    by_suite_hash: dict[tuple[str, str], list[Observation]] = defaultdict(list)
     by_suite: dict[str, list[Observation]] = defaultdict(list)
     for item in effective_training:
         by_hash[item.riot_hash].append(item)
+        by_suite_hash[(item.suite, item.riot_hash)].append(item)
         by_suite[item.suite].append(item)
 
     global_seconds = _estimate(effective_training, holdout_start, half_life_days, quantile)
@@ -313,6 +316,22 @@ def build_runtime_model(
         else:
             estimate_seconds = max(observed, suite_seconds.get(suite, global_seconds)) * sparse_safety_factor
         estimates[riot_hash] = round(estimate_seconds, 6)
+
+    # Riot's hash identifies an environment, not its command. Preserve compact
+    # global estimates for unique hashes, but scope collisions to the semantic
+    # suite so a short command cannot inherit an unrelated suite's runtime.
+    colliding_hashes = {riot_hash for riot_hash, items in by_hash.items() if len({item.suite for item in items}) > 1}
+    suite_estimates: dict[str, dict[str, float]] = defaultdict(dict)
+    for (suite, riot_hash), items in sorted(by_suite_hash.items()):
+        if riot_hash not in colliding_hashes:
+            continue
+        observed = _estimate(items, holdout_start, half_life_days, quantile)
+        estimate_seconds = (
+            observed
+            if len(items) >= minimum_samples
+            else max(observed, suite_seconds.get(suite, global_seconds)) * sparse_safety_factor
+        )
+        suite_estimates[suite][riot_hash] = round(estimate_seconds, 6)
 
     global_unit_overhead = _estimate_timed_values(unit_overhead_values, holdout_start, half_life_days, quantile)
     suite_unit_overheads = {
@@ -370,6 +389,7 @@ def build_runtime_model(
             "matched_session_count": len(training),
         },
         "estimates": estimates,
+        "suite_estimates": {suite: dict(sorted(values.items())) for suite, values in sorted(suite_estimates.items())},
     }
 
 
@@ -417,14 +437,47 @@ def validate_runtime_model(model: t.Mapping[str, t.Any]) -> None:
         estimate = item.get("estimate_seconds") if isinstance(item, dict) else item
         if isinstance(estimate, bool) or not isinstance(estimate, (int, float)) or estimate <= 0:
             raise AllocationError(f"runtime model estimate is invalid for {riot_hash}")
+    suite_estimates = model.get("suite_estimates", {})
+    if not isinstance(suite_estimates, dict):
+        raise AllocationError("runtime model suite estimates are malformed")
+    for suite, values in suite_estimates.items():
+        if not isinstance(suite, str) or not isinstance(values, dict):
+            raise AllocationError("runtime model suite estimates are malformed")
+        for riot_hash, estimate in values.items():
+            if (
+                not isinstance(riot_hash, str)
+                or isinstance(estimate, bool)
+                or not isinstance(estimate, (int, float))
+                or estimate <= 0
+            ):
+                raise AllocationError("runtime model suite estimate is invalid")
+    test_sharding = model.get("test_sharding")
+    if test_sharding is not None:
+        if not isinstance(test_sharding, dict) or not isinstance(test_sharding.get("command_fingerprints"), dict):
+            raise AllocationError("runtime model test sharding evidence is malformed")
+        for fingerprint, evidence in test_sharding["command_fingerprints"].items():
+            if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
+                raise AllocationError("runtime model test command fingerprint is malformed")
+            if not isinstance(evidence, dict):
+                raise AllocationError("runtime model test command evidence is malformed")
+            minimum_items = evidence.get("minimum_items")
+            if isinstance(minimum_items, bool) or not isinstance(minimum_items, int) or minimum_items <= 1:
+                raise AllocationError("runtime model test command evidence requires multiple observed items")
 
 
-def runtime_estimates(model: t.Mapping[str, t.Any]) -> tuple[dict[str, float], float]:
+def runtime_estimates(model: t.Mapping[str, t.Any], suite: t.Optional[str] = None) -> tuple[dict[str, float], float]:
     validate_runtime_model(model)
     estimates = {
         riot_hash: float(item["estimate_seconds"] if isinstance(item, dict) else item)
         for riot_hash, item in model["estimates"].items()
     }
+    if suite is not None:
+        estimates.update(
+            {
+                riot_hash: float(item["estimate_seconds"] if isinstance(item, dict) else item)
+                for riot_hash, item in model.get("suite_estimates", {}).get(suite, {}).items()
+            }
+        )
     return estimates, float(model["fallbacks"]["global_seconds"])
 
 
@@ -478,6 +531,7 @@ def replay_observations(
     legacy_runner_seconds: dict[str, float] = defaultdict(float)
     balanced_runner_seconds: dict[str, float] = defaultdict(float)
     for (pipeline_id, suite, shard_total), durations in grouped.items():
+        suite_estimates, _unused_fallback = runtime_estimates(model, suite)
         shard_count = min(shard_total, len(durations))
         hashes = sorted(durations)
         overhead = float(suite_overheads.get(suite, global_overhead))
@@ -486,14 +540,14 @@ def replay_observations(
         if target_shard_seconds is not None:
             if target_shard_seconds <= 0 or maximum_parallelism_per_suite <= 0:
                 raise AllocationError("historical replay shard policy must be positive")
-            modeled_work = sum(float(estimates.get(item, fallback_seconds)) for item in hashes)
+            modeled_work = sum(float(suite_estimates.get(item, fallback_seconds)) for item in hashes)
             available_seconds = max(1.0, target_shard_seconds - overhead)
             balanced_shard_count = min(
                 len(hashes),
                 maximum_parallelism_per_suite,
                 max(1, math.ceil(modeled_work / available_seconds)),
             )
-        balanced = weighted_lpt(hashes, balanced_shard_count, estimates, fallback_seconds)
+        balanced = weighted_lpt(hashes, balanced_shard_count, suite_estimates, fallback_seconds)
         legacy_makespan = max(overhead + sum(durations[item] for item in shard) for shard in legacy)
         balanced_makespan = max(overhead + sum(durations[item] for item in shard) for shard in balanced)
         stage_key = (pipeline_id, suite_stage(suite))
@@ -506,9 +560,9 @@ def replay_observations(
     pipeline_legacy: dict[str, float] = defaultdict(float)
     pipeline_balanced: dict[str, float] = defaultdict(float)
     for (pipeline_id, _stage), seconds in stage_legacy.items():
-        pipeline_legacy[pipeline_id] += seconds
+        pipeline_legacy[pipeline_id] = max(pipeline_legacy[pipeline_id], seconds)
     for (pipeline_id, _stage), seconds in stage_balanced.items():
-        pipeline_balanced[pipeline_id] += seconds
+        pipeline_balanced[pipeline_id] = max(pipeline_balanced[pipeline_id], seconds)
     legacy_values = list(pipeline_legacy.values())
     balanced_values = [pipeline_balanced[pipeline_id] for pipeline_id in pipeline_legacy]
 
@@ -626,12 +680,15 @@ def live_shadow_report(
                         raise AllocationError(
                             f"live shadow CI job timings are missing shards for {pipeline_id} {suite} {strategy}"
                         )
-                stage_seconds: dict[str, float] = defaultdict(float)
                 for job in selected_jobs:
-                    stage_seconds[job.stage_name] = max(stage_seconds[job.stage_name], job.duration_seconds)
                     runner_seconds[strategy] += job.duration_seconds
                     queue_seconds[strategy].append(job.queue_seconds)
-                makespans[strategy].append(sum(stage_seconds.values()))
+                starts = [_parse_timestamp(job.timestamp) for job in selected_jobs]
+                ends = [start + timedelta(seconds=job.duration_seconds) for start, job in zip(starts, selected_jobs)]
+                # AIDEV-NOTE: Generated Riot jobs use needs and overlap across
+                # semantic GitLab stages. The actual fanout interval is the
+                # critical-path evidence; summing stage maxima double-counts it.
+                makespans[strategy].append((max(ends) - min(starts)).total_seconds())
                 clean_success[strategy] += int(all(job.status in {"pass", "success"} for job in selected_jobs))
                 retries[strategy] += sum(
                     max(0, count - 1)

@@ -9,12 +9,17 @@ Hook reference: https://docs.pytest.org/en/3.10.1/reference.html#hook-reference
 import hashlib
 import json
 import os
+from pathlib import Path
 import re
 import sys
 from time import time
 
 import hypothesis
 import pytest
+
+from scripts.ci_allocation.planner import AllocationError
+from scripts.ci_allocation.runtime import build_runtime_inventory
+from scripts.ci_allocation.runtime import write_runtime_inventory
 
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
@@ -63,11 +68,21 @@ def pytest_configure(config):
         fname, ext = os.path.splitext(config.option.xmlpath)
         strategy = os.getenv("RIOT_CI_ALLOCATION_STRATEGY")
         riot_hash = os.getenv("RIOT_HASH")
+        test_shard_index = os.getenv("RIOT_TEST_SHARD_INDEX")
+        test_shard_total = os.getenv("RIOT_TEST_SHARD_TOTAL")
+        test_shard_identity = None
+        if test_shard_index and test_shard_total and int(test_shard_total) > 1:
+            test_shard_identity = f"s{test_shard_index}of{test_shard_total}"
         execution_digest = None
         if riot_hash:
             execution = {}
             for env, value in os.environ.items():
-                if not env.startswith("RIOT_") or env in {"RIOT_HASH", "RIOT_CI_ALLOCATION_STRATEGY"}:
+                if not env.startswith("RIOT_") or env in {
+                    "RIOT_HASH",
+                    "RIOT_CI_ALLOCATION_STRATEGY",
+                    "RIOT_TEST_SHARD_INDEX",
+                    "RIOT_TEST_SHARD_TOTAL",
+                }:
                     continue
                 name = env[5:]
                 prefix, _, suffix = name.partition("_")
@@ -82,6 +97,7 @@ def pytest_configure(config):
             (
                 strategy,
                 riot_hash,
+                test_shard_identity,
                 execution_digest,
                 str(os.getpid()),
             ),
@@ -93,6 +109,52 @@ def pytest_configure(config):
     if config.pluginmanager.hasplugin("benchmark"):
         gc = "_nogc" if config.option.benchmark_disable_gc else ""
         config.option.benchmark_save = str(time()).replace(".", "_") + gc + "_py%d_%d" % sys.version_info[:2]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """Select one deterministic runtime slice after the Riot command collects tests."""
+    shard_index_value = os.getenv("RIOT_TEST_SHARD_INDEX")
+    shard_total_value = os.getenv("RIOT_TEST_SHARD_TOTAL")
+    if shard_index_value is None and shard_total_value is None:
+        return
+    if shard_index_value is None or shard_total_value is None:
+        raise pytest.UsageError("Riot runtime test sharding requires both shard index and total")
+    try:
+        shard_index = int(shard_index_value)
+        shard_total = int(shard_total_value)
+    except ValueError as exc:
+        raise pytest.UsageError("Riot runtime test shard index and total must be integers") from exc
+    if shard_total == 1 and shard_index == 1:
+        return
+
+    suite = os.getenv("CI_ALLOCATION_SUITE", "")
+    riot_hash = os.getenv("RIOT_HASH", "")
+    if not suite or not riot_hash:
+        raise pytest.UsageError("Riot runtime test sharding requires suite and hash identity")
+    try:
+        inventory = build_runtime_inventory(
+            suite=suite,
+            riot_hash=riot_hash,
+            shard_index=shard_index,
+            shard_total=shard_total,
+            collected_nodeids=[item.nodeid for item in items],
+        )
+    except AllocationError as exc:
+        raise pytest.UsageError(str(exc)) from exc
+
+    selected = set(inventory["selected_nodeids"])
+    deselected = [item for item in items if item.nodeid not in selected]
+    items[:] = [item for item in items if item.nodeid in selected]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+
+    # AIDEV-NOTE: xdist workers must make the same selection, but only one
+    # process writes the shared inventory artifact.
+    worker = os.getenv("PYTEST_XDIST_WORKER")
+    if worker in (None, "gw0"):
+        path = Path("test-results") / (f"ci-test-shard-inventory.{riot_hash}.{shard_index}-of-{shard_total}.json")
+        write_runtime_inventory(path, inventory)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

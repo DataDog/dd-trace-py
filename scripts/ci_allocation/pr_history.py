@@ -17,12 +17,15 @@ from .history import percentile
 from .history import runtime_estimates
 from .history import suite_stage
 from .planner import AllocationError
+from .planner import expand_runtime_units
 from .planner import legacy_round_robin
 from .planner import predicted_makespan
-from .planner import weighted_lpt
+from .planner import weighted_runtime_lpt
 from .suites import SuiteVenvInfo
 from .suites import compute_parallelism
 from .suites import compute_runtime_parallelism
+from .suites import runtime_setup_seconds
+from .suites import runtime_test_item_counts
 
 
 @dataclass(frozen=True)
@@ -137,14 +140,16 @@ def replay_pr_shapes(
     target_jobs: int,
     target_shard_seconds: float,
     maximum_parallelism_per_suite: int,
+    maximum_slices_per_hash: int = 1,
 ) -> dict[str, t.Any]:
     """Estimate both planners over historical PR path-selection cohorts."""
     if not shapes:
         raise AllocationError("PR replay requires at least one historical shape")
     estimates, global_fallback = runtime_estimates(runtime_model)
     suite_fallbacks = runtime_model["fallbacks"].get("suite_seconds", {})
-    suite_overheads = runtime_model["overheads"].get("suite_seconds", {})
-    global_overhead = float(runtime_model["overheads"]["global_seconds"])
+    estimates_by_suite = {suite: runtime_estimates(runtime_model, suite)[0] for suite in suite_venv_info}
+    test_item_counts = {suite: runtime_test_item_counts(info, runtime_model) for suite, info in suite_venv_info.items()}
+    setup_seconds = {suite: runtime_setup_seconds(runtime_model, suite) for suite in suite_venv_info}
     results: list[tuple[str, float, float, float, float]] = []
     unmodeled_shapes = 0
     for shape in shapes:
@@ -168,8 +173,11 @@ def replay_pr_shapes(
                 target_shard_seconds=target_shard_seconds,
                 maximum_parallelism_per_suite=maximum_parallelism_per_suite,
                 maximum_total_jobs=sum(legacy_shard_counts.values()),
-                suite_overheads=runtime_model["overheads"].get("suite_seconds", {}),
-                global_overhead=float(runtime_model["overheads"]["global_seconds"]),
+                suite_overheads=setup_seconds,
+                global_overhead=float(runtime_model["overheads"].get("unit_global_seconds", 0.0)),
+                test_item_counts_by_suite=test_item_counts,
+                estimates_by_suite=estimates_by_suite,
+                maximum_slices_per_hash=maximum_slices_per_hash,
             )
             if estimates
             else legacy_shard_counts
@@ -181,22 +189,29 @@ def replay_pr_shapes(
         for suite, legacy_shard_count in legacy_shard_counts.items():
             hashes = suite_venv_info[suite].hashes
             fallback = float(suite_fallbacks.get(suite, global_fallback))
-            overhead = float(suite_overheads.get(suite, global_overhead))
+            suite_estimates = estimates_by_suite[suite]
+            overhead = setup_seconds[suite]
             legacy = legacy_round_robin(hashes, legacy_shard_count)
-            balanced = weighted_lpt(hashes, balanced_shard_counts[suite], estimates, fallback)
-            stage = suite_stage(suite)
-            legacy_stages[stage] = max(legacy_stages[stage], overhead + predicted_makespan(legacy, estimates, fallback))
-            balanced_stages[stage] = max(
-                balanced_stages[stage], overhead + predicted_makespan(balanced, estimates, fallback)
+            units, weights = expand_runtime_units(
+                hashes,
+                suite_estimates,
+                fallback,
+                target_shard_seconds=target_shard_seconds,
+                setup_seconds=overhead,
+                test_item_counts=test_item_counts[suite],
+                maximum_slices_per_hash=maximum_slices_per_hash,
             )
-            work = sum(float(estimates.get(riot_hash, fallback)) for riot_hash in hashes)
-            legacy_runner_seconds += work + overhead * len(legacy)
-            balanced_runner_seconds += work + overhead * len(balanced)
+            balanced = weighted_runtime_lpt(units, balanced_shard_counts[suite], weights)
+            stage = suite_stage(suite)
+            legacy_stages[stage] = max(legacy_stages[stage], predicted_makespan(legacy, suite_estimates, fallback))
+            balanced_stages[stage] = max(balanced_stages[stage], predicted_makespan(balanced, weights, fallback))
+            legacy_runner_seconds += sum(float(suite_estimates.get(riot_hash, fallback)) for riot_hash in hashes)
+            balanced_runner_seconds += sum(weights.values())
         results.append(
             (
                 shape.cohort,
-                sum(legacy_stages.values()),
-                sum(balanced_stages.values()),
+                max(legacy_stages.values()),
+                max(balanced_stages.values()),
                 legacy_runner_seconds,
                 balanced_runner_seconds,
             )

@@ -46,11 +46,13 @@ from ci_allocation.pr_history import collect_pr_shapes  # noqa: E402
 from ci_allocation.pr_history import load_pr_shapes  # noqa: E402
 from ci_allocation.pr_history import replay_pr_shapes  # noqa: E402
 from ci_allocation.pr_history import write_pr_shapes  # noqa: E402
+from ci_allocation.runtime import verify_runtime_inventories  # noqa: E402
 from ci_allocation.suites import collect_all_suite_venv_info  # noqa: E402
 
 
 DEFAULT_POLICY = ROOT / "ci" / "ci-allocation-policy.json"
 DEFAULT_MODEL = ROOT / "ci" / "ci-allocation-runtime-model.json"
+DEFAULT_PLAN = ROOT / ".gitlab" / "ci-allocation-plan.json"
 UV_REQUIRED_COMMANDS = {"export-pr-history", "replay-pr-history"}
 
 
@@ -79,8 +81,21 @@ def _policy(path: Path) -> dict[str, t.Any]:
 
 def command_select(args: argparse.Namespace) -> None:
     hashes = [line.strip() for line in sys.stdin if line.strip()]
-    model = load_json(args.model)
     strategy = args.strategy or _policy(args.policy)["allocation"]["active_strategy"]
+    if args.plan.exists():
+        manifest = load_manifest(args.plan)
+        suite_plans = [item for item in manifest["suites"] if item["suite"] == args.suite]
+        if len(suite_plans) == 1:
+            suite_plan = suite_plans[0]
+            if sorted(hashes) != suite_plan["riot_hashes"]:
+                raise AllocationError(f"runtime Riot hashes differ from the generated plan for {args.suite}")
+            if int(suite_plan[strategy]["shard_count"]) != args.node_total:
+                raise AllocationError(f"runtime node total differs from the generated plan for {args.suite}")
+            for unit in selected_shard(suite_plan, strategy, args.node_index):
+                print(unit)
+            return
+
+    model = load_json(args.model)
     estimates, fallback = runtime_estimates(model)
     plan = build_suite_plan(
         suite=args.suite,
@@ -169,6 +184,16 @@ def command_verify_junit(args: argparse.Namespace) -> None:
     )
 
 
+def command_verify_runtime_shards(args: argparse.Namespace) -> None:
+    report = verify_runtime_inventories(args.manifests, args.plan)
+    if args.output is not None:
+        write_json(args.output, report)
+    print(
+        f"Runtime test shard parity verified: {report['test_identity_count']} tests, "
+        f"{report['split_hash_count']} split Riot hashes"
+    )
+
+
 def command_check_contract(args: argparse.Namespace) -> None:
     policy = _policy(args.policy)
     model = load_json(args.model)
@@ -181,6 +206,8 @@ def command_check_contract(args: argparse.Namespace) -> None:
         raise AllocationError("allocation target_shard_seconds must be positive")
     if int(policy["allocation"].get("maximum_parallelism_per_suite", 0)) <= 0:
         raise AllocationError("allocation maximum_parallelism_per_suite must be positive")
+    if int(policy["allocation"].get("maximum_slices_per_hash", 0)) <= 1:
+        raise AllocationError("allocation maximum_slices_per_hash must be greater than one")
     maximum_model_bytes = int(policy["allocation"].get("maximum_runtime_model_bytes", 0))
     if maximum_model_bytes <= 0:
         raise AllocationError("allocation maximum_runtime_model_bytes must be positive")
@@ -224,6 +251,7 @@ def command_replay_pr_history(args: argparse.Namespace) -> None:
         target_jobs=int(policy["allocation"]["target_jobs"]),
         target_shard_seconds=float(policy["allocation"]["target_shard_seconds"]),
         maximum_parallelism_per_suite=int(policy["allocation"]["maximum_parallelism_per_suite"]),
+        maximum_slices_per_hash=int(policy["allocation"]["maximum_slices_per_hash"]),
     )
     write_json(args.output, report)
     print(f"wrote PR-shape replay to {args.output}")
@@ -240,6 +268,7 @@ def parse_args() -> argparse.Namespace:
     select.add_argument("--node-total", type=int, required=True)
     select.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     select.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
+    select.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
     select.set_defaults(func=command_select)
 
     ingest = subparsers.add_parser("ingest-datadog", help="normalize Test Visibility session exports")
@@ -287,6 +316,14 @@ def parse_args() -> argparse.Namespace:
     verify_junit.add_argument("--balanced", type=Path, nargs="+", required=True)
     verify_junit.add_argument("--output", type=Path)
     verify_junit.set_defaults(func=command_verify_junit)
+
+    verify_runtime = subparsers.add_parser(
+        "verify-runtime-shards", help="verify exact pytest inventory coverage across sub-hash slices"
+    )
+    verify_runtime.add_argument("--manifests", type=Path, nargs="+", required=True)
+    verify_runtime.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
+    verify_runtime.add_argument("--output", type=Path)
+    verify_runtime.set_defaults(func=command_verify_runtime_shards)
 
     contract = subparsers.add_parser("check-contract", help="validate the checked-in policy and runtime model")
     contract.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
