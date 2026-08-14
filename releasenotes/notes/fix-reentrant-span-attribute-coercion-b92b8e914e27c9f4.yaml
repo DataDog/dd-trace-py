@@ -1,4 +1,0 @@
-fixes:
-  - |
-    tracing: Fixes an issue where setting a span tag from an object whose string conversion
-    creates nested spans raises a ``PanicException``.
