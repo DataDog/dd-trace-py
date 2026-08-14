@@ -80,7 +80,7 @@ const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
 
 /// Convert one Python key/value pair to native attribute storage.
 ///
-/// AIDEV-NOTE: Keep Python coercion outside a mutable SpanData borrow. Arbitrary
+/// DEV: Keep Python coercion outside a mutable SpanData borrow. Arbitrary
 /// `__str__` and `__index__` implementations can start nested spans and re-enter
 /// the native context provider, which needs to borrow the active SpanData.
 fn extract_attribute(
