@@ -10,6 +10,13 @@
 /// Returns the result of `install_heap_overrides`, i.e. whether at least one
 /// allocator symbol's GOT entry was resolved and patched (so hooks will run).
 ///
+/// libdatadog independently honors `DD_HEAP_SAMPLING_ENABLED` (unset =
+/// enabled; `0`/`false`/`no`/`off` disables). That check lives inside
+/// `install_heap_overrides`: a falsey value returns false without touching
+/// the GOT. Distinct from `DD_PROFILING_NATIVE_HEAP_ENABLED`, which is the
+/// ddtrace-side gate that decides whether this function is called. This
+/// wrapper does not read or set the libdatadog env var.
+///
 /// After a successful install, a `fork()` child inherits the mapping and the
 /// patched GOT, so a second native install is usually unnecessary. Upstream has
 /// no `pthread_atfork` child reset for the process-global registry mutex

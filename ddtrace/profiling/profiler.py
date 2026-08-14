@@ -381,6 +381,8 @@ class _ProfilerInstance(service.Service):
         """Start the profiler."""
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
+        # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
+        # (unset = on); that is not a ddtrace setting — see heap_gotter docs.
         if profiling_config.native_heap.enabled:
             from ddtrace.internal.datadog.profiling import heap_gotter
 
