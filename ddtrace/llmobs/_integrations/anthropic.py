@@ -8,6 +8,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -173,7 +174,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                     elif content_type == "image":
                         source = _extract_anthropic_image_source(block)
                         if source is None:
-                            input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                            input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=str(role)))
                             continue
                         data, media_type = source
                         image_part = format_image_part_with_guard(data, media_type)
@@ -229,7 +230,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                     formatted_content.append(_get_attr(tool_result_block, "text", ""))
                 elif _get_attr(tool_result_block, "type", None) == "image":
                     # Store a placeholder for potentially enormous binary image data.
-                    formatted_content.append("([IMAGE DETECTED])")
+                    formatted_content.append(IMAGE_DETECTED_MARKER)
             return ",".join(formatted_content)
         return str(content)
 
