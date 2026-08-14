@@ -262,6 +262,8 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
     const bool interpreter_snapshot_complete =
       for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
 #if PY_VERSION_HEX >= 0x030e0000
+    // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
+    // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
     if (!echion->update_code_object_generations(interpreter_candidates, interpreter_snapshot_complete)) {
         return;
     }
@@ -603,6 +605,11 @@ Sampler::postfork_child()
     paused_.store(false);
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
+
+    // The parent sampling thread may have been mutating these vectors when fork took its snapshot. Abandon their
+    // inherited storage instead of traversing potentially inconsistent state in clear() or push_back().
+    new (&interpreter_candidates) std::vector<InterpreterInfo>();
+    new (&thread_candidates) std::vector<PyThreadState>();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
