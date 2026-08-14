@@ -852,6 +852,12 @@ Sampler::resume()
 }
 
 void
+Sampler::set_max_tasks_per_sample(unsigned int value)
+{
+    echion->set_max_tasks_per_sample(value);
+}
+
+void
 Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock

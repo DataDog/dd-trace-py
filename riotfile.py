@@ -3769,23 +3769,9 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                                 "protobuf": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "greenlet": latest,
-                                        "protobuf": latest,
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "protobuf": latest,
-                                    },
-                                ),
-                            ],
                         ),
                         # uvloop
                         Venv(
@@ -4651,6 +4637,7 @@ venv = Venv(
         Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
+            pkgs={"jsonschema": latest},
             pys=select_pys(),
         ),
     ],
