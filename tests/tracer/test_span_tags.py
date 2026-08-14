@@ -20,6 +20,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -187,6 +188,23 @@ def test_tags_not_string():
 
     s = Span(name="test.span")
     s.set_tag("a", Foo())
+
+
+def test_set_tag_string_coercion_can_read_active_span(tracer):
+    tracer.context_provider = CIContextProvider()
+
+    class ReentrantTag:
+        def __str__(self):
+            active = tracer.current_span()
+            assert active is span
+            with tracer.trace("nested") as nested:
+                assert nested._parent is span
+                assert nested.trace_id == span.trace_id
+            return str(active.trace_id)
+
+    with tracer.trace("test") as span:
+        span.set_tag("reentrant", ReentrantTag())
+        assert span.get_tag("reentrant") == str(span.trace_id)
 
 
 @mock.patch("ddtrace._trace.span.log")
