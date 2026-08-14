@@ -177,6 +177,9 @@ DEFAULT_PROJECT_NAME = "default-project"
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
+# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable instead of looking
+# like a remote reference we never fetch.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"

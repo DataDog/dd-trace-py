@@ -7,6 +7,7 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -16,6 +17,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
@@ -395,16 +397,86 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
-    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
+# AIDEV-NOTE: per-image, not cumulative. N images that each fit can still bust the event limit
+# together; a shared per-request budget is tracked under MLOB-6408.
+_IMAGE_INLINE_BUDGET_FRACTION = 0.8
+
+_UNKNOWN_OUTPUT_ITEM_MAX_CHARS = 4096
+
+# Case-insensitive per the data-URL scheme; tolerates extra media-type params (;charset=utf-8) and
+# the whitespace some encoders use to wrap base64. A non-base64 payload must fail here.
+_BASE64_IMAGE_DATA_URL = re.compile(r"^data:(image/[-\w.+]+)(?:;[\w.=+-]+)*;base64,([A-Za-z0-9+/=\s]+)$", re.IGNORECASE)
+
+
+def _inline_image_budget() -> int:
+    """Bytes of base64 one image may contribute, leaving room for the rest of the event.
+
+    Tracks the configured limit: admitting an image bigger than the active event allowance costs
+    the span its whole input and output (_writer._truncate_span_event).
+    """
+    return int(config._llmobs_event_size_limit * _IMAGE_INLINE_BUDGET_FRACTION)
+
+
+def _is_data_url(value: Any) -> bool:
+    """Whether value carries its payload inline as a data: URL rather than by reference."""
+    if not isinstance(value, str):
+        return False
+    # Scan past leading whitespace rather than slicing: a fixed prefix can cut into the scheme, and
+    # lstrip() on a multi-megabyte URL copies the whole payload.
+    i = 0
+    while i < len(value) and value[i].isspace():
+        i += 1
+    return value[i : i + 5].lower() == "data:"
+
+
+def _capture_inline_image(url: Any) -> tuple[Optional[ImagePart], Optional[str]]:
+    """Capture a data:image/...;base64,... URL as an ImagePart.
+
+    (part, None) on capture, (None, marker) when the payload must be dropped, and (None, None)
+    when url is not a data URL, leaving the caller's own reference text in place.
+    """
+    if not _is_data_url(url):
+        return None, None
+    match = _BASE64_IMAGE_DATA_URL.match(url)
+    # An unparseable data URL must not reach the caller's reference text, or the whole payload
+    # would land in the message content.
+    if not match:
+        return None, IMAGE_FALLBACK_MARKER
+    budget = _inline_image_budget()
+    # Reject absurd inputs on the raw span first so we don't copy megabytes we discard; anything
+    # plausible is normalized and measured exactly, so wrapped payloads that do fit are kept.
+    if match.end(2) - match.start(2) > 8 * budget:
+        return None, IMAGE_TOO_LARGE_MARKER
+    payload = "".join(match.group(2).split())
+    if not payload:
+        return None, IMAGE_FALLBACK_MARKER
+    # Size is decided here rather than read off the guard's None: the guard also rejects a bad mime
+    # or empty data, and mapping that to "too large" would report a wrong reason. Every non-size
+    # rejection happens above, so this marker is always accurate.
+    if len(payload) > budget:
+        logger.debug("Image (%d base64 bytes) exceeds inline budget %d; omitting inline content", len(payload), budget)
+        return None, IMAGE_TOO_LARGE_MARKER
+    return format_image_part(payload, match.group(1).lower()), None
+
+
+def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[ImagePart]]:
+    """Extract readable text, audio and image segments from multimodal content parts."""
     extracted = []
     audio_parts: list[AudioPart] = []
+    image_parts: list[ImagePart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append(IMAGE_FALLBACK_MARKER)
+            # Chat completions nest the URL as image_url.url; some callers pass a bare string.
+            image_url = _get_attr(part, "image_url", None)
+            image_part, marker = _capture_inline_image(_get_attr(image_url, "url", None) or image_url)
+            if image_part:
+                # Captured as a structured part (rendered inline), so no text marker is needed.
+                image_parts.append(image_part)
+            else:
+                extracted.append(marker or IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
             input_audio = _get_attr(part, "input_audio", {}) or {}
             data = _get_attr(input_audio, "data", "")
@@ -418,7 +490,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
                 extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted), audio_parts
+    return "\n".join(extracted), audio_parts, image_parts
 
 
 def openai_set_meta_tags_from_chat(
@@ -429,8 +501,9 @@ def openai_set_meta_tags_from_chat(
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
         audio_parts: list[AudioPart] = []
+        image_parts: list[ImagePart] = []
         if isinstance(raw_content, list):
-            content, audio_parts = _extract_content_parts(raw_content)
+            content, audio_parts, image_parts = _extract_content_parts(raw_content)
         elif raw_content is None:
             content = ""
         else:
@@ -439,6 +512,8 @@ def openai_set_meta_tags_from_chat(
         processed_message: Message = Message(content=content, role=role)
         if audio_parts:
             processed_message["audio_parts"] = audio_parts
+        if image_parts:
+            processed_message["image_parts"] = image_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -735,6 +810,7 @@ def _openai_parse_input_response_messages(
         # Handle regular message
         if role is not None and content is not None:
             processed_item_content = ""
+            image_parts: list[ImagePart] = []
             if isinstance(content, list):
                 for content_part in content:
                     processed_item_content += str(_get_attr(content_part, "text", "") or "")
@@ -742,14 +818,25 @@ def _openai_parse_input_response_messages(
 
                     content_part_type = _get_attr(content_part, "type", None)
                     if content_part_type == INPUT_TYPE_IMAGE:
-                        processed_item_content += _extract_image_reference(content_part)
+                        raw_url = _get_attr(content_part, "image_url", None)
+                        # Unwrap the chat-shaped nested object too: the SDK does not enforce
+                        # the Responses shape at runtime and a dict here would leak inline.
+                        image_part, marker = _capture_inline_image(_get_attr(raw_url, "url", None) or raw_url)
+                        if image_part:
+                            image_parts.append(image_part)
+                        else:
+                            processed_item_content += marker or _extract_image_reference(content_part)
                     elif content_part_type == INPUT_TYPE_FILE:
                         processed_item_content += _extract_file_reference(content_part)
             else:
                 processed_item_content = content
-            if processed_item_content:
+            # An image-only message has no text left once the image is captured, but still must be
+            # emitted so the captured image_parts reach the span.
+            if processed_item_content or image_parts:
                 processed_item["content"] = str(processed_item_content)
                 processed_item["role"] = role
+            if image_parts:
+                processed_item["image_parts"] = image_parts
         elif item_type in ("function_call", "custom_tool_call"):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
             arguments_str = arguments or input_ or OAI_HANDOFF_TOOL_ARG
@@ -792,6 +879,11 @@ def _openai_parse_input_response_messages(
                 }
             )
             tool_call_ids.append(str(call_id))
+        elif item_type == "computer_call_output":
+            # A computer-use screenshot is sent back by the caller in the next request's input, so
+            # this is where it actually arrives. Without a branch here the item matches nothing and
+            # is dropped, losing the screenshot entirely.
+            processed_item.update({"role": "user", "content": _extract_image_reference(output)})
         if processed_item:
             processed.append(processed_item)
 
@@ -913,8 +1005,17 @@ def _openai_parse_output_response_messages(
         elif message_type == "mcp_list_tools":
             mcp_tool_definitions.extend(_openai_get_tool_definitions(_get_attr(item, "tools", [])))
             continue
+        elif message_type == "image_generation_call":
+            # result holds the generated image as raw base64. Capturing it as an image_part is
+            # follow-up work (MLOB-6408); the fallback below would put the whole payload in the text.
+            message.update({"content": IMAGE_FALLBACK_MARKER, "role": "assistant"})
+        elif message_type == "computer_call_output":
+            # A screenshot's image_url may be an inline data URL, which must not reach the text.
+            message.update({"content": _extract_image_reference(_get_attr(item, "output", None)), "role": "user"})
         else:
-            message.update({"content": str(item), "role": "assistant"})
+            # Bound the catch-all: an unrecognized item may carry a binary payload on any field, and
+            # str() of an SDK model renders every value. Truncate rather than leak the next one.
+            message.update({"content": str(item)[:_UNKNOWN_OUTPUT_ITEM_MAX_CHARS], "role": "assistant"})
 
         processed.append(message)
 
@@ -948,8 +1049,16 @@ def openai_get_metadata_from_response(
 
 
 def _extract_image_reference(obj: Any) -> str:
-    """Extract image reference with fallback priority: image_url → file_id → [image]."""
-    return _get_attr(obj, "image_url", None) or _get_attr(obj, "file_id", None) or IMAGE_FALLBACK_MARKER
+    """Reference text for an image: its URL, else its file_id, else the marker.
+
+    Never inline content, and never a non-str: callers concatenate this straight into message
+    text. Accepts the nested image_url.url object as well as the bare string.
+    """
+    image_url = _get_attr(obj, "image_url", None)
+    reference = _get_attr(image_url, "url", None) or image_url or _get_attr(obj, "file_id", None)
+    if not isinstance(reference, str) or _is_data_url(reference):
+        return IMAGE_FALLBACK_MARKER
+    return reference
 
 
 def _extract_file_reference(obj: Any) -> str:
