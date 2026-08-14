@@ -1017,6 +1017,7 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
+    _context: Optional[Context]  # this span's own Context, lazily built; see `context` property
 
     def __new__(
         cls: type[_SpanDataT],
@@ -1037,6 +1038,11 @@ class SpanData:
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
     def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
+    @property
+    def context(self) -> Context: ...  # this span's own Context; lazily built/copied on first access
+    @context.setter
+    def context(self, value: Context) -> None: ...
+    def _set_sampling_decision_maker(self, sampling_mechanism: int) -> Optional[str]: ...
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...

@@ -1,12 +1,12 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.cache import cachedmethod
 
 
@@ -84,7 +84,7 @@ class SamplingRule(object):
                 return False
         return True
 
-    def matches(self, span: Span) -> bool:
+    def matches(self, span: SpanData) -> bool:
         """
         Return if this span matches this rule
 
@@ -95,7 +95,7 @@ class SamplingRule(object):
         """
         return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
-    def tags_match(self, span: Span) -> bool:
+    def tags_match(self, span: SpanData) -> bool:
         if not self.tags:
             return True
 

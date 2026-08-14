@@ -6,6 +6,25 @@ use pyo3::{
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
+use std::sync::OnceLock;
+
+// `Context` is still a pure-Python class (see context_provider.rs) — cached once so the
+// `context` property's root-span branch doesn't re-import/re-lookup the attribute on every call.
+static CONTEXT_CLASS: OnceLock<Py<PyAny>> = OnceLock::new();
+
+fn get_context_class(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    if let Some(cls) = CONTEXT_CLASS.get() {
+        return Ok(cls.clone_ref(py));
+    }
+    let module = py.import("ddtrace._trace.context")?;
+    let cls = module.getattr("Context")?.unbind();
+    let _ = CONTEXT_CLASS.set(cls.clone_ref(py));
+    Ok(cls)
+}
+
+// Trace tag key that records which sampling mechanism made the sampling decision.
+// Mirrors `ddtrace.internal.constants.SAMPLING_DECISION_TRACE_TAG_KEY`.
+const SAMPLING_DECISION_TRACE_TAG_KEY: &str = "_dd.p.dm";
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
@@ -61,6 +80,10 @@ pub struct SpanData {
     /// The parent `Context` this span was created under, or `None`.
     /// Held as `Py<PyAny>` because `Context` is still a pure-Python class.
     pub _parent_context: Option<Py<PyAny>>,
+    /// This span's own `Context`, lazily built on first access by the `context`
+    /// getter: copied from `_parent_context` for a child span, or freshly
+    /// constructed for a root span. `None` until first accessed.
+    pub _context: Option<Py<PyAny>>,
 }
 
 impl SpanData {
@@ -473,6 +496,69 @@ impl SpanData {
         } else {
             Some(value.clone().unbind())
         };
+    }
+
+    // _context property — raw storage accessor for this span's own Context, or None.
+    #[getter(_context)]
+    #[inline(always)]
+    fn get_context_raw<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    #[setter(_context)]
+    #[inline(always)]
+    fn set_context_raw(&mut self, value: &Bound<'_, PyAny>) {
+        self._context = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+
+    // context property — lazily builds this span's own Context on first access:
+    // copied from `_parent_context` for a child span, or freshly constructed for a
+    // root span. Mirrors the logic previously on `Span.context` in Python.
+    #[getter(context)]
+    fn get_context<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        if let Some(ctx) = &self._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let trace_id = self.get_trace_id(py);
+        let span_id = self.span_id;
+        let ctx: Bound<'py, PyAny> = if let Some(parent) = self._parent_context.as_ref() {
+            parent.bind(py).call_method1("copy", (trace_id, span_id))?
+        } else {
+            let context_cls = get_context_class(py)?;
+            let kwargs = PyDict::new(py);
+            kwargs.set_item("trace_id", trace_id)?;
+            kwargs.set_item("span_id", span_id)?;
+            kwargs.set_item("is_remote", false)?;
+            context_cls.bind(py).call((), Some(&kwargs))?
+        };
+        self._context = Some(ctx.clone().unbind());
+        Ok(ctx)
+    }
+
+    #[setter(context)]
+    #[inline(always)]
+    fn set_context(&mut self, value: &Bound<'_, PyAny>) {
+        self._context = Some(value.clone().unbind());
+    }
+
+    // Records which sampling mechanism made the sampling decision, via the
+    // `_dd.p.dm` trace tag. Mirrors the logic previously on `Span._set_sampling_decision_maker`.
+    #[pyo3(name = "_set_sampling_decision_maker")]
+    fn set_sampling_decision_maker(
+        &mut self,
+        py: Python<'_>,
+        sampling_mechanism: i64,
+    ) -> PyResult<Option<String>> {
+        let value = format!("-{}", sampling_mechanism);
+        let ctx = self.get_context(py)?;
+        let meta = ctx.getattr("_meta")?;
+        meta.cast::<PyDict>()?
+            .set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        Ok(Some(value))
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
