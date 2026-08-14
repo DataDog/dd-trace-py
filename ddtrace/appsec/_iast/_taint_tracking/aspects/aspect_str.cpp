@@ -157,10 +157,7 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
             text_raw_bytes = PyByteArray_AS_STRING(text);
             text_raw_bytes_size = PyByteArray_GET_SIZE(text);
         } else if (PyBytes_AsStringAndSize(text, &text_raw_bytes, &text_raw_bytes_size) == -1) {
-            if (has_pyerr()) {
-                return nullptr;
-            }
-            throw py::error_already_set();
+            return nullptr;
         }
 
         const char* encoding = has_encoding ? PyUnicode_AsUTF8(pyo_encoding) : "utf-8";

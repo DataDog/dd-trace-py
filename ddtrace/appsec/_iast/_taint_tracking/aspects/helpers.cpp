@@ -440,8 +440,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
 bool
 has_pyerr()
 {
-    PythonErrorGuard error_guard;
-    return error_guard.has_error();
+    return PyErr_Occurred() != nullptr;
 }
 
 std::string

@@ -175,15 +175,20 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         arg0 = owned_arg0.ptr();
     }
     py::object result;
-    if (PyUnicode_Check(sep)) {
-        result = py::reinterpret_steal<py::object>(PyUnicode_Join(sep, arg0));
-    } else if (PyBytes_Check(sep)) {
-        result = py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-    } else if (PyByteArray_Check(sep)) {
-        result = py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-    } else {
-        PyErr_Format(
-          PyExc_TypeError, "join separator must be str, bytes, or bytearray, not %.200s", Py_TYPE(sep)->tp_name);
+    try {
+        if (PyUnicode_Check(sep)) {
+            result = py::reinterpret_steal<py::object>(PyUnicode_Join(sep, arg0));
+        } else if (PyBytes_Check(sep)) {
+            result = py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
+        } else if (PyByteArray_Check(sep)) {
+            result = py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
+        } else {
+            PyErr_Format(
+              PyExc_TypeError, "join separator must be str, bytes, or bytearray, not %.200s", Py_TYPE(sep)->tp_name);
+            return nullptr;
+        }
+    } catch (py::error_already_set& error) {
+        error.restore();
         return nullptr;
     }
 

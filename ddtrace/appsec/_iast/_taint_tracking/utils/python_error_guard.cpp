@@ -66,6 +66,7 @@ PythonErrorGuard::error_as_pystr() const
 
     PyObject* pyo = PyObject_Str(pvalue.ptr());
     if (pyo == nullptr) {
+        PyErr_Clear();
         return {};
     }
     return py::reinterpret_steal<py::str>(pyo);
@@ -77,7 +78,8 @@ PythonErrorGuard::error_as_stdstring() const
     if (not had_exception) {
         return {};
     }
-    return error_as_pystr().cast<std::string>();
+    const auto error = error_as_pystr();
+    return error ? error.cast<std::string>() : std::string{};
 }
 
 py::str
