@@ -32,6 +32,7 @@ variables:
 .build_base:
   stage: package
   variables:
+    GIT_DEPTH: "0"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
@@ -44,6 +45,11 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+  before_script:
+    # setup.py recomputes the version from git in every build job (scripts/compute_version.py).
+    # Prevent git operation errors:
+    #   fatal: detected dubious ownership in repository at ...
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
   artifacts:
     when: always
     paths:
@@ -183,6 +189,10 @@ variables:
     SCCACHE_REGION: "us-east-1"
   before_script: |
     set -euo pipefail
+    # Overrides .build_base's before_script, so re-apply it here too:
+    # setup.py recomputes the version from git, and the Tart VM's UID may not match
+    # the checkout's, which triggers "fatal: detected dubious ownership in repository".
+    git config --global --add safe.directory "${CI_PROJECT_DIR}"
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
     # so resolve creds from the tart iam-proxy beforehand
     role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
@@ -283,6 +293,7 @@ variables:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
   variables:
+    GIT_DEPTH: "0"
     WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
@@ -385,13 +396,19 @@ download_dependency_wheels:
   script:
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
-# Extract package version from pyproject.toml and save to dotenv artifact
+# Compute package version from git state and save to dotenv artifact
 "package version":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    # Prevent git operation errors:
+    #   fatal: detected dubious ownership in repository at ...
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
   script:
-    - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+    - PACKAGE_VERSION=$(scripts/compute_version.py)
     - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
     # Validate commit tag matches version if tag is set
     - |

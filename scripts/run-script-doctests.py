@@ -17,9 +17,11 @@ import sys
 
 
 _FILES = [
+    "scripts/compute_version.py",
     "scripts/get-target-milestone.py",
     "scripts/needs_testrun.py",
     "scripts/resolve_previous_version.py",
+    "scripts/version_lib.py",
     "tests/suitespec.py",
 ]
 
