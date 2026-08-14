@@ -1,5 +1,7 @@
 import importlib
 import os
+from pathlib import Path
+import shutil
 
 import django
 from django.conf import settings
@@ -15,6 +17,25 @@ from tests.utils import scoped_tracer
 
 _FLAT_URLCONF = "tests.appsec.contrib_appsec.django_app.urls"
 _SUBAPP_URLCONF = "tests.appsec.contrib_appsec.django_app.urls_subapps"
+_DATABASE_TEMPLATE = Path(__file__).with_name("db.sqlite3")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def isolated_database(tmp_path_factory):
+    """Use a worker-local copy of the Django database template."""
+    database_path = tmp_path_factory.mktemp("appsec-django") / "db.sqlite3"
+    shutil.copyfile(_DATABASE_TEMPLATE, database_path)
+
+    os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
+    original_database_name = settings.DATABASES["default"]["NAME"]
+    settings.DATABASES["default"]["NAME"] = str(database_path)
+    try:
+        yield
+    finally:
+        from django.db import connections
+
+        connections.close_all()
+        settings.DATABASES["default"]["NAME"] = original_database_name
 
 
 class _Test_Django_Base:

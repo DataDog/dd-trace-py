@@ -40,7 +40,7 @@ def _patch_subprocess(module):
     log.debug("Patching common modules: subprocess_patch")
 
 
-def patch_common_modules():
+def patch_common_modules() -> None:
     global _is_patched
     if _is_patched:
         return
