@@ -343,11 +343,18 @@ def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_wr
 
 
 def test_django_instrumented_metrics(telemetry_writer, test_agent_session):
+    # Drain metrics emitted before this test so the session below holds only our own.
+    _get_iast_metrics(test_agent_session, telemetry_writer)
+    test_agent_session.clear()
+
     with override_global_config(dict(_iast_enabled=True, _iast_debug=True)):
         _on_django_patch()
 
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    metrics_source_tags_result = [metric["tags"][0] for metric in generate_metrics]
+    # Only instrumented.source carries a source_type tag; instrumented.propagation has none.
+    metrics_source_tags_result = [
+        metric["tags"][0] for metric in generate_metrics if metric["metric"] == "instrumented.source"
+    ]
 
     assert len(metrics_source_tags_result) == 9
     assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
@@ -362,6 +369,10 @@ def test_django_instrumented_metrics(telemetry_writer, test_agent_session):
 
 
 def test_django_instrumented_metrics_iast_disabled(telemetry_writer, test_agent_session):
+    # Drain metrics emitted before this test; otherwise a neighbour's metric fails the assertion.
+    _get_iast_metrics(test_agent_session, telemetry_writer)
+    test_agent_session.clear()
+
     with override_global_config(dict(_iast_enabled=False)):
         _on_django_patch()
 
