@@ -1044,13 +1044,16 @@ impl SpanData {
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
         }
-        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
-        // can reach back to the span through the Context. Both must be visited
-        // so the cyclic GC can collect a finished trace.
+        // `_parent` closes span -> parent span -> ... cycles; `_context`/`_parent_context`
+        // can reach back to the span through the Context (e.g. via baggage). All must be
+        // visited so the cyclic GC can collect a finished trace.
         if let Some(p) = &self._parent {
             visit.call(p)?;
         }
         if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
+        if let Some(c) = &self._context {
             visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
