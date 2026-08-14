@@ -23,8 +23,10 @@ def _add_prerelease_marker(dependency_specifier: str) -> str:
     "opentelemetry-api>=1,<2rc99"
     >>> _add_prerelease_marker('wrapt>=1,<3')
     "wrapt>=1,<3rc99"
+    >>> _add_prerelease_marker('ddtrace-internal==0.0.0')
+    "ddtrace-internal==0.0.0"
     """
-    if re.search(CONTAINS_PRERELEASE, dependency_specifier):
+    if re.search(CONTAINS_PRERELEASE, dependency_specifier) or "==" in dependency_specifier:
         return dependency_specifier
     dependency_parts: list[str] = dependency_specifier.split(";")
     version_bounds: list[str] = dependency_parts[0].split(",")

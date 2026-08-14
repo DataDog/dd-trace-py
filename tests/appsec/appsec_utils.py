@@ -22,6 +22,50 @@ from tests.webclient import Client
 FILE_PATH = Path(__file__).resolve().parent
 
 
+def _port_is_available(port: int) -> bool:
+    """Whether a server could bind the port right now.
+
+    Binding is the question that matters, since it is what the next server does. Probing with
+    connect() instead reports a port as free once a bound server's listen backlog fills, and
+    opens real connections to a live server.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("0.0.0.0", int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
+    """Wait until the port can be bound again, returning False if it never can.
+
+    Server teardown is best effort and gunicorn workers can outlive it, so without this the
+    next test to use the same port fails to bind. 31 tests share port 8050.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _port_is_available(port):
+            return True
+        time.sleep(0.1)
+    return _port_is_available(port)
+
+
+def _server_diagnostics(server_process, port: int, cmd: list) -> str:
+    """Facts that are not in the captured server output but explain most startup failures."""
+    if isinstance(server_process, multiprocessing.Process):
+        exit_code = server_process.exitcode
+    else:
+        exit_code = server_process.poll()
+    return (
+        f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
+        f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
+        f"than dead; a non-zero code with the port bound means another server still holds it)\n"
+        f"command={cmd}"
+    )
+
+
 @contextmanager
 def gunicorn_flask_server(
     use_ddtrace_cmd: bool = True,
@@ -335,6 +379,10 @@ def appsec_application_server(
         if preexec is not None:
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
+    # A previous test's server may still hold the port, which would make this one fail to bind.
+    if not _wait_for_port_release(port):
+        print(f"WARNING: port {port} was still bound when starting the server")
+
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
         # ensuring signals/termination behave like the subprocess.Popen path.
@@ -374,17 +422,13 @@ def appsec_application_server(
                 print("Server started")
         except RetryError:
             raise AssertionError(
-                "Server failed to start, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server failed to start; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
             )
         except Exception:
             raise AssertionError(
-                "Server FAILED, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server FAILED; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
             )
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
@@ -399,9 +443,8 @@ def appsec_application_server(
             pass
         except Exception:
             raise AssertionError(
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server shutdown request failed; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
             )
     finally:
         try:
@@ -433,7 +476,9 @@ def appsec_application_server(
                     assert "Return value is tainted" in stderr_output
                     assert "Tainted arguments:" in stderr_output
         finally:
-            pass
+            # Do not hand the port to the next test while a worker still holds it.
+            if not _wait_for_port_release(port):
+                print(f"WARNING: port {port} still bound after server teardown")
 
 
 def _mp_target(_cmd: list[str], _env: dict) -> None:

@@ -11,14 +11,15 @@ from threading import Lock
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
+from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 
@@ -38,7 +39,7 @@ _registry: Optional[InstrumentationRegistry] = None
 # operations so per-target locks are preserved.
 _instrumenter_instance: Optional[Instrumenter] = None
 _instrumenter_lock = Lock()
-_lazy_module_hooks: dict[str, Any] = {}
+_lazy_module_hooks: dict[str, ModuleHookType] = {}
 _lazy_module_targets: dict[str, set[str]] = {}
 _lazy_hooks_lock = Lock()
 
@@ -215,7 +216,7 @@ class Instrumenter:
                 return False
 
 
-def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False) -> None:
+def apply_instrumentation_updates(targets: list[CveTarget], after_fork: bool = False) -> None:
     """Apply instrumentation updates from CVE data or Remote Configuration.
 
     For each target:
@@ -225,7 +226,7 @@ def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False)
       module is imported later.
 
     Args:
-        targets: List of dicts with keys: target, dependency_name, cve_ids.
+        targets: CVE entries containing dependency names and qualified targets.
         after_fork: If True, skip bytecode injection for already-imported
             targets since they inherit injected hooks from the parent
             process.  Only populate the registry so existing hooks work.
@@ -242,7 +243,7 @@ def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False)
 def _process_additions(
     instrumenter: Instrumenter,
     registry: InstrumentationRegistry,
-    targets: list[dict],
+    targets: list[CveTarget],
     after_fork: bool = False,
 ) -> None:
     """Process target additions: resolve and instrument, or defer via ModuleWatchdog.
@@ -256,48 +257,47 @@ def _process_additions(
     from ddtrace.appsec.sca._resolver import SymbolResolver
 
     for target_info in targets:
-        target_name = target_info["target"]
-        dep_name = target_info.get("dependency_name", "")
-        cve_ids = target_info.get("cve_ids", [])
+        dep_name = target_info["dependency_name"]
+        cve_ids = [target_info["id"]]
 
-        try:
-            if registry.has_target(target_name) and registry.is_instrumented(target_name):
-                # Merge any new CVE IDs that weren't present at initial registration
-                # (e.g. incremental Remote Configuration updates).
-                registry.merge_cve_ids(target_name, cve_ids)
-                log.debug("Target already instrumented, merged CVEs: %s", target_name)
-                continue
+        for target_name in target_info["targets"]:
+            try:
+                if registry.has_target(target_name):
+                    registry.merge_cve_ids(target_name, cve_ids)
+                    if registry.is_instrumented(target_name):
+                        log.debug("Target already instrumented, merged CVEs: %s", target_name)
+                        continue
 
-            # Register target with CVE info (even if not yet resolvable)
-            if not registry.has_target(target_name):
-                registry.add_target(
-                    target_name,
-                    pending=True,
-                    package_name=dep_name,
-                    cve_ids=cve_ids,
-                )
-
-            # Try to resolve and instrument now
-            result = SymbolResolver.resolve(target_name)
-            if result:
-                _, func = result
-                if after_fork:
-                    # Bytecode already has hooks from the parent process.
-                    # Just mark as instrumented so the registry is populated
-                    # for the existing hooks and we don't re-inject.
-                    registry.mark_instrumented(target_name, func.__code__)
-                    log.debug("Registered existing instrumentation after fork: %s", target_name)
+                # Register target with CVE info (even if not yet resolvable)
                 else:
-                    instrumenter.instrument(target_name, func)
-            else:
-                # Module not yet imported — register a ModuleWatchdog hook
-                module_name, _, _ = target_name.partition(":")
-                if module_name:
-                    _register_lazy_hook(module_name, target_name)
-                    log.debug("Deferred instrumentation via ModuleWatchdog: %s", target_name)
+                    registry.add_target(
+                        target_name,
+                        pending=True,
+                        package_name=dep_name,
+                        cve_ids=cve_ids,
+                    )
 
-        except Exception:
-            log.debug("Failed to process target %s", target_name, exc_info=True)
+                # Try to resolve and instrument now
+                result = SymbolResolver.resolve(target_name)
+                if result:
+                    _, func = result
+                    if after_fork:
+                        # Bytecode already has hooks from the parent process.
+                        # Just mark as instrumented so the registry is populated
+                        # for the existing hooks and we don't re-inject.
+                        registry.mark_instrumented(target_name, func.__code__)
+                        log.debug("Registered existing instrumentation after fork: %s", target_name)
+                    else:
+                        instrumenter.instrument(target_name, func)
+                else:
+                    # Module not yet imported — register a ModuleWatchdog hook
+                    module_name, _, _ = target_name.partition(":")
+                    if module_name:
+                        _register_lazy_hook(module_name, target_name)
+                        log.debug("Deferred instrumentation via ModuleWatchdog: %s", target_name)
+
+            except Exception:
+                log.debug("Failed to process target %s", target_name, exc_info=True)
 
 
 def _register_lazy_hook(module_name: str, target_name: str) -> None:

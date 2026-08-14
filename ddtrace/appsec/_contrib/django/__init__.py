@@ -28,6 +28,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -192,7 +193,7 @@ def _on_django_process(
             if user_id:
                 span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
             if user_login:
-                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, str(user_login))
+                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, user_login)
             span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(
                 None,
@@ -245,7 +246,7 @@ def _on_django_signup_user(
         if span is None:
             return
         _asm_manual_keep(span)
-        span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
+        span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, asm_config._user_event_mode)
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT, "true")
         if (login := user_extra.get("login")) is not None:
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
@@ -255,14 +256,14 @@ def _on_django_signup_user(
         if user_id:
             user_id = str(user_id)
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
-                user_id = _hash_user_id(str(user_id))
+                user_id = _hash_user_id(user_id)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERID, user_id)
             span._set_attribute(APPSEC.USER_LOGIN_USERID, user_id)
 
 
 def _on_traced_get_response_pre(
     block_callable: Callable[[], None],
-    _ctx: ExecutionContext,
+    _ctx: ExecutionContext[Event],
     _request: Any,
     _before_request_tags: Any,
 ) -> None:
