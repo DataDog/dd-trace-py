@@ -1476,3 +1476,91 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 5
     assert span.get_metric("_dd.llmobs.output_tokens") == 3
     assert span.get_metric("_dd.llmobs.total_tokens") == 8
+
+
+def _pregel_style_config():
+    """A RunnableConfig shaped like the one LangGraph passes to a tool, including the
+    dunder-prefixed engine state that is not JSON serializable.
+    """
+    import dataclasses
+    import uuid
+
+    @dataclasses.dataclass
+    class PregelRuntime:
+        stream_writer: object
+        execution_info: dict
+
+    class LazyAtomicCounter:
+        pass
+
+    def stream_writer():
+        pass
+
+    return {
+        "callbacks": object(),
+        "tags": ["seq:step:1"],
+        "metadata": {"langgraph_node": "tools"},
+        "recursion_limit": 25,
+        "configurable": {
+            "thread_id": "3f2b1c",
+            "checkpoint_ns": "tools:abc",
+            "checkpoint_id": "1f0a",
+            "__pregel_runtime": PregelRuntime(stream_writer=stream_writer, execution_info={"thread_id": uuid.uuid4()}),
+            "__pregel_scratchpad": {"call_counter": LazyAtomicCounter()},
+            "__pregel_send": stream_writer,
+        },
+    }
+
+
+def test_format_tool_config_drops_framework_internals():
+    from ddtrace.llmobs._integrations.langchain import _format_tool_config
+
+    formatted = _format_tool_config(_pregel_style_config())
+
+    assert "callbacks" not in formatted
+    assert not [k for k in formatted["configurable"] if k.startswith("__")]
+    # the useful identifiers survive
+    assert formatted["configurable"] == {
+        "thread_id": "3f2b1c",
+        "checkpoint_ns": "tools:abc",
+        "checkpoint_id": "1f0a",
+    }
+    assert formatted["tags"] == ["seq:step:1"]
+    assert formatted["metadata"] == {"langgraph_node": "tools"}
+    assert formatted["recursion_limit"] == 25
+
+
+def test_format_tool_config_result_is_json_serializable():
+    """Regression test: without the filter the pregel runtime reaches the agentless JSON
+    encoder and drops every span in the trace.
+    """
+    from ddtrace.llmobs._integrations.langchain import _format_tool_config
+
+    json.dumps(_format_tool_config(_pregel_style_config()))
+
+
+def test_format_tool_config_passes_through_non_dict():
+    from ddtrace.llmobs._integrations.langchain import _format_tool_config
+
+    assert _format_tool_config("a string") == "a string"
+    assert _format_tool_config(None) is None
+
+
+def test_tool_span_metadata_is_json_serializable(tracer):
+    """A tool span's metadata must survive json.dumps, or the agentless JSON encoder drops
+    every span in the trace. Fails without the tool_config filter.
+    """
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.langchain import LangChainIntegration
+
+    integration = LangChainIntegration(MagicMock())
+    with tracer.trace("langchain.request") as span:
+        integration._llmobs_set_meta_tags_from_tool(
+            span,
+            tool_inputs={"input": "readme", "config": _pregel_style_config(), "info": {"name": "delete"}},
+            tool_output="Deleted.",
+        )
+        metadata = _get_llmobs_data_metastruct(span)["meta"]["metadata"]
+
+    json.dumps(metadata)

@@ -29,6 +29,7 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -128,6 +129,25 @@ def _is_google_genai_backed(instance) -> bool:
     client = getattr(client, "client", client)
     module = type(client).__module__ if client is not None else ""
     return module == "google.genai" or module.startswith("google.genai.")
+
+
+def _format_tool_config(config: Any) -> Any:
+    """Strip framework internals from a tool's RunnableConfig before it is stored as metadata.
+
+    LangGraph namespaces its live execution state under dunder-prefixed configurable keys
+    (send/read closures, scratchpad counters, replay state, the checkpointer) and keeps callback
+    managers under callbacks. None of it is meaningful on a span, and holding it means
+    snapshotting the whole graph runtime into the payload. Filtering on the framework's own
+    private-key convention rather than an allowlist keeps genuinely new config keys flowing
+    through without upkeep here.
+    """
+    if not isinstance(config, dict):
+        return load_data_value(config)
+    formatted = {k: v for k, v in config.items() if k != "callbacks"}
+    configurable = formatted.get("configurable")
+    if isinstance(configurable, dict):
+        formatted["configurable"] = {k: v for k, v in configurable.items() if not k.startswith("__")}
+    return load_data_value(formatted)
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -800,9 +820,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 (tool_name, tool_args, "function", span, tool_id),
             )
             if tool_inputs.get("config"):
-                metadata["tool_config"] = tool_inputs.get("config")
+                metadata["tool_config"] = _format_tool_config(tool_inputs.get("config"))
             if tool_inputs.get("info"):
-                metadata["tool_info"] = tool_inputs.get("info")
+                metadata["tool_info"] = load_data_value(tool_inputs.get("info"))
             formatted_input = format_langchain_io(tool_inputs.get("input", {}))
         formatted_outputs = ""
         if not span.error and tool_output is not None:

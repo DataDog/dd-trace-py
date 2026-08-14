@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves a ``TypeError`` that dropped all spans in a trace when a LangGraph
+    agent invoked a tool. Tool span metadata no longer captures LangGraph's internal execution
+    state, which is not JSON serializable.
