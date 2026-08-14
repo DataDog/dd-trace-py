@@ -44,3 +44,9 @@ class CIContextProvider(DefaultContextProvider):
         if isinstance(item, Span):
             return self._update_active(item)
         return item
+
+    def _peek_active(self) -> ContextTypeValue:
+        # Required because this provider has its own storage: the inherited
+        # implementation reads the default contextvar. Not read-only, unlike the
+        # inherited one -- nothing needs that of this provider yet.
+        return self.active()

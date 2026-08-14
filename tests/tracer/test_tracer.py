@@ -2210,6 +2210,40 @@ def test_active_still_repairs_the_contextvar(tracer):
     assert _DD_CONTEXTVAR.get() is parent
 
 
+def test_peek_active_is_inherited_by_behaviour_preserving_subclasses(tracer):
+    """A subclass that does not override active()/_update_active() uses the same storage,
+    so it must inherit the read-only peek rather than falling back to active().
+    """
+    from ddtrace._trace.provider import DefaultContextProvider
+
+    class Subclass(DefaultContextProvider):
+        def __enter__(self):
+            pass
+
+        def __exit__(self, *exc):
+            pass
+
+    provider = Subclass()
+    parent = Context(trace_id=1, span_id=2)
+    parent._reactivate = True
+    span = tracer.start_span("child", child_of=parent)
+    span.finish()
+    provider.activate(span)
+
+    activations = []
+
+    def record(prov, ctx):
+        activations.append(ctx)
+
+    core.on("ddtrace.context_provider.activate", record)
+    try:
+        assert provider._peek_active() is parent
+    finally:
+        core.reset_listeners("ddtrace.context_provider.activate", record)
+
+    assert activations == []
+
+
 def test_peek_active_matches_active_for_simple_states(tracer):
     assert tracer.context_provider._peek_active() is None
 

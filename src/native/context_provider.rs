@@ -327,11 +327,12 @@ impl DefaultContextProvider {
     /// For observers that must not perturb the active trace. A CPython
     /// context-switch watcher is one: `activate` there would write to whichever
     /// context the switch just made current, and re-enter the event hub mid-switch.
-    fn _peek_active<'py>(slf: &Bound<'py, Self>, py: Python<'py>) -> PyResult<Option<Py<PyAny>>> {
-        // A subclass may override `active` and may not even use this contextvar.
-        if !slf.is_exact_instance_of::<DefaultContextProvider>() {
-            return slf.call_method0("active").map(none_or_unbind);
-        }
+    ///
+    /// Reads this contextvar and resolves the way `_update_active` does, so **a subclass
+    /// that overrides `active` or `_update_active` must override this too** -- otherwise
+    /// it reports from storage it does not use. Subclasses that only add behaviour
+    /// elsewhere inherit it safely.
+    fn _peek_active<'py>(_slf: &Bound<'py, Self>, py: Python<'py>) -> PyResult<Option<Py<PyAny>>> {
         let item = contextvar_get(py, contextvar(py)?)?;
         if item.is_none() {
             return Ok(None);
