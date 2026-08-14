@@ -55,6 +55,11 @@ workflow:
         DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
       auto_cancel:
         on_new_commit: none
+    # Temporary PR validation: run the balanced allocator beside legacy on the
+    # exact branch under review. Remove after the paired evidence is captured.
+    - if: '$CI_COMMIT_REF_NAME == "dd/ci-runtime-aware-riot-sharding-20260813-1915"'
+      variables:
+        CI_ALLOCATION_SHADOW: "true"
     - when: always
 
 include:
