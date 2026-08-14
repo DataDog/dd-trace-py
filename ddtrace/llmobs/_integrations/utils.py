@@ -396,16 +396,13 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# AIDEV-NOTE: Budget for one inline image, measured on the base64 that actually rides the span event.
-# Sized against the DEFAULT 5 MB per-event limit with headroom: over that, _writer._truncate_span_event
-# blanks the span's whole input AND output. Two known gaps, both shared with the audio guard and both
-# for the writer-side follow-up (MLOB-6408): this bounds one image, so several that each fit can still
-# exceed the limit together; and it does not track DD_LLMOBS_EVENT_SIZE_BYTES, so lowering that below
-# 5 MB can still admit an oversized image.
+# AIDEV-NOTE: Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
+# guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
+# DD_LLMOBS_EVENT_SIZE_BYTES.
 LLMOBS_IMAGE_INLINE_MAX_BYTES = 4 * 1024 * 1024
 
-# What a browser can render from an inline data URI, and exactly Anthropic's Base64ImageSourceParam
-# media_type Literal. Mirrors is_renderable_audio_mime: an unrenderable mime is not worth the bytes.
+# Exactly Anthropic's media_type Literal, and what a browser renders inline. Mirrors the audio gate.
 _RENDERABLE_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 
 
@@ -418,18 +415,16 @@ def _encoded_image_len(data: Union[bytes, str]) -> int:
     """Serialized byte length of an image payload: base64 text as UTF-8, raw bytes once encoded."""
     if not isinstance(data, str):
         return _base64_encoded_len(len(data))
-    # len() counts characters. Real base64 is ASCII so the two agree, but a caller that hands us
-    # non-ASCII text would otherwise be undercounted up to 4x and slip past the budget.
+    # Real base64 is ASCII; non-ASCII text would undercount its UTF-8 wire cost up to 4x.
     return len(data) if data.isascii() else len(data.encode("utf-8"))
 
 
 def format_image_part_with_guard(
     data: Union[bytes, str], mime_type: str, max_bytes: int = LLMOBS_IMAGE_INLINE_MAX_BYTES
 ) -> Optional[ImagePart]:
-    """Build an ImagePart only for a renderable inline image within the size budget, else None.
+    """Build an ImagePart for a renderable inline image within the size budget, else None.
 
-    Returns None for an unrenderable MIME type or an encoded size over max_bytes, so the caller can
-    keep a text marker instead. Mirrors format_audio_part_with_guard.
+    The caller keeps a text marker on None. Mirrors format_audio_part_with_guard.
     """
     if not is_renderable_image_mime(mime_type):
         return None

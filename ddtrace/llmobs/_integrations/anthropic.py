@@ -42,23 +42,19 @@ _VERTEX_MODEL_PROVIDER = "google"
 def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
     """Return (data, media_type) for an inline base64 Anthropic image block, else None.
 
-    Data is returned unencoded so the caller's size guard can reject an oversized image before
-    paying to encode it.
+    Unencoded, so the caller's guard can reject an oversized image before paying to encode it.
     """
     source = _get_attr(block, "source", {})
     if _get_attr(source, "type", "") != "base64":
         return None
     data = _get_attr(source, "data", "")
-    # source.data is Union[str, Base64FileInput] where Base64FileInput is IO[bytes] | PathLike
-    # (anthropic _types.py), so narrowing here keeps a Path or file handle out of span content.
+    # source.data may be IO[bytes] or PathLike (anthropic Base64FileInput) -- keep those out of spans.
     if not data or not isinstance(data, (str, bytes)):
         return None
-    # base64 is ASCII by definition. Reject a non-ASCII str: it is not a decodable payload, and sizing
-    # it by len() would undercount its UTF-8 wire cost up to 4x, letting it slip past the size guard.
+    # base64 is ASCII; len() would undercount non-ASCII text 4x and slip it past the guard.
     if isinstance(data, str) and not data.isascii():
         return None
-    # Reject an unrenderable mime here, not via the guard, so the caller's only remaining rejection
-    # reason is size and its "too large" marker cannot lie. Images have no default mime, unlike audio.
+    # Reject bad mime here, not in the guard, so the caller's "too large" marker can't misreport.
     media_type = str(_get_attr(source, "media_type", ""))
     if not is_renderable_image_mime(media_type):
         return None

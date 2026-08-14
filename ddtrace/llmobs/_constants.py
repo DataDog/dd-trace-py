@@ -178,9 +178,7 @@ IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
 
-# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable. Deliberately carries
-# no size: span content is aggregated in LLM Observability and a per-image size would fragment that
-# grouping. The measured byte counts go to a debug log in the size guard instead.
+# Deliberately size-free: span content is aggregated, and a per-image size would fragment grouping.
 IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
