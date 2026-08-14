@@ -147,13 +147,13 @@ Datadog Test Visibility session exports joined by
 ``test.configuration.riot_hash``. The model uses a time-decayed p90, conservative
 fallbacks for sparse hashes, and a recent holdout that is not used for fitting.
 CI job events are joined by pipeline and job identity to account for setup overhead,
-queue time, and total runner consumption. Failed and cancelled observations are
+queue time, and total runner consumption. Failed and canceled observations are
 retained as censored reliability evidence but are not treated as normal durations.
 
 The balanced strategy targets five minutes of modeled work per Riot shard. Promotion
 requires at least a 50 percent reduction in the median Riot critical path over paired
 live shadow runs. This objective covers the generated Riot child pipeline, not the
-entire required-check wall clock. Package builds, microbenchmarks, downstream
+entire required-check wall clock. Package builds, performance benchmarks, downstream
 pipelines, and GitHub System Tests have independent execution graphs and must be
 measured and optimized separately for an end-to-end feedback-time target.
 
@@ -197,10 +197,11 @@ same-head report:
         --output live-shadow.json
     $ scripts/ci_allocation_cli.py check-ratchet --report live-shadow.json
 
-Before promotion, download the legacy and balanced JUnit artifacts and prove that
-the collected ``(Riot hash, class, test, file)`` identity multisets and Riot
-execution metadata are identical. Allocation jobs encode the strategy and Riot hash
-in each JUnit filename as a fallback for xdist runs that omit testsuite properties:
+Before promotion, download the legacy and balanced XML test reports and prove that
+the collected ``(Riot hash, class, test, file)`` identities, including duplicate
+counts, and Riot execution metadata are identical. Allocation jobs encode the
+strategy, Riot hash, and a digest of the Riot execution metadata in each report
+filename as a fallback for parallel runs that omit test suite properties:
 
 .. code-block:: bash
 

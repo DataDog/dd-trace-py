@@ -6,6 +6,7 @@ from collections import Counter
 from collections import defaultdict
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import replace
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
@@ -201,6 +202,25 @@ def _estimate_timed_values(
     return _weighted_quantile(weighted, quantile)
 
 
+def _resolve_job_strategies(observations: t.Iterable[Observation], jobs: t.Iterable[t.Any]) -> list[t.Any]:
+    observed_strategies: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for item in observations:
+        observed_strategies[(item.pipeline_id, item.job_name)].add(item.strategy)
+
+    resolved = []
+    for job in jobs:
+        observed = observed_strategies.get((job.pipeline_id, job.job_name), set())
+        if len(observed) > 1:
+            raise AllocationError(f"CI job strategy is ambiguous for {job.pipeline_id} {job.job_name}")
+        if job.strategy == "unknown":
+            if observed:
+                job = replace(job, strategy=next(iter(observed)))
+        elif observed and job.strategy not in observed:
+            raise AllocationError(f"CI job strategy conflicts with test sessions for {job.pipeline_id} {job.job_name}")
+        resolved.append(job)
+    return resolved
+
+
 def build_runtime_model(
     observations: list[Observation],
     policy: t.Mapping[str, t.Any],
@@ -266,7 +286,8 @@ def build_runtime_model(
     overhead_values: list[tuple[float, str]] = []
     queue_values: list[tuple[float, str]] = []
     overhead_by_suite: dict[str, list[tuple[float, str]]] = defaultdict(list)
-    window_jobs = [job for job in job_observations or [] if earliest <= _parse_timestamp(job.timestamp) <= latest]
+    resolved_jobs = _resolve_job_strategies(in_window_all, job_observations or [])
+    window_jobs = [job for job in resolved_jobs if earliest <= _parse_timestamp(job.timestamp) <= latest]
     for job in window_jobs:
         if job.strategy != "legacy" or job.status not in {"pass", "success"}:
             continue
@@ -487,11 +508,15 @@ def live_shadow_report(
         raise AllocationError("live shadow reporting requires observations")
 
     hash_sets: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    expected_shards: dict[tuple[str, str, str], set[int]] = defaultdict(set)
+    expected_shard_totals: dict[tuple[str, str, str], set[int]] = defaultdict(set)
     shard_seconds: dict[tuple[str, str, str, int], float] = defaultdict(float)
     pipeline_statuses: dict[tuple[str, str], list[str]] = defaultdict(list)
     execution_counts: Counter[tuple[str, str, str, str]] = Counter()
     for item in observations:
         hash_sets[(item.pipeline_id, item.suite, item.strategy)].add(item.riot_hash)
+        expected_shards[(item.pipeline_id, item.suite, item.strategy)].add(item.shard_index)
+        expected_shard_totals[(item.pipeline_id, item.suite, item.strategy)].add(item.shard_total)
         shard_seconds[(item.pipeline_id, item.strategy, item.suite, item.shard_index)] += item.duration_seconds
         pipeline_statuses[(item.pipeline_id, item.strategy)].append(item.status)
         execution_counts[(item.pipeline_id, item.strategy, item.suite, item.riot_hash)] += 1
@@ -506,6 +531,18 @@ def live_shadow_report(
         for suite in suites:
             if hash_sets.get((pipeline_id, suite, "legacy")) != hash_sets.get((pipeline_id, suite, "balanced")):
                 raise AllocationError(f"live shadow hash parity failed for pipeline {pipeline_id}, suite {suite}")
+            for strategy in ("legacy", "balanced"):
+                key = (pipeline_id, suite, strategy)
+                totals = expected_shard_totals[key]
+                if len(totals) != 1:
+                    raise AllocationError(
+                        f"live shadow shard totals are inconsistent for {pipeline_id} {suite} {strategy}"
+                    )
+                total = next(iter(totals))
+                if total <= 0 or expected_shards[key] != set(range(1, total + 1)):
+                    raise AllocationError(
+                        f"live shadow test sessions are missing shards for {pipeline_id} {suite} {strategy}"
+                    )
         paired.append(pipeline_id)
     if not paired:
         raise AllocationError("live shadow data contains no paired pipelines")
@@ -516,10 +553,11 @@ def live_shadow_report(
     retries: dict[str, int] = defaultdict(int)
     queue_seconds: dict[str, list[float]] = defaultdict(list)
     if job_observations:
+        resolved_jobs = _resolve_job_strategies(observations, job_observations)
         relevant_suites = set(hash_sets)
         jobs = [
             job
-            for job in job_observations
+            for job in resolved_jobs
             if job.pipeline_id in paired and (job.pipeline_id, job.suite, job.strategy) in relevant_suites
         ]
         job_counts: Counter[tuple[str, str, str]] = Counter(
@@ -530,6 +568,21 @@ def live_shadow_report(
                 selected_jobs = [job for job in jobs if job.pipeline_id == pipeline_id and job.strategy == strategy]
                 if not selected_jobs:
                     raise AllocationError(f"live shadow CI job timings are missing for {pipeline_id} {strategy}")
+                for suite in sorted(
+                    suite
+                    for seen_pipeline, suite, seen_strategy in hash_sets
+                    if seen_pipeline == pipeline_id and seen_strategy == strategy
+                ):
+                    key = (pipeline_id, suite, strategy)
+                    expected_total = next(iter(expected_shard_totals[key]))
+                    suite_jobs = [job for job in selected_jobs if job.suite == suite]
+                    observed_indices = {job.shard_index for job in suite_jobs}
+                    if observed_indices != expected_shards[key] or any(
+                        job.shard_total != expected_total for job in suite_jobs
+                    ):
+                        raise AllocationError(
+                            f"live shadow CI job timings are missing shards for {pipeline_id} {suite} {strategy}"
+                        )
                 stage_seconds: dict[str, float] = defaultdict(float)
                 for job in selected_jobs:
                     stage_seconds[job.stage_name] = max(stage_seconds[job.stage_name], job.duration_seconds)

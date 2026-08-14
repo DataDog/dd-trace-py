@@ -6,6 +6,8 @@ Local plugins: https://docs.pytest.org/en/3.10.1/writing_plugins.html#local-conf
 Hook reference: https://docs.pytest.org/en/3.10.1/reference.html#hook-reference
 """
 
+import hashlib
+import json
 import os
 import re
 import sys
@@ -51,18 +53,36 @@ def pytest_configure(config):
     if os.getenv("CI") != "true":
         return
 
-    # AIDEV-NOTE: Keep the allocation identity in the filename even though it is also
-    # recorded as a testsuite property; record_testsuite_property is unreliable under xdist.
+    # AIDEV-NOTE: Keep the allocation identity and execution-metadata digest in the
+    # filename even though they are also testsuite properties;
+    # record_testsuite_property is unreliable under xdist.
     # Write JUnit XML results to a unique file so consecutive Riot environments do not
     # overwrite one another. Allocation CI also encodes its strategy and atomic Riot
     # hash in the filename because testsuite properties are not reliable under xdist.
     if config.option.xmlpath:
         fname, ext = os.path.splitext(config.option.xmlpath)
+        strategy = os.getenv("RIOT_CI_ALLOCATION_STRATEGY")
+        riot_hash = os.getenv("RIOT_HASH")
+        execution_digest = None
+        if riot_hash:
+            execution = {}
+            for env, value in os.environ.items():
+                if not env.startswith("RIOT_") or env in {"RIOT_HASH", "RIOT_CI_ALLOCATION_STRATEGY"}:
+                    continue
+                name = env[5:]
+                prefix, _, suffix = name.partition("_")
+                property_name = f"riot.{prefix.lower()}.{suffix.lower()}" if suffix else f"riot.{prefix.lower()}"
+                execution[property_name] = value
+            if "riot.python.version" not in execution:
+                raise RuntimeError("Riot allocation JUnit metadata requires RIOT_PYTHON_VERSION")
+            encoded = json.dumps(dict(sorted(execution.items())), sort_keys=True, separators=(",", ":")).encode()
+            execution_digest = hashlib.sha256(encoded).hexdigest()
         identity = filter(
             None,
             (
-                os.getenv("RIOT_CI_ALLOCATION_STRATEGY"),
-                os.getenv("RIOT_HASH"),
+                strategy,
+                riot_hash,
+                execution_digest,
                 str(os.getpid()),
             ),
         )

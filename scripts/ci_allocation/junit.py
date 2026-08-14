@@ -13,7 +13,13 @@ import xml.etree.ElementTree as ET
 from .planner import AllocationError
 
 
-JUNIT_IDENTITY = re.compile(r"(?:^|/)junit\.(legacy|balanced)\.([^.]+)\.\d+\.xml$")
+JUNIT_IDENTITY = re.compile(r"(?:^|/)junit\.(legacy|balanced)\.([^.]+)(?:\.([0-9a-f]{64}))?\.\d+\.xml$")
+REQUIRED_EXECUTION_PROPERTIES = {"riot.python.version"}
+
+
+def _execution_digest(execution: t.Mapping[str, str]) -> str:
+    encoded = json.dumps(dict(sorted(execution.items())), sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _test_suites(root: ET.Element) -> list[ET.Element]:
@@ -22,12 +28,10 @@ def _test_suites(root: ET.Element) -> list[ET.Element]:
     return list(root.iter("testsuite"))
 
 
-def collect_junit(
-    paths: t.Iterable[Path], expected_strategy: str
-) -> tuple[Counter[tuple[str, ...]], dict[str, dict[str, str]]]:
+def collect_junit(paths: t.Iterable[Path], expected_strategy: str) -> tuple[Counter[tuple[str, ...]], dict[str, str]]:
     """Collect test identities and execution metadata from JUnit XML artifacts."""
     identities: Counter[tuple[str, ...]] = Counter()
-    metadata: dict[str, dict[str, str]] = {}
+    metadata: dict[str, str] = {}
     seen_files = 0
     for path in paths:
         seen_files += 1
@@ -55,9 +59,23 @@ def collect_junit(
                 for key, value in properties.items()
                 if key.startswith("riot.") and key not in {"riot.hash", "riot.ci.allocation_strategy"}
             }
-            if riot_hash in metadata and metadata[riot_hash] != execution:
+            filename_digest = filename_identity.group(3) if filename_identity else None
+            if execution:
+                missing_properties = REQUIRED_EXECUTION_PROPERTIES - set(execution)
+                if missing_properties:
+                    raise AllocationError(
+                        f"JUnit suite in {path} is missing Riot execution metadata: {sorted(missing_properties)}"
+                    )
+                execution_digest = _execution_digest(execution)
+                if filename_digest and filename_digest != execution_digest:
+                    raise AllocationError(f"JUnit filename execution metadata does not match {path}")
+            elif filename_digest:
+                execution_digest = filename_digest
+            else:
+                raise AllocationError(f"JUnit suite in {path} has no Riot execution metadata evidence")
+            if riot_hash in metadata and metadata[riot_hash] != execution_digest:
                 raise AllocationError(f"JUnit execution metadata is inconsistent for Riot hash {riot_hash}")
-            metadata[riot_hash] = execution
+            metadata[riot_hash] = execution_digest
             for case in suite.findall("./testcase"):
                 identities[
                     (

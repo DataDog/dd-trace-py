@@ -36,10 +36,32 @@ def _duration_seconds(attributes: t.Mapping[str, t.Any], seconds_key: str, nanos
     seconds = attributes.get(seconds_key)
     if isinstance(seconds, (int, float)) and not isinstance(seconds, bool):
         return float(seconds)
-    nanoseconds = attributes.get(nanoseconds_key, 0)
+    nanoseconds = attributes.get(nanoseconds_key)
     if isinstance(nanoseconds, (int, float)) and not isinstance(nanoseconds, bool):
         return float(nanoseconds) / 1_000_000_000
     raise AllocationError(f"CI job {seconds_key} must be numeric")
+
+
+def _strategy(attributes: t.Mapping[str, t.Any], ci: t.Mapping[str, t.Any], job_name: str) -> str:
+    test = attributes.get("test", {})
+    configuration = test.get("configuration", {}) if isinstance(test, dict) else {}
+    candidates = (
+        attributes.get("ci_allocation_strategy"),
+        attributes.get("test.configuration.ci_allocation_strategy"),
+        ci.get("allocation_strategy"),
+        configuration.get("ci_allocation_strategy") if isinstance(configuration, dict) else None,
+    )
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        if candidate not in {"legacy", "balanced"}:
+            raise AllocationError("Datadog CI job event has an invalid allocation strategy")
+        return str(candidate)
+    if "-allocation-shadow" in job_name:
+        return "balanced"
+    # AIDEV-NOTE: A normal job name is not evidence of the legacy strategy after
+    # promotion. The history layer resolves this value from matching test sessions.
+    return "unknown"
 
 
 def _timestamp(attributes: t.Mapping[str, t.Any]) -> str:
@@ -80,7 +102,7 @@ def job_from_datadog(event: t.Mapping[str, t.Any]) -> JobObservation:
     if not isinstance(stage_name, str) or not stage_name:
         raise AllocationError("Datadog CI job event is missing its stage name")
     suite, shard_index, shard_total = suite_from_job_name(job_name, stage_name)
-    strategy = "balanced" if "-allocation-shadow" in job_name else "legacy"
+    strategy = _strategy(attributes, ci, job_name)
     duration = _duration_seconds(attributes, "duration_seconds", "duration")
     timing_attributes = dict(attributes)
     if "ci.queue_time" not in timing_attributes and "queue_time" in ci:

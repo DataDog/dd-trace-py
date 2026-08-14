@@ -99,6 +99,7 @@ def test_datadog_job_normalization_captures_total_and_queue_time():
                 "start": "2026-01-01T00:00:00Z",
                 "duration_seconds": 90,
                 "queue_seconds": 5,
+                "test": {"configuration": {"ci_allocation_strategy": "balanced"}},
                 "ci": {
                     "status": "success",
                     "pipeline": {"id": "pipeline-1"},
@@ -115,6 +116,27 @@ def test_datadog_job_normalization_captures_total_and_queue_time():
     assert observation.shard_index == 2
     assert observation.duration_seconds == 90
     assert observation.queue_seconds == 5
+    assert observation.strategy == "balanced"
+
+
+def test_datadog_job_normalization_rejects_missing_queue_time():
+    event = {
+        "attributes": {
+            "attributes": {
+                "start": "2026-01-01T00:00:00Z",
+                "duration_seconds": 90,
+                "ci": {
+                    "status": "success",
+                    "pipeline": {"id": "pipeline-1"},
+                    "stage": {"name": "core"},
+                    "job": {"id": "job-1", "name": "core/internal 2/4"},
+                },
+            }
+        }
+    }
+
+    with pytest.raises(AllocationError, match="queue_seconds must be numeric"):
+        job_from_datadog(event)
 
 
 def _observation(
@@ -240,6 +262,8 @@ def test_live_shadow_report_requires_exact_hash_parity_and_compares_actual_shard
                         **observation.__dict__,
                         "shard_index": shard_index,
                         "strategy": strategy,
+                        "job_name": f"core/core{'-allocation-shadow' if strategy == 'balanced' else ''} "
+                        f"{shard_index}/3",
                     }
                 )
             )
@@ -272,6 +296,12 @@ def test_live_shadow_report_requires_exact_hash_parity_and_compares_actual_shard
     assert report["timing_source"] == "ci-jobs"
     assert report["balanced"]["median_seconds"] < report["legacy"]["median_seconds"]
 
+    unresolved_jobs = [replace(job, strategy="unknown") for job in jobs]
+    assert live_shadow_report(observations, unresolved_jobs)["timing_source"] == "ci-jobs"
+
+    with pytest.raises(AllocationError, match="CI job timings are missing shards"):
+        live_shadow_report(observations, jobs[:-1])
+
     observations[-1] = Observation(**{**observations[-1].__dict__, "riot_hash": "different"})
     with pytest.raises(AllocationError, match="hash parity failed"):
         live_shadow_report(observations)
@@ -300,6 +330,22 @@ def test_junit_parity_compares_test_multisets_and_execution_metadata(tmp_path):
     balanced.write_text(template.format(strategy="balanced").replace('<property name="riot.hash" value="abc"/>', ""))
     assert verify_junit_parity([legacy], [balanced])["riot_hash_count"] == 1
 
+    without_metadata = template.format(strategy="{strategy}").replace(
+        '<property name="riot.python.version" value="3.13"/>', ""
+    )
+    legacy.write_text(without_metadata.format(strategy="legacy"))
+    balanced.write_text(without_metadata.format(strategy="balanced"))
+    with pytest.raises(AllocationError, match="no Riot execution metadata evidence"):
+        verify_junit_parity([legacy], [balanced])
+
+    digest = "a" * 64
+    fallback_legacy = tmp_path / f"junit.legacy.abc.{digest}.300.xml"
+    fallback_balanced = tmp_path / f"junit.balanced.abc.{digest}.400.xml"
+    fallback_legacy.write_text(without_metadata.format(strategy="legacy"))
+    fallback_balanced.write_text(without_metadata.format(strategy="balanced"))
+    assert verify_junit_parity([fallback_legacy], [fallback_balanced])["execution_metadata_parity"] is True
+
+    legacy.write_text(template.format(strategy="legacy"))
     balanced.write_text(template.format(strategy="balanced").replace("test_value", "test_other"))
     with pytest.raises(AllocationError, match="test identity parity failed"):
         verify_junit_parity([legacy], [balanced])
