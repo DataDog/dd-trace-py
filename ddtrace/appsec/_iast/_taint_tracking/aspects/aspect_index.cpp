@@ -29,18 +29,13 @@ index_aspect_owned(py::object& result_o,
         }
 
     } else if (PyReMatch_Check(candidate_text)) { // For re.Match objects, taint the whole output
-        try {
-            const size_t& len_result_o{ get_pyobject_size(result_o.ptr()) };
-            const auto& current_range = ranges.at(0);
-            ranges_to_set.emplace_back(
-              safe_allocate_taint_range(0l, len_result_o, current_range->source, current_range->secure_marks));
-        } catch (const std::out_of_range& ex) {
-            if (!result_o) {
-                throw py::index_error();
-            }
-            // No ranges found, return original object
+        if (!result_o or ranges.empty()) {
             return;
         }
+        const size_t& len_result_o{ get_pyobject_size(result_o.ptr()) };
+        const auto& current_range = ranges.front();
+        ranges_to_set.emplace_back(
+          safe_allocate_taint_range(0l, len_result_o, current_range->source, current_range->secure_marks));
     } else {
         // Other stuff
         return;

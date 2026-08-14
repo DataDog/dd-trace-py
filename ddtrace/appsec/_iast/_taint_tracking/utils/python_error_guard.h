@@ -10,9 +10,8 @@ namespace py = pybind11;
  * This class fetches any existing Python error upon construction,
  * clears the error state to allow safe C++ operations, and
  * restores the error (if any) upon destruction.
- * WARNING: If you alter the error state in any way, like caling
- * PyErr_Clear while the guard is active, undefined behaviour will occur
- * since internally it will not be updated!
+ * Any transient Python error raised while the guard is active must be
+ * handled or cleared before destruction so the captured error can be restored.
  */
 class PythonErrorGuard
 {

@@ -55,6 +55,24 @@ TEST_F(HasPyErrCheck, ClearError)
 
 using PythonErrorGuardCheck = PyEnvCheck;
 
+static PyObject*
+return_fallback_after_pybind_error()
+{
+    py::object result = py::str("fallback");
+    TRY_CATCH_ASPECT("test_aspect", return result.release().ptr(), , {
+        PyErr_SetString(PyExc_RuntimeError, "propagation failed");
+        throw py::error_already_set();
+    });
+}
+
+TEST_F(PythonErrorGuardCheck, AspectErrorBoundaryReturnsFallbackWithoutPythonError)
+{
+    py::object result = py::reinterpret_steal<py::object>(return_fallback_after_pybind_error());
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.cast<std::string>(), "fallback");
+    EXPECT_FALSE(PyErr_Occurred());
+}
+
 TEST_F(PythonErrorGuardCheck, NoError)
 {
     PythonErrorGuard guard;
@@ -103,6 +121,30 @@ error = ErrorWithStableString(rendered)
         }
         EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before);
     }
+    PyErr_Clear();
+}
+
+TEST_F(PythonErrorGuardCheck, ErrorStringFailureDoesNotReplaceCapturedError)
+{
+    py::dict scope;
+    py::exec(R"(
+class ErrorWithBrokenString(Exception):
+    def __str__(self):
+        raise RuntimeError("string conversion failed")
+
+error = ErrorWithBrokenString()
+)",
+             scope);
+
+    py::object error = scope["error"];
+    PyErr_SetObject(reinterpret_cast<PyObject*>(Py_TYPE(error.ptr())), error.ptr());
+    {
+        PythonErrorGuard guard;
+        EXPECT_TRUE(guard.has_error());
+        EXPECT_TRUE(guard.error_as_stdstring().empty());
+        EXPECT_FALSE(PyErr_Occurred());
+    }
+    EXPECT_TRUE(PyErr_ExceptionMatches(reinterpret_cast<PyObject*>(Py_TYPE(error.ptr()))));
     PyErr_Clear();
 }
 

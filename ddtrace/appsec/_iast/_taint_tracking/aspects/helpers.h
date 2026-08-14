@@ -355,22 +355,8 @@ exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::opti
     return std::nullopt;
 }
 
-The user of this macro could define a parameter (like nullptr) or a "get_results()" function as a lambda, like:
-
-    auto get_result = [&]() -> PyObject* {
-        try {
-            PyObject* res = do_modulo(candidate_text, candidate_tuple);
-            if (res == nullptr) {
-                return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
-            }
-            return res;
-        } catch (py::error_already_set& e) {
-            e.restore();
-            return nullptr;
-        }
-    };
-
-Please note that you have to handle the error_already_set exception in the lambda, as it's not caught by the macro.
+Only propagation belongs inside the macro because propagation failures are discarded before returning the original
+result.
 
 Example calling:
     TRY_CATCH_ASPECT("foo_aspect", return result_o, , {  // no cleanup code here, but the comma is still needed

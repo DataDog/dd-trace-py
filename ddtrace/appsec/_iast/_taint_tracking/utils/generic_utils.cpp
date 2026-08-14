@@ -57,25 +57,18 @@ iast_taint_log_error(const std::string& msg)
             }
         } catch (const py::error_already_set& e) {
             cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
-            PyErr_Clear(); // Clear the error state
-            frame_info = "(unkown file)";
+            frame_info = "(unknown file)";
         }
 
         const auto log = get_python_logger();
         log.attr("debug")("iast::propagation::native::error::" + msg + ": " + frame_info);
 
     } catch (const py::error_already_set& e) {
-        if (!e.trace().is_none()) {
-            if (PythonErrorGuard error_guard; error_guard.has_error()) {
-                std::cerr << "Traceback: " << error_guard.error_as_stdstring() << "\n";
-            }
-        }
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
-        PyErr_Clear();
     } catch (const std::exception& e) {
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (...) {
-        cerr << "ddtrace: unkown error when trying to log an IAST native error";
+        cerr << "ddtrace: unknown error when trying to log an IAST native error";
     }
 }
 

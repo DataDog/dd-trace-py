@@ -5,7 +5,8 @@ PyObject*
 api_new_pyobject_id(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 1 or !args) {
-        throw py::value_error(MSG_ERROR_N_PARAMS);
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        return nullptr;
     }
     PyObject* tainted_object = args[0];
     return new_pyobject_id(tainted_object);

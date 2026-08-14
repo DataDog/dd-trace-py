@@ -101,12 +101,6 @@ new_pyobject_id_owned(const py::handle& tainted_object)
 
     PyObject* tainted_object_ptr = tainted_object.ptr();
 
-    // We call Python C-API (PyUnicode_New, Py_BuildValue, PyObject_Call*)
-    // and pybind11 helpers (attr("join")) below. All require the GIL. Tests and
-    // native code paths may reach this function without holding the GIL, so we
-    // acquire it here to guarantee thread-safety and avoid undefined behavior.
-    // py::gil_scoped_acquire acquire;
-
     if (PyUnicode_Check(tainted_object_ptr)) {
         py::object empty_unicode = py::reinterpret_steal<py::object>(PyUnicode_New(0, 127));
         if (!empty_unicode) {
@@ -195,8 +189,7 @@ PyIOBase_Check(const PyObject* obj)
 
     try {
         return py::isinstance((PyObject*)obj, safe_import("_io", "_IOBase"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 }
@@ -209,8 +202,7 @@ PyReMatch_Check(const PyObject* obj)
 
     try {
         return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 }
@@ -225,8 +217,7 @@ PyTemplate_Check(const PyObject* obj)
 #if PY_VERSION_HEX >= 0x030E0000
     try {
         return py::isinstance((PyObject*)obj, safe_import("string.templatelib", "Template"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 #else
