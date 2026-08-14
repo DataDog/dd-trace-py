@@ -154,11 +154,18 @@ fn set_default_attribute(
         return;
     }
     if let Some((attr_key, attr_value)) = extract_attribute(key, value) {
-        // Re-entrant coercion may have inserted the key after the check above.
-        slf.borrow_mut()
-            .attributes
-            .entry(attr_key)
-            .or_insert(attr_value);
+        // Re-entrant coercion may have inserted the key after the check above; if so,
+        // `attr_value` is discarded rather than stored. A discarded str subclass can run
+        // Python finalization when its last reference is dropped, so release the SpanData
+        // borrow before dropping it (same hazard as the `replaced` value in `set_attribute`).
+        let discarded = match slf.borrow_mut().attributes.entry(attr_key) {
+            std::collections::hash_map::Entry::Occupied(_) => Some(attr_value),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(attr_value);
+                None
+            }
+        };
+        drop(discarded);
     }
 }
 
