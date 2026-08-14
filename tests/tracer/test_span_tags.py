@@ -10,6 +10,7 @@ import sys
 import mock
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -190,8 +191,10 @@ def test_tags_not_string():
     s.set_tag("a", Foo())
 
 
-def test_set_tag_string_coercion_can_read_active_span(tracer):
-    tracer.context_provider = CIContextProvider()
+@pytest.mark.parametrize("context_provider_class", [DefaultContextProvider, CIContextProvider])
+@pytest.mark.parametrize("setter", ["set_tag", "_set_attributes", "_set_default_attributes"])
+def test_attribute_string_coercion_can_read_active_span(tracer, context_provider_class, setter):
+    tracer.context_provider = context_provider_class()
 
     class ReentrantTag:
         def __str__(self):
@@ -203,8 +206,24 @@ def test_set_tag_string_coercion_can_read_active_span(tracer):
             return str(active.trace_id)
 
     with tracer.trace("test") as span:
-        span.set_tag("reentrant", ReentrantTag())
+        if setter == "set_tag":
+            span.set_tag("reentrant", ReentrantTag())
+        else:
+            getattr(span, setter)({"reentrant": ReentrantTag()})
         assert span.get_tag("reentrant") == str(span.trace_id)
+
+
+def test_set_default_attributes_preserves_value_set_during_coercion():
+    span = Span(name="test.span")
+
+    class ReentrantTag:
+        def __str__(self):
+            span.set_tag("reentrant", "set-during-coercion")
+            return "default"
+
+    span._set_default_attributes({"reentrant": ReentrantTag()})
+
+    assert span.get_tag("reentrant") == "set-during-coercion"
 
 
 @mock.patch("ddtrace._trace.span.log")
