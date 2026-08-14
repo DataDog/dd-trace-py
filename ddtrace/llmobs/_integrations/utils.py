@@ -29,11 +29,11 @@ from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+
+# Audio helpers were moved to audio_utils.py to keep this module manageable; the noqa'd names below
+# are re-exported so existing ``from ...utils import <helper>`` imports keep working.
 from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
-
-# Audio helpers were moved to audio_utils.py to keep this module manageable; re-export the
-# public names here so existing ``from ...utils import <helper>`` imports keep working.
 from ddtrace.llmobs._integrations.audio_utils import _base64_encoded_len
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio  # noqa: F401

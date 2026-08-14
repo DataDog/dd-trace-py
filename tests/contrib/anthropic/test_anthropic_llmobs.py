@@ -902,7 +902,7 @@ class TestLLMObsAnthropic:
             ({"type": "base64", "media_type": "image/png", "data": Path("x.png")}, "([IMAGE DETECTED])"),
             ({"type": "url", "url": "https://example.com/x.png"}, "([IMAGE DETECTED])"),
             ({"type": "file", "file_id": "file_abc"}, "([IMAGE DETECTED])"),
-            # Inline but unrenderable mime -> not captured (guard rejects before the size check).
+            # Inline but unrenderable mime -> the extractor rejects it, so the guard never runs.
             ({"type": "base64", "media_type": "text/html", "data": "PHNjcmlwdD4="}, "([IMAGE DETECTED])"),
         ],
     )
