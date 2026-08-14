@@ -137,12 +137,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 # mainline wheels don't ship the artifact until it GA's.
 # Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
 # reads it via os.getenv during the package build, independent of DDConfig.
-BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "0").lower() in (
-    "1",
-    "yes",
-    "on",
-    "true",
-)
+BUILD_NATIVE_HEAP_GOTTER = True
 # Keep the staged cdylib unstripped when building with the upstream test-support
 # feature (hook-hit counter for e2e / integration tests).
 BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (

@@ -37,6 +37,9 @@ variables:
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
+    # Ship the native heap-gotter cdylib in every wheel (setup.py restricts the
+    # actual build to 64-bit Linux; elsewhere it's a no-op).
+    DD_PROFILING_NATIVE_HEAP_ENABLED: "1"
     # Enable sccache for Rust/C/C++ compilation caching
     DD_USE_SCCACHE: "1"
     # job resource requests
