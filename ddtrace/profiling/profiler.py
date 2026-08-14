@@ -386,7 +386,8 @@ class _ProfilerInstance(service.Service):
 
             try:
                 if heap_gotter.install():
-                    LOG.info("Native heap profiling armed (GOT overrides installed)")
+                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                    LOG.info("Native heap profiling armed (GOT overrides installed, %s)", mode)
                 else:
                     LOG.warning("Native heap profiling requested but GOT overrides were not installed")
             except Exception:
