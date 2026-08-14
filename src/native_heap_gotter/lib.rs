@@ -62,6 +62,18 @@ pub extern "C" fn ddtrace_heap_gotter_update() {
     libdd_profiling_heap_gotter::update_heap_overrides();
 }
 
+/// Compile-time live-heap capability: `true` when built with the `live-heap`
+/// feature (`ddheap:free` + retain flagging). Not a runtime toggle; keep in
+/// lockstep with Cargo.toml's forward to `libdd-profiling-heap-gotter/live-heap`.
+///
+/// # Safety
+///
+/// C ABI entry point with no arguments and no pointers; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_live_heap_enabled() -> bool {
+    cfg!(feature = "live-heap")
+}
+
 /// Test-only: number of times a patched hook has run in this process. Lets
 /// integration tests prove the patched GOT was actually exercised without a
 /// live eBPF attach. Only present when built with the `test-support` feature;

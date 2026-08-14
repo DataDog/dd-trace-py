@@ -2,7 +2,7 @@
 
 The activator (``ddtrace.internal.datadog.profiling.heap_gotter``) is fail-closed
 and must behave correctly whether or not the opt-in gotter cdylib was built into
-the wheel (``DD_PROFILING_NATIVE_HEAP_BUILD=1``):
+the wheel (``DD_PROFILING_NATIVE_HEAP_ENABLED=1`` at build time):
 
 * If the library is absent (the default), ``install()``/``is_installed()`` are
   no-ops returning ``False``.
@@ -27,17 +27,17 @@ def test_native_heap_gotter_smoke() -> None:
     from ddtrace.internal.datadog.profiling import heap_gotter
 
     if not heap_gotter.is_available:
-        # Wheel built without the gotter cdylib: strictly a no-op.
         assert heap_gotter.install() is False
         assert heap_gotter.is_installed() is False
+        assert heap_gotter.live_heap_enabled() is False
     else:
-        # Native-heap build: arming must take effect and be idempotent.
         assert heap_gotter.is_installed() is False
         assert heap_gotter.install() is True
         assert heap_gotter.is_installed() is True
-        assert heap_gotter.install() is True
+        assert heap_gotter.install() is True  # idempotent
+        # Default gotter builds enable the live-heap Cargo feature (ddheap:free).
+        assert heap_gotter.live_heap_enabled() is True
 
-        # Generate allocation pressure; this must not crash with the patched GOT.
         blobs: list[tuple[str, int]] = []
         for i in range(200):
             blobs.append(("x" * 4096, i))
