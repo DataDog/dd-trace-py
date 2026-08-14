@@ -1,13 +1,7 @@
 """Smoke tests for the native (C/C++) heap profiling activator.
 
-The activator (``ddtrace.internal.datadog.profiling.heap_gotter``) is fail-closed
-and must behave correctly whether or not the opt-in gotter cdylib was built into
-the wheel (``DD_PROFILING_NATIVE_HEAP_ENABLED=1`` at build time):
-
-* If the library is absent (the default), ``install()``/``is_installed()`` are
-  no-ops returning ``False``.
-* If present (a native-heap build on Linux), ``install()`` patches the process
-  GOT and ``is_installed()`` flips to ``True`` and stays there (idempotent).
+``install()`` patches the process GOT and ``is_installed()`` flips to ``True``
+and stays there (idempotent).
 
 Proving that the ``ddheap`` USDT probes actually *fire* requires attaching the
 Full Host eBPF profiler (or a ``test-support`` build exposing the hook-hit
