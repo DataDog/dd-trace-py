@@ -16,7 +16,6 @@ from typing import Text
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -50,6 +49,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_w
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.appsec._iast_request_state import is_iast_request_enabled
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
