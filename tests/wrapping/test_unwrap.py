@@ -13,7 +13,8 @@ signature, and pin a divergence in how completely the original is reinstated:
 inverse, even when layers are nested). On Python < 3.15, ``WrappingContext.unwrap``
 restores behaviour but rebuilds the code object rather than reinstating the
 original, so ``__code__`` identity is not restored (codified with a strict xfail).
-On 3.15+ the monitoring path never mutates ``__code__``, so identity is preserved.
+On 3.15+ the monitoring path swaps in a cloned code object while wrapped but restores the
+exact original ``__code__`` object on unwrap, so identity is preserved.
 
 Mechanism-specific (the matrix's other two mechanisms have no in-place unwrap), so
 these opt out of the all-mechanisms ``mech`` guardrail.

@@ -4,7 +4,6 @@ from types import FunctionType
 from typing import Any
 from typing import Callable
 from typing import Iterator
-from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
 from typing import cast
@@ -27,11 +26,53 @@ PY = sys.version_info[:2]
 _wrapped: weakref.WeakKeyDictionary[FunctionType, FunctionType] = weakref.WeakKeyDictionary()
 _wrapped_lock = Lock()
 
+
+class _IdentityWeakValueDictionary:
+    """Maps code objects to functions by code-object identity, not equality.
+
+    CodeType overrides __eq__/__hash__ (equal for structurally-identical code,
+    e.g. two CodeType.replace() clones of the same original, or two exec()'d
+    copies of identical source). A plain weakref.WeakValueDictionary keyed by
+    CodeType would conflate such distinct objects, returning the wrong
+    function for a given code object. This keys on id(code) instead, holding
+    the code object strongly (it may otherwise be referenced only here, once
+    the owning function's __code__ is replaced by wrapping) and the function
+    weakly, so wrapped ephemeral functions are not kept alive by this mapping
+    alone -- inspection.py falls back to gc.get_referrers on a miss.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self) -> None:
+        self._data: dict[int, tuple[CodeType, "weakref.ref[FunctionType]"]] = {}
+
+    def _make_remove(self, code_id: int) -> Any:
+        def remove(_ref: "weakref.ref[FunctionType]") -> None:
+            self._data.pop(code_id, None)
+
+        return remove
+
+    def __setitem__(self, code: CodeType, function: FunctionType) -> None:
+        code_id = id(code)
+        self._data[code_id] = (code, weakref.ref(function, self._make_remove(code_id)))
+
+    def __getitem__(self, code: CodeType) -> FunctionType:
+        item = self._data.get(id(code))
+        if item is not None:
+            stored_code, ref = item
+            if stored_code is code:
+                function = ref()
+                if function is not None:
+                    return function
+        raise KeyError(code)
+
+    def clear(self) -> None:
+        self._data.clear()
+
+
 # Maps original code objects to the functions that own them. Written by
 # link_function_to_code; read by functions_for_code in inspection.py.
-# WeakValueDictionary so that wrapped ephemeral functions are not kept alive by
-# this mapping alone — inspection.py falls back to gc.get_referrers on a miss.
-_code_to_fn: MutableMapping[CodeType, FunctionType] = weakref.WeakValueDictionary()
+_code_to_fn: _IdentityWeakValueDictionary = _IdentityWeakValueDictionary()
 
 
 def link_function_to_code(code: CodeType, function: FunctionType) -> None:

@@ -110,6 +110,57 @@ _CONTEXT_PLACEHOLDER = object()
 
 T = t.TypeVar("T")
 
+StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
+
+_STORAGE_PREV = "__dd_wrapping_context_prev__"
+_STORAGE_OWNER = "__dd_wrapping_context_owner__"
+
+# Free lists of storage context variables, keyed by variable name.
+#
+# Once a ContextVar has been set, the running Context holds a strong reference
+# to it for the lifetime of the thread, and there is no way to drop that entry
+# again (ContextVar.reset is not usable here, see the note on _pop_storage).
+# Since wrapping contexts are created per function object, code that decorates
+# ephemeral functions on every call would otherwise pin one variable per
+# invocation. Recycling the variables of collected wrapping contexts caps the
+# number of live ones at the peak number of concurrently live wrapping
+# contexts. The pool is deliberately never trimmed: dropping a variable from it
+# would not release the Context entries it already holds, and would only force
+# the allocation of a new variable, adding entries instead of reusing them. That
+# peak is therefore retained for the lifetime of the process, but it no longer
+# grows with the number of functions that get wrapped.
+#
+# A recycled variable may still be set in some Context when it is handed out: a
+# context that is collected without exiting leaves its storage behind, and the
+# finalizer cannot reset it because it runs in an unrelated Context. Storage
+# dicts are tagged with an owner token so that the new owner can tell a leftover
+# value apart from one of its own; see __enter__.
+_storage_var_pools: dict[str, list[StorageVar]] = {}
+
+# Reentrant because the release happens from a finalizer, which can run at
+# any point, including in the middle of an acquisition on the same thread.
+_storage_var_pools_lock = RLock()
+
+
+def _acquire_storage_var(name: str) -> StorageVar:
+    with _storage_var_pools_lock:
+        pool = _storage_var_pools.get(name)
+        if pool:
+            var = pool.pop()
+            if not pool:
+                # Drop exhausted pools so that the names of wrapping contexts
+                # that are no longer in use don't accumulate either.
+                del _storage_var_pools[name]
+            return var
+
+    return ContextVar(name, default=None)
+
+
+def _release_storage_var(name: str, var: StorageVar) -> None:
+    with _storage_var_pools_lock:
+        _storage_var_pools.setdefault(name, []).append(var)
+
+
 # This module implements utilities for wrapping a function with a context
 # manager. The rough idea is to re-write the function's bytecode to look like
 # this:
@@ -384,7 +435,12 @@ if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
-    _ctx_registry: "weakref.WeakKeyDictionary[CodeType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
+    # CodeType overrides __eq__/__hash__ (equal for structurally-identical code), and
+    # monitor_code is produced by original_code.replace(), which compares equal to
+    # original_code. A plain weakref.WeakKeyDictionary would therefore conflate the
+    # clone with the original -- and, via that, conflate closures that share one
+    # original code object -- so this uses the identity-keyed mapping instead.
+    _ctx_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
     # Keyed by function instance: distinguishes functions that share a code object
     # (e.g. closures re-created in a loop) from one another. Kept off the function's
     # __dict__ (unlike a plain attribute) so functools.wraps does not propagate
@@ -406,9 +462,17 @@ class BaseWrappingContext(ABC):
         # reference count to reach zero (and be freed) as soon as all external
         # strong refs drop, without relying on the cyclic GC at all.
         self._wrapped_ref: weakref.ref[FunctionType] = weakref.ref(f)
-        self._storage: ContextVar[t.Optional[dict[str, t.Any]]] = ContextVar(
-            f"{type(self).__name__}__storage", default=None
-        )
+
+        # Identifies the storage dicts written by this context. A dedicated token
+        # is used rather than self so that the storage dict cannot keep the
+        # context, and therefore the wrapped function, alive.
+        self._storage_owner = object()
+
+        # Qualified so that same-named context types (e.g. the two
+        # LazyWrappingContext classes in this package) do not share a pool.
+        name = f"{type(self).__module__}.{type(self).__qualname__}__storage"
+        self._storage: StorageVar = _acquire_storage_var(name)
+        weakref.finalize(self, _release_storage_var, name, self._storage).atexit = False
 
     @property
     def __wrapped__(self) -> FunctionType:
@@ -423,7 +487,14 @@ class BaseWrappingContext(ABC):
 
     def __enter__(self) -> "BaseWrappingContext":
         prev = self._storage.get()
-        self._storage.set({"__dd_wrapping_context_prev__": prev})
+        if prev is not None and prev.get(_STORAGE_OWNER) is not self._storage_owner:
+            # Storage left behind by a previous owner of this recycled variable.
+            # Chaining it into our own prev would restore it on every exit from
+            # now on, pinning it (and the frame it holds, for a universal
+            # wrapping context) for the lifetime of the thread. Dropping it here
+            # instead frees it as soon as we overwrite the variable below.
+            prev = None
+        self._storage.set({_STORAGE_PREV: prev, _STORAGE_OWNER: self._storage_owner})
 
         return self
 
@@ -431,7 +502,8 @@ class BaseWrappingContext(ABC):
         storage = self._storage.get()
         if storage is None:
             return {}
-        self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
+        self._storage.set(storage.pop(_STORAGE_PREV))
+        del storage[_STORAGE_OWNER]
         return storage
 
     def __return__(self, value: T) -> T:
@@ -694,6 +766,23 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         return t.cast(T, super().__return__(value))
 
     if sys.version_info >= (3, 15):
+        # AIDEV-NOTE: sys.monitoring itself does propagate a PY_START/PY_UNWIND
+        # callback's exception into the monitored function's frame (verified
+        # against CPython 3.15), which would give exceptions raised here true
+        # with-statement semantics matching the bytecode path (an __enter__
+        # failure aborts the call before the body runs). But ddtrace.internal.
+        # monitoring multiplexes one sys.monitoring tool ID across independent
+        # subsystems (this wrapping context, DI line hooks, the exception
+        # profiler); its dispatch loop (_on_py_start et al.) therefore catches
+        # and logs each handler's exceptions instead of propagating them, so
+        # that a bug in one subsystem's handler cannot break monitored
+        # execution -- or a sibling handler registered on the same code
+        # object -- for the others. As a side effect, an exception raised by a
+        # registered WrappingContext's __enter__/__exit__ here is swallowed
+        # (logged, not raised), so unlike the bytecode path it does NOT abort
+        # the wrapped call. Fixing this would mean adding an opt-in
+        # propagate-exceptions mode to the shared multiplexer, which has
+        # implications for its other consumers; not done here.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
             self.__enter__()
@@ -765,7 +854,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     f,
                     _finalize_monitoring_wrap,
                     weakref.ref(self),
-                    weakref.ref(f),
+                    monitor_code,
                 )
                 self._finalize.atexit = False
                 # Register monitoring before swapping __code__ so no thread can
@@ -1103,21 +1192,26 @@ if sys.version_info >= (3, 15):
 
     def _finalize_monitoring_wrap(
         self_ref: "weakref.ref[_UniversalWrappingContext]",
-        f_ref: weakref.ref[FunctionType],
+        code: CodeType,
     ) -> None:
-        """Unregister sys.monitoring when a wrapped function is collected without unwrap()."""
+        """Unregister sys.monitoring when a wrapped function is collected without unwrap().
+
+        weakref.finalize fires only after the wrapped function is unreachable, so by the
+        time this runs, self.__wrapped__ is already gone; unwrap() (and self.unwrap's use
+        of self.__wrapped__) cannot be used here. Clean up via the cloned monitor code
+        object instead, which the finalizer callback captures directly.
+        """
         self: t.Optional["_UniversalWrappingContext"] = self_ref()
-        f: t.Optional[FunctionType] = f_ref()
-        if self is None or f is None:
+        if self is None:
             return
         try:
-            if _fn_registry.get(f) is self:
-                self.unwrap()
+            with _ctx_registry_lock:
+                if _ctx_registry.get(code) is not self:
+                    return
+                del _ctx_registry[code]
+            _monitoring.unregister(code, self)
         except Exception:
-            log.exception(
-                "ddtrace: error during finalizer unwrap of %s",
-                getattr(f, "__qualname__", "?"),
-            )
+            log.exception("ddtrace: error during finalizer cleanup of monitoring wrap")
 
     def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
         """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""

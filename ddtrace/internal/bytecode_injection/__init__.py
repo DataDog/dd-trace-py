@@ -42,7 +42,7 @@ if PY >= (3, 15):
         def on_py_line(self, code: Any, line_number: int) -> Any:
             hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring.DISABLE  # type: ignore[has-type]
+                return _monitoring._DISABLE  # type: ignore[has-type]
             for hook, arg in hooks:
                 hook(arg)
             return None

@@ -7,6 +7,7 @@ from typing import cast
 from ddtrace.debugging._function.discovery import FullyNamed
 from ddtrace.internal.bytecode_injection import HookInfoType
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection import eject_all_hooks
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping import get_function_code
@@ -90,4 +91,10 @@ class FunctionStore(object):
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
         for function, code in self._code_map.items():
+            # On 3.15+, line hooks are sys.monitoring registrations keyed by
+            # code object rather than injected bytecode, so restoring
+            # __code__ alone leaves them firing; eject_all_hooks is a no-op
+            # on older versions, where the registration lives in the bytecode
+            # this restores over.
+            eject_all_hooks(function)
             function.__code__ = code
