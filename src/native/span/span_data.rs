@@ -542,7 +542,11 @@ impl SpanData {
     #[setter(context)]
     #[inline(always)]
     fn set_context(&mut self, value: &Bound<'_, PyAny>) {
-        self._context = Some(value.clone().unbind());
+        self._context = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
     }
 
     // Records which sampling mechanism made the sampling decision, via the
