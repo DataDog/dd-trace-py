@@ -36,15 +36,19 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
-def empty_telemetry_session(telemetry_writer, test_agent_session):
-    """Start every test with an empty session.
+def empty_telemetry_session(request):
+    """Start every telemetry test with an empty session.
 
-    The tests here assert on metric names, counts and exact lists, so a metric emitted by
+    These tests assert on metric names, counts and exact lists, so a metric emitted by
     whatever ran before is enough to fail them. Draining the native worker first pushes out
     anything it still holds, so clear() actually leaves nothing behind.
+
+    Only for tests that already use the session: requesting it unconditionally would make the
+    pure metric_verbosity cases xfail when no test agent is running.
     """
-    telemetry_writer.periodic(force_flush=True)
-    test_agent_session.clear()
+    if "test_agent_session" in request.fixturenames:
+        request.getfixturevalue("telemetry_writer").periodic(force_flush=True)
+        request.getfixturevalue("test_agent_session").clear()
     yield
 
 
@@ -70,11 +74,12 @@ def _get_iast_logs(test_agent_session, telemetry_writer):
 def _assert_instrumented_sink(test_agent_session, telemetry_writer, vuln_type):
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
     assert generate_metrics, "Expected an instrumented.sink metric"
-    # Sets, not lists: the native worker can flush mid-patching and split one metric over
-    # several series, which says nothing about what was instrumented.
-    assert {metric["metric"] for metric in generate_metrics} == {"instrumented.sink"}
-    assert {tag for metric in generate_metrics for tag in metric["tags"]} == {f"vulnerability_type:{vuln_type.lower()}"}
-    assert {metric["type"] for metric in generate_metrics} == {"count"}
+    # Check every series rather than how many: the native worker can flush mid-patching and
+    # split one metric over several, but each of them still has to be well formed.
+    for metric in generate_metrics:
+        assert metric["metric"] == "instrumented.sink"
+        assert metric["tags"] == [f"vulnerability_type:{vuln_type.lower()}"]
+        assert metric["type"] == "count"
     assert sum(point[1] for metric in generate_metrics for point in metric["points"]) >= 1
 
 
@@ -245,9 +250,11 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agen
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    # A set: the two metrics can be reported in either order or split over several flushes.
-    filtered_metrics = {metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"}
-    assert filtered_metrics == {"executed.source", "request.tainted"}
+    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
+    # the agent)
+    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
+    assert filtered_metrics == ["executed.source", "request.tainted"]
+    assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
