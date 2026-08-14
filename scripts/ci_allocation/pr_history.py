@@ -167,6 +167,7 @@ def replay_pr_shapes(
                 global_fallback,
                 target_shard_seconds=target_shard_seconds,
                 maximum_parallelism_per_suite=maximum_parallelism_per_suite,
+                maximum_total_jobs=sum(legacy_shard_counts.values()),
                 suite_overheads=runtime_model["overheads"].get("suite_seconds", {}),
                 global_overhead=float(runtime_model["overheads"]["global_seconds"]),
             )

@@ -146,9 +146,14 @@ duration estimates in ``ci/ci-allocation-runtime-model.json`` are generated from
 Datadog Test Visibility session exports joined by
 ``test.configuration.riot_hash``. The model uses a time-decayed p90, conservative
 fallbacks for sparse hashes, and a recent holdout that is not used for fitting.
-CI job events are joined by pipeline and job identity to account for setup overhead,
-queue time, and total runner consumption. Failed and canceled observations are
-retained as censored reliability evidence but are not treated as normal durations.
+CI job events are joined by pipeline and job identity. Riot setup and activation
+time outside the Test Visibility session is distributed over the atomic hashes in
+that job before fitting, so reducing the shard count cannot make real work disappear
+from the model. Model fitting fails if any training job is missing that timing
+evidence. Per-hash estimates use a compact numeric representation, and the checked-in
+model must remain below the size limit in the allocation policy. Failed and canceled
+observations are retained as censored reliability evidence but are not treated as
+normal durations.
 
 The balanced strategy targets five minutes of modeled work per Riot shard. Promotion
 requires at least a 50 percent reduction in the median Riot critical path over paired
@@ -156,6 +161,12 @@ live shadow runs. This objective covers the generated Riot child pipeline, not t
 entire required-check wall clock. Package builds, performance benchmarks, downstream
 pipelines, and GitHub System Tests have independent execution graphs and must be
 measured and optimized separately for an end-to-end feedback-time target.
+Balanced sizing is constrained to the legacy topology's total job count. When the
+duration target requests more jobs, the planner removes shards with the smallest
+modeled critical-path penalty, allowing capacity to move between semantic suites
+without increasing the job budget.
+If one atomic Riot environment exceeds the promotion target, the allocator must fail
+the gate; meeting that target requires a separately validated finer execution unit.
 
 Use the allocation helper to normalize an export, build a candidate model, and
 replay it against the untouched holdout:

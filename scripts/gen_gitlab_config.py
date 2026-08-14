@@ -382,6 +382,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             global_fallback,
             target_shard_seconds=float(allocation_config["target_shard_seconds"]),
             maximum_parallelism_per_suite=int(allocation_config["maximum_parallelism_per_suite"]),
+            maximum_total_jobs=sum(legacy_jobs.values()),
             suite_overheads=runtime_model["overheads"].get("suite_seconds", {}),
             global_overhead=float(runtime_model["overheads"]["global_seconds"]),
         )

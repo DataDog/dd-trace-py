@@ -376,6 +376,7 @@ venv = Venv(
                 "pip": "<25",
             },
             env={
+                "BROWSER": "true",  # Prevent webbrowser tests from launching the host browser.
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
@@ -3734,15 +3735,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3773,15 +3765,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3818,15 +3801,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
@@ -3858,15 +3832,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),

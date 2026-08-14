@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 import math
 import re
 import typing as t
+
+from .planner import predicted_makespan
+from .planner import weighted_lpt
 
 
 @dataclass(frozen=True)
@@ -167,10 +171,11 @@ def compute_runtime_parallelism(
     *,
     target_shard_seconds: float,
     maximum_parallelism_per_suite: int,
+    maximum_total_jobs: t.Optional[int] = None,
     suite_overheads: t.Optional[t.Mapping[str, float]] = None,
     global_overhead: float = 0.0,
 ) -> dict[str, int]:
-    """Size suites from modeled work while keeping each Riot hash atomic."""
+    """Size suites from modeled work within an optional global job budget."""
     if target_shard_seconds <= 0:
         raise ValueError("target_shard_seconds must be positive")
     if maximum_parallelism_per_suite <= 0:
@@ -193,4 +198,34 @@ def compute_runtime_parallelism(
             maximum_parallelism_per_suite,
             max(1, math.ceil(modeled_work / available_seconds)),
         )
+
+    if maximum_total_jobs is None or sum(result.values()) <= maximum_total_jobs:
+        return result
+    if maximum_total_jobs < len(result):
+        raise ValueError("maximum_total_jobs cannot be smaller than the selected suite count")
+
+    def removal_penalty(suite: str, shard_count: int) -> float:
+        info = suite_venv_info[suite]
+        fallback = float(suite_fallbacks.get(suite, global_fallback))
+        current = weighted_lpt(info.hashes, shard_count, estimates, fallback)
+        reduced = weighted_lpt(info.hashes, shard_count - 1, estimates, fallback)
+        return predicted_makespan(reduced, estimates, fallback) - predicted_makespan(current, estimates, fallback)
+
+    # AIDEV-NOTE: The legacy total is a cost ceiling, not a per-suite ceiling.
+    # Remove the shard with the smallest modeled critical-path penalty so capacity
+    # can move from over-sharded suites to measured long poles deterministically.
+    candidates = [(removal_penalty(suite, count), suite, count) for suite, count in result.items() if count > 1]
+    heapq.heapify(candidates)
+    while sum(result.values()) > maximum_total_jobs:
+        if not candidates:
+            raise ValueError("maximum_total_jobs cannot be satisfied")
+        _penalty, suite, expected_count = heapq.heappop(candidates)
+        if result[suite] != expected_count:
+            continue
+        result[suite] -= 1
+        if result[suite] > 1:
+            heapq.heappush(
+                candidates,
+                (removal_penalty(suite, result[suite]), suite, result[suite]),
+            )
     return result

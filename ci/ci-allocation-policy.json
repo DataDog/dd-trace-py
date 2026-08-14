@@ -2,6 +2,7 @@
   "allocation": {
     "active_strategy": "legacy",
     "maximum_parallelism_per_suite": 25,
+    "maximum_runtime_model_bytes": 100000,
     "target_jobs": 200,
     "target_shard_seconds": 300
   },

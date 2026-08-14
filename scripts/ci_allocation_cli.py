@@ -109,7 +109,7 @@ def command_ingest_jobs(args: argparse.Namespace) -> None:
 def command_build_model(args: argparse.Namespace) -> None:
     policy = _policy(args.policy)
     observations = load_observations(args.observations)
-    jobs = load_job_observations(args.jobs) if args.jobs is not None else None
+    jobs = load_job_observations(args.jobs)
     model = build_runtime_model(observations, policy["model"], jobs)
     write_json(args.output, model)
     print(
@@ -181,6 +181,11 @@ def command_check_contract(args: argparse.Namespace) -> None:
         raise AllocationError("allocation target_shard_seconds must be positive")
     if int(policy["allocation"].get("maximum_parallelism_per_suite", 0)) <= 0:
         raise AllocationError("allocation maximum_parallelism_per_suite must be positive")
+    maximum_model_bytes = int(policy["allocation"].get("maximum_runtime_model_bytes", 0))
+    if maximum_model_bytes <= 0:
+        raise AllocationError("allocation maximum_runtime_model_bytes must be positive")
+    if args.model.stat().st_size > maximum_model_bytes:
+        raise AllocationError(f"runtime model is {args.model.stat().st_size} bytes; maximum is {maximum_model_bytes}")
     if policy["allocation"].get("active_strategy") not in {"legacy", "balanced"}:
         raise AllocationError("allocation active_strategy must be legacy or balanced")
     if policy["allocation"]["active_strategy"] != "legacy" and not model["estimates"]:
@@ -250,7 +255,7 @@ def parse_args() -> argparse.Namespace:
     build_model = subparsers.add_parser("build-model", help="fit a model and optionally replay its holdout")
     build_model.add_argument("--observations", type=Path, required=True)
     build_model.add_argument("--output", type=Path, required=True)
-    build_model.add_argument("--jobs", type=Path)
+    build_model.add_argument("--jobs", type=Path, required=True)
     build_model.add_argument("--report", type=Path)
     build_model.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     build_model.set_defaults(func=command_build_model)

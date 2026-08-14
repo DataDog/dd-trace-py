@@ -226,14 +226,14 @@ def build_runtime_model(
     policy: t.Mapping[str, t.Any],
     job_observations: t.Optional[list[t.Any]] = None,
 ) -> dict[str, t.Any]:
-    """Build estimates from a recent training window while reserving the newest holdout."""
+    """Build end-to-end Riot estimates while reserving the newest holdout."""
     if not observations:
         raise AllocationError("runtime modeling requires observations")
     latest = max(_parse_timestamp(item.timestamp) for item in observations)
     history_days = int(policy["history_window_days"])
     earliest = latest - timedelta(days=history_days)
     in_window_all = [item for item in observations if _parse_timestamp(item.timestamp) >= earliest]
-    successful = [item for item in in_window_all if item.status == "pass"]
+    successful = [item for item in in_window_all if item.status == "pass" and item.strategy == "legacy"]
     if not successful:
         raise AllocationError("runtime modeling requires at least one passing observation")
 
@@ -251,62 +251,73 @@ def build_runtime_model(
     if not training:
         raise AllocationError("runtime model training window is empty")
 
+    resolved_jobs = _resolve_job_strategies(in_window_all, job_observations or [])
+    window_jobs = [job for job in resolved_jobs if earliest <= _parse_timestamp(job.timestamp) <= latest]
+    training_jobs: dict[tuple[str, str], t.Any] = {}
+    for job in window_jobs:
+        if (
+            job.strategy != "legacy"
+            or job.status not in {"pass", "success"}
+            or _parse_timestamp(job.timestamp) >= holdout_start
+        ):
+            continue
+        key = (job.pipeline_id, job.job_name)
+        if key in training_jobs:
+            raise AllocationError(f"runtime modeling received duplicate CI job timing for {key[0]} {key[1]}")
+        training_jobs[key] = job
+
+    sessions_by_job: dict[tuple[str, str], list[Observation]] = defaultdict(list)
+    for item in training:
+        sessions_by_job[(item.pipeline_id, item.job_name)].append(item)
+    missing_jobs = sorted(set(sessions_by_job) - set(training_jobs))
+    if missing_jobs:
+        raise AllocationError(f"runtime modeling is missing CI job timing for {len(missing_jobs)} training jobs")
+
+    # AIDEV-NOTE: Riot activation and dependency checks occur outside pytest's
+    # Test Visibility session. Distribute that measured gap over the atomic hashes
+    # in the job so reducing shard count cannot make setup work disappear.
+    effective_training: list[Observation] = []
+    unit_overhead_values: list[tuple[float, str]] = []
+    unit_overhead_by_suite: dict[str, list[tuple[float, str]]] = defaultdict(list)
+    queue_values: list[tuple[float, str]] = []
+    for key, items in sessions_by_job.items():
+        job = training_jobs[key]
+        session_seconds = sum(item.duration_seconds for item in items)
+        if job.duration_seconds < session_seconds:
+            raise AllocationError(f"CI job duration is shorter than its test sessions for {key[0]} {key[1]}")
+        unit_overhead = (job.duration_seconds - session_seconds) / len(items)
+        value = (unit_overhead, job.timestamp)
+        queue_values.append((job.queue_seconds, job.timestamp))
+        for item in items:
+            unit_overhead_values.append(value)
+            effective_training.append(replace(item, duration_seconds=item.duration_seconds + unit_overhead))
+            unit_overhead_by_suite[item.suite].append(value)
+
     by_hash: dict[str, list[Observation]] = defaultdict(list)
     by_suite: dict[str, list[Observation]] = defaultdict(list)
-    for item in training:
+    for item in effective_training:
         by_hash[item.riot_hash].append(item)
         by_suite[item.suite].append(item)
 
-    global_seconds = _estimate(training, holdout_start, half_life_days, quantile)
+    global_seconds = _estimate(effective_training, holdout_start, half_life_days, quantile)
     suite_seconds = {
         suite: _estimate(items, holdout_start, half_life_days, quantile) for suite, items in sorted(by_suite.items())
     }
-    estimates: dict[str, dict[str, t.Any]] = {}
+    estimates: dict[str, float] = {}
     for riot_hash, items in sorted(by_hash.items()):
         observed = _estimate(items, holdout_start, half_life_days, quantile)
         suite_counts = Counter(item.suite for item in items)
         suite = min(suite_counts, key=lambda value: (-suite_counts[value], value))
         if len(items) >= minimum_samples:
             estimate_seconds = observed
-            source = "observed"
         else:
             estimate_seconds = max(observed, suite_seconds.get(suite, global_seconds)) * sparse_safety_factor
-            source = "sparse-fallback"
-        estimates[riot_hash] = {
-            "estimate_seconds": round(estimate_seconds, 6),
-            "observed_quantile_seconds": round(observed, 6),
-            "sample_count": len(items),
-            "source": source,
-            "suite": suite,
-        }
+        estimates[riot_hash] = round(estimate_seconds, 6)
 
-    session_seconds: dict[tuple[str, str], float] = defaultdict(float)
-    for item in training:
-        session_seconds[(item.pipeline_id, item.job_name)] += item.duration_seconds
-    overhead_values: list[tuple[float, str]] = []
-    queue_values: list[tuple[float, str]] = []
-    overhead_by_suite: dict[str, list[tuple[float, str]]] = defaultdict(list)
-    resolved_jobs = _resolve_job_strategies(in_window_all, job_observations or [])
-    window_jobs = [job for job in resolved_jobs if earliest <= _parse_timestamp(job.timestamp) <= latest]
-    for job in window_jobs:
-        if job.strategy != "legacy" or job.status not in {"pass", "success"}:
-            continue
-        if _parse_timestamp(job.timestamp) >= holdout_start:
-            continue
-        session_duration = session_seconds.get((job.pipeline_id, job.job_name))
-        if session_duration is None:
-            continue
-        overhead = max(0.0, job.duration_seconds - session_duration)
-        value = (overhead, job.timestamp)
-        overhead_values.append(value)
-        overhead_by_suite[job.suite].append(value)
-        queue_values.append((job.queue_seconds, job.timestamp))
-    global_overhead = (
-        _estimate_timed_values(overhead_values, holdout_start, half_life_days, quantile) if overhead_values else 0.0
-    )
-    suite_overheads = {
+    global_unit_overhead = _estimate_timed_values(unit_overhead_values, holdout_start, half_life_days, quantile)
+    suite_unit_overheads = {
         suite: _estimate_timed_values(items, holdout_start, half_life_days, quantile)
-        for suite, items in sorted(overhead_by_suite.items())
+        for suite, items in sorted(unit_overhead_by_suite.items())
     }
     queue_seconds = (
         _estimate_timed_values(queue_values, holdout_start, half_life_days, quantile) if queue_values else 0.0
@@ -332,7 +343,7 @@ def build_runtime_model(
             "training_observations": len(training),
             "holdout_observations": len(holdout),
             "job_observations": len(normalized_jobs),
-            "censored_observations": len(in_window_all) - len(successful),
+            "censored_observations": sum(item.strategy == "legacy" and item.status != "pass" for item in in_window_all),
             "status_counts": dict(sorted(Counter(item.status for item in in_window_all).items())),
             "training_end": holdout_start.isoformat().replace("+00:00", "Z"),
             "window_end": latest.isoformat().replace("+00:00", "Z"),
@@ -350,10 +361,13 @@ def build_runtime_model(
             "suite_seconds": {suite: round(value, 6) for suite, value in suite_seconds.items()},
         },
         "overheads": {
-            "global_seconds": round(global_overhead, 6),
-            "suite_seconds": {suite: round(value, 6) for suite, value in suite_overheads.items()},
+            "global_seconds": 0.0,
+            "suite_seconds": {},
+            "unit_global_seconds": round(global_unit_overhead, 6),
+            "unit_suite_seconds": {suite: round(value, 6) for suite, value in suite_unit_overheads.items()},
             "queue_p90_seconds": round(queue_seconds, 6),
-            "sample_count": len(overhead_values),
+            "sample_count": len(training_jobs),
+            "matched_session_count": len(training),
         },
         "estimates": estimates,
     }
@@ -381,17 +395,36 @@ def validate_runtime_model(model: t.Mapping[str, t.Any]) -> None:
     overhead = overheads.get("global_seconds")
     if isinstance(overhead, bool) or not isinstance(overhead, (int, float)) or overhead < 0:
         raise AllocationError("runtime model global overhead cannot be negative")
+    if estimates:
+        unit_overhead = overheads.get("unit_global_seconds")
+        sample_count = overheads.get("sample_count")
+        matched_session_count = overheads.get("matched_session_count")
+        if (
+            isinstance(unit_overhead, bool)
+            or not isinstance(unit_overhead, (int, float))
+            or unit_overhead < 0
+            or isinstance(sample_count, bool)
+            or not isinstance(sample_count, int)
+            or sample_count <= 0
+            or isinstance(matched_session_count, bool)
+            or not isinstance(matched_session_count, int)
+            or matched_session_count <= 0
+        ):
+            raise AllocationError("populated runtime models require matched CI job timing")
     for riot_hash, item in estimates.items():
-        if not isinstance(riot_hash, str) or not isinstance(item, dict):
+        if not isinstance(riot_hash, str):
             raise AllocationError("runtime model estimates are malformed")
-        estimate = item.get("estimate_seconds")
+        estimate = item.get("estimate_seconds") if isinstance(item, dict) else item
         if isinstance(estimate, bool) or not isinstance(estimate, (int, float)) or estimate <= 0:
             raise AllocationError(f"runtime model estimate is invalid for {riot_hash}")
 
 
 def runtime_estimates(model: t.Mapping[str, t.Any]) -> tuple[dict[str, float], float]:
     validate_runtime_model(model)
-    estimates = {riot_hash: float(item["estimate_seconds"]) for riot_hash, item in model["estimates"].items()}
+    estimates = {
+        riot_hash: float(item["estimate_seconds"] if isinstance(item, dict) else item)
+        for riot_hash, item in model["estimates"].items()
+    }
     return estimates, float(model["fallbacks"]["global_seconds"])
 
 
@@ -416,6 +449,9 @@ def replay_observations(
     estimates, fallback_seconds = runtime_estimates(model)
     suite_overheads = model["overheads"].get("suite_seconds", {})
     global_overhead = float(model["overheads"]["global_seconds"])
+    unit_suite_overheads = model["overheads"].get("unit_suite_seconds", {})
+    unit_stage_overheads = model["overheads"].get("unit_stage_seconds", {})
+    global_unit_overhead = float(model["overheads"].get("unit_global_seconds", 0.0))
     selected = [item for item in observations if item.status == "pass"]
     training_end = model["dataset"].get("training_end")
     if holdout_only and training_end:
@@ -427,7 +463,14 @@ def replay_observations(
     grouped: dict[tuple[str, str, int], dict[str, float]] = defaultdict(dict)
     for item in selected:
         key = (item.pipeline_id, item.suite, item.shard_total)
-        grouped[key][item.riot_hash] = max(grouped[key].get(item.riot_hash, 0.0), item.duration_seconds)
+        unit_overhead = float(
+            unit_suite_overheads.get(
+                item.suite,
+                unit_stage_overheads.get(suite_stage(item.suite), global_unit_overhead),
+            )
+        )
+        effective_duration = item.duration_seconds + unit_overhead
+        grouped[key][item.riot_hash] = max(grouped[key].get(item.riot_hash, 0.0), effective_duration)
 
     stage_legacy: dict[tuple[str, str], float] = defaultdict(float)
     stage_balanced: dict[tuple[str, str], float] = defaultdict(float)

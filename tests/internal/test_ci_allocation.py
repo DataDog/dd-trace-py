@@ -67,6 +67,26 @@ def test_runtime_parallelism_targets_modeled_shard_duration():
     assert result == {"core": 2}
 
 
+def test_runtime_parallelism_reallocates_within_legacy_job_budget():
+    suites = {
+        "long": SuiteVenvInfo(("a", "b", "c", "d"), frozenset({"3.13"})),
+        "short": SuiteVenvInfo(("e", "f", "g", "h"), frozenset({"3.13"})),
+    }
+
+    result = compute_runtime_parallelism(
+        suites,
+        suites,
+        {"a": 100, "b": 100, "c": 100, "d": 100, "e": 40, "f": 40, "g": 40, "h": 40},
+        {},
+        60,
+        target_shard_seconds=150,
+        maximum_parallelism_per_suite=4,
+        maximum_total_jobs=4,
+    )
+
+    assert result == {"long": 2, "short": 2}
+
+
 def test_datadog_session_normalization_uses_riot_hash_as_atomic_identity():
     event = {
         "attributes": {
@@ -216,9 +236,34 @@ def test_runtime_model_reserves_holdout_and_replays_observed_durations():
     assert model["dataset"]["training_observations"] == 12
     assert model["dataset"]["holdout_observations"] == 8
     assert model["dataset"]["censored_observations"] == 1
-    assert model["overheads"]["global_seconds"] == 4
+    assert model["overheads"]["global_seconds"] == 0
+    assert model["overheads"]["unit_global_seconds"] == 1
+    assert model["overheads"]["matched_session_count"] == 12
+    assert model["estimates"]["h1"] == 11
     assert report["pipeline_count"] == 2
     assert report["balanced"]["median_seconds"] < report["legacy"]["median_seconds"]
+
+
+def test_runtime_model_rejects_session_only_timings():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    observations = [
+        _observation("h1", 10, start, "train"),
+        _observation("h1", 10, start + timedelta(days=2), "holdout"),
+    ]
+
+    with pytest.raises(AllocationError, match="missing CI job timing"):
+        build_runtime_model(
+            observations,
+            {
+                "estimate_quantile": 0.9,
+                "half_life_days": 30,
+                "history_window_days": 90,
+                "holdout_days": 1,
+                "minimum_samples": 1,
+                "sparse_safety_factor": 1.25,
+            },
+            [],
+        )
 
 
 def test_manifest_proves_both_topologies_cover_the_same_suite():
@@ -227,9 +272,16 @@ def test_manifest_proves_both_topologies_cover_the_same_suite():
         "planner_version": "weighted-lpt-v1",
         "dataset": {"source": "test"},
         "parameters": {},
-        "overheads": {"global_seconds": 0, "suite_seconds": {}},
+        "overheads": {
+            "global_seconds": 0,
+            "suite_seconds": {},
+            "unit_global_seconds": 1,
+            "unit_suite_seconds": {},
+            "sample_count": 1,
+            "matched_session_count": 2,
+        },
         "fallbacks": {"global_seconds": 60, "suite_seconds": {}},
-        "estimates": {"a": {"estimate_seconds": 10}, "b": {"estimate_seconds": 5}},
+        "estimates": {"a": 10, "b": 5},
     }
     manifest = build_allocation_manifest(
         suite_venv_info={"core": SuiteVenvInfo(("a", "b"), frozenset({"3.13"}))},
