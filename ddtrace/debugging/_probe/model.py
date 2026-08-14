@@ -240,7 +240,7 @@ class LiteralTemplateSegment(TemplateSegment):
 
 @dataclass
 class ExpressionTemplateSegment(TemplateSegment):
-    expr: DDExpression
+    expr: DDRedactedExpression
 
     def eval(self, scope: Mapping[str, Any]) -> Any:
         return self.expr.eval(scope)

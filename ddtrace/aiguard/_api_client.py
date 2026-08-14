@@ -6,12 +6,16 @@ from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
-from typing import Union
 
 from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import Function  # noqa:F401
+from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import Message
+from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -21,10 +25,13 @@ from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
+from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
+
+
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -50,33 +57,6 @@ else:
     _CLIENT_IP_TAG = http.CLIENT_IP
     _PEER_IP_TAG = "network.client.ip"
     _ANOMALY_DETECTION_SOURCES = {}
-
-
-class Function(TypedDict):
-    name: str
-    arguments: str
-
-
-class ToolCall(TypedDict):
-    id: str
-    function: Function
-
-
-class ImageURL(TypedDict, total=False):
-    url: str
-
-
-class ContentPart(TypedDict, total=False):
-    type: str
-    text: Optional[str]
-    image_url: Optional[ImageURL]
-
-
-class Message(TypedDict, total=False):
-    role: str
-    content: Union[str, list[ContentPart]]
-    tool_call_id: str
-    tool_calls: list[ToolCall]
 
 
 class Evaluation(TypedDict):

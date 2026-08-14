@@ -50,6 +50,46 @@ class ToolDefinition(TypedDict, total=False):
     version: str
 
 
+class AgentCapability(TypedDict, total=False):
+    """One declared capability: an MCP server, a builtin tool, a toolset, or a preparation hook."""
+
+    name: str
+    type: str
+
+
+class AgentInstructionResolver(TypedDict, total=False):
+    """A callable that decides instruction text at run time, recorded by name and never evaluated."""
+
+    name: str
+    type: str
+
+
+class AgentManifest(TypedDict, total=False):
+    """Declared agent configuration, reported on an agent span under _dd.agent_manifest.
+
+    One flat document. Every key is optional because a field the framework does not expose is
+    omitted rather than emitted empty, so an absent key means "not configured". Only declared
+    configuration is read, never what a single run resolved, so the document is stable run to run.
+    """
+
+    framework: str
+    name: str
+    instructions: str
+    system_prompts: list[str]
+    extra_instructions: list[AgentInstructionResolver]
+    model: str
+    model_settings: dict[str, Any]
+    agent_settings: dict[str, Any]
+    tools: list[dict[str, Any]]
+    capabilities: list[AgentCapability]
+    data_contracts: dict[str, Any]
+    guardrails: list[str]
+    handoffs: list[Any]
+    handoff_description: str
+    memory_policies: list[str]
+    metadata: dict[str, Any]
+
+
 class ChatMessage(TypedDict):
     """A single message in a chat prompt template."""
 
@@ -169,6 +209,17 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+
+
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that identifies a versioned agent.
+        version: str - user tag for the version of the agent.
+
+    Set as an `agent_version` tag on the agent span only, never on its children.
+    """
+
+    version: str
 
 
 class _MetaIO(TypedDict, total=False):

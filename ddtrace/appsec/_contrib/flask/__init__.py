@@ -29,6 +29,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -59,7 +60,7 @@ def _get_content_length(environ: Mapping[str, Any]) -> Optional[int]:
 
 
 def _on_request_span_modifier(
-    _ctx: ExecutionContext,
+    _ctx: ExecutionContext[Event],
     _flask_config: IntegrationConfig,
     request: Any,
     environ: MutableMapping[str, Any],
@@ -143,7 +144,7 @@ def _on_flask_blocked_request(span: Span) -> None:
 
 
 def _on_start_response_blocked(
-    ctx: ExecutionContext,
+    ctx: ExecutionContext[Event],
     flask_config: IntegrationConfig,
     response_headers: list[tuple[str, str]],
     status: int,
@@ -207,7 +208,7 @@ def _flask_block_request_callable(span: Span) -> None:
         abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=status))
 
 
-def _on_pre_tracedrequest(ctx: ExecutionContext) -> None:
+def _on_pre_tracedrequest(ctx: ExecutionContext[Event]) -> None:
     import functools
 
     if asm_config._asm_enabled:
@@ -224,7 +225,7 @@ def _on_block_decided(callback: Callable[[], Any]) -> None:
 
 
 def _wsgi_make_block_content(
-    ctx: ExecutionContext, construct_url: Callable[[MutableMapping[str, str]], str]
+    ctx: ExecutionContext[Event], construct_url: Callable[[MutableMapping[str, str]], str]
 ) -> tuple[int, list[tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.14.0rc1"
+version = "4.15.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -38,6 +38,7 @@ dependencies = [
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
+    "ddtrace-internal==0.1.0",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
@@ -113,6 +114,9 @@ lint = [
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
     "ddapm-test-agent==1.43.0",
+    # The newer Datadog-repackaged grpcio release lacks CPython 3.10 wheels.
+    "grpcio==1.80.0; python_version<='3.10'",
+    "grpcio==1.82.1; python_version>='3.11'",
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.22.0",

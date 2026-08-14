@@ -1704,6 +1704,42 @@
         "default": "false"
       }
     ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "agentless"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "sensitive": true
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "5"
+      }
+    ],
+    "DD_FEATURE_FLAGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_FFE_INTAKE_ENABLED": [
       {
         "implementation": "A",
@@ -2911,6 +2947,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_PROFILING_NATIVE_HEAP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PROFILING_NATIVE_TESTS": [
@@ -4572,6 +4615,14 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_OTEL_CTX_ENABLED": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
+      }
+    ],
     "DD_TRACE_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -5774,6 +5825,14 @@
         "internal": true
       }
     ],
+    "_DD_COVERAGE_ACCURATE_IMPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
         "implementation": "B",
@@ -5863,14 +5922,6 @@
       }
     ],
     "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -6011,6 +6062,14 @@
         "implementation": "B",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_MAX_TASKS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50",
         "internal": true
       }
     ],

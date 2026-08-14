@@ -1,0 +1,222 @@
+[[
+  {
+    "name": "internal",
+    "service": "tests.opentelemetry",
+    "resource": "test-otel-distributed-trace",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a7c63c300000000",
+      "_dd.svc_src": "otel",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
+      "language": "python",
+      "runtime-id": "b5e32582d89a4f50b35fc220579653d6"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 526.0
+    },
+    "duration": 3196976,
+    "start": 1786536899408487115
+  },
+     {
+       "name": "flask.request",
+       "service": "flask",
+       "resource": "GET /otel",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "6a7c63c300000000",
+         "_dd.parent_id": "21b6854f29d714dc",
+         "_dd.svc_src": "flask",
+         "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
+         "component": "flask",
+         "flask.endpoint": "otel",
+         "flask.url_rule": "/otel",
+         "flask.version": "3.1.3",
+         "http.method": "GET",
+         "http.route": "/otel",
+         "http.status_code": "200",
+         "http.url": "http://0.0.0.0:8010/otel",
+         "http.useragent": "python-requests/2.28.1",
+         "language": "python",
+         "runtime-id": "a3825951c5d94cb5a804affe0765fe65",
+         "span.kind": "server",
+         "traceparent": "00-6a7c63c30000000040a8bd75b65c6416-21b6854f29d714dc-01",
+         "tracestate": "dd=p:21b6854f29d714dc;s:1;t.dm:-0"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "process_id": 666.0
+       },
+       "duration": 2190958,
+       "start": 1786536899409310172
+     },
+        {
+          "name": "flask.application",
+          "service": "flask",
+          "resource": "GET /otel",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.svc_src": "flask",
+            "component": "flask",
+            "flask.endpoint": "otel",
+            "flask.url_rule": "/otel"
+          },
+          "duration": 1930203,
+          "start": 1786536899409409965
+        },
+           {
+             "name": "flask.preprocess_request",
+             "service": "flask",
+             "resource": "flask.preprocess_request",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.svc_src": "flask",
+               "component": "flask"
+             },
+             "duration": 14209,
+             "start": 1786536899409486925
+           },
+           {
+             "name": "flask.dispatch_request",
+             "service": "flask",
+             "resource": "flask.dispatch_request",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.svc_src": "flask",
+               "component": "flask"
+             },
+             "duration": 1639198,
+             "start": 1786536899409519259
+           },
+              {
+                "name": "tests.opentelemetry.flask_app.otel",
+                "service": "flask",
+                "resource": "/otel",
+                "trace_id": 0,
+                "span_id": 10,
+                "parent_id": 6,
+                "type": "",
+                "error": 0,
+                "meta": {
+                  "_dd.base_service": "",
+                  "_dd.svc_src": "flask",
+                  "component": "flask"
+                },
+                "duration": 1606780,
+                "start": 1786536899409544301
+              },
+                 {
+                   "name": "internal",
+                   "service": "flask",
+                   "resource": "otel-flask-manual-span",
+                   "trace_id": 0,
+                   "span_id": 11,
+                   "parent_id": 10,
+                   "type": "",
+                   "error": 0,
+                   "meta": {
+                     "_dd.base_service": "",
+                     "_dd.svc_src": "flask"
+                   },
+                   "duration": 45209,
+                   "start": 1786536899411088830
+                 },
+           {
+             "name": "flask.process_response",
+             "service": "flask",
+             "resource": "flask.process_response",
+             "trace_id": 0,
+             "span_id": 7,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.svc_src": "flask",
+               "component": "flask"
+             },
+             "duration": 19458,
+             "start": 1786536899411207291
+           },
+           {
+             "name": "flask.do_teardown_request",
+             "service": "flask",
+             "resource": "flask.do_teardown_request",
+             "trace_id": 0,
+             "span_id": 8,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.svc_src": "flask",
+               "component": "flask"
+             },
+             "duration": 14459,
+             "start": 1786536899411284584
+           },
+           {
+             "name": "flask.do_teardown_appcontext",
+             "service": "flask",
+             "resource": "flask.do_teardown_appcontext",
+             "trace_id": 0,
+             "span_id": 9,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.svc_src": "flask",
+               "component": "flask"
+             },
+             "duration": 10958,
+             "start": 1786536899411317585
+           },
+        {
+          "name": "flask.response",
+          "service": "flask",
+          "resource": "flask.response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.svc_src": "flask",
+            "component": "flask"
+          },
+          "duration": 146836,
+          "start": 1786536899411347168
+        }]]
