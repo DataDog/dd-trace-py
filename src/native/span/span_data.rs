@@ -58,9 +58,11 @@ pub struct SpanData {
     /// Set from Python during span creation; read natively by the context
     /// provider when walking the ancestor chain in `_update_active`.
     pub _parent: Option<Py<PyAny>>,
-    /// The parent `Context` this span was created under, or `None`.
-    /// Held as `Py<PyAny>` because `Context` is still a pure-Python class.
-    pub _parent_context: Option<Py<PyAny>>,
+    /// The parent `Context` this span was created under, or `None`. `Context`
+    /// (pure-Python) subclasses native `ContextData`, so this is typed against
+    /// the base class; PyO3 extracts a `Context` instance into `Py<ContextData>`
+    /// via ordinary covariant pyclass conversion.
+    pub _parent_context: Option<Py<crate::context::ContextData>>,
 }
 
 impl SpanData {
@@ -461,7 +463,10 @@ impl SpanData {
     // _parent_context property — the parent Context, or None.
     #[getter(_parent_context)]
     #[inline(always)]
-    fn get_parent_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+    fn get_parent_context<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Option<Bound<'py, crate::context::ContextData>> {
         self._parent_context.as_ref().map(|c| c.bind(py).clone())
     }
 
@@ -471,7 +476,8 @@ impl SpanData {
         self._parent_context = if value.is_none() {
             None
         } else {
-            Some(value.clone().unbind())
+            // Silently ignore non-Context values, matching other setters' defensive style.
+            value.extract::<Py<crate::context::ContextData>>().ok()
         };
     }
 
