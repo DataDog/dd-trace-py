@@ -23,6 +23,23 @@ pub fn update_otel_thread_context(
     );
 }
 
+/// Publish from raw ids, for an active `Context` -- there is no `SpanData` to read.
+#[pyfunction]
+pub fn update_otel_thread_context_ids(
+    trace_id: u128,
+    span_id: u64,
+    trace_flags: u8,
+    local_root_span_id: u64,
+) {
+    ThreadContext::update(
+        trace_id.to_be_bytes(),
+        span_id.to_be_bytes(),
+        trace_flags,
+        local_root_span_id.to_be_bytes(),
+        &[],
+    );
+}
+
 #[pyfunction]
 pub fn detach_otel_thread_context() {
     ThreadContext::detach();

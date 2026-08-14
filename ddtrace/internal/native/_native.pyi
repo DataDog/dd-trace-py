@@ -191,6 +191,18 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
+    def update_otel_thread_context_ids(
+        trace_id: int, span_id: int, trace_flags: int, local_root_span_id: int
+    ) -> None:
+        """
+        Update the OTel thread context from raw ids, for an active ``Context``.
+
+        :param trace_id: 128-bit trace id.
+        :param span_id: The span this execution is attributable to.
+        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        :param local_root_span_id: Local root span id.
+        """
+        ...
     def detach_otel_thread_context() -> None:
         """Detach the OTel thread context from the current thread."""
         ...
@@ -1627,6 +1639,13 @@ class BaseContextProvider(abc.ABC):
     def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]: ...
+    def _peek_active(self) -> Optional[ActiveTrace]:
+        """``active()`` without its repair: no contextvar write, no activate dispatch.
+
+        For observers that must not perturb the active trace, such as anything
+        running from a CPython context-switch watcher.
+        """
+        ...
     def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]: ...
 
 class DefaultContextProvider(BaseContextProvider):

@@ -72,6 +72,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             otel_thread_ctx::update_otel_thread_context
         ))?;
         m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::update_otel_thread_context_ids
+        ))?;
+        m.add_wrapped(wrap_pyfunction!(
             otel_thread_ctx::detach_otel_thread_context
         ))?;
     }

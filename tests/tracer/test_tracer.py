@@ -30,6 +30,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal import core
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -2161,3 +2162,60 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert active.span_id == 1
 
     assert tracer.context_provider.active() is None
+
+
+def _finished_span_over_reactivatable_context(tracer):
+    """The state `active()` repairs by activating the parent context.
+
+    `_on_span_finish` already repairs the finishing execution's contextvar, so
+    reaching this state means activating the finished span explicitly -- the position
+    an async task holding a span that finished elsewhere is in.
+    """
+    parent = Context(trace_id=1, span_id=2)
+    parent._reactivate = True
+    span = tracer.start_span("child", child_of=parent)
+    span.finish()
+    tracer.context_provider.activate(span)
+    return parent, span
+
+
+def test_peek_active_resolves_without_activating(tracer):
+    from ddtrace._trace.provider import _DD_CONTEXTVAR
+
+    parent, span = _finished_span_over_reactivatable_context(tracer)
+
+    activations = []
+
+    def record(provider, ctx):
+        activations.append(ctx)
+
+    core.on("ddtrace.context_provider.activate", record)
+    try:
+        peeked = tracer.context_provider._peek_active()
+    finally:
+        # Pass the callback: a bare reset would drop every other listener too.
+        core.reset_listeners("ddtrace.context_provider.activate", record)
+
+    assert peeked is parent
+    assert _DD_CONTEXTVAR.get() is span
+    assert activations == []
+
+
+def test_active_still_repairs_the_contextvar(tracer):
+    from ddtrace._trace.provider import _DD_CONTEXTVAR
+
+    parent, _ = _finished_span_over_reactivatable_context(tracer)
+
+    assert tracer.context_provider.active() is parent
+    assert _DD_CONTEXTVAR.get() is parent
+
+
+def test_peek_active_matches_active_for_simple_states(tracer):
+    assert tracer.context_provider._peek_active() is None
+
+    ctx = Context(trace_id=1, span_id=1)
+    with tracer._activate_context(ctx):
+        assert tracer.context_provider._peek_active() is ctx
+
+    with tracer.trace("root") as span:
+        assert tracer.context_provider._peek_active() is span

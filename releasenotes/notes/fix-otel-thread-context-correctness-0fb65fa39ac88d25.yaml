@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the OpenTelemetry thread context reported no active
+    trace whenever a trace was propagated without a local span, so compatible profiling
+    and security tools could not correlate samples taken in executor worker threads, or
+    on a distributed request before its first span started.
+  - |
+    tracing: Fixes an issue where the OpenTelemetry thread context kept reporting a trace
+    as unsampled for the whole life of the trace, because trace sampling usually decides
+    after the record is published. The record is now updated when the sampling decision
+    is made.
+  - |
+    tracing: Fixes an issue where publishing the OpenTelemetry thread context on an
+    asynchronous context switch could change which span is active in that context, and
+    publish the record twice for a single switch.

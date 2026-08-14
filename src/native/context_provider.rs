@@ -77,6 +77,57 @@ fn dispatch_activate(
     event_hub::dispatch(py, ACTIVATE_EVENT, Some(args.into_any().unbind()), false)
 }
 
+enum Resolved<'py> {
+    Unchanged,
+    /// May hold Python `None`, when the whole ancestor chain is finished.
+    Ancestor(Bound<'py, PyAny>),
+    ReactivatableContext(Bound<'py, PyAny>),
+}
+
+/// Where the active trace *should* be, walking past finished ancestors of `span`.
+///
+/// Shared by `_update_active`, which applies the result, and `_peek_active`, which
+/// only reports it, so the two cannot drift apart. Borrows `span` so that
+/// `Resolved::Unchanged` costs the caller nothing -- `_update_active` runs on every
+/// span finish, where an extra incref shows up.
+#[inline]
+fn resolve_active<'py>(py: Python<'py>, span: &Bound<'py, PyAny>) -> PyResult<Resolved<'py>> {
+    let mut current = span.clone();
+    loop {
+        // PERF: read `duration`, `_parent`, and `_parent_context` straight off the
+        // native SpanData fields in one borrow -- avoids three Python attribute
+        // lookups per ancestor hop.
+        let (parent, parent_context) = {
+            let Ok(sd) = current.cast::<SpanData>() else {
+                break; // not a Span (e.g. None) -- stop walking parents
+            };
+            let sd = sd.borrow();
+            if sd.duration.is_none() {
+                break; // unfinished span -- stop walking parents
+            }
+            (
+                sd._parent.as_ref().map(|p| p.bind(py).clone()),
+                sd._parent_context.as_ref().map(|c| c.bind(py).clone()),
+            )
+        };
+        if parent.is_none() {
+            if let Some(parent_context) = parent_context {
+                // `_reactivate` lives on the pure-Python Context -- still a getattr.
+                if parent_context.getattr("_reactivate")?.is_truthy()? {
+                    return Ok(Resolved::ReactivatableContext(parent_context));
+                }
+            }
+        }
+        // Advance to the parent; `None` ends the walk on the next iteration.
+        current = parent.unwrap_or_else(|| py.None().into_bound(py));
+    }
+    if current.is(span) {
+        Ok(Resolved::Unchanged)
+    } else {
+        Ok(Resolved::Ancestor(current))
+    }
+}
+
 /// `Some(v)` unless `v` is Python `None`, matching the `Optional[...]` return
 /// convention used throughout this module. Consumes `v` to avoid an incref.
 #[inline]
@@ -169,6 +220,12 @@ impl BaseContextProvider {
         Err(PyNotImplementedError::new_err(()))
     }
 
+    /// See `DefaultContextProvider::_peek_active`. A provider with its own storage
+    /// keeps today's behavior until it opts into a read-only path.
+    fn _peek_active(slf: &Bound<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
+        slf.call_method0("active").map(none_or_unbind)
+    }
+
     /// Method available for backward-compatibility. It proxies the call to
     /// ``self.active()`` and must not do anything more.
     #[pyo3(signature = (*_args, **_kwargs))]
@@ -251,41 +308,42 @@ impl DefaultContextProvider {
         py: Python<'py>,
         span: Bound<'py, PyAny>,
     ) -> PyResult<Option<Py<PyAny>>> {
-        let original = span.clone();
-        let mut current = span;
-        loop {
-            // PERF: read `duration`, `_parent`, and `_parent_context` straight
-            // off the native SpanData fields in one borrow -- avoids three
-            // Python attribute lookups per ancestor hop.
-            let (parent, parent_context) = {
-                let Ok(sd) = current.cast::<SpanData>() else {
-                    break; // not a Span (e.g. None) -- stop walking parents
-                };
-                let sd = sd.borrow();
-                if sd.duration.is_none() {
-                    break; // unfinished span -- stop walking parents
-                }
-                (
-                    sd._parent.as_ref().map(|p| p.bind(py).clone()),
-                    sd._parent_context.as_ref().map(|c| c.bind(py).clone()),
-                )
-            };
-            if parent.is_none() {
-                if let Some(parent_context) = parent_context {
-                    // `_reactivate` lives on the pure-Python Context -- still a getattr.
-                    if parent_context.getattr("_reactivate")?.is_truthy()? {
-                        call_activate(slf, py, Some(parent_context.clone()))?;
-                        return Ok(Some(parent_context.unbind()));
-                    }
-                }
+        match resolve_active(py, &span)? {
+            Resolved::Unchanged => Ok(none_or_unbind(span)),
+            Resolved::ReactivatableContext(parent_context) => {
+                call_activate(slf, py, Some(parent_context.clone()))?;
+                Ok(Some(parent_context.unbind()))
             }
-            // Advance to the parent; `None` ends the walk on the next iteration.
-            current = parent.unwrap_or_else(|| py.None().into_bound(py));
+            Resolved::Ancestor(current) => {
+                call_activate(slf, py, none_or_clone(&current))?;
+                Ok(none_or_unbind(current))
+            }
         }
-        if !current.is(&original) {
-            call_activate(slf, py, none_or_clone(&current))?;
+    }
+
+    /// `active` without its repair: no `activate`, so no contextvar write and no
+    /// `ddtrace.context_provider.activate` dispatch.
+    ///
+    /// For observers that must not perturb the active trace. A CPython
+    /// context-switch watcher is one: `activate` there would write to whichever
+    /// context the switch just made current, and re-enter the event hub mid-switch.
+    fn _peek_active<'py>(slf: &Bound<'py, Self>, py: Python<'py>) -> PyResult<Option<Py<PyAny>>> {
+        // A subclass may override `active` and may not even use this contextvar.
+        if !slf.is_exact_instance_of::<DefaultContextProvider>() {
+            return slf.call_method0("active").map(none_or_unbind);
         }
-        Ok(none_or_unbind(current))
+        let item = contextvar_get(py, contextvar(py)?)?;
+        if item.is_none() {
+            return Ok(None);
+        }
+        if item.cast::<SpanData>().is_err() {
+            return Ok(Some(item.unbind()));
+        }
+        match resolve_active(py, &item)? {
+            Resolved::Unchanged => Ok(none_or_unbind(item)),
+            Resolved::ReactivatableContext(parent_context) => Ok(Some(parent_context.unbind())),
+            Resolved::Ancestor(current) => Ok(none_or_unbind(current)),
+        }
     }
 }
 
