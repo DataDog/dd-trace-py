@@ -23,8 +23,11 @@ aggressive obfuscation modes.
 import sys
 from types import CodeType
 from types import ModuleType
+import typing as t
 
-from ddtrace.internal.utils.cache import callonce
+
+if t.TYPE_CHECKING:
+    from ddtrace.internal.module import BaseModuleWatchdog
 
 
 # Legacy PyArmor (<= 8.x, "RFT"/restrict mode) calls into module-level
@@ -37,10 +40,59 @@ _ARMOR_MARKERS = frozenset(("__armor_enter__", "__armor_exit__"))
 # builtin functions whose ``__module__`` lives in the runtime package.
 _RUNTIME_MODULE_PREFIXES = ("pytransform", "pyarmor_runtime")
 
+# Once the obfuscation runtime is seen, it is never unloaded, so a positive
+# result can be cached permanently. A negative result cannot: the runtime may
+# be imported lazily, well after code that predates it has already been
+# checked. Rather than re-scanning sys.modules on every call until it flips
+# to True (expensive: O(loaded modules) per call, paid for the life of the
+# process by the common, non-obfuscated case), a module watchdog observes
+# future imports for us, so the fallback scan only has to run once.
+_obfuscation_runtime_seen = False
+_obfuscation_watchdog_installed = False
+# Set to the watchdog class below once it has been installed, so that it can
+# be uninstalled again as soon as it has served its purpose.
+_obfuscation_runtime_watchdog_cls: "t.Optional[type[BaseModuleWatchdog]]" = None
 
-@callonce
+
+def _mark_obfuscation_runtime_seen() -> None:
+    global _obfuscation_runtime_seen
+    _obfuscation_runtime_seen = True
+    if _obfuscation_runtime_watchdog_cls is not None:
+        _obfuscation_runtime_watchdog_cls.uninstall()
+
+
 def _obfuscation_runtime_loaded() -> bool:
-    return any(name.startswith(_RUNTIME_MODULE_PREFIXES) for name in sys.modules)
+    global _obfuscation_watchdog_installed
+    global _obfuscation_runtime_watchdog_cls
+
+    if _obfuscation_runtime_seen:
+        return True
+
+    if _obfuscation_watchdog_installed:
+        return False
+
+    _obfuscation_watchdog_installed = True
+
+    # ddtrace.internal.module imports us transitively (via wrapping.context),
+    # so this has to be a deferred import to avoid a circular import.
+    from ddtrace.internal.module import BaseModuleWatchdog
+
+    # Snapshot the keys: sys.modules can mutate (e.g. a concurrent import) as
+    # we iterate it. This is the one, unavoidable full scan: from here on, the
+    # watchdog below observes new imports instead of us re-scanning.
+    if any(name.startswith(_RUNTIME_MODULE_PREFIXES) for name in tuple(sys.modules)):
+        _mark_obfuscation_runtime_seen()
+        return True
+
+    class _ObfuscationRuntimeWatchdog(BaseModuleWatchdog):
+        def after_import(self, module: ModuleType) -> None:
+            if module.__name__.startswith(_RUNTIME_MODULE_PREFIXES):
+                _mark_obfuscation_runtime_seen()
+
+    _obfuscation_runtime_watchdog_cls = _ObfuscationRuntimeWatchdog
+    _obfuscation_runtime_watchdog_cls.install()
+
+    return False
 
 
 def _is_runtime_object(obj: object) -> bool:
@@ -48,6 +100,12 @@ def _is_runtime_object(obj: object) -> bool:
     if isinstance(module, ModuleType):
         module = module.__name__
     return isinstance(module, str) and module.startswith(_RUNTIME_MODULE_PREFIXES)
+
+
+class ObfuscatedCodeError(Exception):
+    """Raised when a code object cannot be safely rewritten because it appears
+    to be obfuscated (e.g. by PyArmor).
+    """
 
 
 def is_obfuscated_code(code: CodeType) -> bool:
