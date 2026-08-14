@@ -397,9 +397,11 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
 
 
 # AIDEV-NOTE: Budget for one inline image, measured on the base64 that actually rides the span event.
-# Kept under the 5 MB per-event limit with headroom: over it, _writer._truncate_span_event blanks the
-# span's whole input AND output. This bounds a single image only -- several that each fit can still
-# collectively exceed the limit. The general cross-field fix belongs in the writer (MLOB-6408 follow-up).
+# Sized against the DEFAULT 5 MB per-event limit with headroom: over that, _writer._truncate_span_event
+# blanks the span's whole input AND output. Two known gaps, both shared with the audio guard and both
+# for the writer-side follow-up (MLOB-6408): this bounds one image, so several that each fit can still
+# exceed the limit together; and it does not track DD_LLMOBS_EVENT_SIZE_BYTES, so lowering that below
+# 5 MB can still admit an oversized image.
 LLMOBS_IMAGE_INLINE_MAX_BYTES = 4 * 1024 * 1024
 
 # What a browser can render from an inline data URI, and exactly Anthropic's Base64ImageSourceParam
@@ -424,10 +426,10 @@ def _encoded_image_len(data: Union[bytes, str]) -> int:
 def format_image_part_with_guard(
     data: Union[bytes, str], mime_type: str, max_bytes: int = LLMOBS_IMAGE_INLINE_MAX_BYTES
 ) -> Optional[ImagePart]:
-    """Build an ``ImagePart`` only for a renderable inline image within the size budget, else ``None``.
+    """Build an ImagePart only for a renderable inline image within the size budget, else None.
 
-    Returns ``None`` for an unrenderable MIME type or an encoded size over ``max_bytes``, so the caller
-    can keep a text marker instead. Mirrors ``format_audio_part_with_guard``.
+    Returns None for an unrenderable MIME type or an encoded size over max_bytes, so the caller can
+    keep a text marker instead. Mirrors format_audio_part_with_guard.
     """
     if not is_renderable_image_mime(mime_type):
         return None

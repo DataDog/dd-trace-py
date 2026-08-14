@@ -40,19 +40,17 @@ _VERTEX_MODEL_PROVIDER = "google"
 
 
 def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
-    """Return ``(data, media_type)`` for an inline base64 Anthropic image block, else ``None``.
+    """Return (data, media_type) for an inline base64 Anthropic image block, else None.
 
-    Returns the data unencoded so the caller's size guard can reject an oversized image before paying
-    to encode it. ``source.data`` is typed ``Union[str, Base64FileInput]`` where ``Base64FileInput`` is
-    ``IO[bytes] | PathLike`` (anthropic ``_types.py``), so the isinstance check is load-bearing: a
-    ``Path`` or file handle must not be stringified into span content. ``bytes`` is accepted for
-    symmetry with ``format_image_part``, but the SDK rejects it before the wire, so in practice it is
-    only reachable when tagging a request that already failed.
+    Data is returned unencoded so the caller's size guard can reject an oversized image before
+    paying to encode it.
     """
     source = _get_attr(block, "source", {})
     if _get_attr(source, "type", "") != "base64":
         return None
     data = _get_attr(source, "data", "")
+    # source.data is Union[str, Base64FileInput] where Base64FileInput is IO[bytes] | PathLike
+    # (anthropic _types.py), so narrowing here keeps a Path or file handle out of span content.
     if not data or not isinstance(data, (str, bytes)):
         return None
     # base64 is ASCII by definition. Reject a non-ASCII str: it is not a decodable payload, and sizing
