@@ -7,6 +7,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -75,6 +76,10 @@ class StackInfo
     uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
+
+    // Per-task override wall-time to use in reservoir sampling.
+    // nullopt means "use the thread-level wall time"
+    std::optional<int64_t> walltime_ns = std::nullopt;
 
     StackInfo(TaskName task_name, bool on_cpu, uint64_t task_id)
       : task_name(std::move(task_name))

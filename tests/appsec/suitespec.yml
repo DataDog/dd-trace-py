@@ -74,6 +74,7 @@ suites:
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
+      - tests/appsec/appsec_utils.py
     timeout: 50m
   iast_tdd_propagation:
     venvs_per_job: 1
@@ -84,6 +85,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
+      - tests/appsec/appsec_utils.py
     retry: 2
     snapshot: true
   appsec_integrations_pygoat:
@@ -148,6 +150,7 @@ suites:
       - '@appsec_iast'
       - tests/appsec/integrations/flask_tests/test_iast_flask.py
       - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+      - tests/appsec/appsec_utils.py
     retry: 2
     # test_appsec_flask_telemetry.py asserts on payloads received by the test agent.
     snapshot: true
@@ -162,6 +165,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
+      - tests/appsec/appsec_utils.py
     retry: 2
     services:
       - testagent
@@ -176,6 +180,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
+      - tests/appsec/appsec_utils.py
     retry: 2
     services:
       - testagent
@@ -190,6 +195,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
+      - tests/appsec/appsec_utils.py
     retry: 2
     services:
       - testagent
