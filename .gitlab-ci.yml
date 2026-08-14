@@ -18,14 +18,14 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "4be985b2a08121eb586d8e37e03e89e2407ba2a2"
+  SYSTEM_TESTS_REF: "692e9462ef7296cf1224c0d2bd3a3623a1bfe590"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
-  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v129724447-ccf4260-ci-utils@sha256:3ff0b19510872d740ee4bd3bddde9bb47567ccac7b6e4684bafb6b2bdaf62247"
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
@@ -340,7 +340,12 @@ codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
+  variables:
+    GIT_DEPTH: "0"
   image: ${CI_UTILS_IMAGE}
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
@@ -368,20 +373,27 @@ codeowners:
             echo "Please remove duplicates from .github/CODEOWNERS."
             exit 1
         fi
-    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
-    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      > /tmp/changed_files.txt
-      while IFS= read -r f; do
-        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
-      done < /tmp/changed_all.txt
-    - |
-      if [ -s /tmp/changed_files.txt ]; then
-        echo '```' > codeowners.txt
-        xargs codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
-        echo '```' >> codeowners.txt
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+      git show "FETCH_HEAD:.github/CODEOWNERS" > /tmp/base-CODEOWNERS
+      git diff --name-only --diff-filter=ACMRTUXB -z "FETCH_HEAD...${CI_COMMIT_SHA}" > /tmp/changed_files.txt
+    - |
+      {
+        printf 'Resolved from the full PR diff against `%s` using the target branch CODEOWNERS file.\n' "${BASE_BRANCH}"
+        printf 'CODEOWNERS team requests not listed below are not required by the current file set.\n\n'
+        if [ -s /tmp/changed_files.txt ]; then
+          echo '```'
+          xargs -0 codeowners --file /tmp/base-CODEOWNERS < /tmp/changed_files.txt
+          echo '```'
+        else
+          echo 'No remaining files require a CODEOWNERS review.'
+        fi
+      } | tee codeowners.txt
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
 
 detect_circular_imports:
@@ -410,9 +422,10 @@ detect_circular_imports:
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of cycles.py (has uv metadata)
+    # Analyse the merge base ddtrace using the PR version of cycles.py (has uv metadata)
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
     - |
@@ -451,9 +464,10 @@ detect_layering_violations:
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of layers.py/layers.json (has uv metadata)
+    # Analyse the merge base using the PR version of layers.py/layers.json (has uv metadata)
     - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-base.json
     - cat layers-base.json
     - |
@@ -469,6 +483,11 @@ check_added_file_size:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
   rules:
     - if: !reference [.is_main]
       when: never
@@ -666,6 +685,10 @@ profiling_native:
         - src/native/**/*.toml
         - src/native/**/*.txt
         - src/native/**/Cargo.lock
+        # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
+        - src/native_heap_gotter/**/*.rs
+        - src/native_heap_gotter/**/*.toml
+        - src/native_heap_gotter/**/Cargo.lock
         # Top-level build config
         - setup.py
         - pyproject.toml
