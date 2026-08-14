@@ -518,12 +518,11 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     // CPython iterates over both:
     // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
     // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
-    // First, get tasks from this thread's linked-list (if tstate_addr is set)
-    // Note: We continue processing even if one source fails to maximize partial results
-    if (tstate != nullptr && this->tstate_addr != 0) {
+    // Query each source independently and continue if either one is unavailable.
+    if (this->tstate_addr != 0) {
         (void)get_tasks_from_thread_linked_list(echion, tasks);
-
-        // Second, get tasks from interpreter's linked-list (lingering tasks)
+    }
+    if (tstate != nullptr) {
         (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
     }
 
