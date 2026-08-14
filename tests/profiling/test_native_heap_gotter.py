@@ -1,7 +1,13 @@
 """Smoke tests for the native (C/C++) heap profiling activator.
 
-``install()`` patches the process GOT and ``is_installed()`` flips to ``True``
-and stays there (idempotent).
+The activator (``ddtrace.internal.datadog.profiling.heap_gotter``) is fail-closed
+and must behave correctly whether or not the opt-in gotter cdylib was built into
+the wheel (``DD_PROFILING_NATIVE_HEAP_ENABLED=1`` at build time):
+
+* If the library is absent (the default), ``install()``/``is_installed()`` are
+  no-ops returning ``False``.
+* If present (a native-heap build on Linux), ``install()`` patches the process
+  GOT and ``is_installed()`` flips to ``True`` and stays there (idempotent).
 
 Proving that the ``ddheap`` USDT probes actually *fire* requires attaching the
 Full Host eBPF profiler (or a ``test-support`` build exposing the hook-hit
@@ -29,7 +35,8 @@ def test_native_heap_gotter_smoke() -> None:
         assert heap_gotter.install() is True
         assert heap_gotter.is_installed() is True
         assert heap_gotter.install() is True  # idempotent
-        assert isinstance(heap_gotter.live_heap_enabled(), bool)
+        # Default gotter builds enable the live-heap Cargo feature (ddheap:free).
+        assert heap_gotter.live_heap_enabled() is True
 
         blobs: list[tuple[str, int]] = []
         for i in range(200):
