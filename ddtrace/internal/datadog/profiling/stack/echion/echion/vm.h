@@ -51,8 +51,11 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 
 #endif
 
-// Whether safe_copy is currently set to the memcpy-based wrapper.
-inline bool fast_copy_active = false;
+// Transient: safe_memcpy is the active copy path.
+inline std::atomic<bool> fast_copy_active{ false };
+
+// User wants fast copy (set at init); survives warmup toggling fast_copy_active.
+inline bool fast_copy_requested = false;
 
 // User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
 inline bool fast_copy_user_disabled = false;
@@ -64,6 +67,18 @@ inline void
 mark_fast_copy_syscall_fallback()
 {
     fast_copy_syscall_fallback = true;
+}
+
+// Persistent intent; not toggled by warmup/fallback; survives fork.
+inline std::atomic<bool> fast_copy_desired{ false };
+// Sticky: foreign handler owns SIGSEGV/SIGBUS; blocks reclaim and re-warm.
+inline std::atomic<bool> fast_copy_foreign_takeover{ false };
+
+inline bool
+fast_copy_handler_ops_enabled()
+{
+    return fast_copy_desired.load(std::memory_order_relaxed) &&
+           !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
 }
 
 // Set at init; survives toggling fast_copy_active.

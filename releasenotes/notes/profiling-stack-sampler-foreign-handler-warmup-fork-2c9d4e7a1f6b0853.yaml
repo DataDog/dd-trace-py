@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: hardens the stack sampler's fault-handler ownership tracking so it
+    keeps using the faster fault-recovery memory copy across startup warmup and
+    ``fork()``, and safely stays on the syscall copy (without later reclaiming the
+    handler) once another component takes over ``SIGSEGV``/``SIGBUS``.

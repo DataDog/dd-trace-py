@@ -2,8 +2,8 @@
 
 #include "constants.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/profiler_stats.hpp"
 #include "dd_wrapper/include/sample.hpp"
-#include "origin_task_links.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -16,6 +16,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
@@ -24,21 +25,6 @@
 #include <utility>
 
 using namespace Datadog;
-
-static void
-update_fast_copy_stats(ProfilerStats& stats)
-{
-    stats.set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
-    stats.set_fast_copy_memory_capable(safe_memcpy_initialized);
-    stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
-    stats.set_fast_copy_memory_enabled(fast_copy_active);
-}
-
-void
-Datadog::seed_fast_copy_profiler_stats()
-{
-    update_fast_copy_stats(Sample::profile_borrow().stats());
-}
 
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
@@ -96,6 +82,8 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 
 namespace {
 
+std::atomic<bool> g_prefork_sampler_paused_observation{ false };
+
 // Returns the CPU time of the calling thread in microseconds, or 0 on error.
 uint64_t
 get_thread_cpu_time_us()
@@ -129,6 +117,30 @@ get_thread_cpu_time_us()
 }
 
 } // namespace
+
+void
+Datadog::publish_fast_copy_profiler_metadata(ProfilerStats* stats)
+{
+    auto& snapshot = ProfilerState::get().fast_copy_metadata;
+    snapshot.user_disabled = fast_copy_user_disabled;
+    snapshot.capable = safe_memcpy_initialized;
+    snapshot.syscall_fallback = fast_copy_syscall_fallback;
+    snapshot.enabled = fast_copy_active.load(std::memory_order_relaxed);
+    snapshot.desired = fast_copy_desired.load(std::memory_order_relaxed);
+    snapshot.foreign_takeover = fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+    snapshot.snapshot_initialized = true;
+
+    if (stats == nullptr) {
+        return;
+    }
+
+    stats->set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
+    stats->set_fast_copy_memory_capable(safe_memcpy_initialized);
+    stats->set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
+    stats->set_fast_copy_memory_enabled(fast_copy_active.load(std::memory_order_relaxed));
+    stats->set_fast_copy_memory_desired(fast_copy_desired.load(std::memory_order_relaxed));
+    stats->set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
+}
 
 void
 Sampler::adapt_sampling_interval()
@@ -254,109 +266,12 @@ Sampler::adapt_sampling_interval()
 }
 
 void
-Sampler::capture_samples(const microsecond_t wall_time_us)
-{
-    auto* const runtime = &_PyRuntime;
-
-    // When max_threads_per_sample is set, we collect all threads first, then apply
-    // reservoir sampling (Algorithm R) to select a uniform random subset, and only
-    // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
-    if (max_threads_per_sample == 0) {
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us);
-                if (success) {
-                    Sample::profile_borrow().stats().increment_sample_count();
-                }
-            });
-        });
-    } else {
-        thread_candidates.clear();
-
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                thread_candidates.push_back(*tstate);
-            });
-        });
-
-        // Algorithm R: if we have more threads than the cap, select a uniform random subset.
-        // Selected threads are placed in [0, sample_count). Overflow threads remain in
-        // [sample_count, size) as fallbacks in case a selected thread was unregistered
-        // between collection and sampling.
-        // We use Algorithm R rather than the asymptotically faster Algorithm L because we
-        // already traverse all threads unconditionally above (the CPython thread list is a
-        // linked list, so discovery always costs O(n)). Algorithm L's advantage is skipping
-        // elements to reduce random-number generation, but that only pays off when iteration
-        // itself is expensive — it isn't here. Algorithm R is simpler and sufficient.
-        size_t sample_count = thread_candidates.size();
-        if (sample_count > max_threads_per_sample) {
-            for (size_t i = max_threads_per_sample; i < sample_count; i++) {
-                std::uniform_int_distribution<size_t> dist(0, i);
-                size_t j = dist(rng);
-                if (j < max_threads_per_sample) {
-                    std::swap(thread_candidates[j], thread_candidates[i]);
-                }
-            }
-            sample_count = max_threads_per_sample;
-        }
-
-        // Apply inverse-probability weighting: each sampled thread represents n/k threads,
-        // so scale wall_time_us up to preserve correct absolute wall-time totals.
-        // Note: If a thread disappears between snapshot collection and sampling, fewer than
-        // sample_count threads are actually sampled. The weight per sample is pre-computed
-        // so the total reported wall time can be slightly under the true value under high
-        // thread churn. This is a rare edge case.
-        const size_t n_total = thread_candidates.size();
-        const microsecond_t effective_wall_time_us =
-          (sample_count < n_total)
-            ? wall_time_us * static_cast<microsecond_t>(n_total) / static_cast<microsecond_t>(sample_count)
-            : wall_time_us;
-
-        size_t fallback_idx = sample_count;
-        for (size_t i = 0; i < sample_count; i++) {
-            // The lock is acquired per iteration rather than for the whole loop so that new
-            // threads can register (which also needs this lock) between stack unwinds. Holding
-            // it for the entire loop would block thread registration for the full sampling cycle.
-            const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
-
-            // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
-            // here by thread_id. Under extreme thread churn a pthread_t could theoretically
-            // be reused between snapshot collection and this lookup (old thread exits, new
-            // thread registers with same ID), causing the new ThreadInfo to be paired with
-            // the old tstate. This window is a few microseconds and pthread_t reuse within
-            // it is unlikely.
-            auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
-            if (it == echion->thread_info_map().end()) {
-                // Thread was unregistered; try to fill from overflow
-                for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
-                    auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
-                    if (fb_it != echion->thread_info_map().end()) {
-                        thread_candidates[i] = thread_candidates[fallback_idx];
-                        it = fb_it;
-                        // Advance so this candidate isn't reused on the next fallback search
-                        fallback_idx++;
-                        break;
-                    }
-                }
-                if (it == echion->thread_info_map().end()) {
-                    continue;
-                }
-            }
-            auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
-            if (success) {
-                Sample::profile_borrow().stats().increment_sample_count();
-            }
-        }
-    }
-}
-
-void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     // Mark thread as running
     thread_running.store(true);
 
-    seed_fast_copy_profiler_stats();
+    publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
 
     // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
     //
@@ -369,7 +284,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // If a foreign owner is already authoritative, leave it in place and fall back to
     // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
-    if (fast_copy_active) {
+    if (fast_copy_handler_ops_enabled()) {
         std::call_once(segv_handler_once, []() {
             if (segv_handler_installed()) {
                 init_segv_catcher();
@@ -381,25 +296,61 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
-    // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_active;
+    // Warm up on syscall copy, upgrade if we still own handlers; see vm.h for intent flags.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
-    const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
+    const bool syscall_copy_available = true;
 #endif
-    // Warm up only when fast copy is wanted and a safe fallback path exists to run on.
-    const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
+    const bool fast_copy_warmup = fast_copy_handler_ops_enabled() && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
-        // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);
     }
 
+    publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
+    // Probe handler ownership once/cycle (+ before each sample); cheap continue during list walks.
+    bool stop_sampling = false;
+    bool fast_copy_ownership_ok_this_cycle = false;
+    auto ensure_fast_copy_safe = [&](bool force_reprobe = false) -> bool {
+        if (stop_sampling) {
+            return false;
+        }
+        if (!fast_copy_active.load(std::memory_order_relaxed) || handler_fallback_done) {
+            return true;
+        }
+        if (!force_reprobe && fast_copy_ownership_ok_this_cycle) {
+            return true;
+        }
+        if (segv_handler_installed()) {
+            fast_copy_ownership_ok_this_cycle = true;
+            return true;
+        }
+        // Foreign takeover: fall back and record sticky flag (vm.h).
+        handler_fallback_done = true;
+        mark_fast_copy_syscall_fallback();
+        fast_copy_ownership_ok_this_cycle = false;
+        fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+        std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
+                     "component; falling back to syscall-based memory copy to avoid crashing."
+                  << std::endl;
+        if (!set_fast_copy_enabled(false)) {
+            std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                         "stopping stack sampling to avoid crashing."
+                      << std::endl;
+            stop_sampling = true;
+            return false;
+        }
+        return true;
+    };
+
+    const auto continue_traversal = [&]() -> bool { return !stop_sampling; };
+
+    auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
         // Check if a pause has been requested (e.g., for signal handler swapping).
         // Block until resumed or the thread is asked to stop.
@@ -416,6 +367,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
+        publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
         // Measure CPU time before acquiring the profile lock so lock-wait time
         // is not counted as sampling overhead.
         auto sample_capture_cpu_before = get_thread_cpu_time_us();
@@ -424,114 +377,191 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Foreign handler handling (see notes before the loop); faulthandler's
-        // transient swaps are safe since the sampler is paused around them.
-        if (fast_copy_desired) {
-            if (!fast_copy_upgraded) {
-                // Warmup window: still on the safe syscall copy. Once it elapses,
-                // upgrade to safe_memcpy only if we still own the handlers.
-                if (sample_time_now >= fast_copy_warmup_deadline) {
-                    fast_copy_upgraded = true; // decide once
-                    if (segv_handler_installed()) {
-                        set_fast_copy_enabled(true);
-                    } else {
-                        // Another component already owns a handler; stay on the safe
-                        // syscall copy (already active from warmup) for the life of
-                        // the process.
-                        handler_fallback_done = true;
-                        mark_fast_copy_syscall_fallback();
-                        std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
-                                     "handler; keeping the syscall-based memory copy to avoid crashing."
-                                  << std::endl;
-                    }
-                }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
-                if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
+        // Foreign handler handling; faulthandler swaps are safe while paused.
+        if (fast_copy_handler_ops_enabled() && !fast_copy_upgraded) {
+            if (sample_time_now >= fast_copy_warmup_deadline) {
+                fast_copy_upgraded = true;
+                if (segv_handler_installed()) {
+                    set_fast_copy_enabled(true);
+                } else {
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+                    std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
+                                 "handler; keeping the syscall-based memory copy to avoid crashing."
                               << std::endl;
-                    break;
                 }
             }
         }
 
-        // Reset per-cycle asyncio task accumulator before iterating sampled threads
+        fast_copy_ownership_ok_this_cycle = false;
+        if (!ensure_fast_copy_safe(true)) {
+            break;
+        }
+
         echion->reset_asyncio_task_count();
 
-        try {
-            capture_samples(wall_time_us);
+        // When max_threads_per_sample is set, we collect all threads first, then apply
+        // reservoir sampling (Algorithm R) to select a uniform random subset, and only
+        // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
+        if (max_threads_per_sample == 0) {
+            for_each_interp(
+              runtime,
+              [&](InterpreterInfo& interp) -> void {
+                  for_each_thread(
+                    *echion,
+                    interp,
+                    [&](const PyThreadState* tstate, ThreadInfo& thread) {
+                        if (!ensure_fast_copy_safe(true)) {
+                            return;
+                        }
+                        auto success = thread.sample(*echion, const_cast<PyThreadState*>(tstate), wall_time_us);
+                        if (success) {
+                            Sample::profile_borrow().stats().increment_sample_count();
+                        }
+                    },
+                    continue_traversal);
+              },
+              continue_traversal);
+        } else {
+            thread_candidates.clear();
 
-            // Collect greenlet count before acquiring the profile lock to avoid
-            // holding two locks simultaneously (greenlet lock then profile lock).
-            size_t greenlet_count;
-            {
-                const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-                greenlet_count = echion->greenlet_info_map().size();
+            for_each_interp(
+              runtime,
+              [&](InterpreterInfo& interp) -> void {
+                  for_each_thread(
+                    *echion,
+                    interp,
+                    [&](const PyThreadState* tstate, ThreadInfo& /*thread*/) { thread_candidates.push_back(*tstate); },
+                    continue_traversal);
+              },
+              continue_traversal);
+
+            // Algorithm R: if we have more threads than the cap, select a uniform random subset.
+            // Selected threads are placed in [0, sample_count). Overflow threads remain in
+            // [sample_count, size) as fallbacks in case a selected thread was unregistered
+            // between collection and sampling.
+            // We use Algorithm R rather than the asymptotically faster Algorithm L because we
+            // already traverse all threads unconditionally above (the CPython thread list is a
+            // linked list, so discovery always costs O(n)). Algorithm L's advantage is skipping
+            // elements to reduce random-number generation, but that only pays off when iteration
+            // itself is expensive — it isn't here. Algorithm R is simpler and sufficient.
+            size_t sample_count = thread_candidates.size();
+            if (sample_count > max_threads_per_sample) {
+                for (size_t i = max_threads_per_sample; i < sample_count; i++) {
+                    std::uniform_int_distribution<size_t> dist(0, i);
+                    size_t j = dist(rng);
+                    if (j < max_threads_per_sample) {
+                        std::swap(thread_candidates[j], thread_candidates[i]);
+                    }
+                }
+                sample_count = max_threads_per_sample;
             }
 
-            // Drain copy_memory errors accumulated since the last sampling cycle.
-            auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
+            // Apply inverse-probability weighting: each sampled thread represents n/k threads,
+            // so scale wall_time_us up to preserve correct absolute wall-time totals.
+            // Note: If a thread disappears between snapshot collection and sampling, fewer than
+            // sample_count threads are actually sampled. The weight per sample is pre-computed
+            // so the total reported wall time can be slightly under the true value under high
+            // thread churn. This is a rare edge case.
+            const size_t n_total = thread_candidates.size();
+            const microsecond_t effective_wall_time_us =
+              (sample_count < n_total)
+                ? wall_time_us * static_cast<microsecond_t>(n_total) / static_cast<microsecond_t>(sample_count)
+                : wall_time_us;
 
-            if (do_adaptive_sampling) {
-                // Adjust the sampling interval at most every second
-                if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
-                    adapt_sampling_interval();
-                    interval_adjust_time_prev = sample_time_now;
+            size_t fallback_idx = sample_count;
+            for (size_t i = 0; i < sample_count; i++) {
+                // Re-verify handler ownership before running safe_memcpy for this thread.
+                // Done before taking the thread_info_map lock so a syscall probe never
+                // extends the lock hold time.
+                if (!ensure_fast_copy_safe(true)) {
+                    break;
+                }
+                // The lock is acquired per iteration rather than for the whole loop so that new
+                // threads can register (which also needs this lock) between stack unwinds. Holding
+                // it for the entire loop would block thread registration for the full sampling cycle.
+                const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+
+                // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
+                // here by thread_id. Under extreme thread churn a pthread_t could theoretically
+                // be reused between snapshot collection and this lookup (old thread exits, new
+                // thread registers with same ID), causing the new ThreadInfo to be paired with
+                // the old tstate. This window is a few microseconds and pthread_t reuse within
+                // it is unlikely.
+                auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+                if (it == echion->thread_info_map().end()) {
+                    // Thread was unregistered; try to fill from overflow
+                    for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
+                        auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                        if (fb_it != echion->thread_info_map().end()) {
+                            thread_candidates[i] = thread_candidates[fallback_idx];
+                            it = fb_it;
+                            // Advance so this candidate isn't reused on the next fallback search
+                            fallback_idx++;
+                            break;
+                        }
+                    }
+                    if (it == echion->thread_info_map().end()) {
+                        continue;
+                    }
+                }
+                auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
+                if (success) {
+                    Sample::profile_borrow().stats().increment_sample_count();
                 }
             }
+        }
 
-            // Measure CPU time before acquiring the profile lock so lock-wait time is
-            // not counted as sampling overhead.
-            auto sample_capture_cpu_after = get_thread_cpu_time_us();
-
-            // Update all end-of-cycle stats under a single borrow so they always land in
-            // the same upload window as the samples they describe. Without this, the uploader
-            // could swap cur_profiler_stats between two separate borrow calls, silently
-            // shifting some counters (including sample_capture_cpu_time_us) into the next window.
-            {
-                auto borrow = Sample::profile_borrow();
-
-                borrow.stats().increment_sampling_event_count();
-                borrow.stats().set_string_table_count(echion->string_table().size());
-                update_fast_copy_stats(borrow.stats());
-                borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
-                borrow.stats().set_greenlet_count(greenlet_count);
-
-                if (copy_errors > 0) {
-                    borrow.stats().add_copy_memory_error_count(copy_errors);
-                }
-
-                size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
-                if (cpu_diff > 0) {
-                    borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
-                }
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "Unexpected error in sampling thread: " << e.what() << std::endl;
-
-            // If the exception interrupted a sample mid-build (after render_thread_begin
-            // but before render_stack_end), return it to the pool instead of leaking it.
-            echion->renderer().abort_sample();
-
-            // Mark the sampler inactive so a subsequent fork does not restart this
-            // sampler that has stopped due to an error (see prefork).
-            sampler_active_.store(false);
-
-            // Stop the sampling loop.
+        // A mid-cycle handler takeover with no safe fallback means we must stop entirely.
+        if (stop_sampling) {
             break;
+        }
+
+        // Collect greenlet count before acquiring the profile lock to avoid
+        // holding two locks simultaneously (greenlet lock then profile lock).
+        size_t greenlet_count;
+        {
+            const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+            greenlet_count = echion->greenlet_info_map().size();
+        }
+
+        // Drain copy_memory errors accumulated since the last sampling cycle.
+        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
+
+        if (do_adaptive_sampling) {
+            // Adjust the sampling interval at most every second
+            if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
+                adapt_sampling_interval();
+                interval_adjust_time_prev = sample_time_now;
+            }
+        }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time is
+        // not counted as sampling overhead.
+        auto sample_capture_cpu_after = get_thread_cpu_time_us();
+
+        // Update all end-of-cycle stats under a single borrow so they always land in
+        // the same upload window as the samples they describe. Without this, the uploader
+        // could swap cur_profiler_stats between two separate borrow calls, silently
+        // shifting some counters (including sample_capture_cpu_time_us) into the next window.
+        {
+            auto borrow = Sample::profile_borrow();
+
+            borrow.stats().increment_sampling_event_count();
+            borrow.stats().set_string_table_count(echion->string_table().size());
+            publish_fast_copy_profiler_metadata(&borrow.stats());
+            borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+            borrow.stats().set_greenlet_count(greenlet_count);
+
+            if (copy_errors > 0) {
+                borrow.stats().add_copy_memory_error_count(copy_errors);
+            }
+
+            size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
+            if (cpu_diff > 0) {
+                borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
+            }
         }
 
         // Before sleeping, check whether the user has called for this thread to die.
@@ -592,6 +622,8 @@ Sampler::postfork_child()
     paused_.store(false);
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
+    paused_for_fork_ = false;
+    g_prefork_sampler_paused_observation.store(false, std::memory_order_release);
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
@@ -628,26 +660,38 @@ void
 Sampler::prefork()
 {
     was_running_at_fork_ = sampler_active_.load();
+    paused_for_fork_ = false;
+    if (was_running_at_fork_) {
+        if (pause() == PauseResult::Paused) {
+            paused_for_fork_ = true;
+            g_prefork_sampler_paused_observation.store(true, std::memory_order_release);
+        }
+    }
 }
 
 void
 Sampler::postfork_parent()
 {
-    // The parent's sampling thread survives the fork unchanged; no restart needed.
-    // Calling start() here would launch a second thread and cause a data race on
-    // EchionSampler state.
+    // Parent sampling thread survives fork; resume if prefork paused it.
+    if (paused_for_fork_) {
+        resume();
+        paused_for_fork_ = false;
+    }
+}
+
+void
+Sampler::restart_after_fork()
+{
+    // was_running_at_fork_ uses saved state; prefork() changed thread_seq_num parity.
+    if (was_running_at_fork_) {
+        start();
+    }
 }
 
 bool
-Sampler::restart_after_fork()
+Sampler::take_prefork_pause_observation()
 {
-    // Restart the sampler if it was running before fork.
-    // We use the saved flag because postfork_child() resets the live sampler
-    // state (thread_running, etc.) before this runs.
-    if (was_running_at_fork_) {
-        return start();
-    }
-    return false;
+    return g_prefork_sampler_paused_observation.exchange(false, std::memory_order_acq_rel);
 }
 
 static void
@@ -671,9 +715,6 @@ stack_postfork_cleanup()
     // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
-    // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
-    OriginTaskLinks::postfork_child();
-
     // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
@@ -685,11 +726,7 @@ stack_atfork_child()
     stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
-    // OriginTaskLinks was left disabled in postfork_child; re-enable when the
-    // child sampler is started again.
-    if (Sampler::get().restart_after_fork()) {
-        OriginTaskLinks::get_instance().enable();
-    }
+    Sampler::get().restart_after_fork();
 }
 
 __attribute__((constructor)) void
@@ -697,7 +734,6 @@ stack_init()
 {
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
-    OriginTaskLinks::postfork_child();
 }
 
 void

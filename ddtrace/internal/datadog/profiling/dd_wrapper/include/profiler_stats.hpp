@@ -40,6 +40,12 @@ class ProfilerStats
     // Sticky: fell back to syscall copy (init failure, foreign handler, etc.)
     std::optional<bool> fast_copy_memory_syscall_fallback;
 
+    // Persistent intent to use safe_memcpy; not toggled by warmup/fallback
+    std::optional<bool> fast_copy_memory_desired;
+
+    // Sticky: foreign handler owns SIGSEGV/SIGBUS; blocks reclaim and re-warm
+    std::optional<bool> fast_copy_memory_foreign_takeover;
+
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
@@ -49,8 +55,7 @@ class ProfilerStats
     // Samples dropped because the cap was reached (cumulative over tracker lifetime)
     std::optional<size_t> heap_tracker_cap_drops;
 
-    // Peak number of asyncio tasks seen across sampled threads in any single sampling
-    // cycle during the current profile period (see set_asyncio_task_count).
+    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
     std::optional<size_t> asyncio_task_count;
 
     // Number of greenlets currently tracked by the stack profiler
@@ -86,6 +91,12 @@ class ProfilerStats
 
     void set_fast_copy_memory_syscall_fallback(bool fallback);
     std::optional<bool> get_fast_copy_memory_syscall_fallback() const;
+
+    void set_fast_copy_memory_desired(bool desired);
+    std::optional<bool> get_fast_copy_memory_desired() const;
+
+    void set_fast_copy_memory_foreign_takeover(bool takeover);
+    std::optional<bool> get_fast_copy_memory_foreign_takeover() const;
 
     // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
     void copy_fast_copy_metadata_from(const ProfilerStats& other);
