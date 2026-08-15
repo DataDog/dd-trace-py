@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: Enable collection of samples for native (C/C++) allocations 
+    in Python processes. Enable with ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``.
+    This setting works for Linux only.
