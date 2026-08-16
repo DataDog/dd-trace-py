@@ -132,17 +132,28 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
+
+def _env_truthy(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
+
+
+def is_musl_libc() -> bool:
+    """True when this interpreter is a musl (Alpine / musllinux) build.
+    Gotter is glibc/manylinux-only in CI and will fail for these platforms if cargo-built.
+    """
+    return any(
+        "musl" in (sysconfig.get_config_var(k) or "")
+        for k in ("SOABI", "EXT_SUFFIX", "BUILD_GNU_TYPE", "HOST_GNU_TYPE", "MULTIARCH")
+    )
+
+
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
 # mainline wheels don't ship the artifact until it GA's.
 # Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
 # reads it via os.getenv during the package build, independent of DDConfig.
-BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "0").lower() in (
-    "1",
-    "yes",
-    "on",
-    "true",
-)
+# Musl is always a no-op even when the env is set (see is_musl_libc).
+BUILD_NATIVE_HEAP_GOTTER: bool = _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and not is_musl_libc()
 # Keep the staged cdylib unstripped when building with the upstream test-support
 # feature (hook-hit counter for e2e / integration tests).
 BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
