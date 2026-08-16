@@ -559,7 +559,7 @@ class ProfilingConfigNativeHeap(DDConfig):
         help=(
             "Whether to enable experimental native (C/C++) heap profiling. "
             "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
-            "DD_PROFILING_NATIVE_HEAP_BUILD=1. Disabled by default."
+            "DD_PROFILING_NATIVE_HEAP_ENABLED=1. Disabled by default."
         ),
     )
 
