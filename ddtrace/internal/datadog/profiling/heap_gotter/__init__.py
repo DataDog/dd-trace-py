@@ -10,11 +10,13 @@ Dlopens ``libdd_heap_gotter`` (see ``src/native_heap_gotter``) and drives:
 ``ddheap:free``) USDT sites fire; the Full Host eBPF profiler attaches uprobes.
 Nothing is collected or uploaded from Python.
 
-Two independent runtime gates, both required for GOT to be patched:
+Runtime and build gates:
 
-* ``DD_PROFILING_NATIVE_HEAP_ENABLED`` — ddtrace install gate (also the
-  setup.py build gate). When false, this module is not imported from the
-  profiler and ``install()`` is never called.
+* ``DD_PROFILING_NATIVE_HEAP_ENABLED`` — runtime arming gate. When false, this
+  module is not imported from the profiler and ``install()`` is never called.
+  The same variable is read at wheel build time (via setup.py) to decide
+  whether to compile and ship ``libdd_heap_gotter``; setting it at process
+  start does not add the artifact to an already-installed wheel.
 * ``DD_HEAP_SAMPLING_ENABLED`` — libdatadog process-start bypass (unset =
   on; ``0``/``false``/``no``/``off`` disables). Honored inside
   ``install_heap_overrides``; a falsey value leaves the GOT untouched and
