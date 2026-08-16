@@ -224,7 +224,6 @@ class _ClientInterceptor:
         span: Span,
     ) -> ResponseIterableType:
         try:
-            _handle_add_callback(call, _done_callback_stream(span))
             async for response in call:
                 yield response
         except StopAsyncIteration:
@@ -264,6 +263,9 @@ class _ClientInterceptor:
             # So we can't handle the error in done callbacks.
             _handle_rpc_error(span, rpc_error)
             raise
+        except asyncio.CancelledError:
+            span.finish()
+            raise
 
 
 class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInterceptor):
@@ -293,6 +295,7 @@ class _UnaryStreamClientInterceptor(aio.UnaryStreamClientInterceptor, _ClientInt
             client_call_details,
         )
         call = await continuation(client_call_details, request)
+        _handle_add_callback(call, _done_callback_stream(span))
         return self._wrap_stream_response(call, span)
 
 
@@ -323,4 +326,5 @@ class _StreamStreamClientInterceptor(aio.StreamStreamClientInterceptor, _ClientI
             client_call_details,
         )
         call = await continuation(client_call_details, request_iterator)
+        _handle_add_callback(call, _done_callback_stream(span))
         return self._wrap_stream_response(call, span)
