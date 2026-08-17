@@ -35,6 +35,23 @@ from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
 
+@pytest.fixture(autouse=True)
+def empty_telemetry_session(request):
+    """Start every telemetry test with an empty session.
+
+    These tests assert on metric names, counts and exact lists, so a metric emitted by
+    whatever ran before is enough to fail them. Draining the native worker first pushes out
+    anything it still holds, so clear() actually leaves nothing behind.
+
+    Only for tests that already use the session: requesting it unconditionally would make the
+    pure metric_verbosity cases xfail when no test agent is running.
+    """
+    if "test_agent_session" in request.fixturenames:
+        request.getfixturevalue("telemetry_writer").periodic(force_flush=True)
+        request.getfixturevalue("test_agent_session").clear()
+    yield
+
+
 def _get_iast_metrics(test_agent_session, telemetry_writer):
     """Flush the native worker and return the iast-namespace generate-metrics series."""
     telemetry_writer.periodic(force_flush=True)
@@ -56,11 +73,14 @@ def _get_iast_logs(test_agent_session, telemetry_writer):
 
 def _assert_instrumented_sink(test_agent_session, telemetry_writer, vuln_type):
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
-    assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
-    assert [metric["tags"] for metric in generate_metrics] == [[f"vulnerability_type:{vuln_type.lower()}"]]
-    assert [metric["points"][0][1] for metric in generate_metrics][0] >= 1
-    assert [metric["type"] for metric in generate_metrics] == ["count"]
+    assert generate_metrics, "Expected an instrumented.sink metric"
+    # Check every series rather than how many: the native worker can flush mid-patching and
+    # split one metric over several, but each of them still has to be well formed.
+    for metric in generate_metrics:
+        assert metric["metric"] == "instrumented.sink"
+        assert metric["tags"] == [f"vulnerability_type:{vuln_type.lower()}"]
+        assert metric["type"] == "count"
+    assert sum(point[1] for metric in generate_metrics for point in metric["points"]) >= 1
 
 
 @pytest.mark.parametrize(
@@ -189,14 +209,15 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, 
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [
+    # A set, not a list: the native telemetry worker can flush mid-patching, splitting
+    # instrumented.propagation across series. executed.*/instrumented.sink come from the lib's own
+    # internal usage, not the module under test.
+    filtered_metrics = {
         metric["metric"]
         for metric in generate_metrics
-        if metric["metric"] not in ["executed.sink", "instrumented.sink"]
-    ]
-    assert filtered_metrics == ["instrumented.propagation"]
+        if metric["metric"] != "instrumented.sink" and not metric["metric"].startswith("executed.")
+    }
+    assert filtered_metrics == {"instrumented.propagation"}
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agent_session, tracer):
@@ -227,6 +248,8 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agen
             AppSecIastSpanProcessor.disable()
 
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
+    # the agent)
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
     filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
@@ -342,7 +365,10 @@ def test_django_instrumented_metrics(telemetry_writer, test_agent_session):
         _on_django_patch()
 
     generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    metrics_source_tags_result = [metric["tags"][0] for metric in generate_metrics]
+    # Only instrumented.source carries a source_type tag; instrumented.propagation has none.
+    metrics_source_tags_result = [
+        metric["tags"][0] for metric in generate_metrics if metric["metric"] == "instrumented.source"
+    ]
 
     assert len(metrics_source_tags_result) == 9
     assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result

@@ -47,7 +47,7 @@ def rel_path(file_name: str) -> str:
     return ""
 
 
-def get_caller_frame_info() -> tuple:
+def get_caller_frame_info() -> tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
     """Walk the stack and return (file_name, line_number, function_name, class_name).
 
     Uses the native C get_info_frame() to skip ddtrace, stdlib, and special
