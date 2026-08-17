@@ -2,9 +2,30 @@ import typing as t
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import get_agent_hostname
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+
+
+def _agentless_endpoint(signal_path: str = "") -> str:
+    return f"https://otlp.{agentless_config.site}{signal_path}"
+
+
+def _default_protocol(config: "ExporterConfig") -> str:
+    """The protocol to fall back on when no signal-specific one is set.
+
+    Agentless overrides the gRPC default: the intake is https only.
+    """
+    if agentless_config.enabled and "OTEL_EXPORTER_OTLP_PROTOCOL" not in env:
+        return "http/protobuf"
+    return config.PROTOCOL
+
+
+def _default_endpoint(config: "ExporterConfig", protocol: str, signal_path: str = "") -> str:
+    if agentless_config.enabled and "OTEL_EXPORTER_OTLP_ENDPOINT" not in env:
+        return _agentless_endpoint(signal_path)
+    return ExporterConfig._get_default_endpoint(protocol, signal_path)
 
 
 def _derive_endpoint(config: "ExporterConfig"):
@@ -13,12 +34,12 @@ def _derive_endpoint(config: "ExporterConfig"):
 
 
 def _derive_logs_endpoint(config: "ExporterConfig"):
-    default_endpoint = ExporterConfig._get_default_endpoint(config.LOGS_PROTOCOL, config.LOGS_PATH)
+    default_endpoint = _default_endpoint(config, config.LOGS_PROTOCOL, config.LOGS_PATH)
     return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL)
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", _default_protocol(config))
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -30,12 +51,12 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
-    default_endpoint = ExporterConfig._get_default_endpoint(config.METRICS_PROTOCOL, config.METRICS_PATH)
+    default_endpoint = _default_endpoint(config, config.METRICS_PROTOCOL, config.METRICS_PATH)
     return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
+    return get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], _default_protocol(config))
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):

@@ -385,3 +385,68 @@ def test_trace_metrics_endpoint_uses_signal_specific_endpoint_as_is():
     from ddtrace.internal.settings._opentelemetry import otel_config
 
     assert otel_config.exporter.TRACE_METRICS_ENDPOINT == "http://collector:9999/custom/path"
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
+def test_otlp_metrics_and_logs_target_the_intake_when_agentless():
+    """Agentless has no Agent OTLP receiver to export to, so the intake takes its place."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.METRICS_ENDPOINT == "https://otlp.datadoghq.com/v1/metrics"
+    assert exporter.LOGS_ENDPOINT == "https://otlp.datadoghq.com/v1/logs"
+    # The intake is HTTPS-only, so the gRPC default cannot stand.
+    assert exporter.METRICS_PROTOCOL == "http/protobuf"
+    assert exporter.LOGS_PROTOCOL == "http/protobuf"
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_SITE": "datadoghq.eu"})
+def test_otlp_intake_follows_dd_site():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_ENDPOINT == "https://otlp.datadoghq.eu/v1/metrics"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey"})
+def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
+    """An API key alone must not divert OTLP export away from the Agent."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert "otlp.datadoghq.com" not in exporter.METRICS_ENDPOINT
+    assert "otlp.datadoghq.com" not in exporter.LOGS_ENDPOINT
+    assert exporter.METRICS_PROTOCOL == "grpc"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+    }
+)
+def test_explicit_otlp_settings_win_over_agentless():
+    """A user pointing OTLP at their own collector must keep it, agentless or not."""
+    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
+    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_PROTOCOL == "http/json"
+    # ddtrace must not override the global endpoint the user set...
+    _prepare_agentless_export(
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/json", "metrics"
+    )
+    # ...nor attach Datadog credentials to a third-party collector.
+    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
+def test_agentless_otlp_export_carries_the_api_key():
+    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
+    from ddtrace.internal.settings import env
+
+    _prepare_agentless_export(
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
+    )
+    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "dd-api-key=foobarkey"
