@@ -24,7 +24,9 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_tags
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from tests.llmobs._utils import get_azure_openai_vcr
 from tests.llmobs._utils import get_bedrock_vcr
 from tests.llmobs._utils import get_vertexai_vcr
@@ -1043,9 +1045,11 @@ class TestLLMJudgeJudgeTrace:
         judge = seen["span"]
         assert judge is not None
         assert judge.name == "custom_evaluator.relevance"
-        assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
+        # The judge trace is reported under the evaluated application, and EVALUATED_ML_APP_TAG (not
+        # the service or a source tag) is what marks it as a judge span.
+        assert get_llmobs_ml_app(judge) == "my-app"
         tags = get_llmobs_tags(judge)
-        assert tags["source"] == EVALUATIONS_ML_APP
+        assert tags["source"] != EVALUATIONS_ML_APP
         assert tags[EVAL_NAME_TAG] == "relevance"
         assert tags[EVAL_SOURCE_TYPE_TAG] == "external"
         assert tags[EVALUATED_ML_APP_TAG] == "my-app"
@@ -1086,17 +1090,25 @@ class TestLLMJudgeJudgeTrace:
         assert judge_data[LLMOBS_STRUCT.PARENT_ID] == "undefined"
         assert judge_data.get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SCOPE) is None
 
-    def test_nested_judge_spans_inherit_evaluations_ml_app(self, llmobs):
-        """Auto-instrumented judge LLM calls must land in the judge trace, not the app's."""
-        nested = {}
+    def test_nested_judge_spans_join_the_judge_trace(self, llmobs):
+        """Auto-instrumented judge LLM calls must land in the judge trace, not the evaluated app's.
+
+        The judge trace now shares the evaluated application's service, so ml_app no longer
+        distinguishes the two — assert on the trace the nested span actually joined.
+        """
+        seen = {}
 
         def client(provider, messages, json_schema, model, model_params):
+            seen["judge"] = llmobs._instance._current_span()
             with llmobs.llm(name="grade", model_name="m", model_provider="p") as llm_span:
-                nested["span"] = llm_span
+                seen["nested"] = llm_span
             return json.dumps({"score_eval": 8})
 
         _score_judge(client, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
-        assert get_llmobs_ml_app(nested["span"]) == EVALUATIONS_ML_APP
+
+        assert get_llmobs_trace_id(seen["nested"]) == get_llmobs_trace_id(seen["judge"])
+        assert get_llmobs_parent_id(seen["nested"]) == str(seen["judge"].span_id)
+        assert get_llmobs_ml_app(seen["nested"]) == "my-app"
 
     def test_provider_errors_still_propagate(self, llmobs):
         """A judge failure must reach the experiments SDK, not be swallowed by tracing."""

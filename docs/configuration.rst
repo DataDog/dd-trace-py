@@ -450,7 +450,7 @@ Traces
      description: |
          Process-wide default for emitting a **judge trace** from LLM-as-judge evaluators (e.g.
          ``LLMJudge``). When enabled, each judge inference runs inside a standalone trace under the
-         ``datadog-evaluations`` service so its prompt, model, tokens, latency, and output are
+         evaluated application's service so its prompt, model, tokens, latency, and output are
          observable, and the judge span's ids are recorded on the resulting eval metric so a score
          can deep-link back to the judge trace.
 

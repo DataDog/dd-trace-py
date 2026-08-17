@@ -585,7 +585,7 @@ class LLMJudge(BaseEvaluator):
             emit_judge_trace: When True, each ``evaluate()`` call opens a judge trace via
                 ``LLMObs.evaluation()`` and runs the judge inference inside it, so the judge's
                 latency, tokens, and errors are observable as a standalone trace under the
-                ``datadog-evaluations`` service. The returned ``EvaluatorResult`` carries a
+                evaluated application's service. The returned ``EvaluatorResult`` carries a
                 ``judge_span`` reference, which the experiments SDK folds into the emitted
                 metric's metadata so the score can deep-link back to the judge trace.
                 When left unset (``None``), the default is read from the
@@ -750,7 +750,7 @@ class LLMJudge(BaseEvaluator):
     ) -> Union[EvaluatorResult, str, Any]:
         """Run the judge inference inside a judge trace and attach the judge span to the result.
 
-        The judge trace is emitted under the ``datadog-evaluations`` service and linked to the
+        The judge trace is emitted under the evaluated application's service and linked to the
         evaluated span, so the judge's own latency/tokens/errors are observable. The judge span
         reference is attached to the returned ``EvaluatorResult`` so the experiments SDK can fold
         ``judge_trace_id``/``judge_span_id`` into the emitted metric's metadata.
