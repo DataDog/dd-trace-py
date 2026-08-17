@@ -179,7 +179,8 @@ def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoTyp
     Returns the list of hooks that failed to be injected.
     """
     if PY >= (3, 15):
-        raise NotImplementedError("Python >= 3.15 is not supported yet")
+        version = "%d.%d" % (PY[0], PY[1])
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
     abstract_code = Bytecode.from_code(get_function_code(f))
 
     failed = []
@@ -226,7 +227,8 @@ def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Functio
     be kept in case the hook needs to be removed.
     """
     if PY >= (3, 15):
-        raise NotImplementedError("Python >= 3.15 is not supported yet")
+        version = "%d.%d" % (PY[0], PY[1])
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
     abstract_code = Bytecode.from_code(f.__code__)
 
     _inject_hook(abstract_code, hook, line, arg)

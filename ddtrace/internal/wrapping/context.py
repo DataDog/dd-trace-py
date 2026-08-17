@@ -734,7 +734,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     def wrap(self) -> None:
         if sys.version_info >= (3, 15):
-            raise NotImplementedError("Python >= 3.15 is not supported yet")
+            version = "%d.%d" % (sys.version_info[0], sys.version_info[1])
+            raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
         f = t.cast(FunctionType, self.__wrapped__)
 
         with _registry_lock:

@@ -258,7 +258,8 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
     if PY >= (3, 15):
-        raise NotImplementedError("Python >= 3.15 is not supported yet")
+        version = "%d.%d" % (PY[0], PY[1])
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
@@ -307,7 +308,8 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     wrapper function, instead of creating a new function object.
     """
     if PY >= (3, 15):
-        raise NotImplementedError("Python >= 3.15 is not supported yet")
+        version = "%d.%d" % (PY[0], PY[1])
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,

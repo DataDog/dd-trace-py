@@ -481,13 +481,14 @@ elif PY >= (3, 9):
     )
 
 else:
-    msg = "No generator wrapping support for Python %d.%d" % PY[:2]
+    msg = "No generator wrapping support for Python %d.%d" % (PY[0], PY[1])
     raise RuntimeError(msg)
 
 
 def wrap_generator(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
     if PY >= (3, 15):
-        raise NotImplementedError("This version of CPython is not supported yet")
+        version = "%d.%d" % (PY[0], PY[1])
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
     if GENERATOR_HEAD_ASSEMBLY is not None:
         instrs[0:0] = GENERATOR_HEAD_ASSEMBLY.bind(lineno=lineno)
 
