@@ -14,6 +14,7 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_VERSION
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
@@ -258,8 +259,7 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
     if PY >= (3, 15):
-        version = "%d.%d" % (PY[0], PY[1])
-        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
@@ -308,8 +308,7 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     wrapper function, instead of creating a new function object.
     """
     if PY >= (3, 15):
-        version = "%d.%d" % (PY[0], PY[1])
-        raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
+        raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,

@@ -15,6 +15,9 @@ __all__ = [
 
 PYTHON_VERSION_INFO = sys.version_info
 
+# First CPython version that wrapping / bytecode injection do not support yet.
+NEXT_PY_VERSION: str = "3.15"
+
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
     if isinstance(s, str):

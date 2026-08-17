@@ -16,6 +16,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_VERSION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -734,8 +735,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     def wrap(self) -> None:
         if sys.version_info >= (3, 15):
-            version = "%d.%d" % (sys.version_info[0], sys.version_info[1])
-            raise NotImplementedError("This version of CPython is not supported yet: %s" % (version,))
+            raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
         f = t.cast(FunctionType, self.__wrapped__)
 
         with _registry_lock:
