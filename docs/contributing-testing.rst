@@ -125,6 +125,139 @@ Anatomy of a Riot Command
 * ``-vv``: Be loud about which tests are being run
 * ``-k 'test1 or test2'``: Test selection by `keyword expression <https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run>`_
 
+How CI allocates Riot environments
+----------------------------------
+
+Semantic test ownership remains in ``tests/suitespec.py`` and the distributed
+``suitespec.yml`` files. CI resolves every selected suite to its Riot environment
+hashes, then assigns those hashes to physical GitLab shards. A Riot environment is
+normally the smallest allocation unit, so duration-based balancing never changes its
+command, Python version, services, environment, retry policy, or timeout. For a
+measured long-running pytest command, CI may refine one hash into runtime execution
+units such as ``107d2ec@1/3``. Pytest still collects the suite-authored command, then
+a repository plugin deterministically selects one disjoint slice of the collected
+node IDs in each physical job. No item-level partition appears in ``suitespec.yml``.
+
+``scripts/gen_gitlab_config.py`` writes ``.gitlab/ci-allocation-plan.json`` with the
+current round-robin plan and a duration-balanced plan. Generation fails unless both
+plans contain the exact same Riot hash set, with no duplicates or empty shards, and
+the execution metadata is represented by the same digest. Runtime slices must also
+contain every index from one through their declared total. The plan is retained as a
+CI artifact for review. The generator embeds every balanced assignment into the
+suite's GitLab ``parallel`` job, and each physical job selects its assignment by
+``CI_NODE_INDEX``. The semantic suite and compact matrix representation therefore
+remain stable even when an assignment contains sub-hash execution units.
+
+The active strategy and promotion thresholds are in
+``ci/ci-allocation-policy.json``. ``legacy`` is the rollback-safe default. The
+duration estimates in ``ci/ci-allocation-runtime-model.json`` are generated from
+Datadog Test Visibility session exports joined by semantic suite and
+``test.configuration.riot_hash``. Riot hashes identify environments rather than
+commands and can be shared by semantically different suites, so suite-scoped
+estimates override global hash estimates for those collisions. The model uses a
+time-decayed p90, conservative
+fallbacks for sparse hashes, and a recent holdout that is not used for fitting.
+CI job events are joined by pipeline and job identity. Riot setup and activation
+time outside the Test Visibility session is distributed over the atomic hashes in
+that job before fitting, so reducing the shard count cannot make real work disappear
+from the model. Model fitting fails if any training job is missing that timing
+evidence. Per-hash estimates use a compact numeric representation, and the checked-in
+model must remain below the size limit in the allocation policy. Failed and canceled
+observations are retained as censored reliability evidence but are not treated as
+normal durations.
+
+Sub-hash expansion is fail-closed. A command is eligible only when its command
+fingerprint has real Test Visibility item-count evidence and the fitted runtime
+exceeds the target. Fallback estimates never create slices because they may describe
+a one-test or non-pytest command. Each slice writes a compact collection inventory.
+Across all slice artifacts, verification requires the same collection digest, an
+exact disjoint union, and no empty slice.
+
+The balanced strategy targets five minutes of modeled work per Riot shard. Promotion
+requires at least a 50 percent reduction in the median Riot critical path over paired
+live shadow runs. This objective covers the generated Riot child pipeline, not the
+entire required-check wall clock. Package builds, performance benchmarks, downstream
+pipelines, and GitHub System Tests have independent execution graphs and must be
+measured and optimized separately for an end-to-end feedback-time target.
+Balanced sizing is constrained to the legacy topology's total job count. When the
+duration target requests more jobs, the planner removes shards with the smallest
+modeled critical-path penalty, allowing capacity to move between semantic suites
+without increasing the job budget.
+Live critical-path measurement uses the actual interval from the first Riot job start
+to the last Riot job completion. It does not add semantic-stage maxima because the
+generated ``needs`` DAG lets those stages overlap. Modeled maxima are planning scores,
+not measured CI runtimes; promotion uses completed same-head shadow runs.
+
+Use the allocation helper to normalize an export, build a candidate model, and
+replay it against the untouched holdout:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py ingest-datadog \
+        --input test-sessions.json --output observations.jsonl
+    $ scripts/ci_allocation_cli.py ingest-jobs \
+        --input ci-jobs.json --output jobs.jsonl
+    $ scripts/ci_allocation_cli.py build-model \
+        --observations observations.jsonl --jobs jobs.jsonl \
+        --output candidate-model.json --report historical-replay.json
+    $ scripts/ci_allocation_cli.py check-ratchet \
+        --report historical-replay.json
+
+Historical pull-request paths provide a second workload view. They are replayed
+through the current suitespec rules, so common PR cohorts cannot hide a regression
+in less frequent AppSec, integration, CI, or core workloads:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py export-pr-history \
+        --since "2 years ago" --output pr-shapes.jsonl
+    $ scripts/ci_allocation_cli.py replay-pr-history \
+        --pr-history pr-shapes.jsonl --model candidate-model.json \
+        --output pr-replay.json
+    $ scripts/ci_allocation_cli.py check-ratchet --report pr-replay.json
+
+After historical validation, set ``CI_ALLOCATION_SHADOW=true`` on an explicitly
+requested pipeline to add non-blocking balanced jobs beside the required legacy
+jobs. Export both strategies' Test Visibility sessions, then build and check the
+same-head report:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py build-live-report \
+        --observations shadow-observations.jsonl --jobs shadow-jobs.jsonl \
+        --output live-shadow.json
+    $ scripts/ci_allocation_cli.py check-ratchet --report live-shadow.json
+
+Before promotion, download the legacy and balanced XML test reports and prove that
+the collected ``(Riot hash, class, test, file)`` identities, including duplicate
+counts, and Riot execution metadata are identical. Allocation jobs encode the
+strategy, Riot hash, and a digest of the Riot execution metadata in each report
+filename as a fallback for parallel runs that omit test suite properties:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py verify-junit \
+        --legacy legacy/test-results/junit*.xml \
+        --balanced balanced/test-results/junit*.xml \
+        --output junit-parity.json
+
+For every sub-hash command, also download the runtime inventory artifacts and prove
+that all collected pytest items were executed exactly once:
+
+.. code-block:: bash
+
+    $ scripts/ci_allocation_cli.py verify-runtime-shards \
+        --plan ci-allocation-plan.json \
+        --manifests balanced/test-results/ci-test-shard-inventory.*.json \
+        --output runtime-shard-parity.json
+
+Promotion requires the checked thresholds for sample count, median improvement,
+p75, p90, runner time, clean-success rate, and retry rate. A scheduled retuning task
+may propose a new model, but it must not change the active strategy automatically.
+Activate ``balanced`` only after the historical and live ratchets pass; reverting
+the policy to ``legacy`` restores the previous assignment without changing suite
+authoring.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 

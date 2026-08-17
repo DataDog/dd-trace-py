@@ -25,6 +25,7 @@ variables:
     when: always
     paths:
       - core.*
+      - test-results/ci-test-shard-inventory.*.json
     reports:
       junit: test-results/junit*.xml
     expire_in: 1 week

@@ -32,6 +32,25 @@ BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
+_SUITE_PIP_CACHE_KEYS: dict[str, str] = {}
+
+
+def _riot_pip_cache_key(suite_name: str) -> str:
+    if suite_name in _SUITE_PIP_CACHE_KEYS:
+        return _SUITE_PIP_CACHE_KEYS[suite_name]
+    return subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+
+
+def _pip_cache_key_for_hashes(riot_hashes: t.Iterable[str]) -> str:
+    lines = []
+    for riot_hash in sorted(riot_hashes):
+        requirements = ROOT / ".riot" / "requirements" / f"{riot_hash}.txt"
+        if requirements.is_file():
+            lines.extend(requirements.read_text().splitlines())
+    payload = "".join(f"{line}\n" for line in sorted(lines)).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _get_bool_env(name: str) -> str:
     """Return "true"/"false" for a boolean environment variable.
 
@@ -133,16 +152,13 @@ class JobSpec:
         if wait_for:
             lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
-        env = self.env
+        env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
-            env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-        )
+        env["PIP_CACHE_KEY"] = _riot_pip_cache_key(suite_name)
         if not self.skip_pip_cache:
             lines.append("  cache:")
             lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
@@ -173,150 +189,11 @@ class JobSpec:
         return "\n".join(lines)
 
 
-@dataclass
-class SuiteVenvInfo:
-    venv_count: int
-    python_versions: set[str]
-
-
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
 
-# Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
-TARGET_JOBS = 200
-
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-
-
-def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
-    """Collect venv count and Python versions for multiple suites in a single pass.
-
-    Iterates riotfile.venv.instances() once and matches each instance against all
-    suite patterns simultaneously, which is much more efficient than per-suite iteration.
-
-    Args:
-        suite_patterns: mapping of suite name -> regex pattern string
-
-    Returns:
-        mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
-    """
-    # Importing will load/evaluate the whole riotfile.py
-    import riotfile
-
-    compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
-        try:
-            compiled[suite] = re.compile(pattern)
-        except re.error:
-            LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
-
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
-
-    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name:
-            continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
-        for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
-
-    result: dict[str, SuiteVenvInfo] = {}
-    for suite in compiled:
-        if venv_hashes[suite]:
-            result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
-            )
-        else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
-    return result
-
-
-def calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
-    """Calculate parallelism given a venv count and venvs_per_job packing density."""
-    import math
-
-    return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
-
-
-def _scale_suites(
-    suite_venv_info: dict[str, SuiteVenvInfo],
-    final_jobs: dict[str, int],
-    scalable_suites: list[str],
-    venvs_per_job_map: dict[str, int],
-    target: int,
-) -> dict[str, int]:
-    """Scale up parallelism for scalable suites to approach the target total job count.
-
-    Works for both venvs_per_job suites (reduces vpj by 1 per step) and static
-    parallelism suites (increments parallelism by 1 per step). Each iteration picks
-    the suite that yields the largest gain until the target is reached.
-
-    Args:
-        suite_venv_info: venv info per suite (from collect_all_suite_venv_info)
-        final_jobs: current parallelism per suite (a copy is returned)
-        scalable_suites: all suites eligible for scaling (with venv info)
-        venvs_per_job_map: current venvs_per_job value for dynamic suites (others absent)
-        target: desired minimum total job count
-
-    Returns:
-        Updated parallelism mapping
-    """
-    import math
-
-    final_jobs = dict(final_jobs)
-    current_vpj = dict(venvs_per_job_map)
-
-    while sum(final_jobs.values()) < target:
-        best_gain = 0
-        best_suite = None
-
-        for suite in scalable_suites:
-            venv_count = suite_venv_info[suite].venv_count
-            current = final_jobs[suite]
-            # Allow up to 1 job per venv when scaling (no parallelism cap during scale-up).
-            # The cap in calculate_parallelism_from_venvs only applies to baseline.
-            if current >= venv_count:
-                continue
-
-            if suite in current_vpj:
-                # Dynamic (venvs_per_job) suite: compute gain from reducing vpj by 1
-                vpj = current_vpj[suite]
-                if vpj <= 1:
-                    continue
-                new_parallelism = math.ceil(venv_count / (vpj - 1))
-            else:
-                # Static parallelism suite: gain is always 1
-                new_parallelism = current + 1
-
-            gain = new_parallelism - current
-            if gain > best_gain:
-                best_gain = gain
-                best_suite = suite
-
-        if best_suite is None or best_gain == 0:
-            break
-
-        venv_count = suite_venv_info[best_suite].venv_count
-        if best_suite in current_vpj:
-            current_vpj[best_suite] -= 1
-            final_jobs[best_suite] = math.ceil(venv_count / current_vpj[best_suite])
-        else:
-            final_jobs[best_suite] += 1
-
-        LOGGER.debug(
-            "Scaled suite %s: parallelism %d -> %d",
-            best_suite,
-            final_jobs[best_suite] - best_gain,
-            final_jobs[best_suite],
-        )
-
-    return final_jobs
 
 
 def gen_required_suites() -> None:
@@ -493,48 +370,134 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_patterns)
+    missing_suites = sorted(set(non_skipped) - set(suite_venv_info))
+    if missing_suites:
+        raise ValueError(f"selected suites have no Riot environments: {missing_suites}")
+    for suite, pattern in suite_patterns.items():
+        cache_key = _pip_cache_key_for_hashes(suite_venv_info[suite].hashes)
+        previous = _SUITE_PIP_CACHE_KEYS.setdefault(pattern, cache_key)
+        if previous != cache_key:
+            raise ValueError(f"suite pattern has inconsistent Riot requirements: {pattern}")
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
 
-    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
-    # for scaling up) and the vpj map for dynamic suites.
-    baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
-    venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
+    allocation_policy = load_json(CI_ALLOCATION_POLICY)
+    allocation_config = allocation_policy["allocation"]
+    legacy_jobs = compute_parallelism(
+        suites,
+        non_skipped,
+        suite_venv_info,
+        target_jobs=int(allocation_config["target_jobs"]),
+    )
 
-    for suite in non_skipped:
-        config = suites[suite]
-        static_parallelism = config.get("parallelism")
-        venvs_per_job = config.get("venvs_per_job")
-
-        if static_parallelism is not None:
-            baseline_jobs[suite] = static_parallelism
-            if suite in suite_venv_info:
-                scalable_suites.append(suite)
-        elif venvs_per_job is not None and suite in suite_venv_info:
-            parallelism = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
-            baseline_jobs[suite] = parallelism
-            scalable_suites.append(suite)
-            venvs_per_job_map[suite] = venvs_per_job
-        else:
-            baseline_jobs[suite] = 1
-
-    # Scale up suites if total job count is below the target
-    total_baseline = sum(baseline_jobs.values())
-    if total_baseline < TARGET_JOBS and scalable_suites:
-        LOGGER.info(
-            "Total baseline jobs (%d) below target (%d), scaling up %d suite(s)",
-            total_baseline,
-            TARGET_JOBS,
-            len(scalable_suites),
+    runtime_model = load_json(CI_ALLOCATION_MODEL)
+    estimates, global_fallback = runtime_estimates(runtime_model)
+    estimates_by_suite = {suite: runtime_estimates(runtime_model, suite)[0] for suite in non_skipped}
+    setup_seconds = {suite: runtime_setup_seconds(runtime_model, suite) for suite in non_skipped}
+    test_item_counts = {suite: runtime_test_item_counts(suite_venv_info[suite], runtime_model) for suite in non_skipped}
+    balanced_jobs = (
+        compute_runtime_parallelism(
+            suite_venv_info,
+            non_skipped,
+            estimates,
+            runtime_model["fallbacks"].get("suite_seconds", {}),
+            global_fallback,
+            target_shard_seconds=float(allocation_config["target_shard_seconds"]),
+            maximum_parallelism_per_suite=int(allocation_config["maximum_parallelism_per_suite"]),
+            maximum_total_jobs=sum(legacy_jobs.values()),
+            suite_overheads=setup_seconds,
+            global_overhead=float(runtime_model["overheads"]["unit_global_seconds"]),
+            test_item_counts_by_suite=test_item_counts,
+            estimates_by_suite=estimates_by_suite,
+            maximum_slices_per_hash=int(allocation_config["maximum_slices_per_hash"]),
         )
-        final_jobs = _scale_suites(suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS)
-        LOGGER.info("Scaled total jobs: %d", sum(final_jobs.values()))
-    else:
-        final_jobs = baseline_jobs
+        if estimates
+        else legacy_jobs
+    )
+    active_strategy = allocation_config["active_strategy"]
+    if active_strategy not in {"legacy", "balanced"}:
+        raise ValueError(f"unsupported CI allocation strategy: {active_strategy}")
+    if active_strategy == "balanced" and not estimates:
+        raise ValueError("balanced CI allocation requires a populated runtime model")
+    final_jobs = legacy_jobs if active_strategy == "legacy" else balanced_jobs
+    LOGGER.info("Selected %s suite jobs: %d", active_strategy, sum(final_jobs.values()))
+    shadow_enabled = _get_bool_env("CI_ALLOCATION_SHADOW") == "true"
+    if shadow_enabled and (active_strategy != "legacy" or not estimates):
+        raise ValueError("allocation shadowing requires a populated model with the legacy strategy active")
+    plan_configs = {
+        suite: {key: value for key, value in suites[suite].items() if not key.startswith("_")} for suite in non_skipped
+    }
+    allocation_manifest = build_allocation_manifest(
+        suite_venv_info=suite_venv_info,
+        suite_configs=plan_configs,
+        legacy_shard_counts=legacy_jobs,
+        balanced_shard_counts=balanced_jobs,
+        runtime_model=runtime_model,
+        active_strategy=active_strategy,
+        target_shard_seconds=float(allocation_config["target_shard_seconds"]),
+        maximum_slices_per_hash=int(allocation_config["maximum_slices_per_hash"]),
+    )
+    write_manifest(CI_ALLOCATION_PLAN, allocation_manifest)
+    plans = {plan["suite"]: plan for plan in allocation_manifest["suites"]}
+
+    def emit_jobs(
+        output: t.TextIO,
+        *,
+        suite: str,
+        clean_name: str,
+        stage: str,
+        suite_config: dict,
+        strategy: str,
+        shadow: bool,
+    ) -> None:
+        assignments = plans[suite][strategy]["assignments"]
+        config = suite_config.copy()
+        config["parallelism"] = len(assignments) if len(assignments) > 1 else None
+        config["env"] = dict(config.get("env") or {})
+        config["env"].update(
+            {
+                "SUITE_NAME": config.get("pattern", clean_name),
+                "CI_ALLOCATION_SUITE": suite,
+                "CI_ALLOCATION_STRATEGY": strategy,
+                "CI_ALLOCATION_ASSIGNMENTS": ";".join(",".join(assignment) for assignment in assignments),
+            }
+        )
+        if shadow:
+            config["allow_failure"] = True
+        job_name = clean_name + ("-allocation-shadow" if shadow else "")
+        print(
+            JobSpec(
+                job_name,
+                stage=stage,
+                python_versions=set(suite_venv_info[suite].python_versions),
+                **config,
+            ),
+            file=output,
+        )
+
+    def emit_legacy_matrix(output: t.TextIO, *, suite: str, clean_name: str, stage: str, suite_config: dict) -> None:
+        config = suite_config.copy()
+        config["parallelism"] = legacy_jobs[suite] if legacy_jobs[suite] > 1 else None
+        config["env"] = dict(config.get("env") or {})
+        config["env"].update(
+            {
+                "SUITE_NAME": config.get("pattern", clean_name),
+                "CI_ALLOCATION_SUITE": suite,
+                "CI_ALLOCATION_STRATEGY": "legacy",
+            }
+        )
+        print(
+            JobSpec(
+                clean_name,
+                stage=stage,
+                python_versions=set(suite_venv_info[suite].python_versions),
+                **config,
+            ),
+            file=output,
+        )
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
@@ -542,23 +505,39 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
-
-            py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
-            if jobspec.skip:
+            if suite_config.get("skip", False):
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
+            LOGGER.info("Suite %s: %s jobs=%d", suite, active_strategy, final_jobs[suite])
+            if active_strategy == "legacy":
+                emit_legacy_matrix(
+                    f,
+                    suite=suite,
+                    clean_name=clean_name,
+                    stage=stage,
+                    suite_config=suite_config,
+                )
+            else:
+                emit_jobs(
+                    f,
+                    suite=suite,
+                    clean_name=clean_name,
+                    stage=stage,
+                    suite_config=suite_config,
+                    strategy=active_strategy,
+                    shadow=False,
+                )
 
-            # Apply final parallelism (may be higher than baseline if scaling was applied)
-            final_parallelism = final_jobs.get(suite)
-            if final_parallelism is not None and final_parallelism > 1:
-                if jobspec.parallelism != final_parallelism:
-                    LOGGER.info("Suite %s: parallelism=%d", suite, final_parallelism)
-                jobspec.parallelism = final_parallelism
-            elif jobspec.parallelism is None and (final_parallelism is None or final_parallelism <= 1):
-                pass  # leave as None (GitLab default: single job)
-
-            print(str(jobspec), file=f)
+            if shadow_enabled:
+                emit_jobs(
+                    f,
+                    suite=suite,
+                    clean_name=clean_name,
+                    stage=stage,
+                    suite_config=suite_config,
+                    strategy="balanced",
+                    shadow=True,
+                )
 
 
 def gen_build_docs() -> None:
@@ -648,6 +627,19 @@ def gen_pre_checks() -> None:
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
         paths={"*"},
+    )
+    check(
+        name="Check CI allocation contract",
+        command="scripts/ci_allocation_cli.py check-contract",
+        paths={
+            ".gitlab/*",
+            "ci/ci-allocation-*.json",
+            "scripts/ci_allocation/*",
+            "scripts/ci_allocation_cli.py",
+            "scripts/gen_gitlab_config.py",
+            "tests/suitespec.py",
+            "tests/**/suitespec.yml",
+        },
     )
     check(
         name="Check ddtrace error logs",
@@ -817,6 +809,9 @@ ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
+CI_ALLOCATION_PLAN = GITLAB / "ci-allocation-plan.json"
+CI_ALLOCATION_MODEL = ROOT / "ci" / "ci-allocation-runtime-model.json"
+CI_ALLOCATION_POLICY = ROOT / "ci" / "ci-allocation-policy.json"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
@@ -832,6 +827,18 @@ TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+from ci_allocation.history import load_json  # noqa: E402
+from ci_allocation.history import runtime_estimates  # noqa: E402
+from ci_allocation.manifest import build_allocation_manifest  # noqa: E402
+from ci_allocation.manifest import write_manifest  # noqa: E402
+from ci_allocation.suites import calculate_parallelism_from_venvs  # noqa: E402,F401
+from ci_allocation.suites import collect_all_suite_venv_info  # noqa: E402
+from ci_allocation.suites import compute_parallelism  # noqa: E402
+from ci_allocation.suites import compute_runtime_parallelism  # noqa: E402
+from ci_allocation.suites import runtime_setup_seconds  # noqa: E402
+from ci_allocation.suites import runtime_test_item_counts  # noqa: E402
+from ci_allocation.suites import scale_suites as _scale_suites  # noqa: E402,F401
 
 
 def template(name: str, **params):

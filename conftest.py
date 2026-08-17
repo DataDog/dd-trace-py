@@ -6,13 +6,20 @@ Local plugins: https://docs.pytest.org/en/3.10.1/writing_plugins.html#local-conf
 Hook reference: https://docs.pytest.org/en/3.10.1/reference.html#hook-reference
 """
 
+import hashlib
+import json
 import os
+from pathlib import Path
 import re
 import sys
 from time import time
 
 import hypothesis
 import pytest
+
+from scripts.ci_allocation.planner import AllocationError
+from scripts.ci_allocation.runtime import build_runtime_inventory
+from scripts.ci_allocation.runtime import write_runtime_inventory
 
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
@@ -51,18 +58,103 @@ def pytest_configure(config):
     if os.getenv("CI") != "true":
         return
 
-    # Write JUnit xml results to a file that contains this process' PID
-    # This ensures running pytest multiple times does not overwrite previous results
-    # e.g. test-results/junit.xml -> test-results/junit.1797.xml
+    # AIDEV-NOTE: Keep the allocation identity and execution-metadata digest in the
+    # filename even though they are also testsuite properties;
+    # record_testsuite_property is unreliable under xdist.
+    # Write JUnit XML results to a unique file so consecutive Riot environments do not
+    # overwrite one another. Allocation CI also encodes its strategy and atomic Riot
+    # hash in the filename because testsuite properties are not reliable under xdist.
     if config.option.xmlpath:
         fname, ext = os.path.splitext(config.option.xmlpath)
-        # DEV: `ext` will contain the `.`, e.g. `.xml`
-        config.option.xmlpath = "{0}.{1}{2}".format(fname, os.getpid(), ext)
+        strategy = os.getenv("RIOT_CI_ALLOCATION_STRATEGY")
+        riot_hash = os.getenv("RIOT_HASH")
+        test_shard_index = os.getenv("RIOT_TEST_SHARD_INDEX")
+        test_shard_total = os.getenv("RIOT_TEST_SHARD_TOTAL")
+        test_shard_identity = None
+        if test_shard_index and test_shard_total and int(test_shard_total) > 1:
+            test_shard_identity = f"s{test_shard_index}of{test_shard_total}"
+        execution_digest = None
+        if riot_hash:
+            execution = {}
+            for env, value in os.environ.items():
+                if not env.startswith("RIOT_") or env in {
+                    "RIOT_HASH",
+                    "RIOT_CI_ALLOCATION_STRATEGY",
+                    "RIOT_TEST_SHARD_INDEX",
+                    "RIOT_TEST_SHARD_TOTAL",
+                }:
+                    continue
+                name = env[5:]
+                prefix, _, suffix = name.partition("_")
+                property_name = f"riot.{prefix.lower()}.{suffix.lower()}" if suffix else f"riot.{prefix.lower()}"
+                execution[property_name] = value
+            if "riot.python.version" not in execution:
+                raise RuntimeError("Riot allocation JUnit metadata requires RIOT_PYTHON_VERSION")
+            encoded = json.dumps(dict(sorted(execution.items())), sort_keys=True, separators=(",", ":")).encode()
+            execution_digest = hashlib.sha256(encoded).hexdigest()
+        identity = filter(
+            None,
+            (
+                strategy,
+                riot_hash,
+                test_shard_identity,
+                execution_digest,
+                str(os.getpid()),
+            ),
+        )
+        # DEV: ext includes the leading period, for example .xml.
+        config.option.xmlpath = "{}.{}{}".format(fname, ".".join(identity), ext)
 
     # Save per-interpreter benchmark results.
     if config.pluginmanager.hasplugin("benchmark"):
         gc = "_nogc" if config.option.benchmark_disable_gc else ""
         config.option.benchmark_save = str(time()).replace(".", "_") + gc + "_py%d_%d" % sys.version_info[:2]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """Select one deterministic runtime slice after the Riot command collects tests."""
+    shard_index_value = os.getenv("RIOT_TEST_SHARD_INDEX")
+    shard_total_value = os.getenv("RIOT_TEST_SHARD_TOTAL")
+    if shard_index_value is None and shard_total_value is None:
+        return
+    if shard_index_value is None or shard_total_value is None:
+        raise pytest.UsageError("Riot runtime test sharding requires both shard index and total")
+    try:
+        shard_index = int(shard_index_value)
+        shard_total = int(shard_total_value)
+    except ValueError as exc:
+        raise pytest.UsageError("Riot runtime test shard index and total must be integers") from exc
+    if shard_total == 1 and shard_index == 1:
+        return
+
+    suite = os.getenv("CI_ALLOCATION_SUITE", "")
+    riot_hash = os.getenv("RIOT_HASH", "")
+    if not suite or not riot_hash:
+        raise pytest.UsageError("Riot runtime test sharding requires suite and hash identity")
+    try:
+        inventory = build_runtime_inventory(
+            suite=suite,
+            riot_hash=riot_hash,
+            shard_index=shard_index,
+            shard_total=shard_total,
+            collected_nodeids=[item.nodeid for item in items],
+        )
+    except AllocationError as exc:
+        raise pytest.UsageError(str(exc)) from exc
+
+    selected = set(inventory["selected_nodeids"])
+    deselected = [item for item in items if item.nodeid not in selected]
+    items[:] = [item for item in items if item.nodeid in selected]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+
+    # AIDEV-NOTE: xdist workers must make the same selection, but only one
+    # process writes the shared inventory artifact.
+    worker = os.getenv("PYTEST_XDIST_WORKER")
+    if worker in (None, "gw0"):
+        path = Path("test-results") / (f"ci-test-shard-inventory.{riot_hash}.{shard_index}-of-{shard_total}.json")
+        write_runtime_inventory(path, inventory)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
