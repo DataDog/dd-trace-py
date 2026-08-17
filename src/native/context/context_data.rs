@@ -15,7 +15,7 @@ use pyo3::{
 #[derive(Default)]
 pub struct ContextData {
     pub trace_id: Option<u128>,
-    pub span_id: Option<u64>,
+    pub span_id: Option<u128>,
     /// dict[str, str]. `None` only in the brief window before `__new__` finishes
     /// or after `__clear__` runs during GC teardown -- getters lazily
     /// re-materialize an empty dict, mirroring `SpanData::meta_struct`.
@@ -118,7 +118,7 @@ impl ContextData {
     // --- span_id ---
     #[getter]
     #[inline(always)]
-    fn get_span_id(&self) -> Option<u64> {
+    fn get_span_id(&self) -> Option<u128> {
         self.span_id
     }
 
@@ -128,7 +128,7 @@ impl ContextData {
         match value {
             None => self.span_id = None,
             Some(v) => {
-                if let Ok(id) = v.extract::<u64>() {
+                if let Ok(id) = v.extract::<u128>() {
                     self.span_id = Some(id);
                 }
             }
