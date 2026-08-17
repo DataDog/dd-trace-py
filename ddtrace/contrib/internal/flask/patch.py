@@ -9,10 +9,10 @@ from werkzeug.exceptions import NotFound
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
-from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection

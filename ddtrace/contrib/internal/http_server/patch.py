@@ -5,7 +5,7 @@ from typing import Callable
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.internal.runtime import maybe_refresh_identity
+from ddtrace.internal._identity import maybe_refresh_identity
 
 
 def get_version() -> str:

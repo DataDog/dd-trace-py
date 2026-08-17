@@ -3,7 +3,7 @@ import pytest
 
 @pytest.mark.subprocess
 def test_get_runtime_id():
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
@@ -15,7 +15,7 @@ def test_get_runtime_id():
 def test_get_runtime_id_fork():
     import os
 
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
@@ -44,7 +44,7 @@ def test_get_runtime_id_fork():
 def test_get_runtime_id_double_fork():
     import os
 
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
 
@@ -88,7 +88,7 @@ def test_ancestor_runtime_id():
     """
     import os
 
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     ancestor_runtime_id = runtime.get_runtime_id()
 
@@ -133,7 +133,7 @@ def test_parent_runtime_id():
     """get_parent_runtime_id() tracks the immediate parent process, not the root."""
     import os
 
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     root_id = runtime.get_runtime_id()
     assert runtime.get_parent_runtime_id() is None
@@ -159,7 +159,7 @@ def test_parent_runtime_id():
 @pytest.mark.subprocess
 def test_get_process_role_single_process() -> None:
     """Single-process application: get_process_role() returns None."""
-    from ddtrace.internal.runtime import get_process_role
+    from ddtrace.internal._identity import get_process_role
 
     assert get_process_role() is None
 
@@ -169,7 +169,7 @@ def test_get_process_role_fork_child() -> None:
     """Forked child process: get_process_role() returns 'worker'."""
     import os
 
-    from ddtrace.internal.runtime import get_process_role
+    from ddtrace.internal._identity import get_process_role
 
     assert get_process_role() is None
 
@@ -187,7 +187,7 @@ def test_get_process_role_fork_parent() -> None:
     """Parent process after forking a child: get_process_role() returns 'main'."""
     import os
 
-    from ddtrace.internal.runtime import get_process_role
+    from ddtrace.internal._identity import get_process_role
 
     assert get_process_role() is None
 
@@ -207,7 +207,7 @@ def test_get_process_role_fork_parent() -> None:
 )
 def test_get_process_role_spawn_child() -> None:
     """Multiprocessing spawn/forkserver child (env-var seeded): returns 'worker'."""
-    from ddtrace.internal.runtime import get_process_role
+    from ddtrace.internal._identity import get_process_role
 
     assert get_process_role() == "worker", get_process_role()
 
@@ -215,7 +215,7 @@ def test_get_process_role_spawn_child() -> None:
 @pytest.mark.subprocess
 def test_refresh_identity_changes_runtime_id():
     """refresh_identity() is the non-fork trigger used by e.g. an AWS Lambda MicroVM /run hook."""
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
     runtime.refresh_identity()
@@ -240,7 +240,7 @@ def test_refresh_identity_does_not_record_fork_lineage():
     snapshot's ID on an AWS Lambda MicroVM /run), so recording it as one would corrupt
     process-lineage telemetry.
     """
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     assert runtime.get_process_role() is None
     assert runtime.get_parent_runtime_id() is None
@@ -255,7 +255,7 @@ def test_refresh_identity_does_not_record_fork_lineage():
 
 @pytest.mark.subprocess
 def test_refresh_identity_notifies_subscribers():
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     seen = []
 
@@ -281,7 +281,7 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
     """
     import gc
 
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     class _Subscriber:
         def on_change(self, new_id):
@@ -302,7 +302,7 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"})
 def test_maybe_refresh_identity_matches_microvm_run_hook():
     """Only the exact AWS Lambda MicroVM "/run" hook request triggers a refresh."""
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
 
@@ -314,7 +314,7 @@ def test_maybe_refresh_identity_matches_microvm_run_hook():
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"})
 def test_maybe_refresh_identity_ignores_other_requests():
     """A different method/path, or the "/resume" hook, must not trigger a refresh."""
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
 
@@ -330,7 +330,7 @@ def test_maybe_refresh_identity_noop_outside_microvm():
     """Without the MicroVM env var, this method+path is otherwise just an unauthenticated
     trigger reachable on every ddtrace user's request-dispatch path -- it must be a no-op.
     """
-    from ddtrace.internal import runtime
+    from ddtrace.internal import _identity as runtime
 
     runtime_id = runtime.get_runtime_id()
 
