@@ -100,14 +100,9 @@ class RuntimeWorker(periodic.PeriodicService):
             self._platform_tags = self._format_tags(PlatformTags())
 
         self._process_tags: list[str] = list(ProcessTags())
-        # The dogstatsd client also derives service/env/version tags from DD_SERVICE/DD_ENV/
-        # DD_VERSION at construction, but those are already recomputed fresh from ddtrace.config
-        # on every flush() below via TracerTags(), so keeping them here would reintroduce a stale
-        # value alongside the current one whenever config.service/env/version changes afterwards
-        # (e.g. a framework integration setting it after this worker started). dd.internal.entity_id
-        # (from DD_ENTITY_ID) has no such fresh source, so it's the only one worth keeping: flush()
-        # replaces constant_tags on every call, and without this it would be dropped after the
-        # first flush.
+        # Only dd.internal.entity_id needs preserving here: service/env/version are already
+        # refreshed fresh every flush via TracerTags(), so keeping them too would risk sending a
+        # stale value alongside the current one.
         entity_id_prefix = ENTITY_ID_TAG_NAME + ":"
         self._client_constant_tags: list[str] = [
             tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
