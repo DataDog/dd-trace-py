@@ -69,7 +69,7 @@ impl ContextData {
     ) -> Self {
         Self {
             trace_id: trace_id.and_then(|v| v.extract::<u128>().ok()),
-            span_id: span_id.and_then(|v| v.extract::<u64>().ok()),
+            span_id: span_id.and_then(|v| v.extract::<u128>().ok()),
             meta: Some(
                 meta.map(|d| d.clone().unbind())
                     .unwrap_or_else(|| PyDict::new(py).unbind()),
