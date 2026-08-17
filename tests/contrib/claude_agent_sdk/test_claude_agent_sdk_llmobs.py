@@ -1329,6 +1329,22 @@ class TestLLMObsClaudeAgentSdk:
         assert "AssistantMessage" in types
         assert "ResultMessage" in types
 
+    async def test_llmobs_client_custom_transport_does_not_force_partials(
+        self, claude_agent_sdk, claude_agent_sdk_llmobs
+    ):
+        """ClaudeSDKClient(transport=custom_transport) builds the transport independently of
+        options, so __init__ must not force include_partial_messages — otherwise the receive
+        path would filter status/StreamEvent chunks the transport emits on its own. A plain
+        client (no transport) still forces them.
+        """
+        from unittest.mock import MagicMock
+
+        client_custom = claude_agent_sdk.ClaudeSDKClient(transport=MagicMock())
+        assert getattr(client_custom, "_dd_forced_partial", None) is False
+
+        client_default = claude_agent_sdk.ClaudeSDKClient()
+        assert getattr(client_default, "_dd_forced_partial", None) is True
+
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from claude_agent_sdk usage to APM span."""

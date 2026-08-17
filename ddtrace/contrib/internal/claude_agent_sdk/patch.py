@@ -37,8 +37,16 @@ def traced_client_init(func, instance, args, kwargs):
     don't drop later caller mutations. We stash
     whether we forced the flag so receive_messages() can tell the handler to filter the
     extra events.
+
+    A caller-supplied custom transport is constructed independently of these options, so
+    forcing (and therefore filtering) the flag there would only risk swallowing chunks the
+    transport emits on its own — skip it, exactly as the standalone query() path does.
     """
     func(*args, **kwargs)
+    transport = args[1] if len(args) > 1 else kwargs.get("transport")
+    if transport is not None:
+        instance._dd_forced_partial = False
+        return
     try:
         _, forced_partial = force_include_partial_messages(getattr(instance, "options", None), in_place=True)
         instance._dd_forced_partial = forced_partial
