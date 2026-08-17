@@ -4,13 +4,6 @@ use pyo3::{
 };
 
 /// Native storage layer for `ddtrace._trace.context.Context`.
-///
-/// Mirrors the `SpanData`/`Span` split: this struct owns the raw trace-level
-/// fields (trace/span id, meta/metrics/baggage dicts, span links, the
-/// remote/reactivate flags) with plain get/set properties; all business logic
-/// (sampling_priority/dd_origin/dd_user_id, W3C traceparent/tracestate
-/// computation, baggage helper methods, copy(), equality, pickling, and the
-/// lock) stays in the pure-Python `Context` subclass.
 #[pyo3::pyclass(name = "ContextData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct ContextData {
