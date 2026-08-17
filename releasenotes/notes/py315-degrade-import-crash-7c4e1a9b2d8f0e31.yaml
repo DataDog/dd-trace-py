@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: Fixes a crash on import under Python 3.15. The library now loads;
+    bytecode wrapping remains unavailable until full 3.15 wrapping support lands.
+  - |
+    profiling: Fixes a crash when starting the profiler under Python 3.15. The
+    profiler now disables itself when native extensions are not built for that
+    version.
