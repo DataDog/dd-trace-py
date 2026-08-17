@@ -149,8 +149,6 @@ def is_musl_libc() -> bool:
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
 # mainline wheels don't ship the artifact until it GA's.
-# Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
-# reads it via os.getenv during the package build, independent of DDConfig.
 BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "0").lower() in (
     "1",
     "yes",

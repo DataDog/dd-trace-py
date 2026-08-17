@@ -1,12 +1,7 @@
 ---
 features:
   - |
-    profiling: Add experimental, opt-in native (C/C++) heap profiling for Python
-    processes on Linux (manylinux/glibc wheels). At runtime, enable with
-    ``DD_PROFILING_NATIVE_HEAP_ENABLED=true`` together with
-    ``DD_PROFILING_ENABLED=true``; dd-trace-py arms ``ddheap:alloc`` and
-    ``ddheap:free`` USDT probes at profiler startup so the Datadog Host Profiler
-    can collect native allocation and retained-heap samples. The installed wheel
-    must include the ``libdd_heap_gotter`` artifact, produced only when the wheel
-    is built with ``DD_PROFILING_NATIVE_HEAP_ENABLED=1`` (musllinux builds skip
-    the cdylib). It is a no-op when disabled or when the artifact is absent.
+    profiling: Add experimental native (C/C++) heap profiling for Python processes
+    on Linux (manylinux/glibc wheels only). Enabled with ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``.
+    It is a no-op when disabled or when the artifact is absent, i.e.
+    ddtrace binary size is unaffected.
