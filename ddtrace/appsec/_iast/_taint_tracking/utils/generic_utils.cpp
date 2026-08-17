@@ -57,25 +57,18 @@ iast_taint_log_error(const std::string& msg)
             }
         } catch (const py::error_already_set& e) {
             cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
-            PyErr_Clear(); // Clear the error state
-            frame_info = "(unkown file)";
+            frame_info = "(unknown file)";
         }
 
         const auto log = get_python_logger();
         log.attr("debug")("iast::propagation::native::error::" + msg + ": " + frame_info);
 
     } catch (const py::error_already_set& e) {
-        if (!e.trace().is_none()) {
-            if (PythonErrorGuard error_guard; error_guard.has_error()) {
-                std::cerr << "Traceback: " << error_guard.error_as_stdstring() << "\n";
-            }
-        }
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
-        PyErr_Clear();
     } catch (const std::exception& e) {
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (...) {
-        cerr << "ddtrace: unkown error when trying to log an IAST native error";
+        cerr << "ddtrace: unknown error when trying to log an IAST native error";
     }
 }
 
@@ -91,9 +84,6 @@ safe_import(const char* module_name, const char* symbol_name)
     if (module_name == nullptr) {
         return py::none();
     }
-
-    const string final_name =
-      symbol_name == nullptr ? string(module_name) : string(module_name) + "." + string(symbol_name);
 
     PythonErrorGuard error_guard;
 
@@ -111,26 +101,7 @@ safe_import(const char* module_name, const char* symbol_name)
 }
 
 bool
-is_pointer_this_builtin(PyObject* orig_function, const char* builtin_name)
+is_pointer_builtin_str(PyObject* orig_function)
 {
-    if (!orig_function) {
-        return false;
-    }
-
-    static PyObject* builtin = nullptr;
-    if (builtin == nullptr) {
-        PyObject* builtins = PyImport_ImportModule("builtins");
-        if (!builtins) {
-            return false;
-        }
-
-        builtin = PyObject_GetAttrString(builtins, builtin_name);
-        Py_DECREF(builtins);
-
-        if (!builtin) {
-            return false;
-        }
-    }
-
-    return orig_function == builtin;
+    return orig_function == reinterpret_cast<PyObject*>(&PyUnicode_Type);
 }

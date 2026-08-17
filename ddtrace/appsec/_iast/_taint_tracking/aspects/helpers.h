@@ -8,6 +8,10 @@
 #include <unordered_map>
 #include <utility>
 
+#ifdef __GLIBCXX__
+#include <cxxabi.h>
+#endif
+
 #include "api/safe_context.h"
 #include "api/safe_initializer.h"
 #include "api/utils.h"
@@ -95,7 +99,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            bool include_separator,
                            size_t context_id);
 
-PyObject*
+py::object
 api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
                                        const TaintRangeRefs& ranges_orig,
                                        PyTextType py_str_type);
@@ -342,22 +346,8 @@ exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::opti
     return std::nullopt;
 }
 
-The user of this macro could define a parameter (like nullptr) or a "get_results()" function as a lambda, like:
-
-    auto get_result = [&]() -> PyObject* {
-        try {
-            PyObject* res = do_modulo(candidate_text, candidate_tuple);
-            if (res == nullptr) {
-                return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
-            }
-            return res;
-        } catch (py::error_already_set& e) {
-            e.restore();
-            return nullptr;
-        }
-    };
-
-Please note that you have to handle the error_already_set exception in the lambda, as it's not caught by the macro.
+Only propagation belongs inside the macro because propagation failures are discarded before returning the original
+result.
 
 Example calling:
     TRY_CATCH_ASPECT("foo_aspect", return result_o, , {  // no cleanup code here, but the comma is still needed
@@ -365,11 +355,22 @@ Example calling:
     });
 */
 
+#ifdef __GLIBCXX__
+#define RETHROW_FORCED_UNWIND                                                                                          \
+    catch (abi::__forced_unwind&)                                                                                      \
+    {                                                                                                                  \
+        throw;                                                                                                         \
+    }
+#else
+#define RETHROW_FORCED_UNWIND
+#endif
+
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
-    } catch (py::error_already_set & e) {                                                                              \
-        e.restore();                                                                                                   \
+    } catch (const py::error_already_set& e) {                                                                         \
+        const std::string error_message = NAME ". " + std::string(e.what());                                           \
+        iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
@@ -377,7 +378,9 @@ Example calling:
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
-    } catch (...) {                                                                                                    \
+    }                                                                                                                  \
+    RETHROW_FORCED_UNWIND catch (...)                                                                                  \
+    {                                                                                                                  \
         const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
