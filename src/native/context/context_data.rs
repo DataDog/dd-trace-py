@@ -130,6 +130,10 @@ impl ContextData {
             Some(v) => {
                 if let Ok(id) = v.extract::<u128>() {
                     self.span_id = Some(id);
+                } else if let Ok(s) = v.extract::<&str>() {
+                    if let Ok(id) = s.parse::<u128>() {
+                        self.span_id = Some(id);
+                    }
                 }
             }
         }
