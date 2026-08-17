@@ -37,6 +37,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._llmobs import LLMObsSubmitEvaluationError
 from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -60,6 +61,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -678,15 +680,63 @@ def test_evaluation_span_span_scope(llmobs):
         assert judge.resource == "workflow"
         assert judge.span_type == "llm"
     assert get_llmobs_span_kind(judge) == "workflow"
-    assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
+    # The judge trace is reported under the judged application, not a separate evaluations service.
+    assert get_llmobs_ml_app(judge) == "my-app"
     tags = get_llmobs_tags(judge)
-    assert tags["source"] == EVALUATIONS_ML_APP
+    # EVALUATED_ML_APP_TAG is the judge-span marker, so `source` is left at its default.
+    assert tags["source"] != EVALUATIONS_ML_APP
     assert tags[EVAL_NAME_TAG] == "relevance"
     assert tags[EVAL_SOURCE_TYPE_TAG] == "external"
     assert tags[EVALUATED_ML_APP_TAG] == "my-app"
     assert tags[EVALUATED_TRACE_ID_TAG] == "222"
     assert tags[EVALUATED_SPAN_ID_TAG] == "111"
     assert EVALUATED_SESSION_ID_TAG not in tags
+
+
+def test_evaluation_defaults_ml_app_to_configured_app(llmobs):
+    # With no evaluated_ml_app, the judge trace lands on the configured app and the marker matches it,
+    # which is correct when the evaluator runs inside the application it judges.
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+        pass
+    expected = resolve_ml_app()
+    assert get_llmobs_ml_app(judge) == expected
+    assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == expected
+
+
+def test_evaluation_agent_service_overrides_destination(llmobs):
+    with llmobs.evaluation(
+        name="relevance",
+        evaluated_span={"span_id": "1", "trace_id": "2"},
+        evaluated_ml_app="my-app",
+        agent_service="my-evaluators",
+    ) as judge:
+        pass
+    assert get_llmobs_ml_app(judge) == "my-evaluators"
+    assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == "my-app"
+
+
+def test_evaluation_deprecated_ml_app_overrides_destination(llmobs):
+    # `ml_app` is the deprecated alias for `agent_service`, as on the other span factories.
+    with llmobs.evaluation(
+        name="relevance",
+        evaluated_span={"span_id": "1", "trace_id": "2"},
+        evaluated_ml_app="my-app",
+        ml_app=EVALUATIONS_ML_APP,
+    ) as judge:
+        pass
+    assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
+    assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == "my-app"
+
+
+def test_evaluation_unentered_handle_leaves_caller_context_intact(llmobs):
+    # evaluation() detaches the LLMObs context to build a standalone judge root. A handle that is never
+    # used as a context manager must not strand the caller on that detached (and never finished) root.
+    with llmobs.agent(name="qa_agent") as agent_span:
+        llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"})
+        assert llmobs._instance._current_span() is agent_span
+        with llmobs.tool(name="fetch_kb") as tool_span:
+            pass
+    assert get_llmobs_parent_id(tool_span) == str(agent_span.span_id)
 
 
 def test_export_span_includes_name(llmobs):
@@ -725,16 +775,34 @@ def test_evaluation_detaches_from_active_agent_trace(llmobs):
     assert judge_ref["trace_id"] != agent_ref["trace_id"]  # its own LLMObs trace, not the agent's
 
 
-def test_evaluation_nested_spans_inherit_evaluations_ml_app(llmobs):
-    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+def test_evaluation_nested_spans_inherit_judge_ml_app(llmobs):
+    with llmobs.evaluation(
+        name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
+    ) as judge:
         with llmobs.tool(name="fetch_kb") as tool_span:
             pass
         with llmobs.llm(name="grade", model_name="gpt-4o-mini", model_provider="openai") as llm_span:
             pass
-    # Spans opened inside the judge root inherit the datadog-evaluations service.
+    # Spans opened inside the judge root inherit the judge's service, which defaults to the judged app.
+    assert get_llmobs_tags(judge)["ml_app"] == "my-app"
+    assert get_llmobs_tags(tool_span)["ml_app"] == "my-app"
+    assert get_llmobs_tags(llm_span)["ml_app"] == "my-app"
+
+
+def test_evaluation_nested_spans_inherit_overridden_ml_app(llmobs):
+    with llmobs.evaluation(
+        name="relevance",
+        evaluated_span={"span_id": "1", "trace_id": "2"},
+        evaluated_ml_app="my-app",
+        agent_service=EVALUATIONS_ML_APP,
+    ) as judge:
+        with llmobs.llm(name="grade", model_name="gpt-4o-mini", model_provider="openai") as llm_span:
+            pass
+    # An explicit agent_service moves the judge trace and everything nested under it...
     assert get_llmobs_tags(judge)["ml_app"] == EVALUATIONS_ML_APP
-    assert get_llmobs_tags(tool_span)["ml_app"] == EVALUATIONS_ML_APP
     assert get_llmobs_tags(llm_span)["ml_app"] == EVALUATIONS_ML_APP
+    # ...but the marker still records which application was judged.
+    assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == "my-app"
 
 
 @pytest.mark.parametrize("outer_kind", ["agent", "workflow", "task"])
@@ -2443,6 +2511,104 @@ def test_annotation_context_finished_context_does_not_modify_name(llmobs):
         assert span.name == "test_agent"
 
 
+def test_agent_span_sets_agent_version_tag(llmobs):
+    with llmobs.agent(name="test_agent", version="v3") as span:
+        pass
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_agent_span_version_not_set_on_children(llmobs):
+    """The version identifies the agent, so it stays on the agent span."""
+    with llmobs.agent(name="test_agent", version="v3"):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    for span in (workflow_span, llm_span, tool_span):
+        assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_agent_span_without_version_sets_no_tag(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_nested_agent_spans_each_carry_their_own_version(llmobs):
+    with llmobs.agent(name="outer_agent", version="v1") as outer_span:
+        with llmobs.agent(name="inner_agent", version="v3") as inner_span:
+            pass
+    assert get_llmobs_tags(outer_span)["agent_version"] == "v1"
+    assert get_llmobs_tags(inner_span)["agent_version"] == "v3"
+
+
+def test_nested_agent_span_does_not_inherit_ancestor_version(llmobs):
+    """An unversioned sub-agent stays unversioned rather than claiming its parent's version."""
+    with llmobs.agent(name="outer_agent", version="v1"):
+        with llmobs.agent(name="inner_agent") as inner_span:
+            pass
+    assert "agent_version" not in get_llmobs_tags(inner_span)
+
+
+def test_annotation_context_sets_agent_tags_on_agent_span_only(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        with llmobs.agent(name="test_agent") as agent_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+    assert get_llmobs_tags(agent_span)["agent_version"] == "v3"
+    assert "agent_version" not in get_llmobs_tags(llm_span)
+
+
+def test_user_supplied_agent_version_tag_is_left_alone(llmobs):
+    """`tags` is an arbitrary user namespace, so an app already using this key keeps it."""
+    with llmobs.annotation_context(tags={"agent_version": "mine-v1"}):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            pass
+        with llmobs.agent(name="test_agent") as agent_span:
+            pass
+    for span in (workflow_span, agent_span):
+        assert get_llmobs_tags(span)["agent_version"] == "mine-v1"
+
+
+def test_annotation_context_agent_version_wins_over_explicit_tag(llmobs):
+    with llmobs.annotation_context(tags={"agent_version": "from_tags"}, agent={"version": "from_agent"}):
+        with llmobs.agent(name="test_agent") as span:
+            pass
+    assert get_llmobs_tags(span)["agent_version"] == "from_agent"
+
+
+@pytest.mark.parametrize("agent", [{}, {"version": None}, {"version": ""}, {"name": "no-version"}, "not_a_dict", 42])
+def test_annotation_context_agent_without_version_sets_no_tag(llmobs, agent):
+    """Agent input is unvalidated by design: anything without a usable version is a no-op."""
+    with llmobs.annotation_context(agent=agent):
+        with llmobs.agent(name="test_agent") as span:
+            pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_annotation_context_finished_context_does_not_modify_agent_version(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        pass
+    with llmobs.agent(name="test_agent") as span:
+        pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_annotation_context_nested_overrides_agent_version(llmobs):
+    with llmobs.annotation_context(agent={"version": "outer"}):
+        with llmobs.annotation_context(agent={"version": "inner"}):
+            with llmobs.agent(name="test_agent") as span:
+                pass
+    assert get_llmobs_tags(span)["agent_version"] == "inner"
+
+
+def test_annotate_sets_agent_version_tag(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"version": "v3"})
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
 def test_annotation_context_nested(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.annotation_context(tags={"foo": "baz"}):
@@ -2971,6 +3137,21 @@ def test_submit_evaluation_invalid_judge_span_raises(llmobs):
             value=4,
             ml_app="dummy",
             judge_span={"span_id": "j-span"},  # missing trace_id
+        )
+
+
+def test_submit_evaluation_invalid_metadata_with_judge_span_raises_submission_error(llmobs):
+    # Folding the judge ids into metadata must not pre-empt validation with a bare TypeError from the
+    # dict unpack — a bad metadata value still surfaces as LLMObsSubmitEvaluationError.
+    with pytest.raises(LLMObsSubmitEvaluationError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="score",
+            value=4,
+            ml_app="dummy",
+            judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+            metadata="not-a-dict",
         )
 
 

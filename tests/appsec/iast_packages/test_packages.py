@@ -725,7 +725,7 @@ _PACKAGES = [
         "zipp",
         "3.18.2",
         "example.zip",
-        "Contents of example.zip: ['example.zip/example.txt']",
+        "Contents of example.zip: ['example.txt']",
         "",
     ),
     ## Skip due to typing-extensions added to the denylist

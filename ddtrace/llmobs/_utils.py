@@ -249,13 +249,18 @@ class EvaluationContext:
     """Context manager returned by ``LLMObs.evaluation()``.
 
     Wraps the judge root :class:`Span`: it yields the span on enter (``as judge``) and finishes it
-    on exit. The judge is started as a *detached* trace root, so on exit this restores the caller's
-    previously-active context (``tracer``/``prev_active``) — a trace the evaluation was invoked inside
-    (e.g. an agent run) is left unaffected. On the unhappy path — if the block exits with an unhandled
-    exception, it invokes ``on_error(exc)`` *after* the judge span has recorded the error, so an
-    evaluator crash is surfaced on the evaluated span automatically (via a failed eval metric) without
-    the user writing a ``try/except``. A failure inside ``on_error`` is logged and swallowed so it
-    never masks the user's original exception, and the user's exception is never suppressed.
+    on exit. The judge is started as a *detached* trace root, so the caller's LLMObs context is only
+    swapped for the judge for the duration of the block: ``__enter__`` activates the judge so spans
+    created inside nest under it, and ``__exit__`` restores ``prev_active`` — a trace the evaluation
+    was invoked inside (e.g. an agent run) is left unaffected. Activating in ``__enter__`` rather than
+    at ``evaluation()`` call time matters: a handle that is never used as a context manager must not
+    leave the caller's context pointing at the judge.
+
+    On the unhappy path — if the block exits with an unhandled exception, it invokes ``on_error(exc)``
+    *after* the judge span has recorded the error, so an evaluator crash is surfaced on the evaluated
+    span automatically (via a failed eval metric) without the user writing a ``try/except``. A failure
+    inside ``on_error`` is logged and swallowed so it never masks the user's original exception, and
+    the user's exception is never suppressed.
     """
 
     def __init__(self, span, on_error=None, ctx_provider=None, prev_active=None):
@@ -263,6 +268,12 @@ class EvaluationContext:
         self._on_error = on_error
         self._ctx_provider = ctx_provider
         self._prev_active = prev_active
+
+    def _start(self):
+        if self._ctx_provider is not None:
+            self._ctx_provider.activate(self._span)
+        self._span.__enter__()
+        return self._span
 
     def _finish(self, exc_type, exc_val, exc_tb):
         suppress = self._span.__exit__(exc_type, exc_val, exc_tb)
@@ -276,15 +287,13 @@ class EvaluationContext:
         return suppress
 
     def __enter__(self):
-        self._span.__enter__()
-        return self._span
+        return self._start()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         return self._finish(exc_type, exc_val, exc_tb)
 
     async def __aenter__(self):
-        self._span.__enter__()
-        return self._span
+        return self._start()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return self._finish(exc_type, exc_val, exc_tb)
