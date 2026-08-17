@@ -94,6 +94,8 @@ class AsyncStreamingBody:
             return chunk
         raise StopAsyncIteration
 
+    anext = __anext__
+
     async def __aenter__(self):
         return self
 
@@ -218,7 +220,9 @@ async def test_llmobs_invoke_model_read_zero_does_not_finish_body(bedrock_llmobs
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("consumer", ["readinto", "readlines", "iter_chunks", "iter_lines", "anext", "context"])
+@pytest.mark.parametrize(
+    "consumer", ["readinto", "readlines", "iter_chunks", "iter_lines", "anext", "anext_alias", "context"]
+)
 async def test_llmobs_invoke_model_preserves_async_body_consumers(consumer, bedrock_llmobs, tracer, test_spans):
     parsed_response = {
         "ResponseMetadata": {
@@ -261,6 +265,14 @@ async def test_llmobs_invoke_model_preserves_async_body_consumers(consumer, bedr
             while True:
                 try:
                     chunks.append(await body.__anext__())
+                except StopAsyncIteration:
+                    break
+            consumed = b"".join(chunks)
+        elif consumer == "anext_alias":
+            chunks = []
+            while True:
+                try:
+                    chunks.append(await body.anext())
                 except StopAsyncIteration:
                     break
             consumed = b"".join(chunks)

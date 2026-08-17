@@ -283,6 +283,8 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
                 core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
             raise
 
+    anext = __anext__
+
     async def iter_chunks(self, chunk_size: int = 1024) -> AsyncIterator[bytes]:
         while True:
             chunk = await self.read(chunk_size)
