@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    crashtracking: Fixes an issue where crashtracker receiver processes are automatically
+    instrumented when applications are started with Single Step Instrumentation or ``ddtrace-run``.
