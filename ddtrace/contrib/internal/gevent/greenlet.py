@@ -35,15 +35,17 @@ class _GreenletTrace:
             self.previous(event, args)
 
 
-def ensure_greenlet_context_switch() -> None:
+def ensure_greenlet_context_switch() -> bool:
     """Install the context-switch watcher in the current native thread."""
     if not _CONTEXT_SWITCH_ENABLED or not getattr(gevent, "__datadog_patch", False):
-        return
+        return False
 
     if getattr(_state, "trace", None) is None:
         trace = _GreenletTrace(gettrace())
         settrace(trace)
         _state.trace = trace
+
+    return True
 
 
 def disable_greenlet_context_switch() -> None:

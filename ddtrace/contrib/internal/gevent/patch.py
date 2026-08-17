@@ -1,3 +1,5 @@
+from typing import Any
+
 import gevent
 import gevent.pool
 
@@ -9,8 +11,14 @@ from .greenlet import ensure_greenlet_context_switch
 
 
 __Greenlet = gevent.Greenlet
+__HubSwitch = gevent.hub.Hub.switch
 __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
+
+
+def _switch_hub(hub: gevent.hub.Hub) -> Any:
+    ensure_greenlet_context_switch()
+    return __HubSwitch(hub)
 
 
 def get_version() -> str:
@@ -34,7 +42,8 @@ def patch():
         return
     gevent.__datadog_patch = True
 
-    ensure_greenlet_context_switch()
+    if ensure_greenlet_context_switch():
+        gevent.hub.Hub.switch = _switch_hub
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
 
 
@@ -49,6 +58,8 @@ def unpatch():
     gevent.__datadog_patch = False
 
     _replace(__Greenlet, __IMap, __IMapUnordered)
+    if gevent.hub.Hub.switch is _switch_hub:
+        gevent.hub.Hub.switch = __HubSwitch
     disable_greenlet_context_switch()
 
 

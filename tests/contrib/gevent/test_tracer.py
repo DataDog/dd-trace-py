@@ -435,8 +435,8 @@ class TestGeventTracer(TracerTestCase):
 
 
 @pytest.mark.subprocess()
-def test_context_switches_publish_in_multiple_native_thread_hubs() -> None:
-    """Publish late-listener context from every native-thread hub."""
+def test_context_switches_publish_for_raw_native_thread_hub_entries() -> None:
+    """Publish context when native threads enter gevent without a traced Greenlet."""
     import concurrent.futures
     import threading
     from typing import Optional
@@ -448,37 +448,54 @@ def test_context_switches_publish_in_multiple_native_thread_hubs() -> None:
     from ddtrace.trace import tracer
     from tests.contrib.gevent.utils import gevent_patched
 
-    workers_ready = threading.Barrier(2)
-    active_span_ids_by_thread: dict[int, Optional[int]] = {}
+    entrypoints = ("sleep", "hub.switch", "spawn_raw")
+    workers_ready = threading.Barrier(len(entrypoints))
+    active_span_ids_by_thread: dict[int, list[Optional[int]]] = {}
 
     def record_active_span_on_context_switch() -> None:
         active = tracer.context_provider.active()
-        active_span_ids_by_thread[threading.get_ident()] = active.span_id if active is not None else None
+        active_span_ids_by_thread[threading.get_ident()].append(active.span_id if active is not None else None)
 
-    def switch_greenlet_in_native_thread(span_id: int) -> tuple[int, Optional[int]]:
+    def enter_hub(entrypoint: str) -> None:
+        if entrypoint == "sleep":
+            gevent.sleep(0)
+        elif entrypoint == "hub.switch":
+            current = gevent.getcurrent()
+            hub = gevent.get_hub()
+            hub.loop.run_callback(current.switch)
+            hub.switch()
+        else:
+            completed = []
+            gevent.spawn_raw(lambda: completed.append(True))
+            gevent.sleep(0)
+            assert completed, "The raw greenlet did not run"
+
+    def switch_greenlet_in_native_thread(args: tuple[int, str]) -> tuple[str, int, int, list[Optional[int]]]:
+        span_id, entrypoint = args
         native_thread_id = threading.get_ident()
+        active_span_ids_by_thread[native_thread_id] = []
         tracer.context_provider.activate(Context(trace_id=span_id, span_id=span_id))
         try:
             hub_id = id(gevent.get_hub())
             workers_ready.wait(timeout=10)
-            gevent.spawn(gevent.sleep, 0).get()
-            return hub_id, active_span_ids_by_thread.get(native_thread_id)
+            enter_hub(entrypoint)
+            return entrypoint, span_id, hub_id, active_span_ids_by_thread[native_thread_id]
         finally:
             tracer.context_provider.activate(None)
 
     with gevent_patched(force_context_switch=True):
         core.on("python.context.switch", record_active_span_on_context_switch)
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                thread_results = list(executor.map(switch_greenlet_in_native_thread, (1, 2)))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(entrypoints)) as executor:
+                thread_results = list(executor.map(switch_greenlet_in_native_thread, enumerate(entrypoints, start=1)))
         finally:
             core.reset_listeners("python.context.switch", record_active_span_on_context_switch)
 
-    hub_ids, observed_span_ids = zip(*thread_results)
-    assert len(set(hub_ids)) == 2, f"Expected two native-thread hubs, got {hub_ids}"
-    assert list(observed_span_ids) == [1, 2], (
-        f"Expected each hub to publish its thread's active span, got {observed_span_ids}"
-    )
+    hub_ids = [hub_id for _, _, hub_id, _ in thread_results]
+    assert len(set(hub_ids)) == len(entrypoints), f"Expected one hub per native thread, got {hub_ids}"
+    for entrypoint, span_id, _, observed_span_ids in thread_results:
+        assert None in observed_span_ids, f"{entrypoint} did not publish the hub's empty context"
+        assert span_id in observed_span_ids, f"{entrypoint} did not restore the originating context"
 
 
 @pytest.mark.subprocess()
