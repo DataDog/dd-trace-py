@@ -23,6 +23,7 @@ from ..periodic import PeriodicService
 from ..runtime import get_ancestor_runtime_id
 from ..runtime import get_parent_runtime_id
 from ..runtime import get_runtime_id
+from ..runtime import on_runtime_id_change
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
@@ -218,6 +219,9 @@ class TelemetryWriter:
             # runtime's after_fork_child hook, which get_native_runtime() registered
             # during enable(), so the shared runtime is restarted before we rebuild).
             forksafe.register(self._fork_writer)
+            # Same rebuild, triggered by an explicit identity refresh (e.g. an AWS Lambda
+            # MicroVM /run hook) rather than an actual fork.
+            on_runtime_id_change(self._on_identity_refresh)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
     def _build_worker(self) -> "TelemetryWorker":
@@ -928,6 +932,11 @@ class TelemetryWriter:
         self._notify_worker_changed(None)
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        # Same rebuild as _fork_writer(): the native worker bakes in get_runtime_id() at
+        # construction, so it must be dropped and lazily rebuilt on the next telemetry call.
+        self._fork_writer()
 
     def _telemetry_excepthook(self, tp, value, root_traceback) -> None:
         if root_traceback is not None:

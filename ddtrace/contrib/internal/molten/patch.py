@@ -10,6 +10,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -67,6 +68,10 @@ def unpatch():
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
+    # DEV: This is safe because this is the args for a WSGI handler
+    #   https://www.python.org/dev/peps/pep-3333/
+    maybe_refresh_identity(args[0].get("REQUEST_METHOD"), args[0].get("PATH_INFO"))
+
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():

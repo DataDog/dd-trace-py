@@ -268,8 +268,6 @@ class ASMConfig(DDConfig):
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
-    _rc_client_id: Optional[str] = None
-
     def __init__(self):
         super().__init__()
 

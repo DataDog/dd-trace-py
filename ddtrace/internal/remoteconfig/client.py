@@ -98,6 +98,8 @@ class RemoteConfigClient:
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
 
+        runtime.on_runtime_id_change(self._on_identity_refresh)
+
     def ensure_native(self) -> Any:
         if self._native is None:
             from ddtrace.internal.native import RemoteConfigClient as _NativeClient
@@ -124,6 +126,15 @@ class RemoteConfigClient:
 
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        # Regenerate the client id and drop the native client, which bakes both ids in
+        # as immutable constructor arguments (get_client_id() is documented "stable for
+        # the process lifetime"). The next ensure_native() call rebuilds it bound to the
+        # fresh ids. Safe across threads: request() captures self._native into a local
+        # before calling .poll(), so an in-flight poll on the old client is unaffected.
+        self.renew_id()
+        self._native = None
 
     def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
         self._product_callbacks[product_name] = callback

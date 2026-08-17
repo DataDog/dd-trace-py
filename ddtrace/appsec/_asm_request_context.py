@@ -32,6 +32,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -400,8 +401,9 @@ def finalize_asm_env(env: ASM_Environment) -> None:
                 entry_span._set_attribute(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
-        if asm_config._rc_client_id is not None:
-            entry_span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+        rc_client_id = remoteconfig_poller._client.id
+        if rc_client_id is not None:
+            entry_span.set_tag(APPSEC.RC_CLIENT_ID, rc_client_id)
         waf_adresses = env.waf_addresses
         req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
         if req_headers:

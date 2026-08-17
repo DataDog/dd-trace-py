@@ -21,6 +21,7 @@ from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -215,6 +216,8 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        if not is_subapp and scope["type"] == "http":
+            maybe_refresh_identity(method, scope["path"])
         try:
             headers = extract_headers(scope)
         except Exception:

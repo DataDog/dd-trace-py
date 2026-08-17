@@ -10,6 +10,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
 
@@ -63,6 +64,8 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
+            maybe_refresh_identity(request.method, request.path)
+
             with core.context_with_event(
                 WebFrameworkRequestEvent(
                     http_operation="pyramid.request",

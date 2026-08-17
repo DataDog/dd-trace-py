@@ -270,6 +270,28 @@ def test_rc_activation_validate_client_id(tracer, rc_poller, appsec_callback):
     disable_appsec_rc()
 
 
+def test_rc_client_id_tag_reflects_live_value_not_a_stale_cache(tracer):
+    """_dd.rc.client_id must be read live at span-tagging time, not cached once at RC enable time.
+
+    Otherwise the tag would go stale after e.g. an AWS Lambda MicroVM identity refresh
+    regenerates the real client id.
+    """
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    with override_global_config(dict(_asm_enabled=True, api_version="v0.4")):
+        tracer.configure(appsec_enabled=True)
+
+        with mock.patch.object(remoteconfig_poller._client, "id", "client-id-one"):
+            with asm_context(tracer) as span:
+                set_http_meta(span, {}, raw_uri="http://example.com/", status_code="200")
+            assert span._local_root._get_str_attribute(APPSEC.RC_CLIENT_ID) == "client-id-one"
+
+        with mock.patch.object(remoteconfig_poller._client, "id", "client-id-two"):
+            with asm_context(tracer) as span:
+                set_http_meta(span, {}, raw_uri="http://example.com/", status_code="200")
+            assert span._local_root._get_str_attribute(APPSEC.RC_CLIENT_ID) == "client-id-two"
+
+
 @pytest.mark.parametrize(
     "env_rules, expected",
     [

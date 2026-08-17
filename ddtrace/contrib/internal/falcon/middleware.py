@@ -3,6 +3,7 @@ import sys
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -29,6 +30,8 @@ class TraceMiddleware(object):
             config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
+        maybe_refresh_identity(req.method, req.path)
+
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
 

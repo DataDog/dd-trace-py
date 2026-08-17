@@ -10,6 +10,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -191,6 +192,8 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
 def _create_sanic_request_span(request):
     """Helper to create sanic.request span and attach a pin to request.ctx"""
+    maybe_refresh_identity(request.method, request.path)
+
     pin = Pin()
     pin.onto(request.ctx)
 

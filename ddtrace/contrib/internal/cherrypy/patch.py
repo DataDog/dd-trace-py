@@ -15,6 +15,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.runtime import maybe_refresh_identity
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -73,6 +74,8 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
+        maybe_refresh_identity(cherrypy.request.method, cherrypy.request.path_info)
+
         with core.context_with_data(
             "cherrypy.request",
             span_name=SPAN_NAME,
