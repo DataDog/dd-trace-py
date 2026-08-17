@@ -218,6 +218,60 @@ class AnnotationContext:
         self._deregister_annotator()
 
 
+class EvaluationContext:
+    """Context manager returned by LLMObs.evaluation(); yields the judge root span and finishes it.
+
+    The judge is a detached trace root, so both the caller's LLMObs and APM contexts are swapped for it
+    only for the duration of the block. Activating in __enter__ rather than at evaluation() call time is
+    what keeps a handle that is never entered from stranding the caller on the judge — in the APM
+    provider too, where it would otherwise reparent later spans under an unfinished judge.
+
+    on_error runs after the judge span has recorded the exception. A failure inside it is swallowed so
+    it cannot mask the user's exception, which is never suppressed.
+    """
+
+    def __init__(self, span, on_error=None, ctx_provider=None, prev_active=None, tracer=None, prev_apm=None):
+        self._span = span
+        self._on_error = on_error
+        self._ctx_provider = ctx_provider
+        self._prev_active = prev_active
+        self._tracer = tracer
+        self._prev_apm = prev_apm
+
+    def _start(self):
+        if self._ctx_provider is not None:
+            self._ctx_provider.activate(self._span)
+        if self._tracer is not None:
+            self._tracer.context_provider.activate(self._span)
+        self._span.__enter__()
+        return self._span
+
+    def _finish(self, exc_type, exc_val, exc_tb):
+        suppress = self._span.__exit__(exc_type, exc_val, exc_tb)
+        if self._ctx_provider is not None:
+            self._ctx_provider.activate(self._prev_active)
+        if self._tracer is not None:
+            self._tracer.context_provider.activate(self._prev_apm)
+        if exc_type is not None and not suppress and self._on_error is not None:
+            try:
+                self._on_error(exc_val)
+            except Exception:
+                log.warning("LLMObs.evaluation(): failed to emit evaluation error metric", exc_info=True)
+        return suppress
+
+    def __enter__(self):
+        return self._start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._finish(exc_type, exc_val, exc_tb)
+
+    async def __aenter__(self):
+        return self._start()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return self._finish(exc_type, exc_val, exc_tb)
+
+
 def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):

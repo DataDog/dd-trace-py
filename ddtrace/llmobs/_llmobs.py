@@ -5,6 +5,7 @@ import inspect
 import math
 import sys
 import time
+import traceback
 from typing import Any
 from typing import Callable
 from typing import Literal
@@ -64,6 +65,11 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EVAL_NAME_TAG
+from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
@@ -75,6 +81,8 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
+from ddtrace.llmobs._constants import JUDGE_SPAN_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_TRACE_ID_KEY
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -146,6 +154,7 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
+from ddtrace.llmobs._utils import EvaluationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
@@ -2567,9 +2576,14 @@ class LLMObs(Service):
         agent_service: Optional[str] = None,
         agent_version: Optional[str] = None,
         _decorator: bool = False,
+        _detach: bool = False,
     ) -> Span:
         if name is None:
             name = operation_kind
+        if _detach:
+            # Detach from any active LLMObs trace so this span becomes a standalone LLMObs root
+            # (fresh llmobs_trace_id, parent_id=undefined):
+            self._llmobs_context_provider.activate(None)
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
 
         if not self.enabled:
@@ -2763,6 +2777,125 @@ class LLMObs(Service):
             session_id=session_id,
             agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
+        )
+
+    @classmethod
+    def evaluation(
+        cls,
+        name: str,
+        evaluated_span: Optional[ExportedLLMObsSpan] = None,
+        evaluated_ml_app: Optional[str] = None,
+        eval_scope: str = "span",
+        emit_error_metric: bool = True,
+    ) -> EvaluationContext:
+        """
+        Open a judge trace for an external (SDK-run) evaluator.
+
+        Returns a standalone root span, pre-tagged with the evaluation contract. Instrument the judge
+        inside the block with the normal ``LLMObs.llm`` / ``tool`` / ``agent`` calls — they nest under
+        this span, so a single-call and a multi-step judge produce one judge trace either way. Link the
+        resulting score to it with ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
+
+        The judge trace is reported under the agent service of the application being judged, and is
+        identified by its ``evaluated_ml_app`` tag rather than by its agent service.
+
+        :param str name: The evaluation name (e.g. "relevance"). Reused as the ``submit_evaluation``
+                         ``label``, so it must be non-empty and must not contain a '.'.
+        :param dict evaluated_span: The span being judged, of shape {'span_id': str, 'trace_id': str}
+                                    (from ``LLMObs.export_span``). For "trace" scope, pass the trace's
+                                    root span.
+        :param str evaluated_ml_app: The ml_app of the application being judged. Defaults to
+                                     ``DD_LLMOBS_ML_APP`` / ``DD_SERVICE``.
+        :param str eval_scope: One of "span" (default) or "trace".
+        :param bool emit_error_metric: If True (default), an unhandled exception in the block marks the
+                                       judge span errored and submits a failed eval metric for the
+                                       evaluated span, so an evaluator crash surfaces without a
+                                       ``try/except``. Set False to opt out.
+
+        :returns: A context manager yielding the judge root span, so
+                  ``with LLMObs.evaluation(...) as judge:`` gives you the span.
+        """
+        # Resolved before the disabled check so the destination and the marker tag always agree.
+        evaluated_agent_service = evaluated_ml_app or resolve_ml_app()
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+            # Wrapped so `async with` works identically whether or not LLMObs is enabled.
+            return EvaluationContext(
+                cls._instance._start_span(
+                    "workflow", name="custom_evaluator.%s" % name, agent_service=evaluated_agent_service
+                )
+            )
+
+        # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
+        if not name or "." in name:
+            raise ValueError("name must be a non-empty string that does not contain a '.'.")
+        # "session" scope is unsupported: submit_evaluation() can't join a score to a session.
+        if eval_scope not in ("span", "trace"):
+            raise ValueError("eval_scope must be one of 'span' or 'trace'.")
+        if (
+            not isinstance(evaluated_span, dict)
+            or not isinstance(evaluated_span.get("span_id"), str)
+            or not isinstance(evaluated_span.get("trace_id"), str)
+        ):
+            raise ValueError(
+                "eval_scope='%s' requires evaluated_span to be a dict with string 'span_id' and "
+                "'trace_id' keys (use LLMObs.export_span())." % eval_scope
+            )
+
+        prev_active = cls._instance._llmobs_context_provider.active()
+        prev_apm = cls._instance.tracer.context_provider.active()
+        span = cls._instance._start_span(
+            "workflow",
+            name="custom_evaluator.%s" % name,
+            agent_service=evaluated_agent_service,
+            _detach=True,
+        )
+        cls.annotate(
+            span=span,
+            tags={
+                EVAL_NAME_TAG: name,
+                EVAL_SOURCE_TYPE_TAG: "external",
+                # The marker that identifies this span as a judge span.
+                EVALUATED_ML_APP_TAG: evaluated_agent_service,
+                EVALUATED_TRACE_ID_TAG: evaluated_span["trace_id"],
+                EVALUATED_SPAN_ID_TAG: evaluated_span["span_id"],
+            },
+        )
+
+        on_error = None
+        if emit_error_metric:
+            judge_ref = cls.export_span(span)  # capture while live, for the correct trace id
+
+            def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
+                cls.submit_evaluation(
+                    label=name,
+                    metric_type="categorical",  # required by the API; no value is sent for an errored eval
+                    status="ERROR",
+                    error={
+                        "type": type(exc).__name__,
+                        "message": str(exc),
+                        "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+                    },
+                    span=cast(dict, evaluated_span),
+                    eval_scope=eval_scope,
+                    reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
+                    judge_span=cast(dict, _ref),
+                    agent_service=evaluated_agent_service,
+                )
+
+            on_error = _emit_error_metric
+
+        # _start_span left the judge active in both providers; EvaluationContext re-activates it for the
+        # block, so a handle that is never entered doesn't strand the caller on a detached root.
+        cls._instance._llmobs_context_provider.activate(prev_active)
+        cls._instance.tracer.context_provider.activate(prev_apm)
+        return EvaluationContext(
+            span,
+            on_error,
+            ctx_provider=cls._instance._llmobs_context_provider,
+            prev_active=prev_active,
+            tracer=cls._instance.tracer,
+            prev_apm=prev_apm,
         )
 
     @classmethod
@@ -3227,7 +3360,7 @@ class LLMObs(Service):
         cls,
         label: str,
         metric_type: str,
-        value: Union[str, int, float, bool],
+        value: Optional[Union[str, int, float, bool]] = None,
         span: Optional[dict] = None,
         span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
@@ -3238,6 +3371,9 @@ class LLMObs(Service):
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
         agent_service: Optional[str] = None,
+        judge_span: Optional[dict] = None,
+        status: Optional[str] = None,
+        error: Optional[dict] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
@@ -3262,6 +3398,16 @@ class LLMObs(Service):
         :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
                                 Use "trace" to associate the evaluation with an entire trace (the span provided
                                 via `span` should be the root span).
+        :param dict judge_span: An exported judge span of shape {'span_id': str, 'trace_id': str} (from
+                                LLMObs.export_span of a span opened with LLMObs.evaluation). When provided,
+                                its ids are recorded in the metric metadata (judge_trace_id/judge_span_id) so
+                                the score deep-links to the judge trace.
+        :param str status: The status of the evaluation: "OK", "WARN", or "ERROR". "WARN" (skipped) or
+                            "ERROR" (failed) mark a run with no typed value — the evaluated span shows
+                            that state instead of a value, so no ``value`` is required but an ``error``
+                            is. Passing an ``error`` without a status defaults it to "ERROR".
+        :param dict error: Structured error details, e.g. {'type': str, 'message': str, 'stack': str}.
+                            Required when ``status`` is "WARN" or "ERROR".
         """
         if cls.enabled is False:
             log.debug(
@@ -3272,6 +3418,28 @@ class LLMObs(Service):
 
         telemetry_context = _SubmissionTelemetryContext(metric_type=metric_type)
         try:
+            # Fold the judge span's ids into metadata so the score deep-links to the judge trace.
+            if judge_span is not None:
+                if (
+                    not isinstance(judge_span, dict)
+                    or not isinstance(judge_span.get("span_id"), str)
+                    or not isinstance(judge_span.get("trace_id"), str)
+                ):
+                    telemetry_context.error = "invalid_judge_span"
+                    raise TypeError(
+                        "`judge_span` must be a dictionary containing both span_id and trace_id keys. "
+                        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+                    )
+                # Checked here because the merge below would otherwise raise a bare TypeError from the
+                # unpack, before _build_evaluation_metric_event validates metadata.
+                if metadata is not None and not isinstance(metadata, dict):
+                    telemetry_context.error = "invalid_metadata"
+                    raise LLMObsSubmitEvaluationError("metadata must be json serializable dictionary.")
+                metadata = {
+                    **(metadata or {}),
+                    JUDGE_TRACE_ID_KEY: judge_span["trace_id"],
+                    JUDGE_SPAN_ID_KEY: judge_span["span_id"],
+                }
             evaluation_metric = _build_evaluation_metric_event(
                 label=label,
                 metric_type=metric_type,
@@ -3286,6 +3454,8 @@ class LLMObs(Service):
                 reasoning=reasoning,
                 eval_scope=eval_scope,
                 agent_service=agent_service,
+                status=status,
+                error=error,
                 otel_trace_enabled=config._otel_trace_enabled,
                 resolve_agent_service=_resolve_agent_service,
                 submission_error_cls=LLMObsSubmitEvaluationError,

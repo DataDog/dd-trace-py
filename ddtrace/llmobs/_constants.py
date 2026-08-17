@@ -191,6 +191,15 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 
+# Judge Span Constants
+EVAL_NAME_TAG = "eval_name"
+EVALUATED_ML_APP_TAG = "evaluated_ml_app"
+EVALUATED_SPAN_ID_TAG = "evaluated_span_id"
+EVALUATED_TRACE_ID_TAG = "evaluated_trace_id"
+EVAL_SOURCE_TYPE_TAG = "eval_source_type"
+JUDGE_TRACE_ID_KEY = "judge_trace_id"
+JUDGE_SPAN_ID_KEY = "judge_span_id"
+
 
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""
