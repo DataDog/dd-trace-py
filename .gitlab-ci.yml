@@ -599,10 +599,13 @@ prof-correctness:
       fi
     - |
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
+      # 26-scenario 3.14/3.15 migration gate (see prof-correctness scenarios/python_downstream_gate/README.md)
+      PYTHON_DOWNSTREAM_GATE='python_(cpu|alloc|asyncio|native_cpu|deep_stack|gil_contention|uvloop|gevent|exceptions|async_gen|lock|live_heap|fastapi)_3\.(14|15)'
       # Trigger pipeline, but do not wait for the job to complete
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
+        -f test_scenarios="${PYTHON_DOWNSTREAM_GATE}"
 
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
