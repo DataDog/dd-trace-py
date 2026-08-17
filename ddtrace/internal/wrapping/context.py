@@ -17,6 +17,8 @@ from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -211,7 +213,7 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
+if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
     # TODO: remove when migrating the app to py-315
     pass
 elif sys.version_info >= (3, 13):
@@ -734,7 +736,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
     def wrap(self) -> None:
-        if sys.version_info >= (3, 15):
+        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
             raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
         f = t.cast(FunctionType, self.__wrapped__)
 

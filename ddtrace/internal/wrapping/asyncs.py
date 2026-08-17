@@ -5,6 +5,7 @@ import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 
 
 PY = sys.version_info[:2]
@@ -36,7 +37,7 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
-if PY >= (3, 15):
+if PY >= NEXT_PY_VERSION_INFO:
     # TODO: remove when migrating the app to py-315
     pass
 
@@ -714,7 +715,7 @@ else:
 
 
 def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
-    if PY >= (3, 15):
+    if PY >= NEXT_PY_VERSION_INFO:
         raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:

@@ -8,6 +8,7 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
@@ -31,7 +32,7 @@ class InvalidLine(Exception):
 # the stack to the state prior to the call.
 
 INJECTION_ASSEMBLY = Assembly()
-if PY >= (3, 15):
+if PY >= NEXT_PY_VERSION_INFO:
     # TODO: remove when migrating the app to py-315
     pass
 elif PY >= (3, 13):
@@ -179,7 +180,7 @@ def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoTyp
 
     Returns the list of hooks that failed to be injected.
     """
-    if PY >= (3, 15):
+    if PY >= NEXT_PY_VERSION_INFO:
         raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
     abstract_code = Bytecode.from_code(get_function_code(f))
 
@@ -226,7 +227,7 @@ def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Functio
     argument. The latter is also used as an identifier for the hook. This should
     be kept in case the hook needs to be removed.
     """
-    if PY >= (3, 15):
+    if PY >= NEXT_PY_VERSION_INFO:
         raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
     abstract_code = Bytecode.from_code(f.__code__)
 

@@ -5,9 +5,11 @@ Until #17849 lands bytecode wrapping for 3.15, products that import wrapping
 raise NotImplementedError when actually used.
 """
 
-import sys
-
 import pytest
+
+from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
 def test_wrapping_modules_import():
@@ -18,7 +20,7 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="3.15 wrap() degrade")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() degrade")
 def test_wrap_raises_not_implemented_on_315():
     from ddtrace.internal.wrapping import wrap
 
@@ -32,7 +34,7 @@ def test_wrap_raises_not_implemented_on_315():
         wrap(f, wrapper)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="3.15 inject_hook degrade")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook degrade")
 def test_inject_hook_raises_not_implemented_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
 
