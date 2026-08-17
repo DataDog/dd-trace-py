@@ -491,15 +491,12 @@ def _is_http_client_span(span: Span) -> bool:
 def _is_otel_error_status(int_status_code: int, is_client: bool) -> bool:
     """Whether a status code makes the span an error under the OTel HTTP conventions.
 
-    Server spans keep the Datadog default of 5xx, which already matches OTel and stays
-    configurable through DD_TRACE_HTTP_SERVER_ERROR_STATUSES. Client spans use 4xx and
-    5xx, which is where OTel deliberately differs from the Datadog client default of 4xx
-    only. Java, .NET, Go, Ruby and PHP expose DD_TRACE_HTTP_CLIENT_ERROR_STATUSES for the
-    client side, but Python does not, so the range is fixed here. Wiring up that setting is
-    its own change, not something to smuggle in behind this flag.
+    Server spans keep the Datadog default of 5xx, which already matches OTel. Client spans
+    use 4xx and 5xx, where OTel deliberately differs from the legacy Datadog client default.
+    Both ranges remain configurable through their corresponding HTTP error-status settings.
     """
     if is_client:
-        return 400 <= int_status_code < 600
+        return config._http_client.is_error_code(int_status_code)
     return config._http_server.is_error_code(int_status_code)
 
 

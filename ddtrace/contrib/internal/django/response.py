@@ -96,6 +96,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     request_headers = utils._get_request_headers(request)
 
     pin = Pin.get_from(instance)
+    route, otel_resource = utils._early_otel_route_and_resource(request)
+    span_tags = {COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER}
+    if route is not None:
+        span_tags["http.route"] = route
 
     with core.context_with_data(
         "django.traced_get_response",
@@ -103,10 +107,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         headers=request_headers,
         headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
+        resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config_django),
         span_type=SpanTypes.WEB,
-        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        tags=span_tags,
         integration_config=config_django,
         distributed_headers=request_headers,
         activate_distributed_headers=True,

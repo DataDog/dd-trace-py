@@ -452,6 +452,21 @@ class Config(object):
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        _default_error_statuses = (
+            "400-599" if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)) else "400-499"
+        )
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", _default_error_statuses)
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+        if not _error_ranges:
+            log.warning(
+                "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES=%r contains no valid ranges; using %s",
+                _error_statuses,
+                _default_error_statuses,
+            )
+            _error_statuses = _default_error_statuses
+            _error_ranges = get_error_ranges(_default_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -524,7 +539,9 @@ class Config(object):
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
-        if _span_service_name_schema_version not in ("v0", "v1"):
+        if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+            _span_service_name_schema_version = "v0"
+        elif _span_service_name_schema_version not in ("v0", "v1"):
             _span_service_name_schema_version = "v0"
         if _span_service_name_schema_version == "v0" and not asbool(
             env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
@@ -548,6 +565,7 @@ class Config(object):
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
@@ -688,6 +706,12 @@ class Config(object):
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        if self._otel_trace_semantics_enabled:
+            if asbool(env.get("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False)):
+                log.warning("DD_TRACE_OTEL_SEMANTICS_ENABLED overrides DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED to false")
+            telemetry_writer.add_configuration("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", "calculated")
+            telemetry_writer.add_configuration("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, "calculated")
+            telemetry_writer.add_configuration("OTEL_TRACES_EXPORTER", "otlp", "calculated")
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()

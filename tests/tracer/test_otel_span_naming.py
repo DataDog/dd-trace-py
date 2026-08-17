@@ -48,11 +48,11 @@ class TestOtelSpanNaming:
 
     @pytest.mark.parametrize("route", [None, "/users"])
     def test_unaccepted_method_substitutes_only_the_method_token(self, route):
-        """_OTHER replaces the verb, and a resolved route still appends after it."""
+        """HTTP replaces _OTHER in the name, and a resolved route still appends after it."""
         tags = {SPAN_KIND: "server", http.OTEL_REQUEST_METHOD: "_OTHER"}
         if route:
             tags[http.OTEL_ROUTE] = route
-        assert _finish(**tags) == ("_OTHER /users" if route else "_OTHER")
+        assert _finish(**tags) == ("HTTP /users" if route else "HTTP")
 
     def test_raw_method_never_leaks_into_the_name(self):
         """The name comes from the attribute, so an unnormalized verb cannot reach it.
@@ -70,7 +70,7 @@ class TestOtelSpanNaming:
                     http.OTEL_ROUTE: "/some/<path>",
                 },
             )
-            == "_OTHER /some/<path>"
+            == "HTTP /some/<path>"
         )
 
     def test_user_set_resource_is_preserved(self):
@@ -140,13 +140,68 @@ class TestOtelSpanNaming:
         """No kind means no target key applies, so nothing is appended rather than guessed."""
         assert _finish(resource="GET /whatever", **{http.OTEL_REQUEST_METHOD: "GET"}) == "GET"
 
+    def test_before_sampling_preserves_an_existing_otel_name(self):
+        span = Span("flask.request", resource="GET /make_distant_call", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_attribute(http.OTEL_ROUTE, "/make_distant_call")
+
+        OtelSpanNamingProcessor().before_sampling(span)
+
+        assert span.resource == "GET /make_distant_call"
+
+    def test_before_sampling_normalizes_an_unknown_method(self):
+        span = Span("flask.request", resource="PROPFIND 405", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
+        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
+
+        OtelSpanNamingProcessor().before_sampling(span)
+
+        assert span.resource == "HTTP"
+
+    def test_before_sampling_normalizes_a_legacy_method_status_resource(self):
+        span = Span("django.request", resource="GET 404", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+
+        OtelSpanNamingProcessor().before_sampling(span)
+
+        assert span.resource == "GET"
+
+    def test_before_sampling_preserves_a_user_resource_before_django_finalization(self):
+        span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_attribute(http.OTEL_ROUTE, "/users")
+
+        OtelSpanNamingProcessor().before_sampling(span)
+
+        assert span.resource == "my own name"
+        OtelSpanNamingProcessor().on_span_finish(span)
+        assert span.resource == "my own name"
+
+    def test_before_sampling_preserves_a_user_resource_for_unknown_method(self):
+        span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
+        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
+
+        processor = OtelSpanNamingProcessor()
+        processor.before_sampling(span)
+        processor.on_span_finish(span)
+
+        assert span.resource == "my own name"
+
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
 def test_processor_is_installed_when_the_flag_is_on():
     from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
+    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
     from ddtrace.trace import tracer
 
     assert any(isinstance(p, OtelSpanNamingProcessor) for p in tracer._span_processors)
+    assert any(isinstance(p, ResourceRenamingProcessor) for p in tracer._span_processors)
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
@@ -156,3 +211,31 @@ def test_processor_is_absent_when_the_flag_is_off():
     from ddtrace.trace import tracer
 
     assert not any(isinstance(p, OtelSpanNamingProcessor) for p in tracer._span_processors)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1",
+        "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": "true",
+    },
+    err=None,
+)
+def test_otel_semantics_overrides_conflicting_schema_and_peer_service_settings():
+    from ddtrace.internal.schema import SCHEMA_VERSION
+    from ddtrace.internal.settings.peer_service import _ps_config
+
+    assert SCHEMA_VERSION == "v0"
+    assert _ps_config.set_defaults_enabled is False
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "OTEL_TRACES_EXPORTER": None,
+    }
+)
+def test_otel_semantics_forces_otlp_trace_export():
+    from ddtrace.internal.settings._agent import config as agent_config
+
+    assert agent_config.trace_otlp_export_enabled is True

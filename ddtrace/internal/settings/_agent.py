@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.utils.formats import asbool
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -70,9 +71,12 @@ def _derive_stats_url(config: "AgentConfig") -> str:
 
 
 def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
-    # OTLP traces export is active when OTEL_TRACES_EXPORTER=otlp and the user has not
-    # overridden the agent protocol version (which disables OTLP export).
-    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version
+    # The OTel semantics flag forces OTLP export. An explicit agent protocol still wins because
+    # it selects a mutually exclusive non-OTLP transport.
+    exporter_enabled = asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)) or (
+        env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+    )
+    return exporter_enabled and not config._trace_agent_protocol_version
 
 
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:

@@ -105,7 +105,9 @@ class ResourceRenamingProcessor(SpanProcessor):
 
         route = span.get_tag(http.ROUTE)
 
-        if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
+        if (not is_404 or config._otel_trace_semantics_enabled) and (
+            not route or config._trace_resource_renaming_always_simplified_endpoint
+        ):
             url = path_source_tag_value(span)
             endpoint = self.simplified_endpoint_computer.from_url(url)
             span._set_attribute(http.ENDPOINT, endpoint)

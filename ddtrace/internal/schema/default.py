@@ -12,6 +12,7 @@ VALID_VERSIONS = ["v0", "v1"]
 
 
 log = logging.getLogger(__name__)
+_schema_override_logged: bool = False
 
 
 def _validate_schema(version: str) -> bool:
@@ -29,8 +30,15 @@ def _validate_schema(version: str) -> bool:
 
 
 def _get_schema_version() -> t.Any:
+    global _schema_override_logged
+
     version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
     if not _validate_schema(version):
+        version = "v0"
+    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+        if version != "v0" and not _schema_override_logged:
+            log.warning("DD_TRACE_OTEL_SEMANTICS_ENABLED overrides DD_TRACE_SPAN_ATTRIBUTE_SCHEMA to v0")
+            _schema_override_logged = True
         version = "v0"
     return version
 

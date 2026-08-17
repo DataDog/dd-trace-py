@@ -22,6 +22,8 @@ _HTTP_SPAN_TYPES = (SpanTypes.WEB, SpanTypes.HTTP)
 # and so normalizes to _OTHER. Renaming those would collapse every websocket endpoint in an app
 # onto one name, so they keep whatever the integration called them.
 _WEBSOCKET_METHOD = "websocket"
+_UNKNOWN_METHOD = "_OTHER"
+_UNKNOWN_METHOD_SPAN_NAME = "HTTP"
 
 # Set by the integrations that let a user own the resource name, so that ownership survives here.
 RESOURCE_SET_BY_USER = "_dd.resource_set_by_user"
@@ -38,11 +40,12 @@ class OtelSpanNamingProcessor(SpanProcessor):
 
     The algorithm is the OpenTelemetry Collector's set_semconv_span_name: read
     http.request.method, append the target if the span published one, and use the bare method
-    otherwise. Two properties follow from deriving rather than composing. The target can never
+    otherwise, substituting HTTP when the normalized method is _OTHER. Two properties follow from
+    deriving rather than composing. The target can never
     be something the span does not also publish as an attribute, which is what makes
     "instrumentation MUST NOT default to using URI path as a target" unreachable instead of
-    merely forbidden. And the method token is whatever the attribute says, including _OTHER for
-    a method outside the accepted set, so the raw verb cannot leak into the name.
+    merely forbidden. Unknown methods use the generic HTTP token, so neither _OTHER nor the raw
+    verb can leak into the name.
 
     Runs on span finish rather than inside set_http_meta because the attributes are not all
     final at that point: starlette resolves its route in a later set_http_meta call, and several
@@ -51,6 +54,32 @@ class OtelSpanNamingProcessor(SpanProcessor):
 
     def on_span_start(self, span: Span) -> None:
         pass
+
+    def before_sampling(self, span: Span) -> None:
+        if span._get_ctx_item(RESOURCE_SET_BY_USER):
+            return
+
+        method = span.get_tag(http.OTEL_REQUEST_METHOD)
+        if not method:
+            return
+
+        method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
+        original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) or method
+        integration_prefixes = (f"{method_token} ", f"{original_method} ")
+        if (
+            span.resource
+            and span.resource != span.name
+            and span.resource not in (method_token, original_method)
+            and not span.resource.startswith(integration_prefixes)
+        ):
+            # An integration's initial resource is normally its operation name or starts with
+            # the HTTP method. Anything else was most likely assigned by user middleware before
+            # the integration's final ownership check runs. Record that ownership so the finish
+            # pass cannot overwrite the resource after sampling preserved it.
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+            return
+
+        self.on_span_finish(span)
 
     def on_span_finish(self, span: Span) -> None:
         if span.span_type not in _HTTP_SPAN_TYPES:
@@ -71,8 +100,9 @@ class OtelSpanNamingProcessor(SpanProcessor):
             # Span.update_name wins over instrumentation in the OTel SDKs.
             return
 
+        method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
         target = self._target(span)
-        span.resource = f"{method} {target}" if target else method
+        span.resource = f"{method_token} {target}" if target else method_token
 
     def _target(self, span: Span) -> Optional[str]:
         target_tag = _TARGET_TAG.get(span.get_tag(SPAN_KIND) or "")
