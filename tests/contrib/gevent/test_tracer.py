@@ -1,19 +1,41 @@
 import subprocess  # noqa:I001
 import threading
+from typing import Optional
 
 import gevent
 import gevent.pool
+from greenlet import getcurrent
+import pytest
 
-
-from ddtrace.constants import ERROR_MSG
+from ddtrace._trace.provider import ActiveTrace
+from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
-from ddtrace.trace import Context
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
+from ddtrace.trace import Context
 from tests.utils import TracerTestCase
 
 from .utils import silence_errors
+
+
+class _GreenletContextProvider(BaseContextProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self._contexts: dict[object, Optional[ActiveTrace]] = {}
+        self.activation_count = 0
+
+    def _has_active_context(self) -> bool:
+        return self.active() is not None
+
+    def activate(self, ctx: Optional[ActiveTrace]) -> None:
+        self.activation_count += 1
+        self._contexts[getcurrent()] = ctx
+        super().activate(ctx)
+
+    def active(self) -> Optional[ActiveTrace]:
+        return self._contexts.get(getcurrent())
 
 
 class TestGeventTracer(TracerTestCase):
@@ -260,6 +282,26 @@ class TestGeventTracer(TracerTestCase):
         assert traces[0][0].trace_id == 100
         assert traces[0][0].parent_id == 101
 
+    def test_greenlet_propagation_uses_configured_context_provider(self) -> None:
+        """Propagate context through the tracer's configured provider."""
+        original_provider = self.tracer.context_provider
+        configured_provider = _GreenletContextProvider()
+        parent_context = Context(trace_id=100, span_id=101)
+        self.tracer.configure(context_provider=configured_provider)
+        configured_provider.activate(parent_context)
+
+        try:
+            propagated_context = gevent.spawn(self.tracer.context_provider.active).get()
+
+            assert propagated_context is parent_context, "The greenlet did not receive the parent context"
+            assert configured_provider.activation_count == 2, (
+                "Expected one parent activation and one greenlet activation; "
+                "context switches must not activate the provider"
+            )
+        finally:
+            configured_provider.activate(None)
+            self.tracer.configure(context_provider=original_provider)
+
     def test_trace_concurrent_spawn_later_calls(self):
         # create multiple futures so that we expect multiple
         # traces instead of a single one, even if greenlets
@@ -390,3 +432,99 @@ class TestGeventTracer(TracerTestCase):
         assert p.returncode == 0, f"stdout: {stdout.decode()}\n\nstderr: {stderr.decode()}"
         assert b"Test success" in stdout, stdout.decode()
         assert b"RecursionError" not in stderr, stderr.decode()
+
+
+@pytest.mark.subprocess()
+def test_context_switches_publish_in_multiple_native_thread_hubs() -> None:
+    """Publish late-listener context from every native-thread hub."""
+    import concurrent.futures
+    import threading
+    from typing import Optional
+
+    import gevent
+
+    from ddtrace.internal import core
+    from ddtrace.trace import Context
+    from ddtrace.trace import tracer
+    from tests.contrib.gevent.utils import gevent_patched
+
+    workers_ready = threading.Barrier(2)
+    active_span_ids_by_thread: dict[int, Optional[int]] = {}
+
+    def record_active_span_on_context_switch() -> None:
+        active = tracer.context_provider.active()
+        active_span_ids_by_thread[threading.get_ident()] = active.span_id if active is not None else None
+
+    def switch_greenlet_in_native_thread(span_id: int) -> tuple[int, Optional[int]]:
+        native_thread_id = threading.get_ident()
+        tracer.context_provider.activate(Context(trace_id=span_id, span_id=span_id))
+        try:
+            hub_id = id(gevent.get_hub())
+            workers_ready.wait(timeout=10)
+            gevent.spawn(gevent.sleep, 0).get()
+            return hub_id, active_span_ids_by_thread.get(native_thread_id)
+        finally:
+            tracer.context_provider.activate(None)
+
+    with gevent_patched(force_context_switch=True):
+        core.on("python.context.switch", record_active_span_on_context_switch)
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                thread_results = list(executor.map(switch_greenlet_in_native_thread, (1, 2)))
+        finally:
+            core.reset_listeners("python.context.switch", record_active_span_on_context_switch)
+
+    hub_ids, observed_span_ids = zip(*thread_results)
+    assert len(set(hub_ids)) == 2, f"Expected two native-thread hubs, got {hub_ids}"
+    assert list(observed_span_ids) == [1, 2], (
+        f"Expected each hub to publish its thread's active span, got {observed_span_ids}"
+    )
+
+
+@pytest.mark.subprocess()
+def test_unpatch_restores_trace_callback_in_other_native_thread() -> None:
+    """Restore a native thread's previous callback after another thread unpatches."""
+    import concurrent.futures
+    import threading
+
+    import gevent
+    from greenlet import gettrace
+    from greenlet import greenlet
+    from greenlet import settrace
+
+    from ddtrace.contrib.internal.gevent.patch import unpatch
+    from tests.contrib.gevent.utils import gevent_patched
+
+    worker_watcher_ready = threading.Barrier(2)
+    unpatch_complete = threading.Event()
+    customer_trace_events: list[str] = []
+
+    def customer_trace(event: str, args: object) -> None:
+        customer_trace_events.append(event)
+
+    def run_watched_greenlet_in_native_thread() -> bool:
+        previous_trace = settrace(customer_trace)
+        try:
+            gevent.spawn(lambda: None).get()
+            worker_watcher_ready.wait(timeout=10)
+            assert unpatch_complete.wait(timeout=10), "The main thread did not complete gevent unpatching"
+
+            # The next switch lets the disabled watcher restore this thread's callback.
+            greenlet(lambda: None).switch()
+            return gettrace() is customer_trace
+        finally:
+            settrace(previous_trace)
+
+    try:
+        with gevent_patched(force_context_switch=True):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                worker_future = executor.submit(run_watched_greenlet_in_native_thread)
+                worker_watcher_ready.wait(timeout=10)
+                unpatch()
+                unpatch_complete.set()
+                customer_trace_restored = worker_future.result(timeout=10)
+    finally:
+        unpatch_complete.set()
+
+    assert customer_trace_events, "The watcher did not chain the existing trace callback"
+    assert customer_trace_restored, "Unpatch left the Datadog watcher installed in the worker thread"

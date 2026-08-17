@@ -4,6 +4,8 @@ import gevent.pool
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
+from .greenlet import disable_greenlet_context_switch
+from .greenlet import ensure_greenlet_context_switch
 
 
 __Greenlet = gevent.Greenlet
@@ -32,6 +34,7 @@ def patch():
         return
     gevent.__datadog_patch = True
 
+    ensure_greenlet_context_switch()
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
 
 
@@ -46,6 +49,7 @@ def unpatch():
     gevent.__datadog_patch = False
 
     _replace(__Greenlet, __IMap, __IMapUnordered)
+    disable_greenlet_context_switch()
 
 
 def _replace(g_class, imap_class, imap_unordered_class):
