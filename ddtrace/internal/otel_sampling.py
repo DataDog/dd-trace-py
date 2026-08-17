@@ -40,6 +40,9 @@ class OtelSamplingState:
         self.sample_rate = None
         self.is_probabilistic = True
 
+    def is_default(self) -> bool:
+        return self.sample_rate is None and self.is_probabilistic
+
     def __eq__(self, other: object) -> bool:
         return (
             isinstance(other, OtelSamplingState)
@@ -51,16 +54,18 @@ class OtelSamplingState:
         return self.__class__, (self.sample_rate, self.is_probabilistic)
 
 
-def _extract_otel_fields(tracestate: str) -> tuple[Optional[str], Optional[str], list[str]]:
+def _otel_sampling_states_equal(left: Optional[OtelSamplingState], right: Optional[OtelSamplingState]) -> bool:
+    if left is None:
+        return right is None or right.is_default()
+    if right is None:
+        return left.is_default()
+    return left == right
+
+
+def _parse_otel_fields(ot_value: Optional[str]) -> tuple[Optional[str], Optional[str], list[str]]:
     random_value = None
     threshold = None
     unknown_fields: list[str] = []
-    ot_value = None
-
-    for member in tracestate.split(","):
-        member = member.strip()
-        if member.startswith("ot="):
-            ot_value = member[3:]
 
     if ot_value is None:
         return random_value, threshold, unknown_fields
@@ -100,23 +105,28 @@ def _format_threshold(threshold: int) -> str:
 
 
 def _resolve_otel_fields(
-    tracestate: str,
+    ot_value: Optional[str],
     trace_id: Optional[int],
     sampling_priority: Optional[float],
-    otel_sampling_state: OtelSamplingState,
+    otel_sampling_state: Optional[OtelSamplingState],
 ) -> tuple[Optional[str], Optional[str], list[str]]:
     # AIDEV-NOTE: Inbound rv/th always win over local derivation. A local rate is recorded only
     # when this tracer actually made the probability decision, so inherited sampled flags never
     # acquire fabricated OTel sampling fields here.
-    random_value, threshold, unknown_fields = _extract_otel_fields(tracestate)
+    random_value, threshold, unknown_fields = _parse_otel_fields(ot_value)
 
-    if otel_sampling_state.is_probabilistic is False:
+    if otel_sampling_state is not None and otel_sampling_state.is_probabilistic is False:
         return random_value, None, unknown_fields
 
     if random_value is not None or threshold is not None:
         return random_value, threshold, unknown_fields
 
-    if trace_id is None or sampling_priority is None or otel_sampling_state.sample_rate is None:
+    if (
+        trace_id is None
+        or sampling_priority is None
+        or otel_sampling_state is None
+        or otel_sampling_state.sample_rate is None
+    ):
         return None, None, unknown_fields
 
     threshold_value = _threshold(otel_sampling_state.sample_rate)
@@ -131,13 +141,13 @@ def _resolve_otel_fields(
 
 
 def _build_otel_member(
-    tracestate: str,
+    ot_value: Optional[str],
     trace_id: Optional[int],
     sampling_priority: Optional[float],
-    otel_sampling_state: OtelSamplingState,
+    otel_sampling_state: Optional[OtelSamplingState],
 ) -> str:
     random_value, threshold, unknown_fields = _resolve_otel_fields(
-        tracestate, trace_id, sampling_priority, otel_sampling_state
+        ot_value, trace_id, sampling_priority, otel_sampling_state
     )
     fields = []
     if random_value is not None:
@@ -176,24 +186,41 @@ def build_tracestate(
     dd_list_member: str,
     trace_id: Optional[int],
     sampling_priority: Optional[float],
-    otel_sampling_state: OtelSamplingState,
+    otel_sampling_state: Optional[OtelSamplingState],
 ) -> str:
     """Build tracestate with Datadog and OTel sampling members protected on the left."""
-    ot_list_member = _build_otel_member(
-        raw_tracestate,
-        trace_id,
-        sampling_priority,
-        otel_sampling_state,
-    )
+    if not raw_tracestate:
+        ot_list_member = _build_otel_member(None, trace_id, sampling_priority, otel_sampling_state)
+        if dd_list_member:
+            dd_member = "dd={}".format(dd_list_member)
+            if not ot_list_member:
+                return dd_member
+            combined = "{},ot={}".format(dd_member, ot_list_member)
+            if len(combined.encode("utf-8")) <= DD_TRACE_TRACESTATE_MAX_BYTES:
+                return combined
+            return dd_member
+        if ot_list_member:
+            return "ot={}".format(ot_list_member)
+        return ""
 
     raw_dd_list_member = None
+    raw_ot_value = None
     other_members = []
     for raw_member in raw_tracestate.split(","):
         member = raw_member.strip()
         if member.startswith("dd="):
             raw_dd_list_member = member
-        elif member and not member.startswith("ot="):
+        elif member.startswith("ot="):
+            raw_ot_value = member[3:]
+        elif member:
             other_members.append(member)
+
+    ot_list_member = _build_otel_member(
+        raw_ot_value,
+        trace_id,
+        sampling_priority,
+        otel_sampling_state,
+    )
 
     leading_members = []
     if dd_list_member:

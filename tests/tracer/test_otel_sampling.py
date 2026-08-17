@@ -17,6 +17,17 @@ def _ot_fields(tracestate):
     return {}
 
 
+def test_otel_sampling_state_is_allocated_lazily():
+    context = Context(trace_id=1, span_id=1)
+
+    assert context._otel_sampling_state_data is None
+    assert context == Context(trace_id=1, span_id=2)
+
+    context._otel_sampling_state.set_probabilistic_decision(0.1)
+
+    assert context._otel_sampling_state_data is not None
+
+
 @pytest.mark.parametrize(
     "sample_rate,expected_threshold,expected_sampled",
     [
