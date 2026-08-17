@@ -476,7 +476,8 @@ impl SpanData {
         self._parent_context = if value.is_none() {
             None
         } else {
-            Some(value.clone().unbind())
+            // Silently ignore non-Context values, matching other setters' defensive style.
+            value.extract::<Py<crate::context::ContextData>>().ok()
         };
     }
 
