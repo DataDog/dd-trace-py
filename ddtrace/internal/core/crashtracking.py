@@ -19,6 +19,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
+from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
 
 log = get_logger(__name__)
@@ -124,8 +125,20 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         log.error("Invalid stacktrace_resolver value: %s", crashtracker_config.stacktrace_resolver)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
+    # Crash reports ride the telemetry intake, so agentless points at the same host the telemetry
+    # writer uses. libdatadog only resolves the direct intake path (rather than the agent's
+    # telemetry proxy path) when the endpoint carries an API key *and* direct submission is
+    # enabled in the receiver process, so both are set together below.
+    crash_agentless = bool(config._agentless_enabled and config._dd_api_key)
+    if crash_agentless:
+        upload_url = _agentless_endpoint_url(config._dd_site)
+        api_key = config._dd_api_key
+    else:
+        upload_url = agent_config.trace_agent_url
+        api_key = None
+
     # Create crashtracker configuration
-    config = CrashtrackerConfiguration(
+    crashtracker_configuration = CrashtrackerConfiguration(
         [],  # additional_files
         crashtracker_config.create_alt_stack,
         crashtracker_config.use_alt_stack,
@@ -133,12 +146,16 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.collect_all_threads,
         crashtracker_config.max_threads,
-        crashtracker_config.debug_url or agent_config.trace_agent_url,
+        crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
+        api_key,
     )
 
     receiver_env = {}
+
+    if crash_agentless:
+        receiver_env["_DD_DIRECT_SUBMISSION_ENABLED"] = "true"
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
@@ -172,7 +189,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
-    return config, receiver_config, metadata
+    return crashtracker_configuration, receiver_config, metadata
 
 
 def _unhandled_exception_reporter(
