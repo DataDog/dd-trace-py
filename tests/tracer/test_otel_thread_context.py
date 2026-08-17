@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from ddtrace._trace.context import SAMPLING_DECISION_EVENT
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import core
@@ -57,10 +58,11 @@ def _published_trace_flags():
 def _register_otel_thread_context_listener(tracer):
     listeners = register_otel_thread_context_listener(tracer)
     assert listeners is not None
-    activation_listener, context_switch_listener = listeners
+    activation_listener, resync_listener = listeners
     yield
     core.reset_listeners("ddtrace.context_provider.activate", activation_listener)
-    core.reset_listeners("python.context.switch", context_switch_listener)
+    core.reset_listeners("python.context.switch", resync_listener)
+    core.reset_listeners(SAMPLING_DECISION_EVENT, resync_listener)
 
 
 def test_span_context_is_published_and_detached(tracer: Tracer):
@@ -78,6 +80,27 @@ def test_span_context_publishes_trace_flags(tracer: Tracer):
 
         span.context.sampling_priority = 0
         tracer.context_provider.activate(span)
+        assert _published_trace_flags() == 0
+
+
+def test_sampling_decision_republishes_trace_flags(tracer: Tracer):
+    """Nothing re-activates the span here: the decision alone has to republish.
+
+    A decision forced mid-trace -- an outbound inject, a manual keep -- would otherwise
+    leave the record marked unsampled for the rest of the trace.
+    """
+    with tracer.trace("test") as span:
+        assert _published_trace_flags() == 0
+
+        span.context.sampling_priority = 2
+        assert _published_trace_flags() == 1
+
+        span.context.sampling_priority = -1
+        assert _published_trace_flags() == 0
+
+        span.context.sampling_priority = 1
+        assert _published_trace_flags() == 1
+        span.context.sampling_priority = None
         assert _published_trace_flags() == 0
 
 
@@ -110,12 +133,14 @@ def test_thread_context_listeners_can_be_disabled():
 
     assert "ddtrace" not in sys.modules
 
+    from ddtrace._trace.context import SAMPLING_DECISION_EVENT
     from ddtrace.internal import core
     from ddtrace.internal.settings._config import config
 
     assert config._otel_thread_context_enabled is False
     assert core.has_listeners("ddtrace.context_provider.activate") is False
     assert core.has_listeners("python.context.switch") is False
+    assert core.has_listeners(SAMPLING_DECISION_EVENT) is False
 
     if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         from ddtrace.internal.native._native import is_context_watcher_registered
