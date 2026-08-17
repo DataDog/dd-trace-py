@@ -65,6 +65,7 @@ def func5() -> None:
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
+        DD_PROFILING_STACK_NATIVE_FRAMES="0",
     )
 )
 def test_collect_truncate() -> None:
@@ -92,15 +93,16 @@ def test_collect_truncate() -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
-    truncated_samples = 0
+    found_func1_stack = False
     for sample in samples:
         # stack adds one extra frame for "%d frames omitted" message
         assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
-        if sample.location_id:
-            root = pprof_utils.get_location_from_id(profile, sample.location_id[-1])
-            truncated_samples += root.function_name.startswith("<") and "omitted>" in root.function_name
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.function_name == "func5" for location in locations):
+            found_func1_stack = True
+            assert locations[-1].function_name == "<1 frame omitted>"
 
-    assert truncated_samples > 0
+    assert found_func1_stack
 
 
 @pytest.mark.subprocess
@@ -123,6 +125,8 @@ def test_set_max_frames_after_fork_restart() -> None:
     import os
     import traceback
 
+    import pytest
+
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.datadog.profiling import stack
 
@@ -131,6 +135,9 @@ def test_set_max_frames_after_fork_restart() -> None:
     stack.set_adaptive_sampling(False)
     assert stack.start()
     try:
+        with pytest.raises(RuntimeError, match="cannot change max frames while the stack sampler is running"):
+            stack.set_max_frames(32)
+
         pid = os.fork()
         if pid == 0:
             try:
