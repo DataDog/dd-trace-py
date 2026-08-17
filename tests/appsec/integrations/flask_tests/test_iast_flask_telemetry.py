@@ -1,9 +1,19 @@
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_global_config
+
+
+def _get_iast_metrics(test_agent_session, telemetry_writer):
+    """Flush the native worker and return the iast-namespace generate-metrics series."""
+    telemetry_writer.periodic(force_flush=True)
+    return [
+        series
+        for series in test_agent_session.get_metrics()
+        if series.get("namespace") == TELEMETRY_NAMESPACE.IAST.value
+    ]
 
 
 def test_iast_span_metrics():
@@ -16,18 +26,14 @@ def test_iast_span_metrics():
         assert response.content == b"OK"
 
 
-def test_flask_instrumented_metrics(telemetry_writer):
+def test_flask_instrumented_metrics(telemetry_writer, test_agent_session):
     with override_global_config(dict(_iast_enabled=True)):
         _on_flask_patch((2, 0, 0))
 
-    metrics_result = telemetry_writer._namespace.flush()
-    assert metrics_result[TELEMETRY_EVENT_TYPE.METRICS]["iast"]
+    metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+    assert metrics
 
-    metrics_source_tags_result = [
-        metric["tags"][0]
-        for metric in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]["iast"]
-        if metric["metric"] == "instrumented.source"
-    ]
+    metrics_source_tags_result = [metric["tags"][0] for metric in metrics if metric["metric"] == "instrumented.source"]
 
     assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
     assert f"source_type:{origin_to_str(OriginType.HEADER)}" in metrics_source_tags_result
@@ -42,9 +48,8 @@ def test_flask_instrumented_metrics(telemetry_writer):
     assert len(metrics_source_tags_result) == 10
 
 
-def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):
+def test_flask_instrumented_metrics_iast_disabled(telemetry_writer, test_agent_session):
     with override_global_config(dict(_iast_enabled=False)):
         _on_flask_patch((2, 0, 0))
 
-    metrics_result = telemetry_writer._namespace.flush()
-    assert "iast" not in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]
+    assert _get_iast_metrics(test_agent_session, telemetry_writer) == []

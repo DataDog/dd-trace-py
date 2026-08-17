@@ -9,13 +9,23 @@ def post_preload():
 
 
 def enabled():
-    return ffe_config.experimental_flagging_provider_enabled
+    from ddtrace.internal.openfeature._source_selection import DISABLED
+    from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
+
+    return resolve_configuration_source(ffe_config) != DISABLED
 
 
 def start():
-    from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+    # Agent Remote Config delivery is activated only when it is the resolved
+    # source. The agentless source is started from the provider lifecycle
+    # (mirroring dd-trace-js), so there is nothing to start here for agentless.
+    from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
+    from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 
-    enable_featureflags_rc()
+    if resolve_configuration_source(ffe_config) == REMOTE_CONFIG:
+        from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+
+        enable_featureflags_rc()
 
 
 def restart(join=False):
@@ -23,6 +33,10 @@ def restart(join=False):
 
 
 def stop(join=False):
-    from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
+    from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
+    from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 
-    disable_featureflags_rc()
+    if resolve_configuration_source(ffe_config) == REMOTE_CONFIG:
+        from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
+
+        disable_featureflags_rc()
