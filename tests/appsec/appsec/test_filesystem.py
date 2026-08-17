@@ -9,14 +9,11 @@ import pytest
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._contrib.filesystem import subscribers
-from ddtrace.appsec._contrib.filesystem.events import FileOpenEvent
+from ddtrace.appsec._contrib.filesystem import patch as filesystem_patch
 from ddtrace.appsec._contrib.filesystem.patch import wrapped_builtin_open
 from ddtrace.appsec._contrib.filesystem.patch import wrapped_path_open
-from ddtrace.appsec._contrib.filesystem.subscribers import AppSecFileOpenSubscriber
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
-from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 
 
@@ -53,11 +50,11 @@ class _ProxiedPath:
         return super().__getattribute__(name)
 
 
-def test_builtin_open_skips_filename_extraction_without_listener() -> None:
+def test_builtin_open_skips_filename_extraction_when_capability_disabled() -> None:
     original = _OriginalOpen()
     filename = _CountingPath("example.txt")
 
-    with mock.patch.object(core, "has_listeners", return_value=False):
+    with mock.patch.object(filesystem_patch, "get_rasp_capability", return_value=False):
         result = wrapped_builtin_open(original, None, (filename,), {})
 
     assert result == "opened"
@@ -65,41 +62,41 @@ def test_builtin_open_skips_filename_extraction_without_listener() -> None:
     assert filename.calls == 0
 
 
-def test_builtin_open_dispatches_typed_event() -> None:
+def test_builtin_open_calls_handle_lfi_with_extracted_filename() -> None:
     original = _OriginalOpen()
     filename = _ProxiedPath()
 
     with (
-        mock.patch.object(core, "has_listeners", return_value=True),
-        mock.patch.object(core, "dispatch_event") as dispatch,
+        mock.patch.object(filesystem_patch, "get_rasp_capability", return_value=True),
+        mock.patch.object(filesystem_patch, "handle_lfi") as handle_lfi,
     ):
         result = wrapped_builtin_open(original, None, (filename,), {})
 
     assert result == "opened"
     assert filename.calls == 1
-    dispatch.assert_called_once_with(FileOpenEvent(filename="actual.txt"), allow_raise=True)
+    handle_lfi.assert_called_once_with("actual.txt")
 
 
-def test_path_open_dispatches_typed_event() -> None:
+def test_path_open_calls_handle_lfi_with_extracted_filename() -> None:
     original = _OriginalOpen()
     filename = Path("example.txt")
 
     with (
-        mock.patch.object(core, "has_listeners", return_value=True),
-        mock.patch.object(core, "dispatch_event") as dispatch,
+        mock.patch.object(filesystem_patch, "get_rasp_capability", return_value=True),
+        mock.patch.object(filesystem_patch, "handle_lfi") as handle_lfi,
     ):
         result = wrapped_path_open(original, filename, (), {})
 
     assert result == "opened"
-    dispatch.assert_called_once_with(FileOpenEvent(filename="example.txt"), allow_raise=True)
+    handle_lfi.assert_called_once_with("example.txt")
 
 
-def test_blocking_listener_prevents_open() -> None:
+def test_blocking_prevents_open() -> None:
     original = _OriginalOpen()
 
     with (
-        mock.patch.object(core, "has_listeners", return_value=True),
-        mock.patch.object(core, "dispatch_event", side_effect=BlockingException("blocked")),
+        mock.patch.object(filesystem_patch, "get_rasp_capability", return_value=True),
+        mock.patch.object(filesystem_patch, "handle_lfi", side_effect=BlockingException("blocked")),
     ):
         with pytest.raises(BlockingException):
             wrapped_builtin_open(original, None, ("blocked.txt",), {})
@@ -107,7 +104,18 @@ def test_blocking_listener_prevents_open() -> None:
     assert not original.called
 
 
-def test_appsec_listener_blocks_lfi() -> None:
+def test_unexpected_exception_in_lfi_check_is_swallowed() -> None:
+    """A bug in the LFI check itself must not prevent the customer's open() call from succeeding."""
+    original = _OriginalOpen()
+
+    with mock.patch.object(filesystem_patch, "get_rasp_capability", side_effect=RuntimeError("boom")):
+        result = wrapped_builtin_open(original, None, ("example.txt",), {})
+
+    assert result == "opened"
+    assert original.called
+
+
+def test_handle_lfi_blocks_lfi() -> None:
     result = DDWaf_result(
         1,
         [],
@@ -119,20 +127,17 @@ def test_appsec_listener_blocks_lfi() -> None:
         {},
     )
     block_config = {"status_code": 403}
-    event = FileOpenEvent(filename="blocked.txt")
 
     with (
-        mock.patch.object(subscribers, "get_rasp_capability", return_value=True),
-        mock.patch.object(subscribers, "in_asm_context", return_value=True),
-        mock.patch.object(subscribers, "call_waf_callback", return_value=result) as call_waf,
-        mock.patch.object(subscribers, "get_blocked", return_value=block_config),
+        mock.patch.object(filesystem_patch, "call_waf_callback", return_value=result) as call_waf,
+        mock.patch.object(filesystem_patch, "get_blocked", return_value=block_config),
         pytest.raises(BlockingException) as raised,
     ):
-        AppSecFileOpenSubscriber.on_event(event)
+        filesystem_patch.handle_lfi("blocked.txt")
 
     call_waf.assert_called_once_with(
         {EXPLOIT_PREVENTION.ADDRESS.LFI: "blocked.txt"},
-        crop_trace="on_event",
+        crop_trace="handle_lfi",
         rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
     )
     assert raised.value.args == (
@@ -141,21 +146,6 @@ def test_appsec_listener_blocks_lfi() -> None:
         EXPLOIT_PREVENTION.TYPE.LFI,
         "blocked.txt",
     )
-
-
-def test_appsec_listener_reports_skip_outside_asm_context() -> None:
-    event = FileOpenEvent(filename="example.txt")
-
-    with (
-        mock.patch.object(subscribers, "get_rasp_capability", return_value=True),
-        mock.patch.object(subscribers, "in_asm_context", return_value=False),
-        mock.patch.object(subscribers, "call_waf_callback") as call_waf,
-        mock.patch.object(subscribers, "report_rasp_skipped") as report_skipped,
-    ):
-        AppSecFileOpenSubscriber.on_event(event)
-
-    report_skipped.assert_called_once_with(EXPLOIT_PREVENTION.TYPE.LFI, False)
-    call_waf.assert_not_called()
 
 
 def test_lfi_normal_exception() -> None:
