@@ -449,6 +449,8 @@ def test_context_baggage_cycle_is_collectable():
     """Cycles formed via `_baggage` must be reclaimed by `gc.collect()`."""
     import gc
 
+    gc.collect()
+
     initial = _count_objects_of_type("Context")
     gc_was_enabled = gc.isenabled()
     gc.disable()
