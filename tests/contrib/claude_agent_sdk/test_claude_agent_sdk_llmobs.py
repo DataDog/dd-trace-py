@@ -1290,8 +1290,8 @@ class TestLLMObsClaudeAgentSdk:
         assert "ResultMessage" in types
 
     @pytest.mark.skipif(
-        CLAUDE_AGENT_SDK_VERSION < (0, 1, 29),
-        reason="ClaudeSDKClient.__init__ did not accept a transport argument before 0.1.29",
+        CLAUDE_AGENT_SDK_VERSION < (0, 1, 1),
+        reason="ClaudeSDKClient custom transport is unsupported prior to 0.1.1",
     )
     async def test_llmobs_client_custom_transport_does_not_force_partials(
         self, claude_agent_sdk, claude_agent_sdk_llmobs
