@@ -387,6 +387,21 @@ def test_stack_failure_telemetry_logging_with_auto():
         assert "mock failure message" in message
 
 
+@pytest.mark.subprocess
+def test_profiling_auto_degrades_when_unavailable():
+    """import ddtrace.profiling.auto must not crash when native extensions are missing."""
+    import sys
+
+    import ddtrace.profiling as profiling_pkg
+
+    profiling_pkg.is_available = False
+    profiling_pkg.failure_msg = "native extensions missing"
+    sys.modules.pop("ddtrace.profiling.bootstrap.sitecustomize", None)
+    sys.modules.pop("ddtrace.profiling.auto", None)
+
+    import ddtrace.profiling.auto  # noqa: F401
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set

@@ -36,7 +36,11 @@ ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+    # Import must succeed on 3.15 so products that import wrapping (e.g.
+    # ModuleWatchdog via WrappingContext) can load rather than crash the
+    # process. wrap_async still raises until 3.15 bytecode support lands
+    # (see #17849).
+    pass
 
 elif PY >= (3, 14):
     ASYNC_HEAD_ASSEMBLY = Assembly()
@@ -712,6 +716,8 @@ else:
 
 
 def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
+    if PY >= (3, 15):
+        raise NotImplementedError("This version of CPython is not supported yet")
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
             instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind(lineno=lineno)

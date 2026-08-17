@@ -211,7 +211,10 @@ CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+    # Import must succeed on 3.15 so ModuleWatchdog (and anything else that
+    # imports WrappingContext) can load. wrap() still raises until 3.15
+    # wrapping support lands (see #17849).
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -732,6 +735,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
     def wrap(self) -> None:
+        if sys.version_info >= (3, 15):
+            raise NotImplementedError("Python >= 3.15 is not supported yet")
         f = t.cast(FunctionType, self.__wrapped__)
 
         with _registry_lock:

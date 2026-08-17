@@ -257,6 +257,8 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     return a coroutine function, and so on. The signature is also preserved to
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
+    if PY >= (3, 15):
+        raise NotImplementedError("Python >= 3.15 is not supported yet")
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
@@ -304,6 +306,8 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
+    if PY >= (3, 15):
+        raise NotImplementedError("Python >= 3.15 is not supported yet")
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,

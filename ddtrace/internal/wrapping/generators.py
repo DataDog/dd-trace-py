@@ -34,7 +34,10 @@ GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+    # Import must succeed on 3.15 so products that import wrapping can load
+    # rather than crash the process. wrap_generator still raises until 3.15
+    # bytecode support lands (see #17849).
+    pass
 
 elif PY >= (3, 14):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
@@ -485,6 +488,8 @@ else:
 
 
 def wrap_generator(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
+    if PY >= (3, 15):
+        raise NotImplementedError("This version of CPython is not supported yet")
     if GENERATOR_HEAD_ASSEMBLY is not None:
         instrs[0:0] = GENERATOR_HEAD_ASSEMBLY.bind(lineno=lineno)
 
