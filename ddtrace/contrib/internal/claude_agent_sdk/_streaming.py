@@ -162,14 +162,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_tool_span_refs: list[_SpanRef] = []
         self._create_step_span()
 
-    def _is_forced_partial_noise(self, chunk, chunk_type: str) -> bool:
-        """Chunks we turned on ourselves and must not surface to the caller or store.
-
-        The ``StreamEvent`` partials and the per-turn ``SystemMessage`` status pings
-        only appear because we set ``include_partial_messages``; they would otherwise
-        never reach the caller, and storing the status message in ``self.chunks`` would
-        corrupt agent-span output (it flows through ``_extract_output_data``).
-        """
+    def _is_forced_partial_noise(self, chunk) -> bool:
+        """Chunks we turned on ourselves and must not surface to the caller or store."""
         return self._filter_partial and _is_partial_stream_noise(chunk)
 
     def _capture_partial_usage(self, chunk) -> None:
@@ -189,7 +183,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._partial_usage_by_id.setdefault(self._partial_current_id, {}).update(usage)
 
     def should_yield_chunk(self, chunk) -> bool:
-        return not self._is_forced_partial_noise(chunk, type(chunk).__name__)
+        return not self._is_forced_partial_noise(chunk)
 
     async def process_chunk(self, chunk, iterator=None):
         chunk_type = type(chunk).__name__
@@ -198,7 +192,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._capture_partial_usage(chunk)
 
         # Keep the events we injected out of chunk storage so span extraction is unaffected.
-        if self._is_forced_partial_noise(chunk, chunk_type):
+        if self._is_forced_partial_noise(chunk):
             return
 
         self.chunks.append(chunk)

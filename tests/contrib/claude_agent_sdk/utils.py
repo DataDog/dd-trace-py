@@ -189,6 +189,25 @@ def create_mock_user_message(content: str) -> UserMessage:
     return UserMessage(content=content)
 
 
+def create_mock_stream_event(event: dict) -> StreamEvent:
+    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict."""
+    return StreamEvent(
+        uuid="test-uuid",
+        session_id="test-session-id",
+        event=event,
+    )
+
+
+def create_mock_status_message(status: str = "requesting") -> SystemMessage:
+    """A ``SystemMessage(subtype="status")`` — a lifecycle ping the CLI only emits when
+    partial streaming is on. The integration filters these back out when it enabled the flag.
+    """
+    return SystemMessage(
+        subtype="status",
+        data={"type": "system", "subtype": "status", "status": status, "session_id": "test-session-id"},
+    )
+
+
 MOCK_SYSTEM_MESSAGE = create_mock_system_message()
 MOCK_ASSISTANT_RESPONSE = create_mock_assistant_message("4")
 MOCK_ASSISTANT_RESPONSE_TWO = create_mock_assistant_message("8")
@@ -261,25 +280,6 @@ MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
 ]
 
 
-def create_mock_stream_event(event: dict) -> StreamEvent:
-    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict."""
-    return StreamEvent(
-        uuid="test-uuid",
-        session_id="test-session-id",
-        event=event,
-    )
-
-
-def create_mock_status_message(status: str = "requesting") -> SystemMessage:
-    """A ``SystemMessage(subtype="status")`` — a lifecycle ping the CLI only emits when
-    partial streaming is on. The integration filters these back out when it enabled the flag.
-    """
-    return SystemMessage(
-        subtype="status",
-        data={"type": "system", "subtype": "status", "status": status, "session_id": "test-session-id"},
-    )
-
-
 # Simulates what the SDK stream looks like once include_partial_messages is on:
 # the AssistantMessage.usage carries only the message_start snapshot (output_tokens=1),
 # while the true per-turn output (120) shows up in the message_delta StreamEvent. The
@@ -334,10 +334,13 @@ MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE = [
             },
         }
     ),
-    # message_delta (true output) streams before the SDK emits the assembled AssistantMessage.
+    # message_delta carries the true output but no id of its own; the integration attributes it
+    # to the id from the preceding message_start (its _partial_current_id cursor), so the usage
+    # lands under MOCK_PARTIAL_NO_USAGE_MESSAGE_ID. It streams before the assembled AssistantMessage.
     create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
-    # Old SDKs (< 0.1.49) omit message_id on AssistantMessage entirely, so the usage can only
-    # be joined back to the turn via the streaming message_start id.
+    # Old SDKs (< 0.1.49) omit message_id on AssistantMessage entirely. With no id to match on, the
+    # usage is joined back to this turn via that same streaming message_start id (stamped when the
+    # turn began buffering), which is why the delta above had to be keyed under it.
     create_mock_assistant_message("The answer is 4.", usage=None, message_id=None),
     create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
 ]

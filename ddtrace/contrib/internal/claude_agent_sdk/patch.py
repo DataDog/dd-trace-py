@@ -12,6 +12,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
+from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
@@ -48,7 +49,7 @@ def traced_client_init(func, instance, args, kwargs):
         instance._dd_forced_partial = False
         return
     try:
-        _, forced_partial = force_include_partial_messages(getattr(instance, "options", None), in_place=True)
+        _, forced_partial = force_include_partial_messages(_get_attr(instance, "options", None), in_place=True)
         instance._dd_forced_partial = forced_partial
     except Exception:
         instance._dd_forced_partial = False
