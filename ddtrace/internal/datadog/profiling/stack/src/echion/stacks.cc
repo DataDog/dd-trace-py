@@ -51,17 +51,18 @@ unwind_frame(EchionSampler& echion,
     seen_frames.clear();
     if (truncated != nullptr) {
         *truncated = false;
-    }
-    if (max_frames_to_add == 0) {
-        if (truncated != nullptr && frame_addr != nullptr) {
-            *truncated = true;
-        }
+    } else if (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES) {
         return 0;
     }
 
     size_t count = 0;
+    size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
-    while (current_frame_addr != NULL && stack.size() < MAX_TASK_FRAMES) {
+    while (current_frame_addr != NULL) {
+        const bool at_limit = count >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        if (at_limit && frames_probed_after_limit++ >= MAX_TASK_FRAMES) {
+            break;
+        }
         if (seen_frames.contains(current_frame_addr))
             break;
 
@@ -82,20 +83,23 @@ unwind_frame(EchionSampler& echion,
             continue;
         }
 
-        stack.push_back(maybe_frame->get());
-        count++;
-
-        if (count >= max_frames_to_add) {
-            if (truncated != nullptr && current_frame_addr != nullptr) {
+        // When reporting truncation, confirm that the bounded lookahead found a
+        // reportable frame so terminal C/interpreter frames do not produce a false marker.
+        if (at_limit) {
+            if (truncated != nullptr) {
                 *truncated = true;
             }
             break;
         }
+
+        stack.push_back(maybe_frame->get());
+        count++;
+
+        if (truncated == nullptr && (count >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES)) {
+            break;
+        }
     }
 
-    if (truncated != nullptr && current_frame_addr != nullptr && stack.size() >= MAX_TASK_FRAMES) {
-        *truncated = true;
-    }
     return count;
 }
 

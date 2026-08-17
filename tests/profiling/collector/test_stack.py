@@ -119,6 +119,56 @@ def test_native_frame_limit() -> None:
     assert _stack._get_frame_limits() == (10_000, 1024)
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
+        DD_PROFILING_STACK_NATIVE_FRAMES="0",
+    ),
+    err=None,
+)
+def test_exact_native_frame_limit_is_not_truncated() -> None:
+    import os
+    import sys
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+
+    def sample_full_stack() -> None:
+        frame_count = 0
+        frame = sys._getframe()
+        while frame is not None:
+            frame_count += 1
+            frame = frame.f_back
+
+        ddup.config(
+            env="test",
+            service="test",
+            version="0.0.0",
+            max_nframes=frame_count,
+            output_filename=pprof_prefix,
+        )
+        ddup.start()
+
+        with stack.StackCollector(nframes=frame_count):
+            time.sleep(0.5)
+
+    sample_full_stack()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+    found_test_stack = False
+    for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if locations and locations[0].function_name == "sample_full_stack":
+            found_test_stack = True
+            assert "omitted>" not in locations[-1].function_name
+
+    assert found_test_stack
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
 @pytest.mark.subprocess(err=None)
 def test_set_max_frames_after_fork_restart() -> None:
