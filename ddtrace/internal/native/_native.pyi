@@ -1010,20 +1010,39 @@ class ContextData:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    _lock: Any
+    sampling_priority: Optional[Any]
+    dd_origin: Optional[str]
+    dd_user_id: Optional[str]
+    _trace_id_64bits: Optional[int]
+    _traceflags: str
+    _traceparent: str
+    _tracestate: str
 
     def __new__(
         cls: type[_ContextDataT],
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
-        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
-        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
         meta: Optional[dict[str, str]] = None,
         metrics: Optional[dict[str, Any]] = None,
-        lock: Optional[Any] = None,  # placeholder for Context.__init__
+        lock: Optional[Any] = None,
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
     ) -> _ContextDataT: ...
+    def __enter__(self: _ContextDataT) -> _ContextDataT: ...
+    def __exit__(self, *args: Any) -> None: ...
+    def __getstate__(self) -> tuple: ...
+    def __setstate__(self, state: tuple) -> None: ...
+    def set_baggage_item(self, key: str, value: Any) -> None: ...
+    def get_baggage_item(self, key: str) -> Optional[Any]: ...
+    def get_all_baggage_items(self) -> dict[str, Any]: ...
+    def remove_baggage_item(self, key: str) -> None: ...
+    def remove_all_baggage_items(self) -> None: ...
+    def copy(self: _ContextDataT, trace_id: int, span_id: int) -> _ContextDataT: ...
+    def _with_baggage_item(self: _ContextDataT, key: str, value: Any) -> _ContextDataT: ...
 
 class SpanData:
     name: str
