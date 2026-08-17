@@ -410,11 +410,6 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
         ),
-        "_llmobs_evaluation_ml_app": _ConfigItem(
-            default=None,
-            envs=["DD_LLMOBS_EVALUATION_ML_APP"],
-            modifier=lambda x: x,
-        ),
         "_llmobs_sample_rate": _ConfigItem(
             default=1.0,
             envs=["DD_LLMOBS_SAMPLE_RATE"],

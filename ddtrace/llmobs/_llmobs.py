@@ -2806,9 +2806,8 @@ class LLMObs(Service):
 
         By default the judge trace is reported under the agent service of the application being
         judged, so it sits alongside the app it scores. It remains its own trace, identified by the
-        ``evaluated_ml_app`` tag rather than by its agent service. Pass ``agent_service`` (or set
-        ``DD_LLMOBS_EVALUATION_ML_APP``) to report every judge trace elsewhere instead — for example
-        ``"datadog-evaluations"``, to collect them all under one service.
+        ``evaluated_ml_app`` tag rather than by its agent service. Pass ``agent_service`` to report it
+        under a different service instead.
 
         :param str name: The evaluation name (e.g. "relevance"). Must be non-empty and must not
                          contain a '.' — it is reused as the ``submit_evaluation`` ``label``.
@@ -2826,9 +2825,8 @@ class LLMObs(Service):
                                        is submitted for the evaluated span — so an evaluator crash is
                                        surfaced on the evaluated span's Evaluation tab without a
                                        user ``try/except``. Set False to opt out.
-        :param str agent_service: The agent service to report the judge trace under. Takes precedence
-                                  over ``DD_LLMOBS_EVALUATION_ML_APP``; both override the default of
-                                  reporting under the judged application's agent service.
+        :param str agent_service: The agent service to report the judge trace under. Overrides the
+                                  default of reporting under the judged application's agent service.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
 
         :returns: The judge root span, wrapped so ``with LLMObs.evaluation(...) as judge:`` yields the
@@ -2839,10 +2837,8 @@ class LLMObs(Service):
         # The judged application's service, which is both the default destination and the value of the
         # evaluated_ml_app marker tag. Resolved even when disabled so the two always agree.
         evaluated_agent_service = evaluated_ml_app or resolve_ml_app()
-        # Explicit argument wins, then the env var, then co-locate with the judged application.
-        judge_agent_service = (
-            _resolve_agent_service(agent_service, ml_app) or config._llmobs_evaluation_ml_app or evaluated_agent_service
-        )
+        # Explicit argument wins, otherwise co-locate with the judged application.
+        judge_agent_service = _resolve_agent_service(agent_service, ml_app) or evaluated_agent_service
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
             return cls._instance._start_span(

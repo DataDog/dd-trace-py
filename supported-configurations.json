@@ -2396,13 +2396,6 @@
         "default": null
       }
     ],
-    "DD_LLMOBS_EVALUATION_ML_APP": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
     "DD_LLMOBS_EVENT_SIZE_BYTES": [
       {
         "implementation": "A",

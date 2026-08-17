@@ -10,7 +10,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import format_trace_id
@@ -716,25 +715,17 @@ def test_evaluation_agent_service_overrides_destination(llmobs):
     assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == "my-app"
 
 
-def test_evaluation_env_var_overrides_destination(llmobs, monkeypatch):
-    monkeypatch.setattr(config, "_llmobs_evaluation_ml_app", EVALUATIONS_ML_APP)
+def test_evaluation_deprecated_ml_app_overrides_destination(llmobs):
+    # `ml_app` is the deprecated alias for `agent_service`, as on the other span factories.
     with llmobs.evaluation(
-        name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
+        name="relevance",
+        evaluated_span={"span_id": "1", "trace_id": "2"},
+        evaluated_ml_app="my-app",
+        ml_app=EVALUATIONS_ML_APP,
     ) as judge:
         pass
     assert get_llmobs_ml_app(judge) == EVALUATIONS_ML_APP
     assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == "my-app"
-
-
-def test_evaluation_agent_service_beats_env_var(llmobs, monkeypatch):
-    monkeypatch.setattr(config, "_llmobs_evaluation_ml_app", EVALUATIONS_ML_APP)
-    with llmobs.evaluation(
-        name="relevance",
-        evaluated_span={"span_id": "1", "trace_id": "2"},
-        agent_service="my-evaluators",
-    ) as judge:
-        pass
-    assert get_llmobs_ml_app(judge) == "my-evaluators"
 
 
 def test_evaluation_unentered_handle_leaves_caller_context_intact(llmobs):
