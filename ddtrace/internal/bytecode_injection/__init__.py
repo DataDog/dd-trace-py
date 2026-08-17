@@ -31,9 +31,7 @@ class InvalidLine(Exception):
 
 INJECTION_ASSEMBLY = Assembly()
 if PY >= (3, 15):
-    # Import must succeed on 3.15 so products that pull this module in can
-    # degrade rather than crash. inject_hook still raises until 3.15 support
-    # lands (see #17849).
+    # TODO: remove when migrating the app to py-315
     pass
 elif PY >= (3, 13):
     INJECTION_ASSEMBLY.parse(

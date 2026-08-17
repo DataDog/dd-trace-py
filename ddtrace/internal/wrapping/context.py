@@ -211,9 +211,7 @@ CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 15):
-    # Import must succeed on 3.15 so ModuleWatchdog (and anything else that
-    # imports WrappingContext) can load. wrap() still raises until 3.15
-    # wrapping support lands (see #17849).
+    # TODO: remove when migrating the app to py-315
     pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
