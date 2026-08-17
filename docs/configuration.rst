@@ -426,6 +426,18 @@ Traces
          mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
          exceed the EVP proxy max event size configured in the Datadog Agent.
 
+   DD_LLMOBS_EVALUATION_ML_APP:
+     type: String
+
+     description: |
+         The ML app that judge traces from ``LLMObs.evaluation()`` are reported under. By default a
+         judge trace is reported under the ML app of the application it evaluates, so it sits alongside
+         what it scores; it remains its own standalone trace, identified by an ``evaluated_ml_app`` tag.
+
+         Set this to collect every judge trace under one ML app instead — for example
+         ``datadog-evaluations``, which is where managed (in-app) evaluators emit. The
+         ``agent_service`` argument to ``LLMObs.evaluation()`` takes precedence over this value.
+
    DD_LLMOBS_SAMPLE_RATE:
      type: Float
      default: 1.0

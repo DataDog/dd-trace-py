@@ -2398,7 +2398,7 @@
     ],
     "DD_LLMOBS_EVALUATION_ML_APP": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
         "default": null
       }
