@@ -191,9 +191,7 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
-    def update_otel_thread_context_ids(
-        trace_id: int, span_id: int, trace_flags: int, local_root_span_id: int
-    ) -> None:
+    def update_otel_thread_context_ids(trace_id: int, span_id: int, trace_flags: int, local_root_span_id: int) -> None:
         """
         Update the OTel thread context from raw ids, for an active ``Context``.
 

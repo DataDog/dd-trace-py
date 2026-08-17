@@ -6,6 +6,7 @@ from typing import Union
 
 from ddtrace._trace.context import SAMPLING_DECISION_EVENT
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import enable_sampling_decision_event
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
@@ -65,6 +66,7 @@ if sys.platform == "linux":
         # Sampling usually decides at trace-chunk finish, after the record was published
         # with trace_flags=0.
         core.on(SAMPLING_DECISION_EVENT, _sync_active_otel_thread_context)
+        enable_sampling_decision_event()
 
         if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
             from ddtrace.internal.native._native import register_context_watcher

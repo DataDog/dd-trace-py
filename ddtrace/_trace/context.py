@@ -34,6 +34,16 @@ _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
 
 # For listeners that mirror the W3C trace-flags byte outside the tracer.
 SAMPLING_DECISION_EVENT = "ddtrace.trace.sampling_decision"
+# Nothing listens unless the OTel thread context is publishing, and dispatching into the
+# event hub costs more than the setter below does otherwise. Same reasoning as the
+# has_listeners check guarding the activate event in the native context provider.
+_sampling_decision_has_listeners = False
+
+
+def enable_sampling_decision_event() -> None:
+    global _sampling_decision_has_listeners
+    _sampling_decision_has_listeners = True
+
 
 log = get_logger(__name__)
 
@@ -142,10 +152,11 @@ class Context(object):
                     del self._metrics[_SAMPLING_PRIORITY_KEY]
             else:
                 self._metrics[_SAMPLING_PRIORITY_KEY] = value
-        # Trace sampling usually decides at trace-chunk finish, long after anything
-        # mirroring the trace-flags byte published it. Dispatched outside the lock
-        # because listeners run arbitrary code; runs once per trace, so not hot.
-        core.dispatch(SAMPLING_DECISION_EVENT)
+        # A decision forced mid-trace (an outbound inject, a manual keep) leaves anything
+        # mirroring the trace-flags byte stale for the rest of the trace. Dispatched
+        # outside the lock because listeners run arbitrary code.
+        if _sampling_decision_has_listeners:
+            core.dispatch(SAMPLING_DECISION_EVENT)
 
     @property
     def _traceparent(self) -> str:
