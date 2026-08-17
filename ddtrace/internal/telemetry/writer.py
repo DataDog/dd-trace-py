@@ -74,7 +74,7 @@ def _config_value_to_str(value: Any) -> Optional[str]:
 
 
 # Used for deduplication.
-class LogData(dict):
+class LogData(dict[str, Any]):
     def __hash__(self):
         return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
