@@ -1011,18 +1011,23 @@ Agent
 
      description: |
          Submit data directly to the Datadog intake instead of through a Datadog Agent. This
-         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation
-         and LLM Observability.
+         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation,
+         crash reports, Test Optimization and LLM Observability. OpenTelemetry metrics and logs are
+         exported to the Datadog OTLP intake at ``https://otlp.<DD_SITE>``; OpenTelemetry traces
+         follow the tracer and go to the span intake.
 
          ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
          startup. ``DD_SITE`` selects the intake to submit to.
 
          The per-product settings ``_DD_APM_TRACING_AGENTLESS_ENABLED``,
          ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this
-         value and can each be set explicitly to override it for that product.
+         value and can each be set explicitly to override it for that product. An explicit
+         ``OTEL_EXPORTER_OTLP_ENDPOINT`` likewise keeps OpenTelemetry data going to your own
+         collector, which is never sent the Datadog API key.
 
          Client-side statistics computation and health metrics are disabled in agentless mode,
-         since both rely on the Agent.
+         since both rely on the Agent. Profiling always requires an Agent, and a tracer flare can
+         be requested but not uploaded without one.
 
      version_added:
         v4.13.0:

@@ -94,6 +94,7 @@ class CrashtrackerConfiguration:
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
+        api_key: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
