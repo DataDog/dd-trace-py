@@ -865,6 +865,62 @@ def test_wrapping_context_exc_on_exit():
     assert exc.args == ("foo",)
 
 
+def test_wrapping_context_exc_on_enter():
+    """A raising __enter__ must abort the call before the wrapped body runs."""
+
+    ran = False
+
+    class BrokenEnterWrappingContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise RuntimeError("broken enter")
+
+    def foo():
+        nonlocal ran
+        ran = True
+        return 42
+
+    wc = BrokenEnterWrappingContext(foo)
+    wc.wrap()
+
+    with pytest.raises(RuntimeError):
+        foo()
+
+    assert not ran, "the wrapped function body must not run when __enter__ raises"
+    assert wc.entered
+
+
+def test_wrapping_context_exc_on_return():
+    """A raising __return__ must override the wrapped function's return value.
+
+    Whether __exit__ also runs differs by path: on <3.15 it's part of the same
+    try/except as the rest of the call, so it does; on 3.15+ _SKIP_UNWIND_KEY
+    (see context.py) suppresses the synthetic PY_UNWIND this triggers, so it
+    doesn't.
+    """
+
+    class BrokenReturnWrappingContext(DummyWrappingContext):
+        def __return__(self, value):
+            super().__return__(value)
+            raise RuntimeError("broken return")
+
+    def foo():
+        return 42
+
+    wc = BrokenReturnWrappingContext(foo)
+    wc.wrap()
+
+    with pytest.raises(RuntimeError):
+        foo()
+
+    assert wc.entered
+    assert wc.return_value == 42
+    if sys.version_info >= (3, 15):
+        assert not wc.exited, "__exit__ must not run when __return__ itself is the failure"
+    else:
+        assert wc.exited
+
+
 def test_wrapping_context_priority():
     class HighPriorityWrappingContext(DummyWrappingContext):
         def __enter__(self):

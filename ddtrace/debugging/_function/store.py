@@ -90,11 +90,14 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
+        for function, wrapping_context in list(self._wrapper_map.items()):
+            wrapping_context.unwrap()
+
         for function, code in self._code_map.items():
-            # On 3.15+, line hooks are sys.monitoring registrations keyed by
-            # code object rather than injected bytecode, so restoring
-            # __code__ alone leaves them firing; eject_all_hooks is a no-op
-            # on older versions, where the registration lives in the bytecode
-            # this restores over.
+            # Restoring __code__ alone would leave 3.15+ line hooks (keyed by
+            # code object) still firing.
             eject_all_hooks(function)
             function.__code__ = code
+
+        self._code_map.clear()
+        self._wrapper_map.clear()

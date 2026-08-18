@@ -316,3 +316,50 @@ def test_for_block():
         hook.assert_called_with(arg)
     else:
         hook.assert_called_once_with(arg)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+def test_line_hooks_isolated_across_structurally_equal_code_objects():
+    """Two distinct code objects that compare equal must not share a line hook registration."""
+    src = "def target(x):\n    return x + 1\n"
+    ns_a: dict = {}
+    ns_b: dict = {}
+    exec(src, ns_a)
+    exec(src, ns_b)
+    f_a = ns_a["target"]
+    f_b = ns_b["target"]
+
+    assert f_a.__code__ is not f_b.__code__
+    assert f_a.__code__ == f_b.__code__, "the two code objects must be structurally equal for this test to matter"
+
+    hook = mock.Mock()
+    lo = min(linenos(f_a))
+    inject_hook(f_a, hook, lo, 42)
+
+    f_b(1)
+
+    hook.assert_not_called()
+
+    eject_hook(f_a, hook, lo, 42)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+def test_line_hooks_isolated_across_code_replace_clone():
+    """A hook registered against the original code object must not fire for a code.replace() clone."""
+
+    def target(x):
+        return x + 1
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+    inject_hook(target, hook, lo, 42)
+
+    cloned = FunctionType(target.__code__.replace(), target.__globals__, "cloned")
+    assert cloned.__code__ is not target.__code__
+    assert cloned.__code__ == target.__code__
+
+    cloned(1)
+
+    hook.assert_not_called()
+
+    eject_hook(target, hook, lo, 42)

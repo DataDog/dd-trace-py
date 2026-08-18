@@ -114,6 +114,10 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
+# 3.15+ only: set in per-call storage when on_py_start/on_py_return fails, so the
+# PY_UNWIND event sys.monitoring raises for that same synthetic exception does not
+# also trigger __exit__. See _UniversalWrappingContext.on_py_unwind.
+_SKIP_UNWIND_KEY = "__dd_wrapping_context_skip_unwind__"
 
 # Free lists of storage context variables, keyed by variable name.
 #
@@ -766,31 +770,39 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         return t.cast(T, super().__return__(value))
 
     if sys.version_info >= (3, 15):
-        # AIDEV-NOTE: sys.monitoring itself does propagate a PY_START/PY_UNWIND
-        # callback's exception into the monitored function's frame (verified
-        # against CPython 3.15), which would give exceptions raised here true
-        # with-statement semantics matching the bytecode path (an __enter__
-        # failure aborts the call before the body runs). But ddtrace.internal.
-        # monitoring multiplexes one sys.monitoring tool ID across independent
-        # subsystems (this wrapping context, DI line hooks, the exception
-        # profiler); its dispatch loop (_on_py_start et al.) therefore catches
-        # and logs each handler's exceptions instead of propagating them, so
-        # that a bug in one subsystem's handler cannot break monitored
-        # execution -- or a sibling handler registered on the same code
-        # object -- for the others. As a side effect, an exception raised by a
-        # registered WrappingContext's __enter__/__exit__ here is swallowed
-        # (logged, not raised), so unlike the bytecode path it does NOT abort
-        # the wrapped call. Fixing this would mean adding an opt-in
-        # propagate-exceptions mode to the shared multiplexer, which has
-        # implications for its other consumers; not done here.
+        # Exceptions here are deliberately left uncaught (see the propagation
+        # warning on MonitoringEventHandler), which matches bytecode-path
+        # with-statement semantics -- safe because this is the only handler
+        # ddtrace registers for these events on a given code object.
+        #
+        # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
+        # PY_RETURN; _SKIP_UNWIND_KEY suppresses the resulting __exit__ call so
+        # it only fires for a real exception from the wrapped function body.
+        # It lives in per-call storage (a ContextVar), not a plain attribute,
+        # because this same instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            self.__enter__()
+            try:
+                self.__enter__()
+            except BaseException:
+                storage = self._storage.get()
+                if storage is not None:
+                    storage[_SKIP_UNWIND_KEY] = True
+                raise
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
-            self.__return__(retval)
+            try:
+                self.__return__(retval)
+            except BaseException:
+                storage = self._storage.get()
+                if storage is not None:
+                    storage[_SKIP_UNWIND_KEY] = True
+                raise
 
         def on_py_unwind(self, code: t.Any, instruction_offset: int, exception: BaseException) -> None:
+            storage = self._storage.get()
+            if storage is not None and storage.pop(_SKIP_UNWIND_KEY, False):
+                return
             self.__exit__(type(exception), exception, exception.__traceback__)
 
         @classmethod

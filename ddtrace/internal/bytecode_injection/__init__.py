@@ -26,8 +26,6 @@ class InvalidLine(Exception):
 
 
 if PY >= (3, 15):
-    import weakref
-
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
@@ -64,8 +62,11 @@ if PY >= (3, 15):
         def is_empty(self) -> bool:
             return not self._hooks
 
-    # WeakKeyDictionary: code object -> _LineHookHandler
-    _line_hook_registry: "weakref.WeakKeyDictionary[CodeType, _LineHookHandler]" = weakref.WeakKeyDictionary()
+    # Identity-keyed (not CodeType.__eq__) weak mapping: code object -> _LineHookHandler.
+    # Distinct code objects can compare structurally equal (e.g. repeated identical
+    # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
+    # a hook registered for one code object be looked up under another.
+    _line_hook_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
     _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
