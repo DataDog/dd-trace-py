@@ -125,12 +125,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_messages(prompt, span)
 
         output_messages: list[Message] = [Message(content="")]
-        metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         if not span.error and response is not None:
-            output_messages, metrics, init_system_message, stop_reason, assistant_error = self._extract_output_data(
-                response
-            )
+            output_messages, init_system_message, stop_reason, assistant_error = self._extract_output_data(response)
             if stop_reason:
                 metadata["stop_reason"] = stop_reason
             error_type, error_message = assistant_error
@@ -148,7 +145,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             input_value=input_messages,
             metadata=metadata,
             output_value=output_messages,
-            metrics=metrics,
             agent_manifest=agent_manifest,
         )
 
@@ -239,20 +235,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(
-        self, response: Any
-    ) -> tuple[list[Message], dict[str, int], dict[str, Any], str, tuple[str, str]]:
-        """Extract output data from response, including output messages, usage metrics, init system message,
+    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, Any], str, tuple[str, str]]:
+        """Extract output data from response, including output messages, init system message,
         stop reason, and assistant error as a (error_type, error_message) tuple.
         """
         output_messages: list[Message] = []
-        metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         stop_reason: str = ""
         assistant_error: tuple[str, str] = ("", "")
 
         if not response or not isinstance(response, list):
-            return [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
+            return [Message(content="")], init_system_message, stop_reason, assistant_error
 
         for msg in response:
             msg_type = type(msg).__name__
@@ -273,8 +266,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             elif msg_type == "ResultMessage":
                 if not stop_reason:
                     stop_reason = _get_attr(msg, "stop_reason", "") or ""
-                if not metrics:
-                    metrics = self._extract_usage(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
                     output_messages.append(Message(content=str(result), role="assistant"))
@@ -284,7 +275,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                         Message(content=safe_json(structured_output) or str(structured_output), role="assistant")
                     )
 
-        return output_messages or [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
+        return output_messages or [Message(content="")], init_system_message, stop_reason, assistant_error
 
     def _extract_assistant_error(self, msg: Any) -> tuple[str, str]:
         """Return (error_type, error_message) for an AssistantMessage carrying an error.
@@ -320,12 +311,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             cache_creation = usage.get("cache_creation_input_tokens") or 0
             cache_read = usage.get("cache_read_input_tokens") or 0
 
-            if input_tokens:
-                metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens + cache_creation + cache_read
+            # input includes cache tokens; guard on the folded total so cache-only turns aren't dropped
+            total_input = input_tokens + cache_creation + cache_read
+            if total_input:
+                metrics[INPUT_TOKENS_METRIC_KEY] = total_input
             if output_tokens:
                 metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-            if input_tokens and output_tokens:
-                metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + metrics[OUTPUT_TOKENS_METRIC_KEY]
+            if total_input and output_tokens:
+                metrics[TOTAL_TOKENS_METRIC_KEY] = total_input + output_tokens
             if cache_creation:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation
             if cache_read:

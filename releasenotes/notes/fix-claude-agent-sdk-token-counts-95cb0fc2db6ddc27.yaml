@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Claude Agent SDK LLM spans reported no input
+    token count for fully cache-served turns, causing trace-level input token and cost
+    totals to be undercounted. This applies to ``claude-agent-sdk`` 0.1.49 and later, which
+    is the first version to report per-turn token usage.
