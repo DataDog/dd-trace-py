@@ -4,8 +4,8 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 
-from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
+from ddtrace.internal.native import _native
 
 # Core stack v2 functions
 def start(min_interval: float = ...) -> bool: ...
@@ -80,7 +80,7 @@ def pause_sampling() -> bool | None:
 def resume_sampling() -> None: ...
 
 # span <-> profile association
-def link_span(span: Optional[Union[context.Context, ddspan.Span]]) -> None: ...
+def link_span(span: Optional[Union[_native.Context, ddspan.Span]]) -> None: ...
 def _unlink_finished_span(span: ddspan.Span) -> None: ...
 
 # Thread management

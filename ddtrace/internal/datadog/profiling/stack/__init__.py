@@ -7,16 +7,16 @@ failure_msg = ""
 try:
     import typing
 
-    from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
     from ddtrace.internal.datadog.profiling import context_meta
+    from ddtrace.internal.native import _native
 
     from . import _stack
     from ._stack import *  # noqa: F403, F401  # type: ignore[assignment]
 
     is_available = True
 
-    def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]) -> None:
+    def link_span(span: typing.Optional[typing.Union[_native.Context, ddspan.Span]]) -> None:
         if isinstance(span, ddspan.Span):
             span_id = span.span_id
             # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
@@ -32,7 +32,7 @@ try:
                 local_root_span_id = span._local_root.span_id
                 local_root_span_type = span._local_root.span_type
             _stack.link_span(span_id, local_root_span_id, local_root_span_type)
-        elif isinstance(span, context.Context) and span.span_id is not None:
+        elif isinstance(span, _native.Context) and span.span_id is not None:
             local_root_span_id, span_type = context_meta.read_profiler_link(span)
             _stack.link_span(span.span_id, local_root_span_id, span_type)
         else:

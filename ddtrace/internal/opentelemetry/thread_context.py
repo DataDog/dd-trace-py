@@ -4,10 +4,10 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings._config import config
 
 
