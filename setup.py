@@ -139,11 +139,7 @@ BUILD_PROFILING_NATIVE_TESTS = _env_truthy("DD_PROFILING_NATIVE_TESTS")
 
 
 def is_musl_libc() -> bool:
-    """True when this interpreter is a musl (Alpine / musllinux) build.
-
-    The heap-gotter cdylib is built and tested only on manylinux (glibc) in CI;
-    skip building on musllinux because cargo builds fail there.
-    """
+    """Whether the current interpreter is a musl (Alpine / musllinux) build."""
     return any(
         "musl" in (sysconfig.get_config_var(k) or "")
         for k in ("SOABI", "EXT_SUFFIX", "BUILD_GNU_TYPE", "HOST_GNU_TYPE", "MULTIARCH")
