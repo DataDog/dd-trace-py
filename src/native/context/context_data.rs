@@ -618,32 +618,29 @@ impl ContextData {
         if slf.borrow().trace_id != other.borrow().trace_id {
             return Ok(false);
         }
-        if !slf
-            .borrow_mut()
-            .get_meta(py)
-            .eq(other.borrow_mut().get_meta(py))?
-        {
+        // Each side's `borrow_mut()` is taken in its own statement (rather than both
+        // within one expression) so the guards never overlap -- `slf` and `other` may
+        // alias the same underlying object (e.g. comparing a Context to itself), and
+        // Rust would otherwise extend both temporaries' lifetimes to the end of the
+        // enclosing statement, causing a double mutable borrow / PyBorrowMutError panic.
+        let self_meta = slf.borrow_mut().get_meta(py);
+        let other_meta = other.borrow_mut().get_meta(py);
+        if !self_meta.eq(other_meta)? {
             return Ok(false);
         }
-        if !slf
-            .borrow_mut()
-            .get_metrics(py)
-            .eq(other.borrow_mut().get_metrics(py))?
-        {
+        let self_metrics = slf.borrow_mut().get_metrics(py);
+        let other_metrics = other.borrow_mut().get_metrics(py);
+        if !self_metrics.eq(other_metrics)? {
             return Ok(false);
         }
-        if !slf
-            .borrow_mut()
-            .get_span_links(py)
-            .eq(other.borrow_mut().get_span_links(py))?
-        {
+        let self_span_links = slf.borrow_mut().get_span_links(py);
+        let other_span_links = other.borrow_mut().get_span_links(py);
+        if !self_span_links.eq(other_span_links)? {
             return Ok(false);
         }
-        if !slf
-            .borrow_mut()
-            .get_baggage(py)
-            .eq(other.borrow_mut().get_baggage(py))?
-        {
+        let self_baggage = slf.borrow_mut().get_baggage(py);
+        let other_baggage = other.borrow_mut().get_baggage(py);
+        if !self_baggage.eq(other_baggage)? {
             return Ok(false);
         }
         Ok(slf.borrow().is_remote == other.borrow().is_remote)
