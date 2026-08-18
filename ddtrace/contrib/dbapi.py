@@ -97,7 +97,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, dbapi_query=None, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
@@ -109,9 +109,6 @@ class TracedCursor(wrapt.ObjectProxy):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
-        if isinstance(dbapi_query, str) and core.has_listeners(DbApiEvent.event_name):
-            core.dispatch_event(DbApiEvent(query=dbapi_query, span_name_prefix=self._self_dbapi_span_name_prefix))
-
         if not is_tracing_enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
@@ -151,6 +148,8 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
+        if isinstance(query, str) and core.has_listeners(DbApiEvent.event_name):
+            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -164,13 +163,14 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            dbapi_query=query,
             **kwargs,
         )
 
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
+        if isinstance(query, str) and core.has_listeners(DbApiEvent.event_name):
+            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -183,7 +183,6 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            dbapi_query=query,
             **kwargs,
         )
 
