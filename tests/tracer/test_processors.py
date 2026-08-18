@@ -23,11 +23,14 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 class DummyProcessor(TraceProcessor):
@@ -911,3 +914,31 @@ def test_register_unregister_span_processor(tracer):
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") is None
     assert span.get_tag("on_finish") is None
+
+
+def test_configure_agentless_writer_releases_an_unstarted_exporter():
+    """Swapping away from a writer that never started must still release its native exporter.
+
+    NativeWriter builds the exporter in __init__ rather than on first write, so stop() raises
+    ServiceStatusError and the periodic-thread teardown is a no-op -- without an explicit release,
+    every enable/disable cycle would leak an exporter and its telemetry subscription.
+    """
+    from ddtrace._trace.processor import SpanAggregator
+
+    with override_global_config(dict(_trace_agentless_enabled=True, _dd_api_key="an-api-key")):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+        old_writer = aggregator.writer
+        assert old_writer.agentless is True
+        assert old_writer.status is ServiceStatus.STOPPED, "writer should not have started yet"
+
+        try:
+            with mock.patch.object(type(old_writer), "shutdown_exporter", autospec=True) as shutdown:
+                assert aggregator.configure_agentless_writer(False) is True
+
+            assert shutdown.called, "the unstarted writer's exporter was never released"
+            assert aggregator.writer.agentless is False
+        finally:
+            try:
+                aggregator.writer.stop()
+            except ServiceStatusError:
+                pass

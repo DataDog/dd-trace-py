@@ -684,6 +684,7 @@ def _build_base_exporter_builder(
     )
     if agentless_api_key is not None:
         builder.set_agentless_endpoint(intake_url, agentless_api_key)
+        builder.set_agentless_timeout(int(agent_config.trace_agent_timeout_seconds * 1000))
     else:
         builder.set_url(intake_url)
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
@@ -909,6 +910,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except Exception:
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
+    def shutdown_exporter(self) -> None:
+        """Tear down the native exporter without going through ``stop()``."""
+        try:
+            self._exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+
     def recreate(
         self,
         appsec_enabled: Optional[bool] = None,
@@ -920,13 +928,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            try:
-                # Writers like AgentWriter may not start until the first trace is encoded.
-                # Stopping them before that will raise a ServiceStatusError.
-                # Shut down the exporter as it's started on init.
-                self._exporter.shutdown(3_000_000_000)
-            except Exception:
-                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            self.shutdown_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(

@@ -1319,3 +1319,58 @@ def test_native_writer_stores_otlp_endpoint():
 def test_native_writer_reports_otlp_intake_endpoint():
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._intake_endpoint() == "http://localhost:4318/v1/traces"
+
+
+def test_agentless_exporter_uses_the_configured_timeout():
+    """DD_TRACE_AGENT_TIMEOUT_SECONDS must reach the intake transport.
+
+    Left unset, libdatadog applies its own 15s default, so a slow intake would block flushes and
+    shutdown well past the configured timeout.
+    """
+    import ddtrace.internal.writer.writer as writer_module
+
+    calls = []
+
+    class _RecordingBuilder:
+        def __getattr__(self, name):
+            def record(*args, **kwargs):
+                calls.append((name, args))
+                return self
+
+            return record
+
+    with override_global_config(dict(_trace_compute_stats=False)):
+        with mock.patch.object(writer_module.agent_config, "trace_agent_timeout_seconds", 3.5):
+            with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
+                writer_module._build_base_exporter_builder(
+                    "https://public-trace-http-intake.logs.datadoghq.com/v1/input",
+                    None,
+                    False,
+                    False,
+                    False,
+                    "an-api-key",
+                )
+
+    assert ("set_agentless_timeout", (3500,)) in calls
+    # Agentless and an agent URL are mutually exclusive; libdatadog's build() rejects both.
+    assert not [c for c in calls if c[0] == "set_url"]
+
+
+def test_agent_exporter_sets_the_agent_url_not_the_intake():
+    import ddtrace.internal.writer.writer as writer_module
+
+    calls = []
+
+    class _RecordingBuilder:
+        def __getattr__(self, name):
+            def record(*args, **kwargs):
+                calls.append((name, args))
+                return self
+
+            return record
+
+    with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
+        writer_module._build_base_exporter_builder("http://localhost:8126", None, False, False, False, None)
+
+    assert ("set_url", ("http://localhost:8126",)) in calls
+    assert not [c for c in calls if "agentless" in c[0]]

@@ -528,7 +528,11 @@ class SpanAggregator(SpanProcessor):
             old_writer.flush_queue()
             old_writer.stop()
         except ServiceStatusError:
-            pass  # writer was never started; nothing to stop
+            # The writer never started, so there is no periodic thread to stop
+            # But the native writer builds its exporter in __init__, so we free it
+            shutdown_exporter = getattr(old_writer, "shutdown_exporter", None)
+            if shutdown_exporter is not None:
+                shutdown_exporter()
         except Exception:
             log.warning(
                 "Failed to flush and stop previous APM trace writer while configuring agentless writer", exc_info=True

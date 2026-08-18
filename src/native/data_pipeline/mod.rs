@@ -194,7 +194,7 @@ impl TraceExporterBuilderPy {
 
     fn set_agentless_endpoint(
         mut slf: PyRefMut<'_, Self>,
-        url: &'_ str,  // full intake url
+        url: &'_ str, // full intake url
         api_key: &'_ str,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_agentless_endpoint(url, api_key);
