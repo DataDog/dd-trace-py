@@ -1,5 +1,9 @@
+import base64
+import contextlib
 import functools
+import uuid
 
+import msgpack
 import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -9,6 +13,31 @@ from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+
+
+@contextlib.contextmanager
+def _trace_stats_context(generate_stats):
+    from ddtrace import tracer
+    from tests.utils import TestAgentClient
+
+    token = uuid.uuid4().hex
+    tracer._span_aggregator.writer.set_test_session_token(token)
+    agent_url = tracer.agent_trace_url
+    assert agent_url is not None
+    client = TestAgentClient(agent_url, token)
+    connection = client.create_connection()
+    connection.request("GET", f"/test/session/start?test_session_token={token}")
+    assert connection.getresponse().status == 200
+    connection.close()
+
+    try:
+        generate_stats(tracer)
+        tracer.shutdown()
+        requests = [request for request in client.requests() if "/v0.6/stats" in request["url"]]
+        payloads = [msgpack.unpackb(base64.b64decode(request["body"]), raw=False) for request in requests]
+        yield payloads
+    finally:
+        client.clear()
 
 
 @pytest.fixture
@@ -69,6 +98,26 @@ def test_stats_30(send_once_stats_tracer):
     for _ in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list"):
             pass
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+    }
+)
+def test_stats_additional_tags_v06_payload():
+    from tests.integration.test_trace_stats import _trace_stats_context
+
+    def generate_stats(tracer):
+        with tracer.trace("additional-tags", service="test") as span:
+            span._set_attribute("customer.tier", "gold")
+            span._set_attribute("region", "us-east-1")
+
+    with _trace_stats_context(generate_stats) as payloads:
+        groups = [group for payload in payloads for bucket in payload["Stats"] for group in bucket["Stats"]]
+        group = next(group for group in groups if group["Name"] == "additional-tags")
+        assert group["AdditionalMetricTags"] == ["customer.tier:gold", "region:us-east-1"]
 
 
 @pytest.mark.snapshot()
