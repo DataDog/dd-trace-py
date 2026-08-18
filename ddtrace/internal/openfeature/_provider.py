@@ -138,11 +138,13 @@ class DataDogProvider(AbstractProvider):
         self._initialization_timeout = initialization_timeout
 
         # Cache for reported exposures to prevent duplicates
-        # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
+        # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key, serial_id)
+        # The serial id is part of the value because a configuration refresh can add or
+        # change it while the allocation and variant stay the same, and that must be sent.
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
-        self._exposure_cache: LRUCache[tuple[str, str], tuple[typing.Optional[str], typing.Optional[str]]] = LRUCache(
-            maxsize=65536
-        )
+        self._exposure_cache: LRUCache[
+            tuple[str, str], tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
+        ] = LRUCache(maxsize=65536)
 
         # Master gate: the resolved configuration source (stable kill switch +
         # source selection, with legacy grandfathering). Mirrors dd-trace-js,
@@ -606,7 +608,7 @@ class DataDogProvider(AbstractProvider):
 
             # Check cache to prevent duplicate exposure events
             key = (flag_key, exposure_event["subject"]["id"])
-            value = (allocation_key, variant_key)
+            value = (allocation_key, variant_key, serial_id)
 
             cached_value = self._exposure_cache.get(key, None)
             if cached_value and cached_value == value:

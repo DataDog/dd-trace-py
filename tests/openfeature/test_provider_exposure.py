@@ -261,6 +261,7 @@ class TestExposureReporting:
             mock_details_a.error_code = None
             mock_details_a.error_message = None
             mock_details_a.do_log = True  # Enable exposure logging
+            mock_details_a.serial_id = None
             mock_resolve.return_value = mock_details_a
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -280,6 +281,7 @@ class TestExposureReporting:
             mock_details_b.error_code = None
             mock_details_b.error_message = None
             mock_details_b.do_log = True  # Enable exposure logging
+            mock_details_b.serial_id = None
             mock_resolve.return_value = mock_details_b
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -299,6 +301,7 @@ class TestExposureReporting:
             mock_details_b2.error_code = None
             mock_details_b2.error_message = None
             mock_details_b2.do_log = True  # Enable exposure logging
+            mock_details_b2.serial_id = None
             mock_resolve.return_value = mock_details_b2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -315,6 +318,7 @@ class TestExposureReporting:
             mock_details_a2.error_code = None
             mock_details_a2.error_message = None
             mock_details_a2.do_log = True  # Enable exposure logging
+            mock_details_a2.serial_id = None
             mock_resolve.return_value = mock_details_a2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -361,6 +365,7 @@ class TestExposureReporting:
             mock_details.error_code = None
             mock_details.error_message = None
             mock_details.do_log = False  # Exposure logging disabled
+            mock_details.serial_id = None
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("no-log-flag", False, evaluation_context)
@@ -391,6 +396,7 @@ class TestExposureReporting:
             mock_details.error_code = None
             mock_details.error_message = None
             mock_details.do_log = True  # Exposure logging enabled
+            mock_details.serial_id = None
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("log-flag", False, evaluation_context)
@@ -640,3 +646,50 @@ class TestExposureSerialId:
         exposure_event = mock_writer.enqueue.call_args[0][0]
         assert exposure_event["flag"]["key"] == "holdout-flag"
         assert "serial_id" not in exposure_event
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_serial_id_that_appears_reports_a_new_exposure(self, mock_get_writer, provider, evaluation_context):
+        """Test that a serial id added by a later configuration reaches the intake."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        process_ffe_configuration(self._config_with_serial_id())
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        process_ffe_configuration(self._config_with_serial_id(340132))
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        assert mock_writer.enqueue.call_count == 2
+        first, second = [call[0][0] for call in mock_writer.enqueue.call_args_list]
+        assert "serial_id" not in first
+        assert second["serial_id"] == 340132
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_serial_id_that_changes_reports_a_new_exposure(self, mock_get_writer, provider, evaluation_context):
+        """Test that a changed serial id reaches the intake, so attribution is not stale."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        process_ffe_configuration(self._config_with_serial_id(340132))
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        process_ffe_configuration(self._config_with_serial_id(999999))
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        assert mock_writer.enqueue.call_count == 2
+        first, second = [call[0][0] for call in mock_writer.enqueue.call_args_list]
+        assert first["serial_id"] == 340132
+        assert second["serial_id"] == 999999
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_unchanged_serial_id_reports_one_exposure(self, mock_get_writer, provider, evaluation_context):
+        """Test that the cache still removes duplicates when the serial id does not change."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        process_ffe_configuration(self._config_with_serial_id(340132))
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+        provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        assert mock_writer.enqueue.call_count == 1
+        assert mock_writer.enqueue.call_args[0][0]["serial_id"] == 340132
