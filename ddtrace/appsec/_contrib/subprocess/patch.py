@@ -9,7 +9,6 @@ log = get_logger(__name__)
 
 
 def _patch_subprocess(_module: ModuleType) -> None:
-    # ensure that the subprocess patch is applied even after one click activation
     subprocess_patch.patch()
     log.debug("Patching common modules: subprocess_patch")
 
