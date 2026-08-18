@@ -109,7 +109,10 @@ impl PyTracerMetadata {
     }
 }
 
-#[pyclass(name = "PyAnonymousFileHandle", module = "ddtrace.internal.native._native")]
+#[pyclass(
+    name = "PyAnonymousFileHandle",
+    module = "ddtrace.internal.native._native"
+)]
 #[allow(dead_code)]
 pub struct PyAnonymousFileHandle {
     internal: AnonymousFileHandle,
