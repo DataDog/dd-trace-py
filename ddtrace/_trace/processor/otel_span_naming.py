@@ -80,19 +80,13 @@ class OtelSpanNamingProcessor(SpanProcessor):
             return
 
         method = span.get_tag(http.OTEL_REQUEST_METHOD)
-        if method and span.name != _DJANGO_REQUEST_SPAN_NAME:
-            method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
-            original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) or method
-            integration_prefixes = (f"{method_token} ", f"{original_method} ")
-            if (
-                span.resource
-                and span.resource != span.name
-                and span.resource != generated_resource
-                and span.resource not in (method_token, original_method)
-                and not span.resource.startswith(integration_prefixes)
-            ):
-                # A custom integration hook replaced the instrumentation resource before
-                # sampling. Record ownership so the finish pass preserves it too.
+        if not method:
+            return
+
+        if span.name != _DJANGO_REQUEST_SPAN_NAME:
+            if span.resource and span.resource != span.name and span.resource != generated_resource:
+                # Only integrations may establish the baseline marker. Any different
+                # resource therefore belongs to user code, regardless of its shape.
                 span._set_ctx_item(RESOURCE_SET_BY_USER, True)
                 return
 
@@ -115,6 +109,14 @@ class OtelSpanNamingProcessor(SpanProcessor):
         if span._get_ctx_item(RESOURCE_SET_BY_USER):
             # The user named this span themselves. That wins here for the same reason
             # Span.update_name wins over instrumentation in the OTel SDKs.
+            return
+
+        generated_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
+        if span.resource and span.resource != span.name and span.resource != generated_resource:
+            # A value without the exact integration baseline belongs to the user whether
+            # or not early sampling ran. Shape is deliberately irrelevant: resources such
+            # as "GET /custom" are valid explicit user names.
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
             return
 
         method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method

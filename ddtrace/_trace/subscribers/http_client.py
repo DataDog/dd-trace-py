@@ -3,10 +3,13 @@ from types import TracebackType
 from typing import Optional
 from typing import cast
 
+from ddtrace import config
+from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
@@ -34,6 +37,11 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
+
+        if config._otel_trace_semantics_enabled and event.request_method:
+            span = span_from_context(ctx)
+            _set_method_tag(span, event.request_method)
+            span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
         if _http_propagation_suppressed.get():
             return

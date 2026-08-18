@@ -242,6 +242,8 @@ def _set_resolver_tags(pin, span, request):
         otel_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
         if span.resource == REQUEST_DEFAULT_RESOURCE or (otel_resource is not None and span.resource == otel_resource):
             span.resource = resource
+            if config._otel_trace_semantics_enabled:
+                span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
         else:
             # Record the ownership so later processors can honor it too. OtelSpanNamingProcessor
             # otherwise recomputes the name from the span's attributes and would undo the

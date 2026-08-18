@@ -660,7 +660,7 @@ def _set_http_meta_otel(
         else:
             # the server path never carries credentials in the URL, and it does not emit
             # url.full, so there is nothing to redact before parsing
-            _set_url_tags_otel_server(integration_config, span, url, query)
+            _set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
 
     # target_host and server_address are only passed by client integrations, and both mean
     # server.address. A host parsed out of the URL above is more complete, so it wins.

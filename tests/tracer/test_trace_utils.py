@@ -1346,6 +1346,29 @@ def test_otel_semantics_server_attributes():
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_server_prefers_encoded_raw_uri_path():
+    from ddtrace._trace.span import Span
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    span = Span("web.request", span_type=SpanTypes.WEB)
+    set_http_meta(
+        span,
+        cfg.myint,
+        url="http://localhost/users/a/b?token=leaked&page=2",
+        raw_uri="/users/a%2Fb?token=leaked&page=2",
+        query="token=leaked&page=2",
+    )
+
+    assert span.get_tag("url.path") == "/users/a%2Fb"
+    assert span.get_tag("url.query") == "<redacted>&page=2"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
 def test_otel_semantics_client_attributes():
     from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -1375,6 +1398,29 @@ def test_otel_semantics_client_attributes():
 
     for legacy in ("http.method", "http.url", "http.status_code", "out.host"):
         assert span.get_tag(legacy) is None, legacy
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
+    from ddtrace._trace.span import Span
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    cfg.myint.http_tag_query_string = False
+    cfg.myint.http.trace_query_string = True
+    span = Span("http.request", span_type=SpanTypes.HTTP)
+    set_http_meta(
+        span,
+        cfg.myint,
+        url="https://api.example.com/search?token=leaked&page=2",
+        query="token=leaked&page=2",
+    )
+
+    assert span.get_tag("url.full") == "https://api.example.com/search?<redacted>&page=2"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})

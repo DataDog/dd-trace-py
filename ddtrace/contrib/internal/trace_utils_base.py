@@ -311,14 +311,26 @@ def _set_query_string_tag(span: Span, query: str) -> None:
 
 
 def _set_url_tags_otel_server(
-    integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]
+    integration_config: IntegrationConfig,
+    span: Span,
+    url: str,
+    query: Optional[str],
+    raw_uri: Optional[str] = None,
 ) -> None:
     """Emit url.path, url.scheme, url.query, server.address and server.port for a server span."""
     parsed = parse.urlparse(url)
     if parsed.scheme:
         span._set_attribute(http.OTEL_URL_SCHEME, parsed.scheme)
+    raw_path = None
+    if raw_uri:
+        try:
+            raw_path = parse.urlparse(raw_uri).path
+        except ValueError:
+            # raw_uri is also forwarded unchanged to ASM. A malformed optional value must
+            # not prevent the remaining request metadata from being reported.
+            pass
     # url.path is Required, and the empty path of an origin-form request is "/"
-    span._set_attribute(http.OTEL_URL_PATH, parsed.path or "/")
+    span._set_attribute(http.OTEL_URL_PATH, raw_path or parsed.path or "/")
 
     address, port = _split_netloc(parsed.netloc, parsed.scheme)
     if address:
@@ -344,7 +356,7 @@ def _set_url_tags_otel_client(
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
-    if not integration_config.http_tag_query_string:
+    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         span._set_attribute(http.OTEL_URL_FULL, strip_query_string(url))
     elif config._global_query_string_obfuscation_disabled:
         span._set_attribute(http.OTEL_URL_FULL, url)

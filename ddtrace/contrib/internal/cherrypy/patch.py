@@ -8,11 +8,13 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
+from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
+from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
@@ -89,6 +91,9 @@ class TraceTool(cherrypy.Tool):
                 trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
                 config.cherrypy,
             )
+            if config._otel_trace_semantics_enabled:
+                _set_method_tag(req_span, cherrypy.request.method)
+                req_span._set_ctx_item(RESOURCE_SET_BY_OTEL, req_span.resource)
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.cherrypy))
@@ -134,6 +139,8 @@ class TraceTool(cherrypy.Tool):
             #   POST /save
             resource = "{} {}".format(cherrypy.request.method, cherrypy.request.path_info)
             span.resource = str(resource)
+            if config._otel_trace_semantics_enabled:
+                span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
         url = str(cherrypy.request.base + cherrypy.request.path_info)
         status_code, _, _ = valid_status(cherrypy.response.status)

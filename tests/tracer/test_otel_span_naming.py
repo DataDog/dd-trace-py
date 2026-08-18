@@ -11,9 +11,12 @@ from ddtrace.trace import Span
 
 def _finish(span_type=SpanTypes.WEB, resource="composed by the integration", **tags):
     span = Span("django.request", resource=resource, span_type=span_type)
+    span._set_ctx_item(RESOURCE_SET_BY_OTEL, resource)
+    processor = OtelSpanNamingProcessor()
+    processor.on_span_start(span)
     for key, value in tags.items():
         span._set_attribute(key, value)
-    OtelSpanNamingProcessor().on_span_finish(span)
+    processor.on_span_finish(span)
     return span.resource
 
 
@@ -146,6 +149,7 @@ class TestOtelSpanNaming:
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
         span._set_attribute(http.OTEL_ROUTE, "/make_distant_call")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
@@ -156,6 +160,7 @@ class TestOtelSpanNaming:
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
         span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
@@ -165,6 +170,7 @@ class TestOtelSpanNaming:
         span = Span("django.request", resource="__django_request", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
@@ -197,6 +203,103 @@ class TestOtelSpanNaming:
 
         assert span.resource == "checkout-flow"
         assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
+
+    def test_finish_preserves_custom_resource_set_after_sampling(self):
+        span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+
+        processor = OtelSpanNamingProcessor()
+        processor.before_sampling(span)
+        assert span.resource == "GET"
+
+        span.resource = "checkout-flow"
+        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
+        processor.on_span_finish(span)
+
+        assert span.resource == "checkout-flow"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
+
+    def test_finish_preserves_custom_resource_without_early_sampling(self):
+        span = Span("wsgi.request", resource="wsgi.request", span_type=SpanTypes.WEB)
+        processor = OtelSpanNamingProcessor()
+        processor.on_span_start(span)
+
+        span.resource = "checkout-flow"
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
+
+        processor.on_span_finish(span)
+
+        assert span.resource == "checkout-flow"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
+
+    def test_finish_normalizes_instrumentation_route_set_after_sampling(self):
+        span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+
+        processor = OtelSpanNamingProcessor()
+        processor.before_sampling(span)
+        assert span.resource == "GET"
+
+        span.resource = "GET /users/<id>"
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
+        processor.on_span_finish(span)
+
+        assert span.resource == "GET /users/<id>"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
+
+    def test_before_sampling_does_not_infer_http_metadata_from_manual_resource(self):
+        span = Span("manual.request", resource="GET /checkout", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+
+        processor = OtelSpanNamingProcessor()
+        processor.before_sampling(span)
+        processor.on_span_finish(span)
+
+        assert span.resource == "GET /checkout"
+        assert span.get_tag(http.OTEL_REQUEST_METHOD) is None
+        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
+
+    def test_before_sampling_normalizes_framework_placeholder_resource(self):
+        span = Span("pyramid.request", resource="404", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "404")
+
+        OtelSpanNamingProcessor().before_sampling(span)
+
+        assert span.resource == "GET"
+        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) == "GET"
+
+    def test_finish_normalizes_late_framework_placeholder_resource(self):
+        span = Span("aiohttp.request", resource="aiohttp.request", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "aiohttp.request")
+
+        span.resource = "404"
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "404")
+        OtelSpanNamingProcessor().on_span_finish(span)
+
+        assert span.resource == "GET"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
+
+    def test_before_sampling_does_not_infer_method_from_custom_resource(self):
+        span = Span("wsgi.request", resource="GET checkout-flow", span_type=SpanTypes.WEB)
+        span._set_attribute(SPAN_KIND, "server")
+
+        processor = OtelSpanNamingProcessor()
+        processor.before_sampling(span)
+        processor.on_span_finish(span)
+
+        assert span.resource == "GET checkout-flow"
+        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
