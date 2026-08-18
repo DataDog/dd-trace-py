@@ -21,7 +21,7 @@ DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mappin
 DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
 
 
-class DDWafSqlTokenizes(str, Enum):
+class DDWafSqlTokenizer(str, Enum):
     GENERIC = "generic"
     MYSQL = "mysql"
     ORACLE = "oracle"

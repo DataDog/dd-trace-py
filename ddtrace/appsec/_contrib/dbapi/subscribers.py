@@ -1,7 +1,7 @@
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._ddwaf import DDWafSqlTokenizes
+from ddtrace.appsec._ddwaf import DDWafSqlTokenizer
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.contrib._events.dbapi import DbApiEvent
@@ -9,12 +9,12 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
 
 
-_SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizes] = {
-    "mysql": DDWafSqlTokenizes.MYSQL,
-    "oracle": DDWafSqlTokenizes.ORACLE,
-    "postgres": DDWafSqlTokenizes.POSTGRESQL,
-    "pymysql": DDWafSqlTokenizes.MYSQL,
-    "sqlite": DDWafSqlTokenizes.SQLITE,
+_SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizer] = {
+    "mysql": DDWafSqlTokenizer.MYSQL,
+    "oracle": DDWafSqlTokenizer.ORACLE,
+    "postgres": DDWafSqlTokenizer.POSTGRESQL,
+    "pymysql": DDWafSqlTokenizer.MYSQL,
+    "sqlite": DDWafSqlTokenizer.SQLITE,
 }
 
 
@@ -30,7 +30,7 @@ class AppSecDbApiSubscriber(Subscriber):
             {
                 EXPLOIT_PREVENTION.ADDRESS.SQLI: event.query,
                 EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: _SPAN_NAME_PREFIX_TO_SQL_TOKENIZER.get(
-                    event.span_name_prefix, DDWafSqlTokenizes.GENERIC
+                    event.span_name_prefix, DDWafSqlTokenizer.GENERIC
                 ).value,
             },
             crop_trace="on_event",
