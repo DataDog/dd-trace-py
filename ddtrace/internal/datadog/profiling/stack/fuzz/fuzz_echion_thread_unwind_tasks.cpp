@@ -51,7 +51,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     // Tries to unwind_python_stack (which does nothing because we
     // have bogus data), then unwind_tasks (the one we test here)
-    thread.unwind(echion_sampler, &tstate, 0);
+    thread.unwind(echion_sampler, &tstate, 0, nullptr);
 
     g_data = nullptr;
     g_size = 0;

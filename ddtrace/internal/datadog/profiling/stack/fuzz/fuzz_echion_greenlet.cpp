@@ -46,7 +46,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
         FrameStack stack;
-        greenlet.unwind(echion_sampler, reinterpret_cast<PyObject*>(p0), &tstate, stack);
+        greenlet.unwind(echion_sampler, reinterpret_cast<PyObject*>(p0), &tstate, stack, nullptr);
     }
 
     // Also test with Py_None as the frame (indicates on-CPU greenlet),
@@ -65,7 +65,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
         FrameStack stack;
-        on_cpu_greenlet.unwind(echion_sampler, Py_None, &tstate, stack);
+        on_cpu_greenlet.unwind(echion_sampler, Py_None, &tstate, stack, nullptr);
     }
 
     g_data = nullptr;

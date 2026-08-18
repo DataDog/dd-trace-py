@@ -32,7 +32,7 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     thread.current_tasks.push_back(std::make_unique<StackInfo>(TaskName::from_literal("stale-task"), false, 1));
     thread.current_greenlets.push_back(std::make_unique<StackInfo>(TaskName::from_literal("stale-greenlet"), false, 2));
 
-    thread.unwind(echion, &empty_tstate, 0);
+    thread.unwind(echion, &empty_tstate, 0, nullptr);
 
     EXPECT_TRUE(thread.current_tasks.empty());
     EXPECT_TRUE(thread.current_greenlets.empty());

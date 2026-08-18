@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: Time spent in garbage collection is now tracked by the profiler and appears in flame graphs.
