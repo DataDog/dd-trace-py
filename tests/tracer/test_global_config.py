@@ -250,15 +250,28 @@ def test_a_product_setting_alone_turns_agentless_on():
     assert c.any_enabled is True
 
 
-def test_config_mirrors_the_agentless_settings():
-    """ddtrace.config exposes what _agentless resolved; it must not re-derive it."""
-    from ddtrace.internal.settings._agentless import config as agentless_config
+def test_config_exposes_what_agentless_resolves():
+    """ddtrace.config must surface AgentlessConfig's answers rather than deriving its own.
 
-    c = Config()
+    Both are built from the same environment here on purpose: comparing a fresh Config against the
+    import-time singleton would instead measure whichever neighbouring test last touched os.environ.
+    """
+    env = dict(
+        DD_API_KEY="foobar",
+        DD_SITE="datad0g.com",
+        DD_AGENTLESS_ENABLED="true",
+        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+    )
+    with override_env(env, replace_os_env=True):
+        agentless = AgentlessConfig()
+        c = Config()
 
-    assert c._agentless_enabled is agentless_config.enabled
-    assert c._trace_agentless_enabled is agentless_config.apm_tracing
-    assert c._llmobs_agentless_enabled is agentless_config.llmobs
-    assert c._ci_visibility_agentless_enabled is agentless_config.ci_visibility
-    assert c._dd_site == agentless_config.site
-    assert c._dd_api_key == agentless_config.api_key
+    assert c._agentless_enabled is agentless.enabled
+    assert c._trace_agentless_enabled is agentless.apm_tracing
+    assert c._llmobs_agentless_enabled is agentless.llmobs
+    assert c._ci_visibility_agentless_enabled is agentless.ci_visibility
+    assert c._dd_site == agentless.site
+    assert c._dd_api_key == agentless.api_key
+    # ...and the override in that environment is genuinely reflected, not just self-consistent.
+    assert c._agentless_enabled is True
+    assert c._ci_visibility_agentless_enabled is False
