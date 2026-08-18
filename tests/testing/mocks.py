@@ -44,6 +44,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestOptWriter
+from tests.utils import reinitialize_agentless_config
 
 
 def get_mock_git_instance() -> Mock:
@@ -237,6 +238,11 @@ class SessionManagerMockBuilder:
                 patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
                 patch.dict(os.environ, effective_env),
             ):
+                # The agentless settings resolve once at import, so refresh them against the
+                # environment just patched in -- SessionManager picks its backend connector from
+                # them during __init__.
+                reinitialize_agentless_config()
+
                 # Create session manager
                 test_session = MockDefaults.test_session()
                 session_manager = SessionManager(session=test_session)

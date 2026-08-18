@@ -107,6 +107,19 @@ def assert_span_http_status_code(span, code):
     assert tag == code, "%r != %r" % (tag, code)
 
 
+def reinitialize_agentless_config():
+    """Re-resolve the agentless settings from the environment as it stands now.
+
+    ``ddtrace.internal.settings._agentless.config`` is resolved once, at import, and its consumers
+    hold a reference to that instance -- so a test that changes the environment in-process has to
+    refresh it in place rather than rebind the module attribute.
+    """
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    agentless_config.__dict__ = AgentlessConfig().__dict__
+
+
 @contextlib.contextmanager
 def override_env(env, replace_os_env=False):
     """
