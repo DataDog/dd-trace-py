@@ -2090,6 +2090,111 @@ def test_annotate_sets_agent_version_tag(llmobs):
     assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
+DECLARED_AGENT = {
+    "version": "v3",
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+DECLARED_MANIFEST = {
+    "framework": "LLMObs SDK",
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+
+
+def _agent_manifest(span):
+    return (get_llmobs_metadata(span) or {}).get("_dd", {}).get("agent_manifest")
+
+
+def test_annotate_agent_reports_a_manifest(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert _agent_manifest(span) == DECLARED_MANIFEST
+    assert get_llmobs_tags(span)["agent_version"] == "v3", "version stays a tag, alongside the manifest"
+
+
+def test_annotate_agent_manifest_reaches_the_emitted_event(llmobs, llmobs_events):
+    """The tracer dict and the wire differ: the writer drops nulls and empties in transit."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["agent_manifest"] == DECLARED_MANIFEST
+
+
+def test_annotation_context_agent_manifest_on_agent_spans_only(llmobs):
+    """annotation_context reaches every span in its block; the manifest describes the agent."""
+    with llmobs.annotation_context(agent=DECLARED_AGENT):
+        with llmobs.agent(name="test_agent") as agent_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+            with llmobs.workflow(name="test_workflow") as workflow_span:
+                pass
+
+    assert _agent_manifest(agent_span) == DECLARED_MANIFEST
+    for span in (llm_span, workflow_span):
+        assert _agent_manifest(span) is None
+
+
+def test_agent_without_declared_configuration_reports_no_manifest(llmobs):
+    """A version-only agent is the pre-existing call, and it must not start emitting a manifest."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"version": "v3"})
+
+    assert _agent_manifest(span) is None
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_declared_agent_is_read_when_the_span_finishes(llmobs):
+    """The declaration is stashed unbuilt so that only agent spans pay to build it.
+
+    Reading it at finish is what makes that possible, so a later edit to the same mapping is the one
+    reported. version is still captured when the annotation runs, so the two can disagree.
+    """
+    declared = {"version": "v1", "name": "before"}
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=declared)
+        declared["name"] = "after"
+        declared["version"] = "v2"
+
+    assert _agent_manifest(span)["name"] == "after"
+    assert get_llmobs_tags(span)["agent_version"] == "v1"
+
+
+def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
+    """The build runs while the span event is assembled, where an escaping error drops the event."""
+
+    class ExplodingSettings(dict):
+        def items(self):
+            raise RuntimeError("boom")
+
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
+
+    assert len(llmobs_events) == 1, "the span still has to ship"
+    assert _agent_manifest(span) == {"framework": "LLMObs SDK", "name": "travel_desk"}
+
+
+def test_declared_agent_manifest_replaces_an_integration_built_one(llmobs):
+    """Precedence: the hand-declared manifest wins over one an integration already built.
+
+    It is built and applied at span finalization, after any integration wrote its own. This test
+    exists to pin that direction, not because either direction is obviously right.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        _annotate_llmobs_span_data(span, agent_manifest={"framework": "CrewAI", "name": "auto_agent"})
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert _agent_manifest(span) == DECLARED_MANIFEST
+
+
 def test_annotation_context_nested(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.annotation_context(tags={"foo": "baz"}):

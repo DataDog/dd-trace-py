@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    LLM Observability: The ``agent`` argument of ``LLMObs.annotate()`` and
+    ``LLMObs.annotation_context()`` now accepts ``name``, ``instructions``, ``model``,
+    ``model_settings`` and ``tools`` alongside ``version``, and reports them as the agent's
+    manifest on agent spans. This declares an agent's configuration when no framework
+    integration does it for you. Every key is optional, and a value that cannot be reported is
+    dropped rather than raising. For example::
+
+        LLMObs.annotate(agent={
+            "name": "travel_desk",
+            "instructions": "Book travel.",
+            "model": "gpt-4o",
+            "model_settings": {"temperature": 0.1},
+            "tools": [{"name": "get_weather", "description": "Look up the weather."}],
+        })

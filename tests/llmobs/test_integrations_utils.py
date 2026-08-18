@@ -1,8 +1,13 @@
 import base64
 from types import SimpleNamespace
 
+import pytest
+
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_FRAMEWORK_NAME
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_MANIFEST_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
+from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
@@ -763,3 +768,189 @@ class TestAgentManifestPrimitives:
             "primary": {"region": "us1", "tier": "gold"},
             "replica": {"region": "us1", "tier": "gold"},
         }
+
+
+class TestManualAgentManifest:
+    """The manifest a caller declares by hand through LLMObs.annotate(agent=...).
+
+    The framework integrations read a framework object; here every value came straight from the
+    caller and nothing validates it on the way in, so these pin what is reported and what is
+    refused.
+    """
+
+    def test_declared_configuration_is_reported(self):
+        manifest = build_manual_agent_manifest(
+            {
+                "version": "v1",
+                "name": "travel_desk",
+                "instructions": "Book travel.",
+                "model": "gpt-4o",
+                "model_settings": {"temperature": 0.1, "max_tokens": 1024, "top_p": 0.85},
+                "tools": [
+                    {
+                        "name": "get_weather",
+                        "description": "Look up the weather.",
+                        "parameters": {"city": {"type": "string", "required": True}},
+                    }
+                ],
+            }
+        )
+
+        assert manifest == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "name": "travel_desk",
+            "instructions": "Book travel.",
+            "model": "gpt-4o",
+            "model_settings": {"temperature": 0.1, "max_tokens": 1024, "top_p": 0.85},
+            "tools": [
+                {
+                    "name": "get_weather",
+                    "description": "Look up the weather.",
+                    "parameters": {"city": {"type": "string", "required": True}},
+                }
+            ],
+        }
+        assert "version" not in manifest, "version identifies the agent as a tag, not as manifest content"
+
+    def test_a_single_declared_field_is_enough(self):
+        """Every key is optional, so a partial declaration reports what it has rather than nothing."""
+        assert build_manual_agent_manifest({"instructions": "Be brief."}) == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "instructions": "Be brief.",
+        }
+
+    def test_caller_supplied_framework_is_not_read(self):
+        """framework names where the document came from, so the SDK owns it."""
+        assert build_manual_agent_manifest({"framework": "TotallyRealFramework", "name": "a"}) == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "name": "a",
+        }
+
+    @pytest.mark.parametrize("agent", [{}, {"version": "v1"}, "not_a_dict", 42, None, []])
+    def test_nothing_declared_reports_no_manifest(self, agent):
+        """framework alone would render an empty manifest panel, so it does not ship on its own."""
+        assert build_manual_agent_manifest(agent) == {}
+
+    def test_non_string_labels_are_dropped_not_repred(self):
+        """The span encoder reprs what it cannot encode, and a repr can carry whatever it holds."""
+
+        class Connection:
+            def __repr__(self):
+                return "postgres://user:hunter2@db.internal/prod"
+
+        manifest = build_manual_agent_manifest(
+            {"name": Connection(), "instructions": Connection(), "model": Connection()}
+        )
+
+        assert manifest == {}
+        assert "hunter2" not in safe_json(manifest)
+
+    def test_model_settings_outside_the_allowlist_are_dropped(self):
+        """model_settings is the one field whose key set the caller controls."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0.2, "api_key": "sk-secret", "extra_headers": {"x": "y"}}}
+        )
+
+        assert manifest["model_settings"] == {"temperature": 0.2}
+        assert "sk-secret" not in safe_json(manifest)
+
+    def test_model_settings_nested_values_are_dropped(self):
+        """No allowlisted setting nests in its declared type, so a nested one should not arrive."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0.2, "tool_choice": {"function": {"name": "x"}}}}
+        )
+
+        assert manifest["model_settings"] == {"temperature": 0.2}
+
+    def test_model_settings_keeps_zero_and_false(self):
+        """A configured temperature of 0 is not an absent one, which truthiness filtering loses."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0, "parallel_tool_calls": False, "stop_sequences": ["\n"]}}
+        )
+
+        assert manifest["model_settings"] == {
+            "temperature": 0,
+            "parallel_tool_calls": False,
+            "stop_sequences": ["\n"],
+        }
+
+    @pytest.mark.parametrize("tools", [{"name": "x"}, "get_weather", 7])
+    def test_tools_that_are_not_a_list_are_dropped(self, tools):
+        manifest = build_manual_agent_manifest({"name": "a", "tools": tools})
+
+        assert "tools" not in manifest
+        assert manifest["name"] == "a", "one malformed section must not blank the rest"
+
+    def test_unnamed_tools_are_dropped(self):
+        """A tool the manifest cannot name is not identifiable once it ships."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"description": "no name"}, {"name": ""}, {"name": 42}, "not_a_dict", {"name": "kept"}]}
+        )
+
+        assert manifest["tools"] == [{"name": "kept"}]
+
+    def test_tool_required_is_omitted_when_false(self):
+        """Optional is the default, so only a required parameter carries the key."""
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string", "required": True},
+                            "when": {"type": "string", "required": False},
+                            "note": {"type": "string"},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [
+            {
+                "name": "book",
+                "parameters": {
+                    "city": {"type": "string", "required": True},
+                    "when": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+            }
+        ]
+
+    def test_tool_parameters_that_cannot_ship_are_dropped(self):
+        """An unencodable value does not fail politely: the encoder reprs it into the payload."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"name": "book", "description": object(), "parameters": {"city": {"type": object()}}}]}
+        )
+
+        assert manifest["tools"] == [{"name": "book"}]
+
+    def test_manual_manifest_keys_match_the_builder(self):
+        """The annotation path checks this set before keeping a caller's mapping at all.
+
+        A key a section reads but this set omits would silently stop being reported, and the failure
+        would show up as a missing manifest rather than as an error.
+        """
+        declared = {
+            "name": "travel_desk",
+            "instructions": "Book travel.",
+            "model": "gpt-4o",
+            "model_settings": {"temperature": 0.1},
+            "tools": [{"name": "get_weather"}],
+        }
+
+        assert set(declared) == set(MANUAL_MANIFEST_KEYS)
+        for key, value in declared.items():
+            assert build_manual_agent_manifest({key: value}), "{} is in the key set but reports nothing".format(key)
+        assert build_manual_agent_manifest({"version": "v1", "framework": "X"}) == {}
+
+    def test_a_malformed_section_costs_only_that_section(self):
+        """This runs while the span event is assembled, so an escaping error would cost the span."""
+
+        class ExplodingSettings(dict):
+            def items(self):
+                raise RuntimeError("boom")
+
+        manifest = build_manual_agent_manifest({"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
+
+        assert manifest == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}

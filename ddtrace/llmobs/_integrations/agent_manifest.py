@@ -10,6 +10,21 @@ from typing import cast
 from typing import get_args
 from typing import get_origin
 
+from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.types import AgentManifest
+
+
+log = get_logger(__name__)
+
+# Names the manual path so a consumer can tell a hand-declared manifest from one an integration
+# read off a framework object. Set by the SDK; a caller-supplied framework is never read.
+MANUAL_FRAMEWORK_NAME = "LLMObs SDK"
+
+# The keys build_manual_agent_manifest reads. The annotation path checks this before holding on to
+# a caller's mapping, so an agent declaring only a version costs nothing. Adding a key to a section
+# below means adding it here too, which test_manual_manifest_keys_match_the_builder enforces.
+MANUAL_MANIFEST_KEYS = frozenset({"name", "instructions", "model", "model_settings", "tools"})
+
 
 # Bounds this function's own recursion, not the payload. metadata is a caller dict, and nesting it
 # past the interpreter's limit raises RecursionError here. The span sanitizer truncates deep values
@@ -153,3 +168,119 @@ def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budg
                 coerced[str(key)] = wired
         return coerced or None
     return None
+
+
+def build_manual_agent_manifest(agent: Any) -> AgentManifest:
+    """Build the manifest a caller declared through LLMObs.annotate(agent=...).
+
+    The framework integrations read a framework object; here every value came straight from the
+    caller and nothing validates the mapping before it arrives, so each field is gated on its own
+    type and unreportable values are dropped rather than raised. Sections are built independently so
+    one malformed field cannot blank the rest.
+
+    Never raises. This runs while the span event is being assembled, where the only handler catches
+    KeyError, TypeError and ValueError and drops the whole event, so a caller's malformed mapping
+    would otherwise cost the span rather than just its manifest.
+    """
+    if not isinstance(agent, dict):
+        return {}
+    manifest: AgentManifest = {}
+    for name, section in (
+        ("labels", _manual_labels),
+        ("model", _manual_model),
+        ("capabilities", _manual_tools),
+    ):
+        try:
+            manifest.update(section(agent))
+        except Exception:
+            log.debug("failed to build manual agent manifest section %s", name, exc_info=True)
+    try:
+        # Sections assign unconditionally so mypy can check every key name against the type; one
+        # prune here is what drops the fields that mean "not configured".
+        manifest = prune_empty(manifest)
+    except Exception:
+        log.debug("failed to prune manual agent manifest", exc_info=True)
+        return {}
+    if not manifest:
+        # framework only labels where the rest of the document came from, so on its own it would
+        # render an empty manifest panel. An agent declaring nothing but a version lands here.
+        return {}
+    manifest["framework"] = MANUAL_FRAMEWORK_NAME
+    return manifest
+
+
+def _manual_labels(agent: dict[str, Any]) -> AgentManifest:
+    """What the agent is called and what it is told."""
+    fields: AgentManifest = {}
+    name = agent.get("name")
+    # AIDEV-NOTE: str-only throughout the manual path. The span encoder reprs what it cannot
+    # encode, so a non-str would ship as its repr rather than be dropped, and a repr of a caller
+    # object can carry anything the object holds.
+    if isinstance(name, str):
+        fields["name"] = name
+    instructions = agent.get("instructions")
+    if isinstance(instructions, str):
+        fields["instructions"] = instructions
+    return fields
+
+
+def _manual_model(agent: dict[str, Any]) -> AgentManifest:
+    """The model and the inference params the caller set, filtered by ALLOWED_MODEL_SETTINGS_KEYS."""
+    fields: AgentManifest = {}
+    model = agent.get("model")
+    if isinstance(model, str):
+        fields["model"] = model
+    settings = agent.get("model_settings")
+    if isinstance(settings, dict):
+        allowed: dict[str, Any] = {}
+        for key, value in settings.items():
+            if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
+                continue
+            # prune_empty drops what wire_value could not encode, so assign it either way.
+            allowed[key] = wire_value(value)
+        fields["model_settings"] = allowed
+    return fields
+
+
+def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
+    """Declared tools as {name, description?, parameters?}, the shape the integrations emit."""
+    fields: AgentManifest = {}
+    declared = agent.get("tools")
+    if not isinstance(declared, list):
+        return fields
+    tools: list[dict[str, Any]] = []
+    for tool in declared:
+        if not isinstance(tool, dict):
+            continue
+        name = tool.get("name")
+        # A tool with no usable name cannot be identified once it ships, so it is dropped rather
+        # than emitted as an anonymous entry that pads the count.
+        if not isinstance(name, str) or not name:
+            continue
+        description = tool.get("description")
+        tools.append(
+            {
+                "name": name,
+                "description": description if isinstance(description, str) else None,
+                "parameters": _manual_tool_parameters(tool.get("parameters")),
+            }
+        )
+    fields["tools"] = wire_value(tools)
+    return fields
+
+
+def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
+    """{param: {type?, required?}}, matching what the framework integrations extract."""
+    if not isinstance(parameters, dict):
+        return {}
+    coerced: dict[str, Any] = {}
+    for param, spec in parameters.items():
+        entry: dict[str, Any] = {}
+        if isinstance(spec, dict):
+            entry["type"] = spec.get("type")
+            # Omitted rather than false, so a required parameter is the only one carrying the key
+            # and the shape matches what the auto path emits.
+            if spec.get("required") is True:
+                entry["required"] = True
+        coerced[str(param)] = entry
+    return coerced

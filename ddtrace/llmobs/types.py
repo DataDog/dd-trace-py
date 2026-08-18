@@ -64,6 +64,18 @@ class AgentInstructionResolver(TypedDict, total=False):
     type: str
 
 
+class AgentTool(TypedDict, total=False):
+    """One tool an agent declares it can call.
+
+    parameters maps a parameter name to its declared shape, ``{"type": ..., "required": True}``,
+    with required omitted when the parameter is optional.
+    """
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
 class AgentManifest(TypedDict, total=False):
     """Declared agent configuration, reported on an agent span under _dd.agent_manifest.
 
@@ -213,13 +225,26 @@ class Prompt(TypedDict, total=False):
 
 class Agent(TypedDict, total=False):
     """
-    An Agent object that identifies a versioned agent.
+    An Agent object that declares the agent an agent span represents.
         version: str - user tag for the version of the agent.
+        name: str - the agent's name.
+        instructions: str - the system instructions the agent runs with.
+        model: str - the model the agent is configured to call.
+        model_settings: dict[str, Any] - inference parameters such as temperature or max_tokens.
+            Only a fixed set of generic parameters is reported; anything else is dropped.
+        tools: list[AgentTool] - the tools the agent declares it can call.
 
-    Set as an `agent_version` tag on the agent span only, never on its children.
+    `version` is set as an `agent_version` tag on the agent span only, never on its children. Every
+    other key is reported as the agent's manifest, likewise on the agent span only. Values that
+    cannot be reported are dropped rather than raising, so a malformed field never fails a trace.
     """
 
     version: str
+    name: str
+    instructions: str
+    model: str
+    model_settings: dict[str, Any]
+    tools: list[AgentTool]
 
 
 class _MetaIO(TypedDict, total=False):
