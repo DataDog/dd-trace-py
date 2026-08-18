@@ -245,7 +245,7 @@ def _credentials_redacted_url(url: str) -> str:
         # userinfo is not what the "@" belongs to, for example a path or query containing it
         return url
 
-    host = netloc[netloc.index("@") + 1 :]
+    host = netloc[netloc.rindex("@") + 1 :]
     return parse.urlunparse(parsed._replace(netloc="REDACTED:REDACTED@" + host))
 
 

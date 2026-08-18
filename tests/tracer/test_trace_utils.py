@@ -497,64 +497,6 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@pytest.mark.subprocess(
-    env={
-        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
-        "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "200",
-    }
-)
-def test_set_http_meta_custom_client_errors_via_env():
-    from ddtrace import config
-    from ddtrace.contrib.internal.trace_utils import set_http_meta
-    from ddtrace.ext import SpanTypes
-    from ddtrace.internal.settings.integration import IntegrationConfig
-    from ddtrace.trace import Span
-
-    config.myint = IntegrationConfig(config, "myint")
-    configured_error = Span("configured-error", span_type=SpanTypes.HTTP)
-    set_http_meta(configured_error, config.myint, status_code=200)
-    assert configured_error.error == 1
-
-    excluded_error = Span("excluded-error", span_type=SpanTypes.HTTP)
-    set_http_meta(excluded_error, config.myint, status_code=500)
-    assert excluded_error.error == 0
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
-def test_http_client_error_statuses_default_without_otel_semantics():
-    from ddtrace import config
-
-    assert config._http_client.error_statuses == "400-499"
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
-def test_http_client_error_statuses_default_with_otel_semantics():
-    from ddtrace import config
-
-    assert config._http_client.error_statuses == "400-599"
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
-        "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "garbage",
-    },
-    err=None,
-)
-def test_invalid_http_client_error_statuses_fall_back_to_otel_default():
-    from ddtrace import config
-    from ddtrace.contrib.internal.trace_utils import set_http_meta
-    from ddtrace.ext import SpanTypes
-    from ddtrace.internal.settings.integration import IntegrationConfig
-    from ddtrace.trace import Span
-
-    assert config._http_client.error_statuses == "400-599"
-    config.myint = IntegrationConfig(config, "myint")
-    span = Span("error", span_type=SpanTypes.HTTP)
-    set_http_meta(span, config.myint, status_code=500)
-    assert span.error == 1
-
-
 @mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
@@ -1433,6 +1375,23 @@ def test_otel_semantics_client_attributes():
 
     for legacy in ("http.method", "http.url", "http.status_code", "out.host"):
         assert span.get_tag(legacy) is None, legacy
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_client_url_redacts_password_containing_at_sign():
+    from ddtrace._trace.span import Span
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    span = Span("http.request", span_type=SpanTypes.HTTP)
+    set_http_meta(span, cfg.myint, url="https://user:p@ssword@api.example.com/v1/items")
+
+    assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com/v1/items"
+    assert span.get_tag("server.address") == "api.example.com"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})

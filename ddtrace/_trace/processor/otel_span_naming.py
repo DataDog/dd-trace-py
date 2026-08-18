@@ -25,8 +25,17 @@ _WEBSOCKET_METHOD = "websocket"
 _UNKNOWN_METHOD = "_OTHER"
 _UNKNOWN_METHOD_SPAN_NAME = "HTTP"
 
+# Django explicitly treats any value replacing this sentinel as user-owned. Keep that
+# integration contract during early sampling without inferring ownership from arbitrary
+# resource shapes or prefixes.
+_DJANGO_REQUEST_SPAN_NAME = "django.request"
+_DJANGO_REQUEST_DEFAULT_RESOURCE = "__django_request"
+
 # Set by the integrations that let a user own the resource name, so that ownership survives here.
 RESOURCE_SET_BY_USER = "_dd.resource_set_by_user"
+# The exact resource value last generated here. Integrations with explicit user-ownership
+# behavior can distinguish this processor's early-sampling value from a user replacement.
+RESOURCE_SET_BY_OTEL = "_dd.resource_set_by_otel"
 
 
 class OtelSpanNamingProcessor(SpanProcessor):
@@ -56,28 +65,36 @@ class OtelSpanNamingProcessor(SpanProcessor):
         pass
 
     def before_sampling(self, span: Span) -> None:
+        # Sampling may run during propagation before the framework resolves http.route
+        # (notably for Django). The rule therefore sees the method-only OTel name; the
+        # finish pass may append the route once the integration publishes it.
         if span._get_ctx_item(RESOURCE_SET_BY_USER):
             return
 
-        method = span.get_tag(http.OTEL_REQUEST_METHOD)
-        if not method:
+        generated_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
+        if (
+            span.name == _DJANGO_REQUEST_SPAN_NAME
+            and span.resource != _DJANGO_REQUEST_DEFAULT_RESOURCE
+            and span.resource != generated_resource
+        ):
             return
 
-        method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
-        original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) or method
-        integration_prefixes = (f"{method_token} ", f"{original_method} ")
-        if (
-            span.resource
-            and span.resource != span.name
-            and span.resource not in (method_token, original_method)
-            and not span.resource.startswith(integration_prefixes)
-        ):
-            # An integration's initial resource is normally its operation name or starts with
-            # the HTTP method. Anything else was most likely assigned by user middleware before
-            # the integration's final ownership check runs. Record that ownership so the finish
-            # pass cannot overwrite the resource after sampling preserved it.
-            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
-            return
+        method = span.get_tag(http.OTEL_REQUEST_METHOD)
+        if method and span.name != _DJANGO_REQUEST_SPAN_NAME:
+            method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
+            original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) or method
+            integration_prefixes = (f"{method_token} ", f"{original_method} ")
+            if (
+                span.resource
+                and span.resource != span.name
+                and span.resource != generated_resource
+                and span.resource not in (method_token, original_method)
+                and not span.resource.startswith(integration_prefixes)
+            ):
+                # A custom integration hook replaced the instrumentation resource before
+                # sampling. Record ownership so the finish pass preserves it too.
+                span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+                return
 
         self.on_span_finish(span)
 
@@ -102,7 +119,9 @@ class OtelSpanNamingProcessor(SpanProcessor):
 
         method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
         target = self._target(span)
-        span.resource = f"{method_token} {target}" if target else method_token
+        resource = f"{method_token} {target}" if target else method_token
+        span.resource = resource
+        span._set_ctx_item(RESOURCE_SET_BY_OTEL, resource)
 
     def _target(self, span: Span) -> Optional[str]:
         target_tag = _TARGET_TAG.get(span.get_tag(SPAN_KIND) or "")

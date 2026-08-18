@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
 from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
 from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
 from ddtrace.constants import SPAN_KIND
@@ -160,38 +161,42 @@ class TestOtelSpanNaming:
 
         assert span.resource == "HTTP"
 
-    def test_before_sampling_normalizes_a_legacy_method_status_resource(self):
-        span = Span("django.request", resource="GET 404", span_type=SpanTypes.WEB)
+    def test_before_sampling_replaces_django_sentinel_with_method_only_resource(self):
+        span = Span("django.request", resource="__django_request", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
 
         OtelSpanNamingProcessor().before_sampling(span)
 
         assert span.resource == "GET"
+        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) == "GET"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
 
-    def test_before_sampling_preserves_a_user_resource_before_django_finalization(self):
+        span._set_attribute(http.OTEL_ROUTE, "/users/<int:id>")
+        OtelSpanNamingProcessor().on_span_finish(span)
+        assert span.resource == "GET /users/<int:id>"
+
+    def test_before_sampling_preserves_django_explicit_user_resource(self):
         span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_attribute(http.OTEL_ROUTE, "/users")
 
         OtelSpanNamingProcessor().before_sampling(span)
 
         assert span.resource == "my own name"
-        OtelSpanNamingProcessor().on_span_finish(span)
-        assert span.resource == "my own name"
+        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
 
-    def test_before_sampling_preserves_a_user_resource_for_unknown_method(self):
-        span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
+    def test_before_sampling_preserves_generic_explicit_user_resource(self):
+        span = Span("wsgi.request", resource="checkout-flow", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
-        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
+        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
 
         processor = OtelSpanNamingProcessor()
         processor.before_sampling(span)
         processor.on_span_finish(span)
 
-        assert span.resource == "my own name"
+        assert span.resource == "checkout-flow"
+        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
@@ -233,9 +238,10 @@ def test_otel_semantics_overrides_conflicting_schema_and_peer_service_settings()
     env={
         "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
         "OTEL_TRACES_EXPORTER": None,
+        "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
     }
 )
-def test_otel_semantics_forces_otlp_trace_export():
+def test_otel_semantics_forces_otlp_trace_export_over_agent_protocol():
     from ddtrace.internal.settings._agent import config as agent_config
 
     assert agent_config.trace_otlp_export_enabled is True

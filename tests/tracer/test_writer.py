@@ -1503,6 +1503,17 @@ def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_se
         assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
+def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
+    with override_env(
+        {
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none",
+            "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+        }
+    ):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+
+
 def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")

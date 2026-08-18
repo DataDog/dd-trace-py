@@ -104,11 +104,11 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
+    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+        return True
     if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
-    return asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)) or (
-        env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
-    )
+    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
 def _is_otlp_trace_metrics_enabled(
