@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the OpenTelemetry thread context kept reporting a trace
+    as unsampled after its sampling decision was made, so compatible profiling and
+    security tools saw the wrong sampling flag for the rest of the trace.

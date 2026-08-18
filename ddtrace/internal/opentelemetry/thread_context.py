@@ -4,7 +4,9 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace._trace.context import SAMPLING_DECISION_EVENT
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import enable_sampling_decision_event
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
@@ -17,8 +19,9 @@ class TracerProtocol(Protocol):
 
 
 _ContextActivationListener = Callable[[BaseContextProvider, Optional[Union[Context, Span]]], None]
-_ContextSwitchListener = Callable[[], None]
-_ThreadContextListeners = tuple[_ContextActivationListener, _ContextSwitchListener]
+# Registered for every event that invalidates the record without carrying the new value.
+_ResyncListener = Callable[[], None]
+_ThreadContextListeners = tuple[_ContextActivationListener, _ResyncListener]
 
 
 if sys.platform == "linux":
@@ -46,6 +49,10 @@ if sys.platform == "linux":
 
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
         core.on("python.context.switch", _sync_active_otel_thread_context)
+        # Sampling usually decides at trace-chunk finish, after the record was published
+        # with trace_flags=0.
+        core.on(SAMPLING_DECISION_EVENT, _sync_active_otel_thread_context)
+        enable_sampling_decision_event()
 
         if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
             from ddtrace.internal.native._native import register_context_watcher
