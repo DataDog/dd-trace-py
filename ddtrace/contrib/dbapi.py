@@ -9,6 +9,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbApiSpanNamePrefix
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -78,7 +80,12 @@ class TracedCursor(wrapt.ObjectProxy):
             if cfg and "_dbapi_span_operation_name" in cfg
             else "{}.query".format(span_name_prefix)
         )
+        try:
+            dbapi_span_name_prefix = DbApiSpanNamePrefix(span_name_prefix)
+        except (TypeError, ValueError):
+            dbapi_span_name_prefix = DbApiSpanNamePrefix.DB
         self._self_datadog_name = span_name
+        self._self_dbapi_span_name_prefix = dbapi_span_name_prefix
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
@@ -90,7 +97,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, dbapi_query=None, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
@@ -102,6 +109,9 @@ class TracedCursor(wrapt.ObjectProxy):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
+        if isinstance(dbapi_query, str) and core.has_listeners(DbApiEvent.event_name):
+            core.dispatch_event(DbApiEvent(query=dbapi_query, span_name_prefix=self._self_dbapi_span_name_prefix))
+
         if not is_tracing_enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
@@ -146,7 +156,6 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
@@ -155,6 +164,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
+            dbapi_query=query,
             **kwargs,
         )
 
@@ -165,7 +175,6 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,
@@ -174,6 +183,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
+            dbapi_query=query,
             **kwargs,
         )
 

@@ -5,7 +5,6 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import execute_4C9BAC8E228EB347
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
@@ -20,7 +19,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -33,7 +32,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -60,20 +59,6 @@ def test_patch_common_modules_unregisters_module_hooks():
 
     remaining_hooks = {module: tuple(hooks) for module, hooks in watchdog._hook_map.items() if hooks}
     assert remaining_hooks == initial_hooks
-
-
-def test_patch_common_modules_unregisters_dbapi_listener():
-    event = "asm.block.dbapi.execute"
-    unpatch_common_modules()
-    core.reset_listeners(event, execute_4C9BAC8E228EB347)
-
-    try:
-        patch_common_modules()
-        assert core.has_listeners(event)
-    finally:
-        unpatch_common_modules()
-
-    assert not core.has_listeners(event)
 
 
 @pytest.mark.parametrize(
@@ -162,7 +147,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")

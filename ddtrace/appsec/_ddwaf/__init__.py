@@ -5,8 +5,9 @@ Importing this module will load `libddwaf.so` as a side-effect and update `_asm_
 
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafOutputType
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWafSqlDialect
 from ddtrace.appsec._ddwaf.waf import DDWaf
 from ddtrace.appsec._ddwaf.waf import DDWafContext
 
 
-__all__ = ["DDWaf", "DDWafInputType", "DDWafOutputType", "DDWafContext"]
+__all__ = ["DDWaf", "DDWafInputType", "DDWafOutputType", "DDWafSqlDialect", "DDWafContext"]
