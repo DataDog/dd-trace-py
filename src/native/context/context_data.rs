@@ -54,7 +54,6 @@ fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     Ok(f)
 }
 
-/// Matches Python's `re.compile(r"[^\x20-\x7E]+").search(s) is None`.
 fn is_printable_ascii(s: &str) -> bool {
     s.chars().all(|c| (0x20..=0x7E).contains(&(c as u32)))
 }
@@ -66,12 +65,10 @@ fn del_item_if_present(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<()> {
     Ok(())
 }
 
-/// Extracts a trace id from a Python int (only). Mirrors `set_trace_id`.
 fn extract_trace_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     v.and_then(|v| v.extract::<u128>().ok())
 }
 
-/// Extracts a span id from a Python int or a base-10 string. Mirrors `set_span_id`.
 fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     let v = v?;
     if let Ok(id) = v.extract::<u128>() {
@@ -82,8 +79,6 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
         .and_then(|s| s.parse::<u128>().ok())
 }
 
-/// RAII guard around a Python lock object's `acquire()`/`release()`, mirroring
-/// `with self._lock:`. Always releases on drop, including on early return via `?`.
 struct LockGuard<'py> {
     lock: Bound<'py, PyAny>,
 }
@@ -97,37 +92,19 @@ impl<'py> LockGuard<'py> {
 
 impl Drop for LockGuard<'_> {
     fn drop(&mut self) {
-        // Best-effort: nothing sane to do if `release()` itself raises (e.g. during
-        // interpreter teardown), and `Drop` cannot propagate errors.
         let _ = self.lock.call_method0("release");
     }
 }
 
-/// Native storage layer AND business logic for `ddtrace._trace.context.Context`.
-///
-/// Mirrors the `SpanData`/`Span` split in structure, but unlike `SpanData` this
-/// class owns essentially all of `Context`'s behavior (id/meta/metrics/baggage
-/// storage, the trace-level lock, W3C traceparent/tracestate computation,
-/// sampling_priority/dd_origin/dd_user_id, baggage helpers, copy(), equality,
-/// pickling) -- `ddtrace._trace.context.Context` is a near-empty subclass kept
-/// only so user-facing code keeps importing a stable Python name.
 #[pyo3::pyclass(name = "ContextData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct ContextData {
     pub trace_id: Option<u128>,
     pub span_id: Option<u128>,
-    /// dict[str, str]. `None` only in the brief window before `__new__` finishes
-    /// or after `__clear__` runs during GC teardown -- getters lazily
-    /// re-materialize an empty dict, mirroring `SpanData::meta_struct`.
     meta: Option<Py<PyDict>>,
-    /// dict[str, NumericType].
     metrics: Option<Py<PyDict>>,
-    /// dict[str, Any].
     baggage: Option<Py<PyDict>>,
-    /// list[SpanLink].
     span_links: Option<Py<PyList>>,
-    /// A `_thread.RLock`-like object (see `ddtrace.internal.threads.RLock`), shared
-    /// by identity across `copy()`'d contexts belonging to the same trace.
     lock: Option<Py<PyAny>>,
     #[pyo3(get, set, name = "_is_remote")]
     pub is_remote: bool,
@@ -136,8 +113,6 @@ pub struct ContextData {
 }
 
 impl ContextData {
-    /// Lazily materializes and returns the trace-level lock, mirroring the
-    /// `_meta`/`_metrics`/etc. lazy-init pattern.
     fn lock_bound<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         if self.lock.is_none() {
             self.lock = Some(rlock_class(py)?.call0()?.unbind());
@@ -230,7 +205,6 @@ impl ContextData {
         })
     }
 
-    // --- trace_id ---
     #[getter]
     #[inline(always)]
     fn get_trace_id(&self) -> Option<u128> {
@@ -242,7 +216,6 @@ impl ContextData {
     fn set_trace_id(&mut self, value: Option<&Bound<'_, PyAny>>) {
         match value {
             None => self.trace_id = None,
-            // Silently ignore invalid types (keep existing value), matching SpanData's setters.
             Some(_) => {
                 if let Some(id) = extract_trace_id(value) {
                     self.trace_id = Some(id);
@@ -251,7 +224,6 @@ impl ContextData {
         }
     }
 
-    // --- span_id ---
     #[getter]
     #[inline(always)]
     fn get_span_id(&self) -> Option<u128> {
@@ -271,7 +243,6 @@ impl ContextData {
         }
     }
 
-    // --- _meta ---
     #[getter(_meta)]
     #[inline(always)]
     fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
@@ -287,7 +258,6 @@ impl ContextData {
         self.meta = Some(value.clone().unbind());
     }
 
-    // --- _metrics ---
     #[getter(_metrics)]
     #[inline(always)]
     fn get_metrics<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
@@ -303,7 +273,6 @@ impl ContextData {
         self.metrics = Some(value.clone().unbind());
     }
 
-    // --- _baggage ---
     #[getter(_baggage)]
     #[inline(always)]
     fn get_baggage<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
@@ -319,7 +288,6 @@ impl ContextData {
         self.baggage = Some(value.clone().unbind());
     }
 
-    // --- _span_links ---
     #[getter(_span_links)]
     #[inline(always)]
     fn get_span_links<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyList> {
@@ -335,13 +303,11 @@ impl ContextData {
         self.span_links = Some(value.clone().unbind());
     }
 
-    // --- _lock (read-only; nothing outside this module sets it post-construction) ---
     #[getter(_lock)]
     fn get_lock<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.lock_bound(py)
     }
 
-    // --- sampling_priority ---
     #[getter]
     fn get_sampling_priority<'py>(
         &mut self,
@@ -367,7 +333,6 @@ impl ContextData {
         Ok(())
     }
 
-    // --- dd_origin ---
     #[getter]
     fn get_dd_origin<'py>(&mut self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         let meta = self.get_meta(py);
@@ -386,7 +351,6 @@ impl ContextData {
         Ok(())
     }
 
-    // --- dd_user_id ---
     #[getter]
     fn get_dd_user_id(&mut self, py: Python<'_>) -> PyResult<Option<String>> {
         let meta = self.get_meta(py);
@@ -416,14 +380,12 @@ impl ContextData {
         Ok(())
     }
 
-    // --- _trace_id_64bits ---
     #[getter]
     #[allow(non_snake_case)]
     fn get__trace_id_64bits(&self) -> Option<u128> {
         self.trace_id.map(|t| t & MAX_UINT_64BITS)
     }
 
-    // --- _traceflags ---
     #[getter]
     #[allow(non_snake_case)]
     fn get__traceflags(&mut self, py: Python<'_>) -> PyResult<String> {
@@ -435,7 +397,6 @@ impl ContextData {
         })
     }
 
-    // --- _traceparent ---
     #[getter]
     #[allow(non_snake_case)]
     fn get__traceparent(&mut self, py: Python<'_>) -> PyResult<String> {
@@ -458,7 +419,6 @@ impl ContextData {
         Ok(format!("00-{}-{:016x}-{}", trace_id_hex, span_id, flags))
     }
 
-    // --- _tracestate ---
     #[getter]
     #[allow(non_snake_case)]
     fn get__tracestate(slf: &Bound<'_, Self>) -> PyResult<String> {
@@ -492,7 +452,6 @@ impl ContextData {
         }
     }
 
-    // --- baggage helpers ---
     fn set_baggage_item(
         &mut self,
         py: Python<'_>,
@@ -529,10 +488,6 @@ impl ContextData {
         Ok(())
     }
 
-    // --- copy / _with_baggage_item ---
-
-    /// Return a shallow copy of the context with the given correlation IDs.
-    ///
     /// PERF: run once per child span. Builds via the runtime type's constructor,
     /// passing the shared `_meta`/`_metrics`/`_baggage`/lock references straight into
     /// native construction, trusting that this data has already been validated.
@@ -565,8 +520,6 @@ impl ContextData {
         Ok(cls.call((), Some(&kwargs))?.unbind())
     }
 
-    /// Returns a copy of this context with a new baggage item. Unused internally
-    /// (no callers in-repo) but kept for API parity with the pure-Python original.
     fn _with_baggage_item<'py>(
         slf: &Bound<'py, Self>,
         key: &Bound<'py, PyAny>,
@@ -595,7 +548,6 @@ impl ContextData {
         Ok(new_ctx.unbind())
     }
 
-    // --- context manager protocol ---
     fn __enter__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Self>> {
         let py = slf.py();
         let lock = slf.borrow_mut().lock_bound(py)?;
@@ -610,8 +562,6 @@ impl ContextData {
         lock.call_method0("release")?;
         Ok(())
     }
-
-    // --- equality / repr / hash ---
 
     // NOTE: span_id/_reactivate are deliberately excluded. A Context compares equal
     // to any per-span copy() of itself (differing only in span_id) -- e.g.
@@ -686,7 +636,6 @@ impl ContextData {
         }
     }
 
-    // --- pickling ---
     fn __getstate__<'py>(&mut self, py: Python<'py>) -> ContextState<'py> {
         (
             self.trace_id,
@@ -709,19 +658,10 @@ impl ContextData {
         self.baggage = Some(state.get_item(5)?.extract::<Bound<'_, PyDict>>()?.unbind());
         self.is_remote = state.get_item(6)?.extract()?;
         self.reactivate = state.get_item(7)?.extract()?;
-        // `_lock` is not serializable -- recreate it fresh, same as the pure-Python original.
         self.lock = Some(rlock_class(py)?.call0()?.unbind());
         Ok(())
     }
 
-    // --- Cyclic GC support ---
-    //
-    // `_meta`/`_metrics`/`_baggage`/`_span_links` are Python containers whose
-    // contents are arbitrary user data (e.g. a baggage value can reference
-    // something that references this Context). Without `__traverse__`/`__clear__`
-    // such a cycle is invisible to CPython's cyclic GC and leaks forever -- see
-    // the identical rationale on `SpanData`, which hit exactly this class of bug
-    // for `meta_struct`.
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
         if let Some(d) = &self.meta {
             visit.call(d)?;
