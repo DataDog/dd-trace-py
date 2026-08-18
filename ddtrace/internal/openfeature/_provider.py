@@ -497,6 +497,7 @@ class DataDogProvider(AbstractProvider):
                             variant_key=None,
                             allocation_key=None,
                             evaluation_context=evaluation_context,
+                            serial_id=details.serial_id,
                         )
                     return FlagResolutionDetails(
                         value=default_value,
@@ -525,6 +526,7 @@ class DataDogProvider(AbstractProvider):
                     variant_key=details.variant,
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
+                    serial_id=details.serial_id,
                 )
 
             # Add allocation_key to the provider-entry timestamp metadata when present.
@@ -572,6 +574,7 @@ class DataDogProvider(AbstractProvider):
         variant_key: typing.Optional[str],
         allocation_key: typing.Optional[str],
         evaluation_context: typing.Optional[EvaluationContext],
+        serial_id: typing.Optional[int] = None,
     ) -> None:
         """
         Report a feature flag exposure event to the EVP proxy intake.
@@ -587,6 +590,8 @@ class DataDogProvider(AbstractProvider):
             variant_key: The variant key returned by evaluation
             allocation_key: The allocation key
             evaluation_context: The evaluation context with subject information
+            serial_id: Serial id of the split the subject landed in, used by the intake
+                to resolve the holdout behind the allocation
         """
         try:
             exposure_event = build_exposure_event(
@@ -594,6 +599,7 @@ class DataDogProvider(AbstractProvider):
                 variant_key=variant_key,
                 allocation_key=allocation_key,
                 evaluation_context=evaluation_context,
+                serial_id=serial_id,
             )
             if not exposure_event:
                 return

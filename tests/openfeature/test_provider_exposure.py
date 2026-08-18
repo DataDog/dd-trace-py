@@ -574,3 +574,69 @@ class TestExposureConnectionErrors:
         assert result.value is True
         # Verify writer.enqueue was called (even though it raised)
         mock_writer.enqueue.assert_called()
+
+
+class TestExposureSerialId:
+    """Test that the split serial id reaches the exposure event."""
+
+    @staticmethod
+    def _config_with_serial_id(serial_id=None):
+        split = {"variationKey": "true", "shards": []}
+        if serial_id is not None:
+            split["serialId"] = serial_id
+
+        return {
+            "id": "1",
+            "createdAt": "2025-10-30T18:36:06.108540853Z",
+            "format": "SERVER",
+            "environment": {"name": "staging"},
+            "flags": {
+                "holdout-flag": {
+                    "key": "holdout-flag",
+                    "enabled": True,
+                    "variationType": "BOOLEAN",
+                    "variations": {"false": {"key": "false", "value": False}, "true": {"key": "true", "value": True}},
+                    "allocations": [
+                        {
+                            "key": "allocation-default",
+                            "splits": [split],
+                            "doLog": True,
+                        },
+                    ],
+                }
+            },
+        }
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_serial_id_reported_on_exposure(self, mock_get_writer, provider, evaluation_context):
+        """Test that a serial id on the resolved split is sent with the exposure."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        process_ffe_configuration(self._config_with_serial_id(340132))
+
+        result = provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        assert result.value is True
+        mock_writer.enqueue.assert_called_once()
+
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["flag"]["key"] == "holdout-flag"
+        assert exposure_event["serial_id"] == 340132
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_no_serial_id_key_when_split_has_none(self, mock_get_writer, provider, evaluation_context):
+        """Test that the exposure omits the key when the split carries no serial id."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        process_ffe_configuration(self._config_with_serial_id())
+
+        result = provider.resolve_boolean_details("holdout-flag", False, evaluation_context)
+
+        assert result.value is True
+        mock_writer.enqueue.assert_called_once()
+
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["flag"]["key"] == "holdout-flag"
+        assert "serial_id" not in exposure_event
