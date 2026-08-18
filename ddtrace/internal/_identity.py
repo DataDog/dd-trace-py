@@ -1,3 +1,4 @@
+import threading
 import typing as t
 import uuid
 import weakref
@@ -138,6 +139,11 @@ MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
 # this exact method+path is otherwise just an unauthenticated trigger on every ddtrace user's
 # request-dispatch path, MicroVM or not.
 _IS_AWS_LAMBDA_MICROVM = env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN") is not None
+# Multiple instrumented request layers can observe the same MicroVM /run hook
+# (for example, Werkzeug's http.server layer plus Flask). Refresh identity once
+# per process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = threading.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = threading.Lock()
 
 
 def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
@@ -152,8 +158,15 @@ def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> No
     """
     if not method or not path:
         return
-    if _IS_AWS_LAMBDA_MICROVM and method == MICROVM_RUN_HOOK_METHOD and path == MICROVM_RUN_HOOK_PATH:
-        refresh_identity()
+    if not _IS_AWS_LAMBDA_MICROVM or method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
+
+    refresh_identity()
 
 
 def get_runtime_id() -> str:

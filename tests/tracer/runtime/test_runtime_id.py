@@ -327,7 +327,7 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
     assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline
 
 
-@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"})
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_maybe_refresh_identity_matches_microvm_run_hook():
     """Only the exact AWS Lambda MicroVM "/run" hook request triggers a refresh."""
     from ddtrace.internal import _identity as runtime
@@ -336,10 +336,55 @@ def test_maybe_refresh_identity_matches_microvm_run_hook():
 
     runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
 
-    assert runtime.get_runtime_id() != runtime_id
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    assert runtime.get_runtime_id() == refreshed_runtime_id
 
 
-@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"})
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_is_thread_safe():
+    """Concurrent observations of the same MicroVM "/run" hook refresh identity once."""
+    import threading
+    import time
+
+    from ddtrace.internal import _identity as runtime
+
+    calls = []
+
+    def refresh_identity():
+        calls.append(1)
+        time.sleep(0.01)
+
+    runtime.refresh_identity = refresh_identity
+
+    workers = 16
+    barrier = threading.Barrier(workers)
+    errors = []
+    threads = []
+
+    def refresh_from_request_layer():
+        try:
+            barrier.wait()
+            runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+        except Exception as e:
+            errors.append(e)
+
+    for _ in range(workers):
+        thread = threading.Thread(target=refresh_from_request_layer)
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(calls) == 1
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_maybe_refresh_identity_ignores_other_requests():
     """A different method/path, or the "/resume" hook, must not trigger a refresh."""
     from ddtrace.internal import _identity as runtime
@@ -353,7 +398,7 @@ def test_maybe_refresh_identity_ignores_other_requests():
     assert runtime.get_runtime_id() == runtime_id
 
 
-@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None})
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None}, err=None)
 def test_maybe_refresh_identity_noop_outside_microvm():
     """Without the MicroVM env var, this method+path is otherwise just an unauthenticated
     trigger reachable on every ddtrace user's request-dispatch path -- it must be a no-op.
