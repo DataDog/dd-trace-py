@@ -56,7 +56,6 @@ from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
-from .writer_client import AgentlessWriterClient
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
@@ -570,6 +569,39 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._reset_connection()
 
 
+AGENTLESS_INTAKE_PATH = "/v1/input"
+AGENTLESS_INTAKE_URLS: dict[str, str] = {
+    "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
+    "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
+    "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
+    "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
+    "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
+    "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
+    "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
+    "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
+}
+_AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
+
+
+def compute_agentless_intake_url(site: str) -> str:
+    """The full agentless trace intake URL for ``site``, path included."""
+    url = AGENTLESS_INTAKE_URLS.get(site)
+    if url is None:
+        # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
+        # e.g. "ddog-gov.com"     -> "browser-intake-ddog-gov.com"
+        #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
+        prefix, _, tld = site.rpartition(".")
+        url = _AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
+        log.warning(
+            "Datadog site %r is not explicitly supported for agentless tracing. "
+            "Attempting to use %r. To resolve this, upgrade to a newer version of "
+            "ddtrace that supports this site, or disable agentless trace export.",
+            site,
+            url,
+        )
+    return url + AGENTLESS_INTAKE_PATH
+
+
 class AgentWriterInterface(metaclass=abc.ABCMeta):
     intake_url: str
     _api_version: str
@@ -582,107 +614,6 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def flush_queue(self, raise_exc: bool = False) -> None:
         pass
-
-
-class AgentlessTraceWriter(HTTPWriter):
-    """
-    HTTP writer for agentless JSON span intake. Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
-    """
-
-    HTTP_METHOD = "POST"
-    # Agentless payloads must be under 15 MB.
-    MAX_BUFFER_SIZE = 15 << 20  # 15 MB
-    INTAKE_URLS: dict[str, str] = {
-        "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
-        "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
-        "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
-        "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
-        "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
-        "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
-        "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
-        "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
-    }
-    FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
-    _records_trace_telemetry = True
-
-    @staticmethod
-    def compute_intake_url(site: str) -> str:
-        url = AgentlessTraceWriter.INTAKE_URLS.get(site)
-        if url is not None:
-            return url
-        # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
-        # e.g. "ddog-gov.com"    -> "browser-intake-ddog-gov.com"
-        #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
-        prefix, _, tld = site.rpartition(".")
-        url = AgentlessTraceWriter.FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
-        log.warning(
-            "Datadog site %r is not explicitly supported for agentless tracing. "
-            "Attempting to use %r. To resolve this, upgrade to a newer version of "
-            "ddtrace that supports this site, or disable agentless trace export.",
-            site,
-            url,
-        )
-        return url
-
-    def __init__(
-        self,
-        intake_url: str,
-        api_key: str,
-        processing_interval: Optional[float] = None,
-        buffer_size: Optional[int] = None,
-        max_payload_size: Optional[int] = None,
-        timeout: Optional[float] = None,
-        dogstatsd: Optional["DogStatsd"] = None,
-        report_metrics: bool = True,
-        sync_mode: bool = False,
-        reuse_connections: Optional[bool] = None,
-    ) -> None:
-        buffer_size = min(buffer_size or config._trace_writer_buffer_size, self.MAX_BUFFER_SIZE)
-        max_payload_size = max_payload_size or config._trace_writer_payload_size
-        client = AgentlessWriterClient(buffer_size, max_payload_size)
-        headers = {
-            "Content-Type": client.encoder.content_type,
-            "dd-api-key": api_key,
-            "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
-            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            "Datadog-Meta-Tracer-Version": __version__,
-        }
-        super(AgentlessTraceWriter, self).__init__(
-            intake_url=intake_url,
-            clients=[client],
-            processing_interval=processing_interval,
-            buffer_size=buffer_size,
-            max_payload_size=max_payload_size,
-            timeout=timeout,
-            dogstatsd=dogstatsd,
-            sync_mode=sync_mode,
-            reuse_connections=reuse_connections,
-            headers=headers,
-            report_metrics=report_metrics,
-        )
-
-    def recreate(
-        self,
-        appsec_enabled: Optional[bool] = None,
-        llmobs_enabled: Optional[bool] = None,
-    ) -> "AgentlessTraceWriter":
-        try:
-            self.stop()
-        except ServiceStatusError:
-            pass
-        return self.__class__(
-            intake_url=self.intake_url,
-            api_key=self._headers["dd-api-key"],
-            processing_interval=self._interval,
-            buffer_size=self._buffer_size,
-            max_payload_size=self._max_payload_size,
-            timeout=self._timeout,
-            dogstatsd=self.dogstatsd,
-            sync_mode=self._sync_mode,
-            reuse_connections=self._reuse_connections,
-            report_metrics=self._report_metrics,
-        )
 
 
 def _resolve_api_version(api_version: Optional[str] = None) -> str:
@@ -739,11 +670,11 @@ def _build_base_exporter_builder(
     compute_stats_enabled: bool,
     stats_opt_out: Optional[bool],
     otlp_metrics_enabled: bool = False,
+    agentless_api_key: Optional[str] = None,
 ) -> "native.TraceExporterBuilder":
     _, commit_sha, _ = get_git_tags()
     builder = (
         native.TraceExporterBuilder()
-        .set_url(intake_url)
         .set_language("python")
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
@@ -751,6 +682,10 @@ def _build_base_exporter_builder(
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
+    if agentless_api_key is not None:
+        builder.set_agentless_endpoint(intake_url, agentless_api_key)
+    else:
+        builder.set_url(intake_url)
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
     # from both the trace payload and the OTLP resource attributes (host.name).
     if config._report_hostname:
@@ -815,6 +750,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
         otlp_metrics_endpoint: Optional[str] = None,
+        agentless_api_key: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -848,6 +784,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
+        self._agentless_api_key = agentless_api_key
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._test_session_token = _resolve_test_session_token(test_session_token)
@@ -883,6 +820,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 headers.append((key.strip(), value.strip()))
         return headers
 
+    @property
+    def agentless(self) -> bool:
+        return self._agentless_api_key is not None
+
     def _create_exporter(self) -> native.TraceExporter:
         builder = _build_base_exporter_builder(
             self.intake_url,
@@ -890,6 +831,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._compute_stats_enabled,
             self._stats_opt_out,
             self._otlp_metrics_endpoint is not None,
+            self._agentless_api_key,
         )
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
@@ -1003,6 +945,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
+            agentless_api_key=self._agentless_api_key,
         )
 
     def _downgrade(self, status, client):
@@ -1266,14 +1209,19 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = AgentlessTraceWriter.compute_intake_url(config._dd_site.lower())
+        intake_url = compute_agentless_intake_url(config._dd_site.lower())
         verify_url(intake_url)
-        return AgentlessTraceWriter(
+        # No OTLP endpoint here: libdatadog rejects OTLP combined with agentless export.
+        return NativeWriter(
             intake_url=intake_url,
-            api_key=config._dd_api_key,
+            agentless_api_key=config._dd_api_key,
             dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
             sync_mode=_use_sync_mode(),
+            compute_stats_enabled=config._trace_compute_stats,
+            client_side_stats_obfuscation=config._client_side_stats_obfuscation,
             report_metrics=not asm_config._apm_opt_out,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
         )
 
     verify_url(agent_config.trace_agent_url)

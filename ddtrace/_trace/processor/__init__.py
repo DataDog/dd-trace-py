@@ -29,7 +29,6 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
-from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
@@ -507,14 +506,12 @@ class SpanAggregator(SpanProcessor):
 
     def configure_agentless_writer(self, enable: bool) -> bool:
         """
-        Swap the writer to AgentlessTraceWriter if needed. Returns True if a swap occurred, otherwise False.
+        Swap the writer between intake and agent submission. Returns True if a swap occurred.
         """
         if isinstance(self.writer, LogWriter):
             # perf: LogWriter is chosen by create_trace_writer regardless of agentless configs; skip the swap early.
             return False
-        if enable and isinstance(self.writer, AgentlessTraceWriter):
-            return False
-        if not enable and not isinstance(self.writer, AgentlessTraceWriter):
+        if getattr(self.writer, "agentless", False) is enable:
             return False
 
         old_writer = self.writer
