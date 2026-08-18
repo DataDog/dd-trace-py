@@ -25,9 +25,6 @@ type ContextState<'py> = (
     bool,
 );
 
-// Cached lookups of Python callables this module needs repeatedly. Both are
-// resolved lazily (on first use, not at module-import time) to avoid forcing
-// an import order on `ddtrace.internal.threads` / `ddtrace.internal.utils.http`.
 static RLOCK_CLASS: OnceLock<Py<PyAny>> = OnceLock::new();
 static W3C_GET_DD_LIST_MEMBER: OnceLock<Py<PyAny>> = OnceLock::new();
 
@@ -35,9 +32,6 @@ fn rlock_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     if let Some(v) = RLOCK_CLASS.get() {
         return Ok(v.bind(py).clone());
     }
-    // Imported from `ddtrace.internal.threads` (not `_thread`/`threading` directly) to
-    // reuse its pre-monkeypatch reference to the original lock class -- see that
-    // module's docstring for why.
     let cls = py.import("ddtrace.internal.threads")?.getattr("RLock")?;
     let _ = RLOCK_CLASS.set(cls.clone().unbind());
     Ok(cls)
@@ -96,9 +90,9 @@ impl Drop for LockGuard<'_> {
     }
 }
 
-#[pyo3::pyclass(name = "ContextData", module = "ddtrace.internal._native", subclass)]
+#[pyo3::pyclass(name = "Context", module = "ddtrace.internal._native", weakref)]
 #[derive(Default)]
-pub struct ContextData {
+pub struct Context {
     pub trace_id: Option<u128>,
     pub span_id: Option<u128>,
     meta: Option<Py<PyDict>>,
@@ -112,7 +106,7 @@ pub struct ContextData {
     pub reactivate: bool,
 }
 
-impl ContextData {
+impl Context {
     fn lock_bound<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         if self.lock.is_none() {
             self.lock = Some(rlock_class(py)?.call0()?.unbind());
@@ -130,7 +124,7 @@ impl ContextData {
 }
 
 #[pyo3::pymethods]
-impl ContextData {
+impl Context {
     #[new]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
@@ -159,7 +153,6 @@ impl ContextData {
         span_links: Option<&Bound<'p, PyList>>,
         baggage: Option<&Bound<'p, PyDict>>,
         is_remote: bool,
-        // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> PyResult<Self> {
@@ -406,12 +399,9 @@ impl ContextData {
             .map(|v| v.extract::<String>())
             .transpose()?;
         let (Some(trace_id), Some(span_id)) = (self.trace_id, self.span_id) else {
-            // if we only have a traceparent then we'll forward it; if we don't have a
-            // span id or trace id value we can't build a valid traceparent
             return Ok(tp.unwrap_or_default());
         };
         let trace_id_hex = match &tp {
-            // grab the original traceparent trace id, not the converted value
             Some(tp) => tp.split('-').nth(1).unwrap_or_default().to_string(),
             None => format!("{:032x}", trace_id),
         };
@@ -433,8 +423,6 @@ impl ContextData {
                 .unwrap_or_default()
         };
         if !ts.is_empty() && !dd_list_member.is_empty() {
-            // cut out the original dd list member from tracestate so we can replace it
-            // with the new one we created
             let ts_w_out_dd: String = ts
                 .split(',')
                 .filter(|segment| !segment.starts_with("dd="))
@@ -579,11 +567,6 @@ impl ContextData {
         if slf.borrow().trace_id != other.borrow().trace_id {
             return Ok(false);
         }
-        // Each side's `borrow_mut()` is taken in its own statement (rather than both
-        // within one expression) so the guards never overlap -- `slf` and `other` may
-        // alias the same underlying object (e.g. comparing a Context to itself), and
-        // Rust would otherwise extend both temporaries' lifetimes to the end of the
-        // enclosing statement, causing a double mutable borrow / PyBorrowMutError panic.
         let self_meta = slf.borrow_mut().get_meta(py);
         let other_meta = other.borrow_mut().get_meta(py);
         if !self_meta.eq(other_meta)? {
@@ -675,14 +658,10 @@ impl ContextData {
         if let Some(l) = &self.span_links {
             visit.call(l)?;
         }
-        // Deliberately not traversed: `_thread.RLock` is a leaf builtin (no `__dict__`,
-        // no references back into user code), so it cannot participate in a cycle.
         Ok(())
     }
 
     fn __clear__(&mut self) {
-        // Reset to Default to drop every owned Python reference so CPython can
-        // break cycles. See `SpanData::__clear__` for the identical rationale.
         *self = Self::default();
     }
 }

@@ -11,7 +11,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
@@ -19,7 +18,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
-_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
+_ContextT = TypeVar("_ContextT", bound="Context")
 
 class DDSketch:
     def __init__(self): ...
@@ -1001,7 +1000,7 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
-class ContextData:
+class Context:
     trace_id: Optional[int]
     span_id: Optional[int]
     _meta: dict[str, str]
@@ -1020,7 +1019,7 @@ class ContextData:
     _tracestate: str
 
     def __new__(
-        cls: type[_ContextDataT],
+        cls: type[_ContextT],
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
         dd_origin: Optional[str] = None,
@@ -1031,8 +1030,8 @@ class ContextData:
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
-    ) -> _ContextDataT: ...
-    def __enter__(self: _ContextDataT) -> _ContextDataT: ...
+    ) -> _ContextT: ...
+    def __enter__(self: _ContextT) -> _ContextT: ...
     def __exit__(self, *args: Any) -> None: ...
     def __getstate__(self) -> tuple: ...
     def __setstate__(self, state: tuple) -> None: ...
@@ -1041,8 +1040,8 @@ class ContextData:
     def get_all_baggage_items(self) -> dict[str, Any]: ...
     def remove_baggage_item(self, key: str) -> None: ...
     def remove_all_baggage_items(self) -> None: ...
-    def copy(self: _ContextDataT, trace_id: int, span_id: int) -> _ContextDataT: ...
-    def _with_baggage_item(self: _ContextDataT, key: str, value: Any) -> _ContextDataT: ...
+    def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
+    def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
 
 class SpanData:
     name: str

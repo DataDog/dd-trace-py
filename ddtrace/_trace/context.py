@@ -1,9 +1,4 @@
-from ddtrace.internal.native._native import ContextData
+from ddtrace.internal.native._native import Context
 
 
-class Context(ContextData):
-    """Represents the state required to propagate a trace across execution
-    boundaries.
-    """
-
-    __slots__ = ["__weakref__"]
+__all__ = ["Context"]

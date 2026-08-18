@@ -4,7 +4,7 @@
 //! `tracer.context_provider.active()`/`.activate()` call. `_update_active` in
 //! particular runs on every `active()` call while a span is active, so it
 //! downcasts straight to `SpanData` and reads `duration`, `_parent`,
-//! `_parent_context`, and (via `ContextData`) `_reactivate` as native fields
+//! `_parent_context`, and (via `Context`) `_reactivate` as native fields
 //! instead of round-tripping through Python attribute lookups.
 
 use std::sync::OnceLock;
