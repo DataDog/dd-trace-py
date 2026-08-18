@@ -16,6 +16,7 @@ import typing as t
 from bytecode import Bytecode
 
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -23,7 +24,6 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_impor
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 
 
