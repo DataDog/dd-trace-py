@@ -24,7 +24,7 @@ use super::utils::{
 };
 use super::{SpanEvent, SpanLink};
 
-#[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
+#[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal.native._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
     pub name: PyBackedString,

@@ -125,7 +125,7 @@ fn call_activate<'py>(
 // instrumentation) can still set/replace attributes like `activate` on a live
 // provider -- native pyclasses have no instance dict by default, which would
 // otherwise make method attributes read-only.
-#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal.native._native")]
 pub struct BaseContextProvider;
 
 #[pyo3::pymethods]
@@ -184,7 +184,7 @@ impl BaseContextProvider {
 ///
 /// It is suitable for synchronous programming and for asynchronous executors
 /// that support contextvars.
-#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal.native._native")]
 pub struct DefaultContextProvider;
 
 #[pyo3::pymethods]

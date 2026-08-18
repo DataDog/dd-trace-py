@@ -90,7 +90,7 @@ impl Drop for LockGuard<'_> {
     }
 }
 
-#[pyo3::pyclass(name = "Context", module = "ddtrace.internal._native", weakref)]
+#[pyo3::pyclass(name = "Context", module = "ddtrace.internal.native._native", weakref)]
 #[derive(Default)]
 pub struct Context {
     pub trace_id: Option<u128>,
