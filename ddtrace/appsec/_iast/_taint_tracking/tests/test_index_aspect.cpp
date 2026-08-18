@@ -76,6 +76,9 @@ TEST_F(AspectIndexCheck, index_aspect_on_a_dict_holding_an_unhashable_value_retu
     PyObject* container = PyDict_New();
     PyObject* key = PyUnicode_FromString("cookie");
     PyObject* value = PyDict_New();
+    ASSERT_NE(container, nullptr);
+    ASSERT_NE(key, nullptr);
+    ASSERT_NE(value, nullptr);
     ASSERT_EQ(PyDict_SetItem(container, key, value), 0);
     tx_map->insert(
       { reinterpret_cast<uintptr_t>(value), std::make_pair(Py_hash_t{ 1234 }, safe_allocate_tainted_object()) });

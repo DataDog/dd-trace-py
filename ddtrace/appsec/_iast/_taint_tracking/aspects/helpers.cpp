@@ -613,5 +613,4 @@ pyexport_aspect_helpers(py::module& m)
     m.def("parse_params", &parse_param);
     m.def("has_pyerr", &has_pyerr);
     m.def("has_pyerr_as_string", &has_pyerr_as_string);
-    m.def("take_pyerr_as_string", &take_pyerr_as_string);
 }

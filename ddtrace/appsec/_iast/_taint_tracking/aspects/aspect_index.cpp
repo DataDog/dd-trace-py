@@ -82,10 +82,9 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         const auto tx_map = safe_get_tainted_object_map(candidate_text);
-        // The subscript itself already succeeded, so an error from the taint lookup is ours to
-        // swallow: returning result_o with it still set would surface as "SystemError: returned a
-        // result with an error set" in the instrumented application. Checked before every exit,
-        // because a non-NULL return with a pending error is what breaks the caller.
+        // The subscript already succeeded, so a taint-lookup error is ours to clear: returning
+        // result_o with one set surfaces as SystemError in the application. Checked after each
+        // lookup that can raise, before the exits that hand result_o back.
         if (PyErr_Occurred()) {
             iast_taint_log_error(take_pyerr_as_string());
             return result_o;

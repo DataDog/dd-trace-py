@@ -374,14 +374,14 @@ Example calling:
     });
 */
 
+// Discards every Python exception raised in the block, KeyboardInterrupt and SystemExit included:
+// the call sites return different types, so there is no uniform way to signal failure instead.
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (py::error_already_set & e) {                                                                              \
-        /* Every RETURNRESULT here yields the already-computed result of the real operation, so    */                  \
-        /* restoring the exception would hand the caller a value and a pending error at once, i.e. */                  \
-        /* "SystemError: returned a result with an error set". Constructing error_already_set      */                  \
-        /* fetched the error, so simply not restoring it leaves the caller's state clean.          */                  \
+        /* Not restored: RETURNRESULT yields a valid result, and a result plus a pending error is */                   \
+        /* "SystemError: returned a result with an error set". The ctor already fetched it. */                         \
         iast_taint_log_error(NAME ". " + std::string(e.what()));                                                       \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \

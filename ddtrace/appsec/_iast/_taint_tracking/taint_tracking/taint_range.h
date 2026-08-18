@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -142,7 +143,16 @@ api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH n
 std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map);
 
-bool
+// Nothing was stored for either Rejected or NotIndexable, but only Rejected is a caller error, so
+// callers that raise must raise on Rejected alone.
+enum class SetRangesResult
+{
+    Stored,
+    Rejected,
+    NotIndexable,
+};
+
+SetRangesResult
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
 bool
@@ -209,8 +219,7 @@ copy_and_shift_ranges_from_strings(const py::handle& str_1,
         py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
         return;
     }
-    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
-        not result) {
+    if (set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map) == SetRangesResult::Rejected) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
