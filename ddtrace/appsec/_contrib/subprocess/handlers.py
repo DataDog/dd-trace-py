@@ -37,7 +37,6 @@ def _on_shell_command(command: Command) -> None:
         if in_asm_context():
             result = call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.SHI: command},
-                crop_trace="wrapped_system_5542593D237084A7",
                 rule_type=EXPLOIT_PREVENTION.TYPE.SHI,
             )
             if result and _must_block(result.actions):
@@ -65,7 +64,6 @@ def _on_exec_command(command: Command) -> None:
                 waf_command.append(command)
             result = call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.CMDI: waf_command},
-                crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )
             if result and _must_block(result.actions):
