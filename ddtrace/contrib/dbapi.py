@@ -10,7 +10,6 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbApiEvent
-from ddtrace.contrib._events.dbapi import DbApiSpanNamePrefix
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -80,12 +79,8 @@ class TracedCursor(wrapt.ObjectProxy):
             if cfg and "_dbapi_span_operation_name" in cfg
             else "{}.query".format(span_name_prefix)
         )
-        try:
-            dbapi_span_name_prefix = DbApiSpanNamePrefix(span_name_prefix)
-        except (TypeError, ValueError):
-            dbapi_span_name_prefix = DbApiSpanNamePrefix.DB
         self._self_datadog_name = span_name
-        self._self_dbapi_span_name_prefix = dbapi_span_name_prefix
+        self._self_dbapi_span_name_prefix = span_name_prefix
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)

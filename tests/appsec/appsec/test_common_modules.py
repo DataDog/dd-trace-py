@@ -19,7 +19,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) is types.BuiltinFunctionType
+    assert type(open) == types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -32,7 +32,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) is FunctionWrapper
+        assert type(open) == FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -147,7 +147,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) is FunctionWrapper
+        assert type(original_func) == FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")

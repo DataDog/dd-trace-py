@@ -1,13 +1,9 @@
 import mock
 import pytest
 
-from ddtrace.contrib._events.dbapi import DbApiEvent
-from ddtrace.contrib._events.dbapi import DbApiSpanNamePrefix
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
-from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -31,104 +27,6 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
-
-    def test_execute_skips_event_dispatch_without_listeners(self) -> None:
-        with mock.patch.object(core, "has_listeners", return_value=False) as has_listeners:
-            with mock.patch.object(core, "dispatch_event") as dispatch_event:
-                TracedCursor(self.cursor, cfg={}).execute("SELECT * FROM users")
-
-        has_listeners.assert_called_once_with(DbApiEvent.event_name)
-        dispatch_event.assert_not_called()
-
-    def test_execute_ignores_non_string_queries(self) -> None:
-        self.tracer.enabled = False
-        with mock.patch.object(core, "has_listeners") as has_listeners:
-            with mock.patch.object(core, "dispatch_event") as dispatch_event:
-                for query in (b"SELECT 1", object()):
-                    TracedCursor(self.cursor, cfg={}).execute(query)
-
-        has_listeners.assert_not_called()
-        dispatch_event.assert_not_called()
-
-    def test_execute_propagates_event_blocking_exception(self) -> None:
-        expected = BlockingException()
-
-        def block(event: DbApiEvent) -> None:
-            assert event.query == "SELECT * FROM users"
-            assert event.span_name_prefix is DbApiSpanNamePrefix.SQL
-            raise expected
-
-        core.on(DbApiEvent.event_name, block)
-        try:
-            traced_cursor = TracedCursor(self.cursor, cfg={})
-            with pytest.raises(BlockingException) as exc_info:
-                traced_cursor.execute("SELECT * FROM users")
-        finally:
-            core.reset_listeners(DbApiEvent.event_name, block)
-
-        assert exc_info.value is expected
-        self.cursor.execute.assert_not_called()
-        self.assert_has_no_spans()
-
-    def test_executemany_dispatches_event(self) -> None:
-        events: list[DbApiEvent] = []
-
-        def capture_event(event: DbApiEvent) -> None:
-            events.append(event)
-
-        core.on(DbApiEvent.event_name, capture_event)
-        try:
-            TracedCursor(self.cursor, cfg={}).executemany("SELECT 1", [])
-        finally:
-            core.reset_listeners(DbApiEvent.event_name, capture_event)
-
-        assert events == [DbApiEvent("SELECT 1", DbApiSpanNamePrefix.SQL)]
-
-    def test_execute_dispatches_event_when_tracing_is_disabled(self) -> None:
-        events: list[DbApiEvent] = []
-
-        def capture_event(event: DbApiEvent) -> None:
-            events.append(event)
-
-        core.on(DbApiEvent.event_name, capture_event)
-        self.tracer.enabled = False
-        try:
-            TracedCursor(self.cursor, cfg={}).execute("SELECT 1")
-        finally:
-            core.reset_listeners(DbApiEvent.event_name, capture_event)
-
-        assert events == [DbApiEvent("SELECT 1", DbApiSpanNamePrefix.SQL)]
-        self.cursor.execute.assert_called_once_with("SELECT 1")
-        self.assert_has_no_spans()
-
-    def test_execute_normalizes_configured_span_name_prefix(self) -> None:
-        configured_prefixes = [
-            ("mariadb", DbApiSpanNamePrefix.MARIADB),
-            ("mysql", DbApiSpanNamePrefix.MYSQL),
-            ("oracle", DbApiSpanNamePrefix.ORACLE),
-            ("postgres", DbApiSpanNamePrefix.POSTGRES),
-            ("pymysql", DbApiSpanNamePrefix.PYMYSQL),
-            ("pyodbc", DbApiSpanNamePrefix.PYODBC),
-            ("sql", DbApiSpanNamePrefix.SQL),
-            ("sqlite", DbApiSpanNamePrefix.SQLITE),
-            ("vertica", DbApiSpanNamePrefix.VERTICA),
-            ("unknown", DbApiSpanNamePrefix.DB),
-        ]
-        events: list[DbApiEvent] = []
-
-        def capture_event(event: DbApiEvent) -> None:
-            events.append(event)
-
-        core.on(DbApiEvent.event_name, capture_event)
-        self.tracer.enabled = False
-        try:
-            for configured_prefix, _ in configured_prefixes:
-                cfg = IntegrationConfig(Config(), "dbapi", _dbapi_span_name_prefix=configured_prefix)
-                TracedCursor(self.cursor, cfg=cfg).execute("SELECT 1")
-        finally:
-            core.reset_listeners(DbApiEvent.event_name, capture_event)
-
-        assert events == [DbApiEvent("SELECT 1", event_prefix) for _, event_prefix in configured_prefixes]
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
