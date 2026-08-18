@@ -40,12 +40,19 @@ _ON_RUNTIME_ID_CHANGE: t.Set["weakref.ReferenceType[t.Callable[[str], None]]"] =
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
-    """Register a callback to be called when the runtime ID changes.
+    """Register a callback to be called when ``refresh_identity()`` runs.
 
-    This can happen after a fork, or when ``refresh_identity()`` is called
-    (e.g. from an AWS Lambda MicroVM ``/run`` hook). Only a weak reference to
-    ``cb`` is kept, so the caller must keep it alive (e.g. by registering a
-    bound method of a long-lived object) for it to keep firing.
+    ``refresh_identity()`` is the non-fork trigger (e.g. an AWS Lambda MicroVM
+    ``/run`` hook) for a new logical process instance. It is deliberately not
+    called after a plain fork: forked children already get a fresh runtime ID
+    silently (see ``_set_runtime_id()``), and code that needs to react to a
+    fork specifically should use ``forksafe.register()`` instead -- unlike a
+    fork, no state (spans, SHM-backed native clients, ...) was inherited from
+    a different process here, so subscribers generally only need to rebuild
+    what bakes the runtime/client id in at construction, not reset buffers or
+    handles the way a fork hook would. Only a weak reference to ``cb`` is
+    kept, so the caller must keep it alive (e.g. by registering a bound
+    method of a long-lived object) for it to keep firing.
     """
     global _ON_RUNTIME_ID_CHANGE
     ref = weakref.WeakMethod(cb) if hasattr(cb, "__self__") else weakref.ref(cb)
@@ -53,8 +60,12 @@ def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
 
 
 def _regenerate_runtime_id() -> None:
-    global _RUNTIME_ID, _ON_RUNTIME_ID_CHANGE
+    global _RUNTIME_ID
     _RUNTIME_ID = _generate_runtime_id()
+
+
+def _notify_runtime_id_subscribers() -> None:
+    global _ON_RUNTIME_ID_CHANGE
     dead = set()
     # Snapshot into a list before iterating: a concurrent on_runtime_id_change() (e.g. a
     # RemoteConfigClient/writer being constructed on another thread) mutating the live set
@@ -77,6 +88,10 @@ def _set_runtime_id() -> None:
         _ANCESTOR_RUNTIME_ID = _RUNTIME_ID
 
     _PARENT_RUNTIME_ID = _RUNTIME_ID
+    # Does not notify on_runtime_id_change() subscribers: a fork has its own dedicated
+    # forksafe hooks (per subscriber) for resetting fork-inherited state, which differs
+    # from a plain rebuild-in-place (e.g. RemoteConfigClient's SHM-for-fork native client
+    # must survive a fork untouched; see RemoteConfigPoller.reset_at_fork()).
     _regenerate_runtime_id()
 
 
@@ -92,6 +107,7 @@ def refresh_identity() -> None:
     snapshot.
     """
     _regenerate_runtime_id()
+    _notify_runtime_id_subscribers()
 
 
 # Fixed platform path for the AWS Lambda MicroVM "/run" lifecycle hook. Never the "/resume"
