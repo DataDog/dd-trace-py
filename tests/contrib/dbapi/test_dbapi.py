@@ -4,6 +4,8 @@ import pytest
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -27,6 +29,15 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
+
+    def test_query_is_blocked_before_execution(self):
+        for method in ("execute", "executemany"):
+            with mock.patch.object(core, "has_listeners", return_value=True):
+                with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
+                    with pytest.raises(BlockingException):
+                        getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
+
+            getattr(self.cursor, method).assert_not_called()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
