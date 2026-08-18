@@ -10,9 +10,9 @@ MicroVM ``/run`` lifecycle hook (see :ref:`AWS Lambda MicroVM identity refresh
 Enabling
 ~~~~~~~~
 
-The http_server integration is disabled by default. Enable it with
-``DD_TRACE_HTTP_SERVER_ENABLED=true`` alongside :ref:`ddtrace-run<ddtracerun>` or
-:ref:`import ddtrace.auto<ddtraceauto>`::
+The http_server integration is enabled by default. Use
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>` to enable it, and
+disable it with `DD_TRACE_HTTP_SERVER_ENABLED=false` if needed::
 
-    DD_TRACE_HTTP_SERVER_ENABLED=true ddtrace-run ....
+    DD_TRACE_HTTP_SERVER_ENABLED=false ddtrace-run ....
 """

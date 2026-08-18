@@ -75,10 +75,7 @@ PATCH_MODULES = {
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,
-    # Disabled by default: the on-import patch hook for the stdlib "http.server" module hits
-    # Python's partial-module circular-import guard during ddtrace-run bootstrap (AttributeError:
-    # cannot access submodule 'server' of module 'http'). Opt in with DD_TRACE_HTTP_SERVER_ENABLED=true.
-    "http_server": False,
+    "http_server": True,
     "urllib3": False,
     "vertexai": True,
     "vertica": True,

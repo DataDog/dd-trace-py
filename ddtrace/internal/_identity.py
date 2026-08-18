@@ -69,7 +69,7 @@ def _regenerate_runtime_id() -> None:
 
 
 @forksafe.register
-def _set_runtime_id():
+def _set_runtime_id() -> None:
     global _ANCESTOR_RUNTIME_ID, _PARENT_RUNTIME_ID
 
     # Save the runtime ID of the common ancestor of all processes.
