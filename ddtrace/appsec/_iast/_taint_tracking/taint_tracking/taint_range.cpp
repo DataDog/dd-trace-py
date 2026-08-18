@@ -245,13 +245,16 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
 
     // Checked before allocating: an entry with no usable hash could not be told from a later
     // object reusing this address, which would inherit these ranges. Losing the taint is safer.
+    auto obj_id = get_unique_id(str);
     const auto hash = get_internal_hash(str);
     if (not hash) {
+        // Any entry here belongs to a freed object, since this address now holds str. Leaving it
+        // would let the next hashable object at this address match its hash and take its ranges.
+        tx_map->erase(obj_id);
         iast_taint_log_error("propagation::taint_map::Object cannot be hashed, dropping its taint");
         return SetRangesResult::NotIndexable;
     }
 
-    auto obj_id = get_unique_id(str);
     const auto it = tx_map->find(obj_id);
     auto new_tainted_object = safe_allocate_ranges_into_taint_object(ranges);
 
@@ -476,7 +479,8 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
     auto obj_id = get_unique_id(str);
     const auto hash = get_internal_hash(str);
     if (not hash) {
-        // See set_ranges: an entry without a usable hash cannot be invalidated on address reuse.
+        // See set_ranges: no usable hash, and any entry at this address is a freed object's.
+        tx_map->erase(obj_id);
         return;
     }
     set_fast_tainted_if_notinterned_unicode(str);
