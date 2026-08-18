@@ -11,7 +11,7 @@ from typing import cast  # noqa:F401
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.subprocess.constants import COMMAND_EVENT
+from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -456,7 +456,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     if should_trace_subprocess():
         try:
             if isinstance(args[0], (str, bytes)):
-                core.dispatch(COMMAND_EVENT, (args[0], True))
+                core.dispatch_event(SubprocessCommandEvent(command=args[0], shell=True))
             shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
         except Exception:  # noqa:E722
             log.debug("Could not trace subprocess execution for os.system", exc_info=True)
@@ -506,7 +506,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     try:
         mode, file, func_args, _, _ = args
         if isinstance(func_args, (list, tuple, str)):
-            core.dispatch(COMMAND_EVENT, ([file] + list(func_args), False))
+            core.dispatch_event(SubprocessCommandEvent(command=[file] + list(func_args), shell=False))
         shellcmd = SubprocessCmdLine(func_args, shell=False)
     except Exception:
         log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
@@ -557,7 +557,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             cmd_args = get_argument_value(args, kwargs, 0, "args")
             is_shell = bool(get_argument_value(args, kwargs, 8, "shell", optional=True))
             if isinstance(cmd_args, (list, tuple, str, bytes)):
-                core.dispatch(COMMAND_EVENT, (cmd_args, is_shell))
+                core.dispatch_event(SubprocessCommandEvent(command=cmd_args, shell=is_shell))
             cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
             shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
         except Exception:  # noqa:E722

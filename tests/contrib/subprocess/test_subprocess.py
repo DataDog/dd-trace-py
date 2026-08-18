@@ -5,13 +5,14 @@ import sys
 
 import pytest
 
-from ddtrace.contrib.internal.subprocess.constants import COMMAND_EVENT
+from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.core.events import Event
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -1021,20 +1022,17 @@ def test_popen_positional_env_no_typeerror():
 
 
 @pytest.fixture
-def subprocess_events(monkeypatch) -> list[tuple[object, bool]]:
-    events: list[tuple[object, bool]] = []
-    original_dispatch = core.dispatch
+def subprocess_events(monkeypatch) -> list[SubprocessCommandEvent]:
+    events: list[SubprocessCommandEvent] = []
+    original_dispatch_event = core.dispatch_event
 
-    def dispatch(event_name: str, args: tuple[object, ...] = (), allow_raise: bool = False) -> None:
-        if event_name == COMMAND_EVENT:
-            assert not allow_raise
-            command, shell = args
-            assert isinstance(shell, bool)
-            events.append((command, shell))
+    def dispatch_event(event: Event) -> None:
+        if isinstance(event, SubprocessCommandEvent):
+            events.append(event)
         else:
-            original_dispatch(event_name, args, allow_raise)
+            original_dispatch_event(event)
 
-    monkeypatch.setattr(core, "dispatch", dispatch)
+    monkeypatch.setattr(core, "dispatch_event", dispatch_event)
     return events
 
 
@@ -1052,7 +1050,7 @@ def test_ossystem_bytes_reaches_event(tracer, test_spans, config, subprocess_eve
             ret = os.system(b"dir -l /")
             assert ret == 0
 
-        assert subprocess_events == [(b"dir -l /", True)]
+        assert subprocess_events == [SubprocessCommandEvent(command=b"dir -l /", shell=True)]
 
         spans = test_spans.pop()
         span = spans[1]
@@ -1071,7 +1069,7 @@ def test_subprocess_bytes_shell_true_reaches_event(tracer, config, subprocess_ev
             subp = subprocess.Popen(b"dir -li /", shell=True)
             subp.wait()
 
-        assert subprocess_events == [(b"dir -li /", True)]
+        assert subprocess_events == [SubprocessCommandEvent(command=b"dir -li /", shell=True)]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
@@ -1083,4 +1081,4 @@ def test_subprocess_bytes_shell_false_reaches_event(tracer, config, subprocess_e
             subp = subprocess.Popen(b"/bin/ls", shell=False)
             subp.wait()
 
-        assert subprocess_events == [(b"/bin/ls", False)]
+        assert subprocess_events == [SubprocessCommandEvent(command=b"/bin/ls", shell=False)]
