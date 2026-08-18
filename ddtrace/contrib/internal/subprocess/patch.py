@@ -456,7 +456,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     if should_trace_subprocess():
         try:
             if isinstance(args[0], (str, bytes)):
-                core.dispatch_event(SubprocessCommandEvent(command=args[0], shell=True))
+                core.dispatch_event(SubprocessCommandEvent(command=args[0], shell=True))  # nosec B604
             shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
         except Exception:  # noqa:E722
             log.debug("Could not trace subprocess execution for os.system", exc_info=True)
@@ -557,7 +557,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             cmd_args = get_argument_value(args, kwargs, 0, "args")
             is_shell = bool(get_argument_value(args, kwargs, 8, "shell", optional=True))
             if isinstance(cmd_args, (list, tuple, str, bytes)):
-                core.dispatch_event(SubprocessCommandEvent(command=cmd_args, shell=is_shell))
+                core.dispatch_event(SubprocessCommandEvent(command=cmd_args, shell=is_shell))  # nosec B604
             cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
             shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
         except Exception:  # noqa:E722
