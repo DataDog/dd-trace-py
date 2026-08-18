@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import filter_forced_partial_noise
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
+from ddtrace.contrib.internal.claude_agent_sdk.utils import DD_PARTIAL_EXPLICIT_ATTR
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partial_messages
 from ddtrace.contrib.trace_utils import unwrap
@@ -27,6 +28,22 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"claude_agent_sdk": ">=0.0.23"}
+
+
+def traced_options_init(func, instance, args, kwargs):
+    """Record whether the caller explicitly passed include_partial_messages at construction.
+
+    ClaudeAgentOptions is a plain dataclass whose field defaults to False, so once built we can no
+    longer tell an explicit choice from the default. We capture it here — while the kwargs still
+    exist — so we can honor an explicit opt-out and tell a caller's opt-in apart from a flag we
+    forced on a reused options object.
+    """
+    explicit = "include_partial_messages" in kwargs
+    func(*args, **kwargs)
+    try:
+        setattr(instance, DD_PARTIAL_EXPLICIT_ATTR, explicit)
+    except Exception:
+        pass
 
 
 def traced_client_init(func, instance, args, kwargs):
@@ -197,6 +214,7 @@ def patch():
     claude_agent_sdk._datadog_integration = integration
 
     wrap("claude_agent_sdk", "query", traced_query_async_generator)
+    wrap("claude_agent_sdk", "ClaudeAgentOptions.__init__", traced_options_init)
     wrap("claude_agent_sdk", "ClaudeSDKClient.__init__", traced_client_init)
     wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query)
     wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages)
@@ -209,6 +227,7 @@ def unpatch():
     claude_agent_sdk._datadog_patch = False
 
     unwrap(claude_agent_sdk, "query")
+    unwrap(claude_agent_sdk.ClaudeAgentOptions, "__init__")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "__init__")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "query")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "receive_messages")

@@ -1310,6 +1310,38 @@ class TestLLMObsClaudeAgentSdk:
         client_default = claude_agent_sdk.ClaudeSDKClient()
         assert getattr(client_default, "_dd_forced_partial", None) is True
 
+    async def test_llmobs_explicit_optout_is_respected(self, claude_agent_sdk, claude_agent_sdk_llmobs):
+        """A caller who explicitly sets include_partial_messages=False deliberately opted out, so we
+        must not force it back on — the flag stays False and we don't filter their stream.
+        """
+        options = claude_agent_sdk.ClaudeAgentOptions(include_partial_messages=False)
+        client = claude_agent_sdk.ClaudeSDKClient(options=options)
+        assert getattr(client, "_dd_forced_partial", None) is False
+        assert client.options.include_partial_messages is False
+
+    async def test_llmobs_explicit_optin_is_not_forced(self, claude_agent_sdk, claude_agent_sdk_llmobs):
+        """A caller who set include_partial_messages=True already opted in, so we leave the flag (and
+        their stream) alone rather than forcing/filtering.
+        """
+        options = claude_agent_sdk.ClaudeAgentOptions(include_partial_messages=True)
+        client = claude_agent_sdk.ClaudeSDKClient(options=options)
+        assert getattr(client, "_dd_forced_partial", None) is False
+        assert client.options.include_partial_messages is True
+
+    async def test_llmobs_reused_options_still_forced(self, claude_agent_sdk, claude_agent_sdk_llmobs):
+        """Reusing one options object across clients: forcing the flag in place on the first client
+        leaves the value True, but the second client must still register as forced (and therefore
+        filter its injected events) — the explicit marker, not the live value, tells our own flag
+        apart from a caller opt-in.
+        """
+        options = claude_agent_sdk.ClaudeAgentOptions()
+        first = claude_agent_sdk.ClaudeSDKClient(options=options)
+        assert getattr(first, "_dd_forced_partial", None) is True
+        assert options.include_partial_messages is True  # forced in place
+
+        second = claude_agent_sdk.ClaudeSDKClient(options=options)
+        assert getattr(second, "_dd_forced_partial", None) is True
+
     async def test_llmobs_disabled_does_not_force_partials(
         self, claude_agent_sdk, mock_internal_client_partial_messages
     ):
