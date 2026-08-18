@@ -30,6 +30,7 @@ from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import Constant_Class
+from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -132,7 +133,7 @@ class ASM_Environment:
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
-    return core.find_item(_ASM_CONTEXT)
+    return core.find_item(_ASM_CONTEXT)  # type: ignore[no-any-return]
 
 
 def get_active_asm_context() -> Optional[ASM_Environment]:
@@ -253,7 +254,7 @@ def get_framework() -> str:
     return env.framework
 
 
-def _use_html(headers: Mapping) -> bool:
+def _use_html(headers: Mapping[str, str]) -> bool:
     """decide if the response should be html or json.
 
     Add support for quality values in the Accept header.
@@ -464,18 +465,11 @@ def set_waf_address(address: str, value: Any) -> None:
         core.set_item(address, value)
 
 
-def get_value(category: str, address: str, default: Any = None) -> Any:
+def get_waf_address(address: str, default: Any = None) -> Any:
     env = get_active_asm_context()
     if env is None:
         return default
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        return asm_context_attr.get(address, default)
-    return default
-
-
-def get_waf_address(address: str, default: Any = None) -> Any:
-    return get_value(_WAF_ADDRESSES, address, default=default)
+    return env.waf_addresses.get(address, default)
 
 
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
@@ -523,7 +517,7 @@ def set_ip(ip: Optional[str]) -> None:
 
 
 def get_ip() -> Optional[str]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HTTP_IP)
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)  # type: ignore[no-any-return]
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
@@ -531,13 +525,13 @@ def get_ip() -> Optional[str]:
 # early point set_headers is usually called
 
 
-def set_headers(headers: Mapping) -> None:
+def set_headers(headers: Mapping[str, str]) -> None:
     if headers is not None:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
 
 
-def get_headers() -> Optional[Mapping]:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
+def get_headers() -> Optional[Mapping[str, str]]:
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})  # type: ignore[no-any-return]
 
 
 def set_headers_case_sensitive(case_sensitive: bool) -> None:
@@ -545,7 +539,7 @@ def set_headers_case_sensitive(case_sensitive: bool) -> None:
 
 
 def get_headers_case_sensitive() -> bool:
-    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
+    return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type: ignore[no-any-return]
 
 
 def set_block_request_callable(block_callable: Optional[Callable[[], None]]) -> None:
@@ -659,12 +653,6 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
 
 def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
-        # Skip creating a new ASM context if one already exists in a parent context
-        # AND this is a sub-app span (e.g., mounted FastAPI/Starlette sub-application).
-        # The parent's ASM context already has the request data (body, headers, etc.)
-        # and is accessible via core.find_item thanks to context tree traversal.
-        if in_asm_context() and core.find_item("is_subapp"):
-            return
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
@@ -693,7 +681,7 @@ def end_context(span: Span) -> None:
 
 
 def _on_context_ended(
-    ctx: core.ExecutionContext,
+    ctx: core.ExecutionContext[Event],
     _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     env = ctx.get_item(_ASM_CONTEXT)
@@ -739,7 +727,7 @@ def _get_headers_if_appsec() -> Optional[Any]:
     return None
 
 
-## headers tags
+# Headers tags
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",

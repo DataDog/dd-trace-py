@@ -37,6 +37,7 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._eval_metric import LLMObsEvaluationMetricEvent as LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
@@ -100,23 +101,6 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     meta: _Meta
     metrics: dict[str, Any]
     _dd: dict[str, str]
-
-
-class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    join_on: dict[str, dict[str, str]]
-    metric_type: str
-    label: str
-    categorical_value: str
-    numerical_value: float
-    score_value: float
-    boolean_value: bool
-    ml_app: str
-    timestamp_ms: int
-    tags: list[str]
-    assessment: str
-    reasoning: str
-    eval_scope: str
-    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):

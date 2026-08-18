@@ -224,6 +224,10 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         entry_span = span._service_entry_span
+        asm_context = _asm_request_context.get_active_asm_context()
+        if asm_context is not None and asm_context.entry_span is entry_span:
+            return
+
         entry_span._set_attribute(APPSEC.ENABLED, 1.0)
         entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 
@@ -309,7 +313,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     if custom_data is not None and custom_data.get(key) is not None:
                         value = custom_data.get(key)
                     elif key in SPAN_DATA_NAMES:
-                        value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
+                        value = _asm_request_context.get_waf_address(SPAN_DATA_NAMES[key])
                     # if value is a callable, it's a lazy value for api security that should not be sent now
                     if value is not None and not hasattr(value, "__call__"):
                         data[waf_name] = _serialize_address_values(waf_name, value)
@@ -419,9 +423,15 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         if not isinstance(self._ddwaf, DDWaf):
             return
-        if span.span_type in asm_config._asm_processed_span_types:
-            _asm_request_context.call_waf_callback_no_instrumentation()
-            _asm_request_context.end_context(span)
+        if span.span_type not in asm_config._asm_processed_span_types:
+            return
+
+        asm_context = _asm_request_context.get_active_asm_context()
+        if asm_context is None or asm_context.span is not span:
+            return
+
+        _asm_request_context.call_waf_callback_no_instrumentation()
+        _asm_request_context.end_context(span)
 
     @classmethod
     def _reset(cls) -> None:

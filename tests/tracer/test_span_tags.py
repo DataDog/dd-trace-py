@@ -10,6 +10,7 @@ import sys
 import mock
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -20,6 +21,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -93,6 +95,25 @@ def test_set_tag_metric():
     assert s.get_metrics() == dict(test=1)
 
 
+def test_remove_tag():
+    s = Span(name="test.span")
+    s.set_tag("a", "a")
+    s.set_tag("b", "b")
+
+    s.remove_tag("a")
+
+    assert s.get_tags() == dict(b="b")
+    assert s.get_tag("a") is None
+
+
+def test_remove_tag_missing_key():
+    s = Span(name="test.span")
+
+    s.remove_tag("does-not-exist")
+
+    assert s.get_tags() == dict()
+
+
 def test_set_valid_metrics():
     s = Span(name="test.span")
     s.set_metric("a", 0)  # ast-grep-ignore: span-set-metric
@@ -119,6 +140,25 @@ def test_set_invalid_metric():
         k = str(i)
         s.set_metric(k, m)  # ast-grep-ignore: span-set-metric
         assert s.get_metric(k) is None
+
+
+def test_remove_metric():
+    s = Span(name="test.span")
+    s.set_metric("a", 1)  # ast-grep-ignore: span-set-metric
+    s.set_metric("b", 2)  # ast-grep-ignore: span-set-metric
+
+    s.remove_metric("a")
+
+    assert s.get_metrics() == dict(b=2)
+    assert s.get_metric("a") is None
+
+
+def test_remove_metric_missing_key():
+    s = Span(name="test.span")
+
+    s.remove_metric("does-not-exist")
+
+    assert s.get_metrics() == dict()
 
 
 def test_set_numpy_metric():
@@ -149,6 +189,41 @@ def test_tags_not_string():
 
     s = Span(name="test.span")
     s.set_tag("a", Foo())
+
+
+@pytest.mark.parametrize("context_provider_class", [DefaultContextProvider, CIContextProvider])
+@pytest.mark.parametrize("setter", ["set_tag", "_set_attributes", "_set_default_attributes"])
+def test_attribute_string_coercion_can_read_active_span(tracer, context_provider_class, setter):
+    tracer.context_provider = context_provider_class()
+
+    class ReentrantTag:
+        def __str__(self):
+            active = tracer.current_span()
+            assert active is span
+            with tracer.trace("nested") as nested:
+                assert nested._parent is span
+                assert nested.trace_id == span.trace_id
+            return str(active.trace_id)
+
+    with tracer.trace("test") as span:
+        if setter == "set_tag":
+            span.set_tag("reentrant", ReentrantTag())
+        else:
+            getattr(span, setter)({"reentrant": ReentrantTag()})
+        assert span.get_tag("reentrant") == str(span.trace_id)
+
+
+def test_set_default_attributes_preserves_value_set_during_coercion():
+    span = Span(name="test.span")
+
+    class ReentrantTag:
+        def __str__(self):
+            span.set_tag("reentrant", "set-during-coercion")
+            return "default"
+
+    span._set_default_attributes({"reentrant": ReentrantTag()})
+
+    assert span.get_tag("reentrant") == "set-during-coercion"
 
 
 @mock.patch("ddtrace._trace.span.log")

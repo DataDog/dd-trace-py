@@ -17,6 +17,41 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
 13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+
+## Docstrings and Comments
+
+Guild-agreed convention. It splits on **whether Sphinx renders the docstring**, not on whether the
+module is private. Rendered means: the public interface of `ddtrace` (reachable through a
+non-underscored import path), plus anything an `automodule` directive under `docs/` points at — which
+includes the `ddtrace/contrib/internal/<integration>/__init__.py` integration docstrings listed in
+`docs/integrations.rst` (required by `docs/contributing-integrations.rst`). When in doubt, grep
+`docs/` for the module.
+
+**Rendered docstrings** — write them in reStructuredText, because they reach customers:
+
+```python
+def enable(self, flush_interval: float = 1.0) -> None:
+    """Start the writer thread, flushing every ``flush_interval`` seconds.
+
+    :param flush_interval: Seconds between flushes.
+    :raises RuntimeError: If the writer is already running.
+    """
+```
+
+**Everything else** (`_`-prefixed helpers, private modules nothing under `docs/` points at, tests,
+inline comments) — plain text prose optimized for reading in an editor. Nothing renders it, so rST
+inline markup is noise:
+
+- No rST emphasis around parameter names — write the name as-is. For example, a parameter named
+  `path` should appear as `path`, not as `*path*` (rST's emphasis syntax, which renders as italics
+  in Sphinx but is just stray asterisks everywhere else).
+- No double backticks for inline literals (see the code style rules); plain text reads better.
+- Field lists (`:param:`, `:returns:`) are optional here; a one-line summary is usually enough.
+
+Either way, aim for **good documentation**: say why the code exists or what invariant it upholds,
+not what the next line already says. Keep it short — a one-line summary covers most helpers.
+Do not add a comment if the comment simply states what the code does, and not why.
 
 ## Key Architecture
 
@@ -42,7 +77,21 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Fork PRs** (external contributors) never get `dd-gitlab/default-pipeline` or `system-tests finished` — GitLab/`dd-octo-sts` only vend credentials to pipelines tied to a PR owned by this repo. A maintainer must push the fork's exact commit to a repo-owned branch (e.g. `<you>/mirror-<PR#>`) and open a real PR from that branch into `main` to trigger CI with full credentials. Once the mirror PR's checks go green (same commit SHA), `/merge` the original fork PR, then close the mirror PR without merging it.
+- **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
+  GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the
+  fork's code into a credentialed CI context, so the reviewer owns the trust decision. Before
+  mirroring, complete the normal review on the original PR and be willing to merge its exact head
+  SHA pending final CI. Scrutinize everything CI can execute, especially workflows, scripts, tests,
+  build/install configuration, dependency changes, network calls, artifact uploads, and code that
+  accesses credentials or changes permissions; involve code owners or security reviewers where
+  appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
+  repeat the review if it changed; the branch name need not match the contributor's branch. Give
+  the shadow PR a Conventional Commit
+  title ending in `[DO NOT MERGE]`, and state in its description that it exists only to run CI and
+  must not be merged. Once its checks pass, verify that the original PR still has the tested SHA,
+  then `/merge` the original. After it lands, close the shadow PR without merging it and delete its
+  branch. Never mirror speculative or partially reviewed code merely to obtain CI results: an
+  identical SHA proves source-commit parity, not safety or identical execution context.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
@@ -65,6 +114,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
 | `compare-cpython-versions` | Comparing CPython source between two Python versions. |
 | `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
+| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries. |
 | `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
 | `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
 | `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |

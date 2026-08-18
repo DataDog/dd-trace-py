@@ -32,6 +32,7 @@ APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
 config_good_rules = {"_asm_static_rule_file": rules.RULES_GOOD_PATH, "_asm_enabled": True}
 config_bad_rules = {"_asm_static_rule_file": rules.RULES_BAD_PATH, "_asm_enabled": True, "_raise": True}
+EMPTY_HEADER_FINGERPRINT = "hdr-0000000000--0-"
 
 
 def test_transform_headers():
@@ -75,6 +76,70 @@ def test_ddwaf_ctx(tracer):
         assert ctx
         processor.on_span_finish(span)
         assert _asm_request_context._get_asm_context() is None
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "expect_block"),
+    [
+        ("Mozilla/5.0", False),
+        ("dd-test-scanner-log-block", True),
+    ],
+)
+def test_nested_same_service_web_span_preserves_waf_results(tracer, user_agent, expect_block):
+    request_headers = {
+        "accept": "text/html",
+        "user-agent": user_agent,
+    }
+
+    # ProxyTraceMiddleware opens the outer span before Flask knows the headers.
+    with asm_context(tracer=tracer, span_name="proxy.request", service="svc", config=config_asm) as proxy_span:
+        with core.context_with_data("flask.request", headers=request_headers):
+            with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
+                set_http_meta(flask_span, rules.Config(), request_headers=request_headers)
+                _asm_request_context.call_waf_callback()
+
+        fingerprint_from_flask = proxy_span.get_tag(FINGERPRINTING.HEADER)
+
+    assert fingerprint_from_flask
+    assert fingerprint_from_flask != EMPTY_HEADER_FINGERPRINT
+    assert proxy_span.get_tag(FINGERPRINTING.HEADER) == fingerprint_from_flask
+    assert is_blocked(proxy_span) is expect_block
+    assert bool(get_triggers(proxy_span)) is expect_block
+
+
+def test_nested_different_service_web_span_uses_separate_asm_context(tracer):
+    with asm_context(tracer=tracer, service="svc-parent", config=config_asm):
+        parent_env = _asm_request_context.get_active_asm_context()
+        assert parent_env is not None
+
+        with core.context_with_data("nested.service"):
+            with tracer.trace("child", service="svc-child", span_type=SpanTypes.WEB) as child_span:
+                child_env = _asm_request_context.get_active_asm_context()
+                assert child_env is not parent_env
+                assert child_env.entry_span is child_span
+
+        assert _asm_request_context.get_active_asm_context() is parent_env
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+def test_only_owner_finish_flushes_shared_asm_context(mock_run, tracer):
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    config = {"_asm_enabled": True, "_asm_static_rule_file": rules.RULES_SRB_RESPONSE}
+
+    with asm_context(tracer=tracer, service="svc", config=config):
+        env = _asm_request_context.get_active_asm_context()
+        assert env is not None
+
+        with core.context_with_data("flask.request"):
+            with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
+                set_http_meta(flask_span, rules.Config(), status_code=200)
+
+        assert mock_run.call_count == 0
+
+    assert mock_run.call_count == 1
 
 
 @pytest.mark.parametrize("rule, _exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
@@ -226,7 +291,9 @@ def test_ip_not_block(tracer, ip):
 
 
 def test_ip_update_rules_and_block(tracer):
-    with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
+    with override_global_config(config_asm):
+        tracer._span_aggregator.writer._api_version = "v0.4"
+        tracer._recreate()
         core.dispatch(
             "waf.update",
             (
@@ -250,15 +317,17 @@ def test_ip_update_rules_and_block(tracer):
                 ],
             ),
         )
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        # AIDEV-NOTE: WAF updates apply to request contexts created after the update.
+        # A nested same-service WEB span is part of the current service entry, not a new request.
+        with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED) as span:
             set_http_meta(
                 span,
                 rules.Config(),
             )
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
-    assert is_blocked(span1)
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert is_blocked(span)
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -267,7 +336,9 @@ def test_ip_update_rules_and_block(tracer):
 
 
 def test_ip_update_rules_expired_no_block(tracer):
-    with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
+    with override_global_config(config_asm):
+        tracer._span_aggregator.writer._api_version = "v0.4"
+        tracer._recreate()
         core.dispatch(
             "waf.update",
             (
@@ -291,7 +362,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 ],
             ),
         )
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED) as span:
             set_http_meta(
                 span,
                 rules.Config(),
@@ -299,7 +370,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
 @snapshot(

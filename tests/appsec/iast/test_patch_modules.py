@@ -92,8 +92,11 @@ class TestWrapModulesForIAST:
     @pytest.fixture
     def wrap_modules(self):
         """Create a WrapFunctonsForIAST instance for testing."""
+        # MODULES_TO_UNPATCH is process-wide and these tests assert on its exact size.
+        MODULES_TO_UNPATCH.clear()
         wrap_modules = WrapFunctonsForIAST()
         yield wrap_modules
+        wrap_modules.testing = True
         wrap_modules.testing_unpatch()
 
     def test_init(self, wrap_modules):
