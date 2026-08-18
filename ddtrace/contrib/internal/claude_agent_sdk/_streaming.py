@@ -515,6 +515,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             return response
         partial = self._partial_usage_by_id.get(message_id)
         if not partial:
+            # Missing usage only matters if partials were in play; otherwise we keep the SDK's own.
+            if self._filter_partial or self._partial_usage_by_id:
+                log.debug("claude_agent_sdk: no partial usage captured for message %s", message_id)
             return response
         usage = getattr(response, "usage", None)
         if isinstance(usage, dict) and usage:
