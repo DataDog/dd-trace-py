@@ -287,16 +287,20 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
         def on_change(self, new_id):
             pass
 
+    # Baseline, not 0: injection/auto-instrumentation may have already constructed a
+    # RemoteConfigClient/Writer/TelemetryWriter in this process, each of which subscribes.
+    baseline = len(runtime._ON_RUNTIME_ID_CHANGE)
+
     subscriber = _Subscriber()
     runtime.on_runtime_id_change(subscriber.on_change)
-    assert len(runtime._ON_RUNTIME_ID_CHANGE) == 1
+    assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline + 1
 
     del subscriber
     gc.collect()
 
     runtime.refresh_identity()
 
-    assert len(runtime._ON_RUNTIME_ID_CHANGE) == 0
+    assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline
 
 
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"})

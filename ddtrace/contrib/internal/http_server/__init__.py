@@ -2,8 +2,7 @@
 Patch the standard library ``http.server`` module (``BaseHTTPRequestHandler``).
 
 This integration does **not** create spans. Its only purpose is detecting the AWS Lambda
-MicroVM ``/run`` lifecycle hook (see :ref:`AWS Lambda MicroVM identity refresh
-<aws-lambda-microvm-identity-refresh>`) for applications that implement that hook with a raw
+MicroVM ``/run`` lifecycle hook for applications that implement that hook with a raw
 ``http.server`` handler instead of a supported web framework.
 
 

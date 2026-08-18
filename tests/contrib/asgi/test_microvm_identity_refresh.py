@@ -58,7 +58,9 @@ async def test_sub_app_does_not_double_refresh(test_spans):
     """
     app = TraceMiddleware(basic_app)
     scope = _scope("POST", MICROVM_RUN_HOOK_PATH)
-    scope["datadog"] = {}  # marks this as a sub-app request, per TraceMiddleware.__call__
+    # marks this as a sub-app request, per TraceMiddleware.__call__; request_spans matches
+    # the shape _on_asgi_request always creates the dict with (ddtrace/_trace/trace_handlers.py)
+    scope["datadog"] = {"request_spans": []}
     instance = ApplicationCommunicator(app, scope)
 
     with mock.patch("ddtrace.contrib.internal.asgi.middleware.maybe_refresh_identity") as m:
