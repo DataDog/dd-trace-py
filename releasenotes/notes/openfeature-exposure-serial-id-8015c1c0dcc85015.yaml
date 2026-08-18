@@ -1,8 +1,7 @@
 ---
 features:
   - |
-    openfeature: Feature flag exposure events now include the serial id of the split that
-    the subject was assigned to, when the Universal Flag Configuration supplies one. The
-    serial id lets Datadog attribute an exposure to the holdout that an allocation was
-    generated from. A holdout is compiled into an ordinary allocation before the provider
-    receives it, so an exposure does not otherwise record it.
+    openfeature: The Feature Flagging and Experimentation (FFE) OpenFeature provider
+    adds a serial id to the exposure events that it sends to Datadog. Datadog uses the
+    serial id to attribute an exposure to the experiment or holdout that assigned the
+    variant.
