@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -62,6 +64,23 @@ def _get_iast_metrics(test_agent_session, telemetry_writer):
     return metrics
 
 
+def _wait_for_iast_metrics(test_agent_session, telemetry_writer, select, tries=10, delay=0.1):
+    """Keep flushing until select() finds the series the caller is waiting for.
+
+    One force_flush is not enough: the native worker keeps its own flush schedule, so a series can
+    reach the test agent several flushes later. Returns (selected, every series seen), the latter
+    for assertion messages.
+    """
+    all_metrics = []
+    for _ in range(tries):
+        all_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+        selected = select(all_metrics)
+        if selected:
+            return selected, all_metrics
+        time.sleep(delay)
+    return [], all_metrics
+
+
 def _get_iast_logs(test_agent_session, telemetry_writer):
     """Flush and return all telemetry log entries captured by the session."""
     telemetry_writer.periodic(force_flush=True)
@@ -72,13 +91,24 @@ def _get_iast_logs(test_agent_session, telemetry_writer):
 
 
 def _assert_instrumented_sink(test_agent_session, telemetry_writer, vuln_type):
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    assert generate_metrics, "Expected an instrumented.sink metric"
+    # Select the series this test is about instead of asserting on the whole session: the worker
+    # flushes on its own schedule, so the session also holds series queued before it was cleared
+    # (executed.sink from the lib's own agent traffic, or an earlier test's).
+    expected_tags = [f"vulnerability_type:{vuln_type.lower()}"]
+
+    def select(metrics):
+        return [
+            metric for metric in metrics if metric["metric"] == "instrumented.sink" and metric["tags"] == expected_tags
+        ]
+
+    generate_metrics, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+    assert generate_metrics, (
+        f"Expected an instrumented.sink metric tagged {expected_tags}, got "
+        f"{[(metric['metric'], metric['tags']) for metric in all_metrics]}"
+    )
     # Check every series rather than how many: the native worker can flush mid-patching and
     # split one metric over several, but each of them still has to be well formed.
     for metric in generate_metrics:
-        assert metric["metric"] == "instrumented.sink"
-        assert metric["tags"] == [f"vulnerability_type:{vuln_type.lower()}"]
         assert metric["type"] == "count"
     assert sum(point[1] for metric in generate_metrics for point in metric["points"]) >= 1
 
@@ -169,15 +199,23 @@ def test_metric_executed_sink(
         finally:
             AppSecIastSpanProcessor.disable()
 
-        generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+        # Select the weak_hash series this test produced: the session also holds sinks from the
+        # lib's own agent traffic (http.client) and series the worker flushed late.
+        filtered_metrics, generate_metrics = _wait_for_iast_metrics(
+            test_agent_session,
+            telemetry_writer,
+            lambda metrics: [
+                metric
+                for metric in metrics
+                if metric["metric"] == "executed.sink" and metric["tags"] == ["vulnerability_type:weak_hash"]
+            ],
+        )
         _testing_unpatch_iast()
 
-    assert len(generate_metrics) == 1
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
-    assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert [metric["metric"] for metric in filtered_metrics] == ["executed.sink"]
+    assert filtered_metrics, (
+        "Expected an executed.sink metric tagged vulnerability_type:weak_hash, got "
+        f"{[(metric['metric'], metric['tags']) for metric in generate_metrics]}"
+    )
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
