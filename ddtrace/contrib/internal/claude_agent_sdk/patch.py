@@ -43,7 +43,9 @@ def traced_options_init(func, instance, args, kwargs):
     try:
         setattr(instance, DD_PARTIAL_EXPLICIT_ATTR, explicit)
     except Exception:
-        pass
+        log.debug(
+            "Could not record explicit include_partial_messages marker on claude_agent_sdk options", exc_info=True
+        )
 
 
 def traced_client_init(func, instance, args, kwargs):
