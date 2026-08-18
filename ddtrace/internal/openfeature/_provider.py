@@ -499,7 +499,7 @@ class DataDogProvider(AbstractProvider):
                             variant_key=None,
                             allocation_key=None,
                             evaluation_context=evaluation_context,
-                            serial_id=details.serial_id,
+                            serial_id=None,
                         )
                     return FlagResolutionDetails(
                         value=default_value,

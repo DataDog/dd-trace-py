@@ -1,7 +1,5 @@
 ---
 features:
   - |
-    openfeature: The Feature Flagging and Experimentation (FFE) OpenFeature provider
-    adds a serial id to the exposure events that it sends to Datadog. Datadog uses the
-    serial id to attribute an exposure to the experiment or holdout that assigned the
-    variant.
+    openfeature: Datadog now uses a serial id to attribute an exposure
+    to the experiment or holdout that assigned the variant.
