@@ -39,36 +39,37 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
 }
 
 // ----------------------------------------------------------------------------
-Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+size_t
+ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 {
-    // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
 
     // Check if the Python stack contains the asyncio boundary frame.
     // For regular asyncio, this is "Handle._run" from asyncio/events.py.
     // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
-    // To avoid having to do string comparisons every time we unwind Tasks, we keep track
-    // of the cache key of the boundary frame.
-
-    // Note: We use separate cache keys for asyncio and uvloop because switching between them
+    // To avoid having to do string comparisons every time we unwind Tasks, we memoize the interned
+    // name and filename of the boundary Frame the first time we identify it.
+    // Note: We memoize asyncio and uvloop separately because switching between them
     // (though unlikely at runtime) would cause incorrect boundary detection otherwise.
-    auto& asyncio_frame_cache_key = echion.asyncio_frame_cache_key();
-    auto& uvloop_frame_cache_key = echion.uvloop_frame_cache_key();
+    auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
+    auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
 
-    auto& frame_cache_key = using_uvloop ? uvloop_frame_cache_key : asyncio_frame_cache_key;
+    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
 
-    if (!frame_cache_key) {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
+    for (size_t i = 0; i < python_stack.size(); i++) {
+        const auto& frame = python_stack[i];
+
+        bool is_boundary_frame = false;
+
+        if (boundary_frame) {
+            is_boundary_frame = frame.name == boundary_frame->name && frame.filename == boundary_frame->filename;
+        } else {
             auto maybe_frame_name = echion.string_table().lookup(frame.name);
             if (!maybe_frame_name) {
                 continue;
             }
             const auto& frame_name = maybe_frame_name->get();
-
-            bool is_boundary_frame = false;
 
             if (using_uvloop) {
                 // For uvloop, the boundary frame depends on the Python version:
@@ -113,24 +114,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             }
 
             if (is_boundary_frame) {
-                // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
-                // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and reuse it to determine
-                // whether we see the boundary Frame in the Python stack.
-                frame_cache_key = frame.cache_key;
-                upper_python_stack_size = python_stack.size() - i;
-                break;
+                boundary_frame = BoundaryFrame{ frame.name, frame.filename };
             }
         }
-    } else {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
-            if (frame.cache_key == *frame_cache_key) {
-                upper_python_stack_size = python_stack.size() - i;
-                break;
-            }
+
+        if (is_boundary_frame) {
+            upper_python_stack_size = python_stack.size() - i;
+            break;
         }
     }
+
+    return upper_python_stack_size;
+}
+
+// ----------------------------------------------------------------------------
+Result<void>
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+{
+    // The size of the "pure Python" stack (before asyncio Frames).
+    const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
 
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
