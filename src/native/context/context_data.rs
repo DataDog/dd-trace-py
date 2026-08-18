@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use pyo3::{
-    exceptions::PyValueError,
+    exceptions::{PyTypeError, PyValueError},
     types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
     Bound, IntoPyObject, Py, PyResult, Python,
 };
@@ -126,6 +126,7 @@ impl Context {
 #[pyo3::pymethods]
 impl Context {
     #[new]
+    #[classmethod]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         trace_id=None,
@@ -142,6 +143,7 @@ impl Context {
         **kwargs
     ))]
     pub fn __new__<'p>(
+        cls: &Bound<'p, pyo3::types::PyType>,
         py: Python<'p>,
         trace_id: Option<&Bound<'p, PyAny>>,
         span_id: Option<&Bound<'p, PyAny>>,
@@ -156,7 +158,18 @@ impl Context {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> PyResult<Self> {
-        let _ = (args, kwargs);
+        // *args/**kwargs are accepted so subclasses with their own __init__ can pass
+        // extra arguments through without needing to override __new__. But for direct
+        // construction of the base Context class there is no subclass __init__ to
+        // consume them, so mirror the old Python Context.__init__'s strict signature
+        // and reject unknown/excess arguments instead of silently discarding them.
+        if cls.is(py.get_type::<Self>())
+            && (args.len()? > 0 || kwargs.is_some_and(|d| !d.is_empty()))
+        {
+            return Err(PyTypeError::new_err(
+                "Context() received unexpected positional or keyword arguments",
+            ));
+        }
         let meta_dict = meta
             .map(|d| d.clone().unbind())
             .unwrap_or_else(|| PyDict::new(py).unbind());
@@ -401,9 +414,9 @@ impl Context {
         let (Some(trace_id), Some(span_id)) = (self.trace_id, self.span_id) else {
             return Ok(tp.unwrap_or_default());
         };
-        let trace_id_hex = match &tp {
-            Some(tp) => tp.split('-').nth(1).unwrap_or_default().to_string(),
-            None => format!("{:032x}", trace_id),
+        let trace_id_hex = match tp.as_deref() {
+            Some(tp) if !tp.is_empty() => tp.split('-').nth(1).unwrap_or_default().to_string(),
+            _ => format!("{:032x}", trace_id),
         };
         let flags = self.get__traceflags(py)?;
         Ok(format!("00-{}-{:016x}-{}", trace_id_hex, span_id, flags))
@@ -476,9 +489,11 @@ impl Context {
         Ok(())
     }
 
-    /// PERF: run once per child span. Builds via the runtime type's constructor,
-    /// passing the shared `_meta`/`_metrics`/`_baggage`/lock references straight into
-    /// native construction, trusting that this data has already been validated.
+    /// PERF: run once per child span. Constructs a plain `Context` directly via
+    /// the Rust struct, bypassing any subclass `__new__`/`__init__`, and reuses
+    /// the shared `_meta`/`_metrics`/`_baggage`/lock references, trusting that
+    /// this data has already been validated. This mirrors the previous Python
+    /// implementation's `Context.__new__(Context)` behavior.
     #[pyo3(signature = (trace_id, span_id))]
     fn copy<'py>(
         slf: &Bound<'py, Self>,
@@ -496,16 +511,18 @@ impl Context {
             baggage = this.get_baggage(py);
             lock = l;
         }
-        let cls = slf.get_type();
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("trace_id", trace_id)?;
-        kwargs.set_item("span_id", span_id)?;
-        kwargs.set_item("meta", meta)?;
-        kwargs.set_item("metrics", metrics)?;
-        kwargs.set_item("baggage", baggage)?;
-        kwargs.set_item("lock", lock)?;
-        kwargs.set_item("is_remote", false)?;
-        Ok(cls.call((), Some(&kwargs))?.unbind())
+        let new_ctx = Self {
+            trace_id: extract_trace_id(Some(trace_id)),
+            span_id: extract_span_id(Some(span_id)),
+            meta: Some(meta.unbind()),
+            metrics: Some(metrics.unbind()),
+            baggage: Some(baggage.unbind()),
+            span_links: Some(PyList::empty(py).unbind()),
+            lock: Some(lock.unbind()),
+            is_remote: false,
+            reactivate: false,
+        };
+        Ok(Py::new(py, new_ctx)?.into_any())
     }
 
     fn _with_baggage_item<'py>(
@@ -656,6 +673,9 @@ impl Context {
             visit.call(d)?;
         }
         if let Some(l) = &self.span_links {
+            visit.call(l)?;
+        }
+        if let Some(l) = &self.lock {
             visit.call(l)?;
         }
         Ok(())
