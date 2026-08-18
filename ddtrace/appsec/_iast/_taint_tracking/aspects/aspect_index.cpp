@@ -82,18 +82,25 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         const auto tx_map = safe_get_tainted_object_map(candidate_text);
+        // The subscript itself already succeeded, so an error from the taint lookup is ours to
+        // swallow: returning result_o with it still set would surface as "SystemError: returned a
+        // result with an error set" in the instrumented application. Checked before every exit,
+        // because a non-NULL return with a pending error is what breaks the caller.
+        if (PyErr_Occurred()) {
+            iast_taint_log_error(take_pyerr_as_string());
+            return result_o;
+        }
         if (tx_map == nullptr or tx_map->empty()) {
             return result_o;
         }
 
         auto [ranges, ranges_error] = get_ranges(candidate_text, tx_map);
-        if (ranges_error or ranges.empty()) {
+        if (PyErr_Occurred()) {
+            iast_taint_log_error(take_pyerr_as_string());
             return result_o;
         }
-
-        if (const auto error = has_pyerr_as_string(); !error.empty()) {
-            iast_taint_log_error(error);
-            return nullptr;
+        if (ranges_error or ranges.empty()) {
+            return result_o;
         }
 
         if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {

@@ -217,7 +217,9 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
         return std::make_pair(result, false);
     }
 
-    if (get_internal_hash(string_input) != it->second.first) {
+    // An unhashable object here can only be a stale entry whose address got reused.
+    const auto hash = get_internal_hash(string_input);
+    if (not hash or *hash != it->second.first) {
         tx_map->erase(it);
         return std::make_pair(result, false);
     }
@@ -243,14 +245,21 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
     const auto it = tx_map->find(obj_id);
     auto new_tainted_object = safe_allocate_ranges_into_taint_object(ranges);
 
+    const auto hash = get_internal_hash(str);
+    if (not hash) {
+        // Without a hash there is no way to detect address reuse later, so storing the entry
+        // would make a future object at this address inherit these ranges.
+        return false;
+    }
+
     set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_map->end()) {
         it->second.second.reset();
-        it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
+        it->second = std::make_pair(*hash, new_tainted_object);
         return true;
     }
 
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(*hash, new_tainted_object) });
 
     return true;
 }
@@ -376,27 +385,63 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
         return nullptr;
     }
 
-    if (get_internal_hash(str) != it->second.first) {
+    // Only taintable objects can hold an entry, because set_ranges and set_tainted_object both
+    // refuse anything else. Callers reach here with arbitrary objects (dict values, for one), so a
+    // match on one of those is a reused address rather than taint: drop it without hashing, which
+    // an unhashable object such as a dict subclass cannot survive. Checked after the lookup to
+    // leave the common miss path untouched.
+    if (not is_tainteable(str)) {
         tx_map->erase(it);
         return nullptr;
     }
-    return it == tx_map->end() ? nullptr : it->second.second;
+
+    const auto hash = get_internal_hash(str);
+    if (not hash or *hash != it->second.first) {
+        tx_map->erase(it);
+        return nullptr;
+    }
+    return it->second.second;
 }
 
-Py_hash_t
+namespace {
+/**
+ * @brief Hash obj, reporting failure instead of leaving a Python error set.
+ *
+ * An unhashable object reaching here means its address collided with a stale map entry, which
+ * is our own bookkeeping problem: raising TypeError into the caller turns it into
+ * "SystemError: returned a result with an error set" at the next aspect boundary.
+ */
+std::optional<Py_hash_t>
+checked_hash(PyObject* obj)
+{
+    const Py_hash_t hash = PyObject_Hash(obj);
+    if (hash == -1 and PyErr_Occurred()) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+    return hash;
+}
+} // namespace
+
+std::optional<Py_hash_t>
 bytearray_hash(PyObject* bytearray)
 {
     // Bytearrays don't have hash by default so we will generate one by getting the internal str hash
-    auto str = py::str(bytearray);
-    return PyObject_Hash(str.ptr());
+    try {
+        auto str = py::str(bytearray);
+        return checked_hash(str.ptr());
+    } catch (const py::error_already_set&) {
+        // Constructing error_already_set fetched the error, so nothing is left set for the caller.
+        return std::nullopt;
+    }
 }
 
-Py_hash_t
+std::optional<Py_hash_t>
 get_internal_hash(PyObject* obj)
 {
     // Shortcut check to avoid the slower checks for bytearray and re.match objects
     if (PyUnicode_Check(obj) || PyBytes_Check(obj)) {
-        return PyObject_Hash(obj);
+        return checked_hash(obj);
     }
 
     if (PyByteArray_Check(obj)) {
@@ -407,14 +452,15 @@ get_internal_hash(PyObject* obj)
         // Use the match.string for hashing
         PyObject* string_obj = PyObject_GetAttrString(obj, "string");
         if (string_obj == nullptr) {
-            return PyObject_Hash(obj);
+            PyErr_Clear();
+            return std::nullopt;
         }
-        const auto hash = PyObject_Hash(string_obj);
+        const auto hash = checked_hash(string_obj);
         Py_DECREF(string_obj);
         return hash;
     }
 
-    return PyObject_Hash(obj);
+    return checked_hash(obj);
 }
 
 void
@@ -424,6 +470,11 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
         return;
     }
     auto obj_id = get_unique_id(str);
+    const auto hash = get_internal_hash(str);
+    if (not hash) {
+        // See set_ranges: an entry without a usable hash cannot be invalidated on address reuse.
+        return;
+    }
     set_fast_tainted_if_notinterned_unicode(str);
     if (const auto it = tx_map->find(obj_id); it != tx_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
@@ -433,13 +484,13 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
             it->second.second.reset();
-            it->second = std::make_pair(get_internal_hash(str), tainted_object);
+            it->second = std::make_pair(*hash, tainted_object);
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
-        it->second.first = get_internal_hash(str);
+        it->second.first = *hash;
         return;
     }
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(*hash, tainted_object) });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*

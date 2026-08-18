@@ -457,6 +457,21 @@ has_pyerr_as_string()
     return error_guard.error_as_stdstring();
 }
 
+std::string
+take_pyerr_as_string()
+{
+    std::string message;
+    {
+        PythonErrorGuard error_guard;
+        if (not error_guard.has_error()) {
+            return {};
+        }
+        message = error_guard.error_as_stdstring();
+    } // the guard restores the error on destruction, so clear it after it is gone
+    PyErr_Clear();
+    return message;
+}
+
 // Returns a tuple with (all ranges, ranges of candidate_text)
 // FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the
 // result)
@@ -598,4 +613,5 @@ pyexport_aspect_helpers(py::module& m)
     m.def("parse_params", &parse_param);
     m.def("has_pyerr", &has_pyerr);
     m.def("has_pyerr_as_string", &has_pyerr_as_string);
+    m.def("take_pyerr_as_string", &take_pyerr_as_string);
 }

@@ -105,6 +105,15 @@ has_pyerr();
 std::string
 has_pyerr_as_string();
 
+/**
+ * @brief Clear a pending Python error and return its description.
+ *
+ * Unlike has_pyerr_as_string(), which leaves the error set, this takes it. Use it for errors
+ * raised by IAST's own propagation work, which must never reach the instrumented application.
+ */
+std::string
+take_pyerr_as_string();
+
 struct EVIDENCE_MARKS
 {
     static constexpr const char* BLANK = "";
@@ -369,7 +378,11 @@ Example calling:
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (py::error_already_set & e) {                                                                              \
-        e.restore();                                                                                                   \
+        /* Every RETURNRESULT here yields the already-computed result of the real operation, so    */                  \
+        /* restoring the exception would hand the caller a value and a pending error at once, i.e. */                  \
+        /* "SystemError: returned a result with an error set". Constructing error_already_set      */                  \
+        /* fetched the error, so simply not restoring it leaves the caller's state clean.          */                  \
+        iast_taint_log_error(NAME ". " + std::string(e.what()));                                                       \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \

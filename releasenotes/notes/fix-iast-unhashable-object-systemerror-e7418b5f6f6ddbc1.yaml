@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Resolve a rare ``SystemError`` raised inside an instrumented request
+    when a subscript operation was applied to a container holding an object that cannot be
+    hashed, such as the cookie objects Django builds in ``HttpResponse.set_cookie``.
