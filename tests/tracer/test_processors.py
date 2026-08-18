@@ -20,7 +20,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
+from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.writer import NativeWriter
