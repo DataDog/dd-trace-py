@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: When ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``, HTTP client spans now use
+    the HTTP method as their resource name. This keeps the resource name distinct from
+    the operation name and adds method-level information that better aligns with
+    OpenTelemetry semantics; default resource names are unchanged.
