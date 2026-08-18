@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: This introduces inclusion of birth timestamp to allocation samples.

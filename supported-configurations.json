@@ -2949,6 +2949,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_NATIVE_HEAP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
@@ -4608,6 +4615,14 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_OTEL_CTX_ENABLED": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
+      }
+    ],
     "DD_TRACE_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -6047,6 +6062,14 @@
         "implementation": "B",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_MAX_TASKS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50",
         "internal": true
       }
     ],

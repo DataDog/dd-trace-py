@@ -1,6 +1,5 @@
 import io
 import json
-import os
 from typing import Iterable
 from typing import Union
 from urllib.parse import urlunparse
@@ -10,18 +9,20 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
+from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
+from ddtrace.appsec._rasp import _must_block
+from ddtrace.appsec._rasp import get_rasp_capability
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -40,9 +41,8 @@ def _patch_subprocess(module):
     log.debug("Patching common modules: subprocess_patch")
 
 
-def patch_common_modules():
+def patch_common_modules() -> None:
     global _is_patched
-
     if _is_patched:
         return
 
@@ -54,12 +54,11 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
-    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("pathlib", "Path.open", wrapped_path_open_B91CA5063FE27D84)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request_A7F2C6E4D3B10958)
     try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
 
+    patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
 
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
@@ -76,13 +75,12 @@ def unpatch_common_modules():
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
-    try_unwrap("builtins", "open")
-    try_unwrap("pathlib", "Path.open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
     core.reset_listeners("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
 
+    unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
 
     subprocess_patch.unpatch()
@@ -92,113 +90,6 @@ def unpatch_common_modules():
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
-
-
-def _must_block(actions: Iterable[str]) -> bool:
-    return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
-
-
-def _get_rasp_capability(capability: str) -> bool:
-    """Check if the RASP capability is enabled."""
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        from ddtrace.appsec._asm_request_context import in_asm_context
-
-        if not in_asm_context():
-            return False
-
-        try:
-            from ddtrace.appsec._processor import AppSecSpanProcessor
-        except Exception as e:
-            from ddtrace.appsec._listeners import _abort_appsec
-
-            _abort_appsec(str(e))
-            return False
-
-        return AppSecSpanProcessor._instance is not None and getattr(
-            AppSecSpanProcessor._instance, f"rasp_{capability}_enabled", False
-        )
-    return False
-
-
-def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
-    """
-    wrapper for open file function
-    """
-    if _get_rasp_capability("lfi"):
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-
-            # DEV: Do not report here for efficiency reasons
-            # _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, True)
-            return original_open_callable(*args, **kwargs)
-
-        filename_arg = args[0] if args else kwargs.get("file", None)
-        try:
-            filename = os.fspath(filename_arg)
-        except Exception:
-            filename = ""
-        if filename:
-            if in_asm_context():
-                res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
-                    crop_trace="wrapped_open_CFDDB7ABBA9081B6",
-                    rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
-                )
-                if res and _must_block(res.actions):
-                    raise BlockingException(
-                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
-                    )
-            else:
-                report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, False)
-    try:
-        return original_open_callable(*args, **kwargs)
-    except Exception as e:
-        previous_frame = e.__traceback__.tb_frame.f_back
-        raise e.with_traceback(
-            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
-        )
-
-
-def wrapped_path_open_B91CA5063FE27D84(original_method_callable, instance, args, kwargs):
-    """
-    wrapper for pathlib.Path.open() method
-    """
-    if _get_rasp_capability("lfi"):
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
-        except ImportError:
-            # Path methods can be used during module initialization
-            return original_method_callable(*args, **kwargs)
-
-        try:
-            filename = os.fspath(instance)
-        except Exception:
-            filename = ""
-        if filename:
-            if in_asm_context():
-                res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
-                    crop_trace="wrapped_path_open_B91CA5063FE27D84",
-                    rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
-                )
-                if res and _must_block(res.actions):
-                    raise BlockingException(
-                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
-                    )
-            else:
-                report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, False)
-    try:
-        return original_method_callable(*args, **kwargs)
-    except Exception as e:
-        previous_frame = e.__traceback__.tb_frame.f_back
-        raise e.with_traceback(
-            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
-        )
 
 
 def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[str]]]:
@@ -218,7 +109,7 @@ def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[
 def wrapped_request_A7F2C6E4D3B10958(original_request_callable, instance, args, kwargs):
     full_url = core.find_item("full_url")
     env = _get_asm_context()
-    if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
+    if get_rasp_capability("ssrf") and full_url is not None and env is not None:
         use_body = core.find_item("use_body", False)
         method = args[0] if len(args) > 0 else kwargs.get("method", None)
         body = args[2] if len(args) > 2 else kwargs.get("body", None)
@@ -246,7 +137,7 @@ def wrapped_response(original_response_callable, instance, args, kwargs):
     response = original_response_callable(*args, *kwargs)
     env = _get_asm_context()
     try:
-        if _get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+        if get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
             status = response.getcode()
             if 300 <= status < 400:
                 # api10 for redirected response status and headers in urllib
@@ -277,7 +168,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     wrapper for open url function
     """
-    if _get_rasp_capability("ssrf"):
+    if get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
@@ -341,7 +232,7 @@ def _parse_headers_urllib3(headers):
 def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, instance, args, kwargs):
     full_url = core.find_item("full_url")
     env = _get_asm_context()
-    do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
+    do_rasp = get_rasp_capability("ssrf") and full_url is not None and env is not None
     if not do_rasp:
         return original_request_callable(*args, **kwargs)
     core.discard_item("full_url")
@@ -405,7 +296,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if _get_rasp_capability("ssrf"):
+    if get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -449,7 +340,7 @@ def wrapped_system_5542593D237084A7(command: Union[str, bytes]) -> None:
     """
     wrapper for os.system function
     """
-    if _get_rasp_capability("shi"):
+    if get_rasp_capability("shi"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -475,7 +366,7 @@ def popen_FD233052260D8B4D(arg_list: Union[list[str], str, bytes]) -> None:
     """
     listener for subprocess.Popen class
     """
-    if _get_rasp_capability("cmdi"):
+    if get_rasp_capability("cmdi"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -520,7 +411,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     parameters are ignored as they are properly handled by the dbapi without risk of injections
     """
 
-    if _get_rasp_capability("sqli"):
+    if get_rasp_capability("sqli"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context

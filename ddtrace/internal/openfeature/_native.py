@@ -39,13 +39,9 @@ def process_ffe_configuration(config) -> bool:
         config_json = json.dumps(config)
         config_bytes = config_json.encode("utf-8")
         native_config = ffe.Configuration(config_bytes)
+        # Notifies registered providers as part of setting the config; see
+        # ddtrace.internal.openfeature._config for why the registry lives there.
         _set_ffe_config(native_config)
-
-        # Notify providers that configuration was received
-        # Import here to avoid circular dependency
-        from ddtrace.internal.openfeature._provider import _notify_providers_config_received
-
-        _notify_providers_config_received()
         return True
     except ValueError as e:
         log.debug(
