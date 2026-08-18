@@ -6,7 +6,7 @@
 #include "dd_wrapper/include/profiler_state.hpp"
 
 void
-FrameStack::render(EchionSampler& echion)
+FrameStack::render(EchionSampler& echion, bool truncated)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
@@ -38,29 +38,27 @@ FrameStack::render(EchionSampler& echion)
 // @param seen_frames: Cycle-detection set. Cleared on entry; capacity is reused
 //                     by callers (typically EchionSampler::seen_frames_scratch).
 // @param max_frames_to_add: Maximum number of frames to add during this walk.
-// @param truncated: Set when the walk stops at a frame limit with more frames remaining.
-// @return: Number of frames added to the stack.
-size_t
+// @param detect_truncation: Whether to probe for another reportable frame after reaching the limit.
+// @return: Number of frames added and whether another reportable frame was found.
+UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
              size_t max_frames_to_add,
-             bool* truncated)
+             bool detect_truncation)
 {
     seen_frames.clear();
-    if (truncated != nullptr) {
-        *truncated = false;
-    } else if (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES) {
-        return 0;
+    UnwindResult result;
+    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
+        return result;
     }
 
-    size_t count = 0;
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
-        const bool at_limit = count >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
-        if (at_limit && frames_probed_after_limit++ >= MAX_TASK_FRAMES) {
+        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        if (at_limit && (!detect_truncation || frames_probed_after_limit++ >= MAX_TASK_FRAMES)) {
             break;
         }
         if (seen_frames.contains(current_frame_addr))
@@ -86,37 +84,34 @@ unwind_frame(EchionSampler& echion,
         // When reporting truncation, confirm that the bounded lookahead found a
         // reportable frame so terminal C/interpreter frames do not produce a false marker.
         if (at_limit) {
-            if (truncated != nullptr) {
-                *truncated = true;
-            }
+            result.truncated = true;
             break;
         }
 
         stack.push_back(maybe_frame->get());
-        count++;
-
-        if (truncated == nullptr && (count >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES)) {
-            break;
-        }
+        result.frames_added++;
     }
 
-    return count;
+    return result;
 }
 
 // Convenience variant that owns its own scratch set and delegates to the
 // primary overload above. For callers without a reusable scratch set to share.
-size_t
-unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_frames_to_add)
+UnwindResult
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             size_t max_frames_to_add,
+             bool detect_truncation)
 {
     std::unordered_set<PyObject*> local_seen_frames;
-    return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_frames_to_add);
+    return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_frames_to_add, detect_truncation);
 }
 
-void
+UnwindResult
 unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames)
 {
     stack.clear();
-    stack.truncated = false;
 #if PY_VERSION_HEX >= 0x030b0000
     if (stack_chunk == nullptr) {
         stack_chunk = std::make_unique<StackChunk>();
@@ -134,11 +129,11 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
     _PyCFrame* cframe_addr = tstate->cframe;
     if (copy_type(cframe_addr, cframe))
         // TODO: Invalid frame
-        return;
+        return {};
 
     PyObject* frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, &stack.truncated);
+    return unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, true);
 }

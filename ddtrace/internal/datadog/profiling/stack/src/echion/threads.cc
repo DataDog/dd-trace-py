@@ -28,7 +28,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
     const size_t max_frames = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
-    unwind_python_stack(echion, tstate, python_stack, max_frames);
+    python_stack_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -849,7 +849,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             renderer.render_stack_end();
         }
     } else {
-        python_stack.render(echion);
+        python_stack.render(echion, python_stack_unwind_result.truncated);
         renderer.render_stack_end();
     }
 }
