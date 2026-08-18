@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where non-JSON-serializable objects stored on a span (for
+    example, raw SDK request or config objects some integrations pass through as span metadata or
+    config, or objects introduced by a user span processor) could cause the agentless APM exporter
+    to raise a ``TypeError`` and silently drop the entire trace payload. All span data is now made
+    JSON-safe before the span is submitted.

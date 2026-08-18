@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+import json
+
 from pydantic import BaseModel
 import pytest
 
@@ -5,8 +8,9 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
-from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _trace_id_to_wire
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
@@ -455,6 +459,54 @@ def test_json_serialize_class_with_str():
     assert encoded_obj == '"Class"'
 
 
+def test_load_data_value_pydantic_model_with_unserializable_nested_field():
+    """model_dump() without mode="json" can leave non-primitive nested field values (e.g. a raw
+    SDK object) unconverted -- load_data_value must recurse into the dumped result to finish
+    sanitizing them, not just return it as-is.
+    """
+
+    class RawObject:
+        def __init__(self, value):
+            self.value = value
+
+        def __str__(self):
+            return "RawObject({})".format(self.value)
+
+    class Model(BaseModel):
+        class Config:
+            arbitrary_types_allowed = True
+
+        name: str
+        raw: RawObject
+
+    result = load_data_value(Model(name="hello", raw=RawObject("world")))
+    json.dumps(result)  # raises TypeError if not JSON-serializable
+    assert result == {"name": "hello", "raw": "RawObject(world)"}
+
+
+def test_load_data_value_dataclass_with_unserializable_nested_field():
+    """asdict() only recurses into nested dataclasses/dicts/lists/tuples -- other field types are
+    deep-copied as-is, so load_data_value must recurse into the dumped result to finish sanitizing
+    them.
+    """
+
+    class RawObject:
+        def __init__(self, value):
+            self.value = value
+
+        def __str__(self):
+            return "RawObject({})".format(self.value)
+
+    @dataclass
+    class Model:
+        name: str
+        raw: RawObject
+
+    result = load_data_value(Model(name="hello", raw=RawObject("world")))
+    json.dumps(result)  # raises TypeError if not JSON-serializable
+    assert result == {"name": "hello", "raw": "RawObject(world)"}
+
+
 class TestAnnotateLLMObsSpanData:
     def test_populates_meta_struct(self, llmobs):
         """All annotated fields are stored in the correct nested positions."""
@@ -521,31 +573,88 @@ class TestAnnotateLLMObsSpanData:
             assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
 
 
-class TestSanitizeSpanEventDepth:
+class TestSanitizeSpanEventData:
     """Non-string mapping keys are stringified so the msgpack meta_struct intake path
     does not drop the span (MLOB-7618).
     """
 
     def test_stringifies_top_level_non_string_keys(self):
-        assert _sanitize_span_event_depth({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
+        assert _sanitize_span_event_data({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
             "metadata": {"5": "a", "2.5": "b", "None": "c"}
         }
-        assert _sanitize_span_event_depth({"metadata": {True: "x", False: "y"}}) == {
+        assert _sanitize_span_event_data({"metadata": {True: "x", False: "y"}}) == {
             "metadata": {"True": "x", "False": "y"}
         }
 
     def test_stringifies_nested_non_string_keys(self):
-        sanitized = _sanitize_span_event_depth({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
+        sanitized = _sanitize_span_event_data({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
         assert sanitized == {"metadata": {"outer": {"3": {"4": [{"5": "v"}]}}}}
 
     def test_string_keyed_structures_pass_through_unchanged(self):
         original = {"metadata": {"temperature": 0.5, "nested": {"k": [1, 2, 3]}}}
-        assert _sanitize_span_event_depth(original) == original
+        assert _sanitize_span_event_data(original) == original
 
     def test_does_not_mutate_input(self):
         original = {"metadata": {1: "a"}}
-        _sanitize_span_event_depth(original)
+        _sanitize_span_event_data(original)
         assert original == {"metadata": {1: "a"}}  # original keys untouched
+
+    def test_sanitizes_unserializable_leaves(self):
+        """Raw objects stored by integrations are made JSON-safe at every nesting level. Left raw,
+        they reach the agentless APM encoder, which has no fallback and drops the whole payload
+        (MLOB-7962).
+        """
+
+        class SafetySetting:
+            def __init__(self, threshold):
+                self.threshold = threshold
+
+            def __str__(self):
+                return "SafetySetting({})".format(self.threshold)
+
+        sanitized = _sanitize_span_event_data(
+            {
+                "metadata": {
+                    "safety_settings": [SafetySetting("BLOCK_NONE")],
+                    "nested": {"config": SafetySetting("BLOCK_LOW")},
+                }
+            }
+        )
+        json.dumps(sanitized)  # raises TypeError if any value is not JSON-serializable
+        assert sanitized == {
+            "metadata": {
+                "safety_settings": ["SafetySetting(BLOCK_NONE)"],
+                "nested": {"config": "SafetySetting(BLOCK_LOW)"},
+            }
+        }
+
+    def test_preserves_structure_of_unserializable_leaves(self):
+        """Pydantic models and dataclasses become dicts rather than opaque strings, so their fields
+        stay queryable in the UI.
+        """
+
+        @dataclass
+        class Params:
+            temperature: float
+            stop: tuple
+
+        sanitized = _sanitize_span_event_data({"metadata": {"params": Params(temperature=0.5, stop=("a", "b"))}})
+        json.dumps(sanitized)
+        assert sanitized == {"metadata": {"params": {"temperature": 0.5, "stop": ["a", "b"]}}}
+
+    def test_sanitized_leaf_structure_still_respects_depth_limit(self):
+        """Structure recovered from a leaf is walked at the leaf's depth, so it cannot smuggle
+        nesting past _MAX_NESTED_META_DEPTH.
+        """
+
+        @dataclass
+        class Deep:
+            payload: dict
+
+        deep_dict = {"a": {"b": {"c": {"d": {"e": {"f": {"g": "leaf"}}}}}}}
+        nested = {"l1": {"l2": {"l3": {"l4": {"l5": {"l6": {"l7": Deep(payload=deep_dict)}}}}}}}
+        sanitized = _sanitize_span_event_data(nested)
+        json.dumps(sanitized)  # the whole thing is still encodable
 
 
 class TestTraceIdNormalization:
