@@ -893,10 +893,9 @@ def test_wrapping_context_exc_on_enter():
 def test_wrapping_context_exc_on_return():
     """A raising __return__ must override the wrapped function's return value.
 
-    Whether __exit__ also runs differs by path: on <3.15 it's part of the same
-    try/except as the rest of the call, so it does; on 3.15+ _SKIP_UNWIND_KEY
-    (see context.py) suppresses the synthetic PY_UNWIND this triggers, so it
-    doesn't.
+    __exit__ must not run either, on any version: __return__ failing means the
+    wrapped function's own body never got a chance to raise, so this is not the
+    exception __exit__ exists to observe. See _SKIP_EXIT_KEY in context.py.
     """
 
     class BrokenReturnWrappingContext(DummyWrappingContext):
@@ -915,10 +914,7 @@ def test_wrapping_context_exc_on_return():
 
     assert wc.entered
     assert wc.return_value == 42
-    if sys.version_info >= (3, 15):
-        assert not wc.exited, "__exit__ must not run when __return__ itself is the failure"
-    else:
-        assert wc.exited
+    assert not wc.exited, "__exit__ must not run when __return__ itself is the failure"
 
 
 def test_wrapping_context_priority():

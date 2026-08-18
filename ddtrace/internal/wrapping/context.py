@@ -114,10 +114,12 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
-# 3.15+ only: set in per-call storage when on_py_start/on_py_return fails, so the
-# PY_UNWIND event sys.monitoring raises for that same synthetic exception does not
-# also trigger __exit__. See _UniversalWrappingContext.on_py_unwind.
-_SKIP_UNWIND_KEY = "__dd_wrapping_context_skip_unwind__"
+# Set in per-call storage when a raise originates from context machinery itself
+# (__return__, or on 3.15+ on_py_start) rather than from the wrapped function
+# body, so the resulting exception does not also trigger __exit__. Consumed by
+# _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
+# (sys.monitoring path, >=3.15).
+_SKIP_EXIT_KEY = "__dd_wrapping_context_skip_exit__"
 
 # Free lists of storage context variables, keyed by variable name.
 #
@@ -747,6 +749,13 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         return self
 
     def _exit(self) -> None:
+        # Only reached on the bytecode path for Python >= 3.11, where the
+        # injected __return__ call sits inside the same try/except as the rest
+        # of the wrapped function body (see CONTEXT_FOOT). Skip the exit here
+        # too, so a failing __return__ behaves the same on every version.
+        storage = self._storage.get()
+        if storage is not None and storage.pop(_SKIP_EXIT_KEY, False):
+            return
         self.__exit__(*sys.exc_info())
 
     def __exit__(
@@ -764,8 +773,18 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
-        for context in self._contexts[::-1]:
-            context.__return__(value)
+        try:
+            for context in self._contexts[::-1]:
+                context.__return__(value)
+        except BaseException:
+            # A failing __return__ must not be treated as an exception from the
+            # wrapped function body -- it never gets to run, so __exit__ must
+            # not run for it either. See _exit and on_py_unwind, which consume
+            # this flag on the bytecode and sys.monitoring paths respectively.
+            storage = self._storage.get()
+            if storage is not None:
+                storage[_SKIP_EXIT_KEY] = True
+            raise
 
         return t.cast(T, super().__return__(value))
 
@@ -776,7 +795,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN; _SKIP_UNWIND_KEY suppresses the resulting __exit__ call so
+        # PY_RETURN; _SKIP_EXIT_KEY suppresses the resulting __exit__ call so
         # it only fires for a real exception from the wrapped function body.
         # It lives in per-call storage (a ContextVar), not a plain attribute,
         # because this same instance is shared across concurrent calls.
@@ -787,21 +806,15 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             except BaseException:
                 storage = self._storage.get()
                 if storage is not None:
-                    storage[_SKIP_UNWIND_KEY] = True
+                    storage[_SKIP_EXIT_KEY] = True
                 raise
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
-            try:
-                self.__return__(retval)
-            except BaseException:
-                storage = self._storage.get()
-                if storage is not None:
-                    storage[_SKIP_UNWIND_KEY] = True
-                raise
+            self.__return__(retval)
 
         def on_py_unwind(self, code: t.Any, instruction_offset: int, exception: BaseException) -> None:
             storage = self._storage.get()
-            if storage is not None and storage.pop(_SKIP_UNWIND_KEY, False):
+            if storage is not None and storage.pop(_SKIP_EXIT_KEY, False):
                 return
             self.__exit__(type(exception), exception, exception.__traceback__)
 
