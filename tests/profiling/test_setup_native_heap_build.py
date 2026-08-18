@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sysconfig
 from typing import Any
+from typing import Optional
 from typing import cast
 from unittest import mock
 
@@ -32,10 +33,11 @@ def _exec_build_logic(
     if sysconfig_values is not None:
         original_get = sysconfig.get_config_var
 
-        def fake_get_config_var(name: str) -> str | None:
+        def fake_get_config_var(name: str) -> Optional[str]:
             if name in sysconfig_values:
                 return sysconfig_values[name]
-            return cast(str | None, original_get(name))
+            # cast() evaluates its type expr at runtime; str | None is 3.10+.
+            return cast(Optional[str], original_get(name))
 
         namespace["sysconfig"] = mock.Mock()
         namespace["sysconfig"].get_config_var = fake_get_config_var
