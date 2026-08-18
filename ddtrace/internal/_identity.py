@@ -59,7 +59,14 @@ def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
     method of a long-lived object) for it to keep firing.
     """
     global _ON_RUNTIME_ID_CHANGE
-    ref = weakref.WeakMethod(cb) if hasattr(cb, "__self__") else weakref.ref(cb)
+    try:
+        ref = weakref.WeakMethod(cb) if hasattr(cb, "__self__") else weakref.ref(cb)
+    except TypeError:
+        # Some callables with a __self__ (e.g. certain C-implemented bound methods) aren't
+        # compatible with WeakMethod, and some objects aren't weakrefable at all. Skip
+        # registration rather than crash the caller's (often component-init) code path.
+        log.debug("Could not weakly reference on_runtime_id_change() subscriber %r; skipping", cb)
+        return
     _ON_RUNTIME_ID_CHANGE.add(ref)
 
 
@@ -133,13 +140,18 @@ MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
 _IS_AWS_LAMBDA_MICROVM = env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN") is not None
 
 
-def maybe_refresh_identity(method: str, path: str) -> None:
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
     """Call refresh_identity() if this request is the AWS Lambda MicroVM "/run" hook.
 
     Called from every instrumented web framework's request-dispatch patch with that
     request's method and path, so the platform-defined hook path only needs to be
     matched in one place. A no-op outside a MicroVM (see _IS_AWS_LAMBDA_MICROVM).
+    ``method``/``path`` may be ``None`` -- some callers read them straight off a raw
+    request/environ mapping (e.g. ``environ.get("REQUEST_METHOD")``) that has no guarantee
+    either key is present.
     """
+    if not method or not path:
+        return
     if _IS_AWS_LAMBDA_MICROVM and method == MICROVM_RUN_HOOK_METHOD and path == MICROVM_RUN_HOOK_PATH:
         refresh_identity()
 
