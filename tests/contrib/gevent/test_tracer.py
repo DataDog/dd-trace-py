@@ -502,6 +502,58 @@ def test_context_switches_publish_for_raw_native_thread_hub_entries() -> None:
 
 
 @pytest.mark.subprocess()
+def test_context_switch_watcher_recovers_after_trace_callback_replacement() -> None:
+    """Reinstall a displaced watcher without publishing duplicate switch events."""
+    import gevent
+    from greenlet import gettrace
+    from greenlet import settrace
+
+    from ddtrace.internal import core
+    from tests.contrib.gevent.utils import gevent_patched
+
+    switch_events: list[None] = []
+    chained_events: list[str] = []
+
+    def record_context_switch() -> None:
+        switch_events.append(None)
+
+    def early_trace(event: str, args: object) -> None:
+        pass
+
+    original_trace = settrace(early_trace)
+    try:
+        with gevent_patched(force_context_switch=True):
+            core.on("python.context.switch", record_context_switch)
+            try:
+                # Simulate a callback installed before the watcher restoring its
+                # original value and displacing the watcher when it is removed.
+                settrace(original_trace)
+                gevent.sleep(0)
+
+                assert switch_events, "The displaced watcher was not reinstalled"
+                watcher = gettrace()
+                assert watcher is not original_trace
+
+                # Simulate a callback installed after the watcher. Reinstalling
+                # around it must leave the older watcher inert in its callback chain.
+                def chained_trace(event: str, args: object) -> None:
+                    chained_events.append(event)
+                    assert watcher is not None
+                    watcher(event, args)
+
+                settrace(chained_trace)
+                switch_events.clear()
+                gevent.sleep(0)
+
+                assert chained_events, "The replacement trace callback was not preserved"
+                assert len(switch_events) == len(chained_events), "A stale watcher published duplicate switch events"
+            finally:
+                core.reset_listeners("python.context.switch", record_context_switch)
+    finally:
+        settrace(original_trace)
+
+
+@pytest.mark.subprocess()
 def test_unpatch_restores_trace_callback_in_other_native_thread() -> None:
     """Restore a native thread's previous callback after another thread unpatches."""
     import concurrent.futures

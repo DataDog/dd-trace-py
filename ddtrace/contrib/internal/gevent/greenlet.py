@@ -26,7 +26,10 @@ class _GreenletTrace:
 
     def __call__(self, event: str, args: Any) -> None:
         if getattr(gevent, "__datadog_patch", False):
-            core.dispatch("python.context.switch")
+            # A displaced watcher can remain in another callback's chain, so only
+            # the current watcher publishes the context switch.
+            if getattr(_state, "trace", None) is self:
+                core.dispatch("python.context.switch")
         elif gettrace() is self:
             settrace(self.previous)
             _state.trace = None
@@ -40,8 +43,10 @@ def ensure_greenlet_context_switch() -> bool:
     if not _CONTEXT_SWITCH_ENABLED or not getattr(gevent, "__datadog_patch", False):
         return False
 
-    if getattr(_state, "trace", None) is None:
-        trace = _GreenletTrace(gettrace())
+    trace = getattr(_state, "trace", None)
+    current_trace = gettrace()
+    if trace is None or current_trace is not trace:
+        trace = _GreenletTrace(current_trace)
         settrace(trace)
         _state.trace = trace
 
