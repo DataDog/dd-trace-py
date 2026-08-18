@@ -3,19 +3,20 @@ import mock
 import webtest
 
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
+from ddtrace.contrib.internal.bottle.patch import patch
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from tests.utils import TracerTestCase
 
 
 class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
-    """TracePlugin's wrapped callback must pass method/route to maybe_refresh_identity().
-
-    Unlike every other framework here, Bottle only invokes this per matched route, so an
-    unregistered hook path would NOT be detected -- see docs/aws-lambda-microvm-identity-refresh.md.
+    """traced_wsgi() wraps Bottle.wsgi() -- the WSGI entry point, run before routing -- so it
+    passes every request's real method/path to maybe_refresh_identity(), detecting the MicroVM
+    /run hook even when no route matches. Bottle has no unpatch(); patch() is idempotent.
     """
 
     def setUp(self):
         super().setUp()
+        patch()
         self.app = bottle.Bottle()
 
     def _trace_app(self):
@@ -23,16 +24,16 @@ class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
         self.app = webtest.TestApp(self.app)
 
     def test_microvm_run_hook_request(self):
-        @self.app.route(MICROVM_RUN_HOOK_PATH, method="POST")
-        def run_hook():
-            return ""
-
+        """No route is registered at the hook path: Bottle.wsgi() runs before routing, so it
+        must fire even on a 404 -- the stronger, more general form of this check (whether the
+        route matches doesn't change what gets passed to maybe_refresh_identity()).
+        """
         self._trace_app()
 
         with mock.patch("ddtrace.contrib.internal.bottle.trace.maybe_refresh_identity") as m:
-            resp = self.app.post(MICROVM_RUN_HOOK_PATH)
+            resp = self.app.post(MICROVM_RUN_HOOK_PATH, expect_errors=True)
 
-        assert resp.status_int == 200
+        assert resp.status_int == 404
         m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
 
     def test_other_request(self):
@@ -46,4 +47,4 @@ class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
             resp = self.app.get("/hi/dougie")
 
         assert resp.status_int == 200
-        m.assert_called_once_with("GET", "/hi/<name>")
+        m.assert_called_once_with("GET", "/hi/dougie")

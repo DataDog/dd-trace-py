@@ -936,6 +936,13 @@ class TelemetryWriter:
     def _on_identity_refresh(self, new_runtime_id: str) -> None:
         # Same rebuild as _fork_writer(): the native worker bakes in get_runtime_id() at
         # construction, so it must be dropped and lazily rebuilt on the next telemetry call.
+        # Unlike after a fork, the worker is still alive here -- it must be stopped (not just
+        # dropped) or it keeps heartbeating with the stale runtime ID until process shutdown.
+        if self._worker is not None:
+            try:
+                self._worker.stop(send_app_closing=False)
+            except Exception:
+                log.debug("Failed to stop the native telemetry worker during identity refresh", exc_info=True)
         self._fork_writer()
 
     def _telemetry_excepthook(self, tp, value, root_traceback) -> None:

@@ -16,6 +16,16 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
 
 
+def traced_wsgi(wrapped, instance, args, kwargs):
+    """Wraps Bottle's WSGI entry point so the MicroVM ``/run`` hook is detected even when no
+    route matches (404) or the matched route is a wildcard -- ``TracePlugin.apply()`` only
+    wraps callbacks for routes that already matched, so it can't see either case.
+    """
+    environ = args[0]
+    maybe_refresh_identity(environ.get("REQUEST_METHOD"), environ.get("PATH_INFO"))
+    return wrapped(*args, **kwargs)
+
+
 class TracePlugin(object):
     name = "trace"
     api = 2
@@ -42,8 +52,6 @@ class TracePlugin(object):
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):
-            maybe_refresh_identity(request.method, route.rule)
-
             if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 

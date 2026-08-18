@@ -584,6 +584,27 @@ def test_identity_refresh_rebuilds_native_worker():
         assert writer.started is False
 
 
+def test_identity_refresh_stops_live_worker_before_dropping():
+    """Unlike after a fork, the worker is still alive here and must be explicitly stopped, or it
+    keeps heartbeating with the stale runtime ID until process shutdown.
+    """
+    with override_global_config(
+        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
+    ):
+        writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
+        assert writer._worker is not None
+
+        # TelemetryWorker is a native extension type -- its methods can't be patched in place,
+        # so swap in a mock to observe the stop() call instead.
+        fake_worker = mock.Mock()
+        writer._worker = fake_worker
+
+        writer._on_identity_refresh("some-new-runtime-id")
+
+        fake_worker.stop.assert_called_once_with(send_app_closing=False)
+        assert writer._worker is None
+
+
 @pytest.mark.subprocess(
     env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"}
 )

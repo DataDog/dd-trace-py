@@ -3,7 +3,11 @@ import uuid
 import weakref
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+
+
+log = get_logger(__name__)
 
 
 __all__ = [
@@ -75,7 +79,12 @@ def _notify_runtime_id_subscribers() -> None:
         if cb is None:
             dead.add(ref)
             continue
-        cb(_RUNTIME_ID)
+        try:
+            cb(_RUNTIME_ID)
+        except Exception:
+            # This can run on a web framework's request-dispatch path (maybe_refresh_identity());
+            # one broken subscriber must not take down the request or block the others.
+            log.debug("Error notifying on_runtime_id_change() subscriber", exc_info=True)
     _ON_RUNTIME_ID_CHANGE -= dead
 
 

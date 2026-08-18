@@ -271,6 +271,30 @@ def test_refresh_identity_notifies_subscribers():
     assert seen == [runtime.get_runtime_id()]
 
 
+def test_refresh_identity_isolates_subscriber_exceptions():
+    """One subscriber raising must not stop refresh_identity() or block other subscribers."""
+    from ddtrace.internal import _identity as runtime
+
+    seen = []
+
+    class _BadSubscriber:
+        def on_change(self, new_id):
+            raise ValueError("boom")
+
+    class _GoodSubscriber:
+        def on_change(self, new_id):
+            seen.append(new_id)
+
+    bad = _BadSubscriber()
+    good = _GoodSubscriber()
+    runtime.on_runtime_id_change(bad.on_change)
+    runtime.on_runtime_id_change(good.on_change)
+
+    runtime.refresh_identity()
+
+    assert seen == [runtime.get_runtime_id()]
+
+
 @pytest.mark.subprocess
 def test_on_runtime_id_change_does_not_leak_dead_subscribers():
     """Subscribers are held weakly: once garbage collected they stop firing and are pruned.
