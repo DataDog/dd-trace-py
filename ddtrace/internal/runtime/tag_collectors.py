@@ -1,4 +1,4 @@
-from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal._identity import get_runtime_id
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY

@@ -28,6 +28,9 @@ import uuid
 from ddtrace import config
 from ddtrace.internal import forksafe
 from ddtrace.internal import packages
+from ddtrace.internal._identity import get_ancestor_runtime_id
+from ddtrace.internal._identity import get_runtime_id
+from ddtrace.internal._identity import on_runtime_id_change
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
@@ -36,9 +39,6 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
-from ddtrace.internal.runtime import get_ancestor_runtime_id
-from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config

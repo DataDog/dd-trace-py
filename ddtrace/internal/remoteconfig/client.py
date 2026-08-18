@@ -9,7 +9,8 @@ import uuid
 import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
-from ddtrace.internal import runtime
+from ddtrace.internal._identity import get_runtime_id
+from ddtrace.internal._identity import on_runtime_id_change
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
@@ -98,7 +99,7 @@ class RemoteConfigClient:
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
 
-        runtime.on_runtime_id_change(self._on_identity_refresh)
+        on_runtime_id_change(self._on_identity_refresh)
 
     def ensure_native(self) -> Any:
         if self._native is None:
@@ -111,7 +112,7 @@ class RemoteConfigClient:
                 agent_url=str(self.agent_url),
                 tracer_version=tracer_version,
                 client_id=self.id,
-                runtime_id=runtime.get_runtime_id(),
+                runtime_id=get_runtime_id(),
                 service=ddtrace.config.service or "",
                 env=ddtrace.config.env or "",
                 app_version=ddtrace.config.version or "",

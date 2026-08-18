@@ -1,8 +1,4 @@
-# The runtime-id/process-identity helpers below live in ddtrace.internal._identity, not here:
-# ddtrace.internal.runtime is zoned as product:runtime (Runtime Metrics), but these helpers are
-# depended on by internal-core and other products (telemetry, remote config, the trace writer,
-# tracer, debugger, CI Visibility), which aren't allowed to depend on product code. Re-exporting
-# them here keeps every existing `from ddtrace.internal.runtime import ...` call site working.
+# Compatibility re-exports for existing ddtrace.internal.runtime imports.
 from ddtrace.internal._identity import MICROVM_RUN_HOOK_METHOD  # noqa: F401
 from ddtrace.internal._identity import MICROVM_RUN_HOOK_PATH  # noqa: F401
 from ddtrace.internal._identity import get_ancestor_runtime_id  # noqa: F401

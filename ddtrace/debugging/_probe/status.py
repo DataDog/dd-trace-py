@@ -7,7 +7,8 @@ from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._uploader import build_debugger_sender
-from ddtrace.internal import runtime
+from ddtrace.internal._identity import get_ancestor_runtime_id
+from ddtrace.internal._identity import get_runtime_id
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -47,8 +48,8 @@ class ProbeStatusLogger:
                 "diagnostics": {
                     "probeId": probe.probe_id,
                     "probeVersion": probe.version,
-                    "runtimeId": runtime.get_runtime_id(),
-                    "parentId": runtime.get_ancestor_runtime_id(),
+                    "runtimeId": get_runtime_id(),
+                    "parentId": get_ancestor_runtime_id(),
                     "status": status,
                 }
             },

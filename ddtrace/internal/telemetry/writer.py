@@ -19,11 +19,11 @@ from ddtrace.internal.settings._telemetry import config
 from ...internal import atexit
 from ...internal import excepthook
 from ...internal import forksafe
+from .._identity import get_ancestor_runtime_id
+from .._identity import get_parent_runtime_id
+from .._identity import get_runtime_id
+from .._identity import on_runtime_id_change
 from ..periodic import PeriodicService
-from ..runtime import get_ancestor_runtime_id
-from ..runtime import get_parent_runtime_id
-from ..runtime import get_runtime_id
-from ..runtime import on_runtime_id_change
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT

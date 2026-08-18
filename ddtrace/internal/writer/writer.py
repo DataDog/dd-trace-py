@@ -12,14 +12,14 @@ from typing import Optional
 from typing import Sequence
 from typing import TextIO
 
+from ddtrace.internal._identity import get_runtime_id
+from ddtrace.internal._identity import on_runtime_id_change
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native_runtime import get_native_runtime
-from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config

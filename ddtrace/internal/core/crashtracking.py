@@ -11,9 +11,9 @@ from ddtrace import version
 from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
+from ddtrace.internal._identity import get_runtime_id
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
