@@ -5,7 +5,6 @@ import time
 import mock
 import pytest
 
-import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
@@ -18,6 +17,7 @@ from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import override_global_config
 
 
 @contextlib.contextmanager
@@ -194,20 +194,17 @@ def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
         worker = RuntimeWorker()
-        ddtrace.config.service = "override-service"
-        try:
+        with override_global_config(dict(service="override-service")):
             worker.flush()
-        finally:
-            ddtrace.config.service = None
 
-        statsd_socket = worker._dogstatsd_client.socket
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-        assert received, "expected at least one packet to be sent"
-        gauges = [line for packet in received for line in packet.split("\n") if line]
-        assert gauges, "expected at least one metric line to be sent"
-        for gauge in gauges:
-            assert "service:env-service" not in gauge, gauge
-            assert gauge.count("service:override-service") == 1, gauge
+            statsd_socket = worker._dogstatsd_client.socket
+            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+            assert received, "expected at least one packet to be sent"
+            gauges = [line for packet in received for line in packet.split("\n") if line]
+            assert gauges, "expected at least one metric line to be sent"
+            for gauge in gauges:
+                assert "service:env-service" not in gauge, gauge
+                assert gauge.count("service:override-service") == 1, gauge
 
 
 class TestRuntimeMetrics(BaseTestCase):
