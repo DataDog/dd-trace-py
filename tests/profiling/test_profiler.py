@@ -387,7 +387,7 @@ def test_stack_failure_telemetry_logging_with_auto():
         assert "mock failure message" in message
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_profiling_auto_degrades_when_unavailable():
     """import ddtrace.profiling.auto must not crash when native extensions are missing."""
     import sys
