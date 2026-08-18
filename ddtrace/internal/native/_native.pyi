@@ -174,6 +174,14 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
     def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
@@ -1027,6 +1035,8 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
