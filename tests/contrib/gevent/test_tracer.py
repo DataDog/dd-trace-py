@@ -453,8 +453,11 @@ def test_context_switches_publish_for_raw_native_thread_hub_entries() -> None:
     active_span_ids_by_thread: dict[int, list[Optional[int]]] = {}
 
     def record_active_span_on_context_switch() -> None:
+        observed_span_ids = active_span_ids_by_thread.get(threading.get_ident())
+        if observed_span_ids is None:
+            return
         active = tracer.context_provider.active()
-        active_span_ids_by_thread[threading.get_ident()].append(active.span_id if active is not None else None)
+        observed_span_ids.append(active.span_id if active is not None else None)
 
     def enter_hub(entrypoint: str) -> None:
         if entrypoint == "sleep":
