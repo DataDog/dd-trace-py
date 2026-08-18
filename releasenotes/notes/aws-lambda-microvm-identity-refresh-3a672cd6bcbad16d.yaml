@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    AWS Lambda MicroVM: Fixes MicroVM instances on AWS Lambda sharing the same runtime ID and Remote
-    Config client ID after resuming from a snapshot, which made distinct instances appear as
-    one in traces and telemetry. Only applies to AWS Lambda MicroVM deployments; no behavior
-    change for other environments.
+    stable id uniqueness: Regenerates stable identifiers, including the runtime ID and
+    Remote Config client ID, when a new AWS Lambda MicroVM instance starts to ensure
+    they remain unique. This behavior only applies to AWS Lambda MicroVM deployments;
+    behavior in other environments is unchanged.
