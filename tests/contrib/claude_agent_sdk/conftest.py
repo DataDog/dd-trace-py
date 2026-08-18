@@ -237,11 +237,14 @@ def mock_client(claude_agent_sdk):
 
 
 @pytest.fixture
-def mock_client_forced_partial_noise(claude_agent_sdk):
+def mock_client_forced_partial_noise(claude_agent_sdk, claude_agent_sdk_llmobs):
     """A client whose receive stream carries the partial-streaming events we inject at init.
 
     Mirrors connect(prompt=...) followed by receive_response(): no query() call is made, so the
     stream is untraced, but __init__ forced include_partial_messages on (_dd_forced_partial=True).
+
+    Depends on claude_agent_sdk_llmobs so LLM Observability is enabled before the client is
+    constructed — __init__ only forces partials when llmobs is on.
     """
 
     async def mock_receive_messages():
