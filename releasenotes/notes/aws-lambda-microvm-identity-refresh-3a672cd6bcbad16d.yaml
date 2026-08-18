@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    internal: On AWS Lambda, every MicroVM instance launched from the same image snapshot now
+    gets a distinct runtime ID and Remote Config client ID. Previously, since a MicroVM resumes
+    from an identical memory snapshot, every instance restarted from that snapshot reported the
+    same runtime ID and Remote Config client ID as the instance that was snapshotted, making
+    them appear as a single instance in traces and telemetry. The tracer now detects the
+    platform's lifecycle hook for a new MicroVM instance and regenerates both identifiers
+    automatically, with no application changes required.
