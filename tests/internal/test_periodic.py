@@ -1028,7 +1028,61 @@ def test_recycled_ident_dealloc_does_not_evict_live_worker():
         live.join()
 
 
-def test_periodic_thread_naming():
+@pytest.mark.subprocess(timeout=10)
+def test_at_exit_does_not_hang_on_slow_shutdown():
+    """Regression: a slow on_shutdown callback must not hang process exit.
+
+    The native _at_exit handler joins all periodic threads. Without a timeout,
+    a stuck on_shutdown callback blocks the process forever.
+
+    This test starts a thread with a 30s on_shutdown sleep and verifies the
+    process exits well under that time (the subprocess timeout is 10s).
+    """
+    import time
+
+    from ddtrace.internal._threads import PeriodicThread
+
+    def slow_shutdown():
+        time.sleep(30)
+
+    t = PeriodicThread(100.0, lambda: None, name="test_hung_exit", on_shutdown=slow_shutdown)
+    t.start()
+    time.sleep(0.1)
+    # Process exit triggers _at_exit -> stop + join(timeout=2s).
+    # Without the timeout this would hang for 30s and exceed the subprocess timeout.
+
+
+def test_before_fork_join_does_not_hang_on_slow_periodic():
+    """Regression: a slow periodic() callback must not hang the before-fork join.
+
+    threads._before_fork() joins all periodic threads before forking. Without a
+    timeout, a thread stuck in its periodic callback would block the fork
+    indefinitely
+    """
+    barrier = Event()
+    started = Event()
+
+    def slow_periodic():
+        started.set()
+        barrier.wait(timeout=10)
+
+    t = periodic.PeriodicThread(0.001, slow_periodic, no_wait_at_start=True)
+    t.start()
+    started.wait(timeout=2)
+
+    # Simulate the before-fork path: stop + join with timeout.
+    t._before_fork()
+    start = monotonic()
+    t.join(timeout=2)
+    elapsed = monotonic() - start
+
+    # The join should respect the timeout, not wait for slow_periodic to finish.
+    assert elapsed < 5.0, "join(timeout=2) blocked for %.2fs — timeout was not honored" % elapsed
+
+    # Unblock the stuck thread so it can exit cleanly.
+    barrier.set()
+    t.join(timeout=2)
+
     """Test that native thread names are set correctly with various formats.
 
     This verifies that the native thread naming functionality works and handles

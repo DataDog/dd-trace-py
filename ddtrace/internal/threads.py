@@ -213,6 +213,8 @@ def _before_fork() -> None:
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
+    # Use a timeout to prevent hanging if a thread is stuck in its periodic
+    # callback or shutdown hook.
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
-        thread.join()
+        thread.join(timeout=2)
