@@ -131,6 +131,13 @@ CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{s
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+# Build the native profiling components (the profiling feature of the Rust
+# extension, libdd_wrapper and the memalloc/ddup/stack CMake extensions).
+# Building them requires the dedup_headers tool, which setup.py installs on
+# demand with `cargo install --git`, so offline builds can set
+# DD_BUILD_PROFILING_NATIVE=0 to skip the native profiling support entirely;
+# the pure-Python side then reports profiling as unavailable at runtime.
+BUILD_PROFILING_NATIVE = os.getenv("DD_BUILD_PROFILING_NATIVE", "1").lower() in ("1", "yes", "on", "true")
 
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
@@ -310,7 +317,8 @@ def is_64_bit_python():
 
 rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
-    rust_features.append("profiling")
+    if BUILD_PROFILING_NATIVE:
+        rust_features.append("profiling")
     if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
 if not SERVERLESS_BUILD:
@@ -863,7 +871,12 @@ class CustomBuildExt(build_ext):
             self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+        if (
+            BUILD_PROFILING_NATIVE
+            and CURRENT_OS in ("Linux", "Darwin")
+            and is_64_bit_python()
+            and sys.version_info < (3, 15)
+        ):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
@@ -1784,7 +1797,12 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+    if (
+        BUILD_PROFILING_NATIVE
+        and CURRENT_OS in ("Linux", "Darwin")
+        and is_64_bit_python()
+        and sys.version_info < (3, 15)
+    ):
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
