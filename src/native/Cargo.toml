@@ -28,26 +28,24 @@ rustc-hash = "1.1"
 serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
-libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true, features = ["pyo3"] }
+libdd-ffe = { version = "1.0.0", optional = true, features = ["pyo3"] }
 datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["one_way_shm_futex"] }
-libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true }
-libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = [
-  "stats-obfuscation"
-] }
-libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libdd-remote-config = { version = "3.0.0" }
+libdd-telemetry = { version = "6.0.0" }
+libdd-tracer-flare = { version = "1.0.0" }
+libdd-crashtracker = { version = "1.0.0", optional = true }
+libdd-ddsketch = { version = "1.1.0", optional = true }
+libdd-library-config = { version = "3.0.0" }
+libdd-log = { version = "1.0.0" }
+libdd-capabilities-impl = { version = "4.0.0" }
+libdd-data-pipeline = { version = "7.0.0", features = [ "stats-obfuscation" ] }
+libdd-http-client = { version = "1.0.0" }
+libdd-shared-runtime = { version = "2.0.0" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libdd-common = { version = "5.1.1" }
+libdd-trace-utils = { version = "10.0.0" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
@@ -55,8 +53,8 @@ tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["otel-thread-ctx"]}
-libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libdd-library-config = { version = "3.0.0", features = ["otel-thread-ctx"]}
+libdd-otel-thread-ctx = { version = "1.0.0" }
 
 [build-dependencies]
 pyo3-build-config = "0.28"
