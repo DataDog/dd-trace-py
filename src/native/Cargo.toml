@@ -31,16 +31,16 @@ smallvec = "1"
 libdd-ffe = { version = "1.0.0", optional = true, features = ["pyo3"] }
 datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["one_way_shm_futex"] }
 libdd-remote-config = { version = "3.0.0" }
-libdd-telemetry = { version = "6.0.0" }
+libdd-telemetry = { version = "7.0.0" }
 libdd-tracer-flare = { version = "1.0.0" }
 libdd-crashtracker = { version = "1.0.0", optional = true }
-libdd-ddsketch = { version = "1.1.0", optional = true }
+libdd-ddsketch = { version = "1.1.1", optional = true }
 libdd-library-config = { version = "3.0.0" }
 libdd-log = { version = "1.0.0" }
 libdd-capabilities-impl = { version = "4.0.0" }
-libdd-data-pipeline = { version = "7.0.0", features = [ "stats-obfuscation" ] }
+libdd-data-pipeline = { version = "8.0.0", features = [ "stats-obfuscation" ] }
 libdd-http-client = { version = "1.0.0" }
-libdd-shared-runtime = { version = "2.0.0" }
+libdd-shared-runtime = { version = "3.0.0" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true, features = [
     "cbindgen",
 ] }
