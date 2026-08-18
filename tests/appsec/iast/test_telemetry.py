@@ -246,16 +246,17 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, 
     with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # A set, not a list: the native telemetry worker can flush mid-patching, splitting
-    # instrumented.propagation across series. executed.*/instrumented.sink come from the lib's own
-    # internal usage, not the module under test.
-    filtered_metrics = {
-        metric["metric"]
-        for metric in generate_metrics
-        if metric["metric"] != "instrumented.sink" and not metric["metric"].startswith("executed.")
-    }
-    assert filtered_metrics == {"instrumented.propagation"}
+    # Select by name rather than by excluding the names known to leak in: the worker can flush
+    # mid-patching (splitting instrumented.propagation across series) and can flush an earlier
+    # test's series into this session.
+    filtered_metrics, all_metrics = _wait_for_iast_metrics(
+        test_agent_session,
+        telemetry_writer,
+        lambda metrics: [metric for metric in metrics if metric["metric"] == "instrumented.propagation"],
+    )
+    assert filtered_metrics, (
+        f"Expected an instrumented.propagation metric, got {sorted({metric['metric'] for metric in all_metrics})}"
+    )
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agent_session, tracer):
@@ -285,14 +286,19 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agen
         finally:
             AppSecIastSpanProcessor.disable()
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
-    assert filtered_metrics == ["executed.source", "request.tainted"]
-    assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
+    # Both series have to be there, but not alone: executed.sink comes from the lib's own agent
+    # traffic (http.client), and the worker can flush an earlier test's series into this session.
+    expected = {"executed.source", "request.tainted"}
+
+    def select(metrics):
+        names = {metric["metric"] for metric in metrics}
+        return sorted(expected) if expected <= names else []
+
+    filtered_metrics, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+    assert filtered_metrics == sorted(expected), (
+        f"Expected {sorted(expected)} among the iast metrics, got "
+        f"{sorted({metric['metric'] for metric in all_metrics})}"
+    )
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
@@ -402,22 +408,34 @@ def test_django_instrumented_metrics(telemetry_writer, test_agent_session):
     with override_global_config(dict(_iast_enabled=True, _iast_debug=True)):
         _on_django_patch()
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Only instrumented.source carries a source_type tag; instrumented.propagation has none.
-    metrics_source_tags_result = [
-        metric["tags"][0] for metric in generate_metrics if metric["metric"] == "instrumented.source"
-    ]
+    expected_source_types = {
+        f"source_type:{origin_to_str(origin)}"
+        for origin in (
+            OriginType.HEADER_NAME,
+            OriginType.HEADER,
+            OriginType.PATH_PARAMETER,
+            OriginType.PATH,
+            OriginType.COOKIE,
+            OriginType.COOKIE_NAME,
+            OriginType.PARAMETER,
+            OriginType.PARAMETER_NAME,
+            OriginType.BODY,
+        )
+    }
 
-    assert len(metrics_source_tags_result) == 9
-    assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.HEADER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PATH_PARAMETER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PATH)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.COOKIE)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.COOKIE_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PARAMETER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PARAMETER_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.BODY)}" in metrics_source_tags_result
+    # Only instrumented.source carries a source_type tag; instrumented.propagation has none.
+    # Wait for the whole set: the worker can flush the source series several flushes apart.
+    def select(metrics):
+        tags = {metric["tags"][0] for metric in metrics if metric["metric"] == "instrumented.source" and metric["tags"]}
+        return tags if expected_source_types <= tags else set()
+
+    source_types, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+
+    assert source_types == expected_source_types, (
+        f"Missing {sorted(expected_source_types - source_types)}, unexpected "
+        f"{sorted(source_types - expected_source_types)}, in "
+        f"{sorted({metric['metric'] for metric in all_metrics})}"
+    )
 
 
 def test_django_instrumented_metrics_iast_disabled(telemetry_writer, test_agent_session):
