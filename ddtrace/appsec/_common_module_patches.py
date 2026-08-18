@@ -13,40 +13,27 @@ from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_f
 from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
+from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_for_appsec
+from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subprocess_for_appsec
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
-import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
 
 
 log = get_logger(__name__)
 
 _is_patched = False
 
-_RASP_SYSTEM = "rasp_os.system"
-_RASP_POPEN = "rasp_Popen"
-
-
-def _patch_subprocess(module):
-    # ensure that the subprocess patch is applied even after one click activation
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
-    log.debug("Patching common modules: subprocess_patch")
-
 
 def patch_common_modules() -> None:
     global _is_patched
     if _is_patched:
         return
-
-    ModuleWatchdog.register_module_hook("subprocess", _patch_subprocess)
 
     try_wrap_function_wrapper(
         "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request_6D4E8B2A1F095C73
@@ -60,6 +47,7 @@ def patch_common_modules() -> None:
 
     patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
+    patch_subprocess_for_appsec()
 
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
@@ -82,11 +70,7 @@ def unpatch_common_modules():
 
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
-
-    subprocess_patch.unpatch()
-    subprocess_patch.del_str_callback(_RASP_SYSTEM)
-    subprocess_patch.del_lst_callback(_RASP_POPEN)
-    ModuleWatchdog.unregister_module_hook("subprocess", _patch_subprocess)
+    unpatch_subprocess_for_appsec()
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
@@ -334,63 +318,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         elif valid_url:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
-
-
-def wrapped_system_5542593D237084A7(command: Union[str, bytes]) -> None:
-    """
-    wrapper for os.system function
-    """
-    if get_rasp_capability("shi"):
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
-        except ImportError:
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, True)
-            return
-
-        if in_asm_context():
-            res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.SHI: command},
-                crop_trace="wrapped_system_5542593D237084A7",
-                rule_type=EXPLOIT_PREVENTION.TYPE.SHI,
-            )
-            if res and _must_block(res.actions):
-                raise BlockingException(
-                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SHI, command
-                )
-        else:
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
-
-
-def popen_FD233052260D8B4D(arg_list: Union[list[str], str, bytes]) -> None:
-    """
-    listener for subprocess.Popen class
-    """
-    if get_rasp_capability("cmdi"):
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
-        except ImportError:
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, True)
-            return
-
-        if in_asm_context():
-            command: list[Union[str, bytes]] = []
-            if isinstance(arg_list, list):
-                command.extend(arg_list)
-            else:
-                command.append(arg_list)
-            res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
-                crop_trace="popen_FD233052260D8B4D",
-                rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
-            )
-            if res and _must_block(res.actions):
-                raise BlockingException(
-                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.CMDI, arg_list
-                )
-        else:
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, False)
 
 
 _DB_DIALECTS = {

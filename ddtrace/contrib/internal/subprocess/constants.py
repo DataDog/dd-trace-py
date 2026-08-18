@@ -1,6 +1,9 @@
 from ddtrace.internal.constants import Constant_Class
 
 
+COMMAND_EVENT = "subprocess.command"
+
+
 class COMMANDS(metaclass=Constant_Class):
     """
     string names used by the library for tagging data for subprocess executions in context or span

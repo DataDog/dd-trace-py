@@ -97,6 +97,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._contrib.flask import listen as flask_listen
     from ddtrace.appsec._contrib.openai.handlers import listen as openai_listen
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
+    from ddtrace.appsec._contrib.subprocess.handlers import listen as subprocess_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
     # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
@@ -111,6 +112,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         fastapi_listen()
         import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
 
+        subprocess_listen()
         openai_listen()
         stripe_listen()
         tornado_listen()
