@@ -85,7 +85,7 @@ EXPECTED_ASSISTANT_USAGE = {
 
 
 def create_mock_assistant_message(
-    text: str, model: str = MOCK_MODEL, usage: dict = None, message_id: str = None
+    text: str, model: str = MOCK_MODEL, usage: dict = None, message_id: str = None, parent_tool_use_id: str = None
 ) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
     msg = AssistantMessage(
@@ -98,6 +98,9 @@ def create_mock_assistant_message(
     # helper stays compatible with older SDKs whose AssistantMessage lacks the field.
     if message_id is not None:
         msg.message_id = message_id
+    # parent_tool_use_id is None for the main agent, the spawning tool-use id for a subagent.
+    if parent_tool_use_id is not None:
+        msg.parent_tool_use_id = parent_tool_use_id
     return msg
 
 
@@ -189,12 +192,17 @@ def create_mock_user_message(content: str) -> UserMessage:
     return UserMessage(content=content)
 
 
-def create_mock_stream_event(event: dict) -> StreamEvent:
-    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict."""
+def create_mock_stream_event(event: dict, parent_tool_use_id: str = None) -> StreamEvent:
+    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict.
+
+    ``parent_tool_use_id`` is None for the main agent's stream, the spawning tool-use id for a
+    subagent's — the SDK sets it on every StreamEvent so interleaved subagent streams stay distinct.
+    """
     return StreamEvent(
         uuid="test-uuid",
         session_id="test-session-id",
         event=event,
+        parent_tool_use_id=parent_tool_use_id,
     )
 
 
@@ -312,6 +320,26 @@ MOCK_PARTIAL_MESSAGES_SEQUENCE = [
 ]
 
 
+# Same as MOCK_PARTIAL_MESSAGES_SEQUENCE but with a non-"requesting" status SystemMessage mixed in.
+# When we force partial streaming we filter only our own noise — the "requesting" ping and the
+# StreamEvents. Other status messages (here a compaction result) are caller-visible and not gated
+# on partial streaming, so they must survive the filter and reach the caller.
+MOCK_COMPACTION_STATUS_VALUE = "compacted"
+MOCK_PARTIAL_MESSAGES_STATUS_PASSTHROUGH_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),  # "requesting" ping — ours, filtered back out
+    create_mock_stream_event(
+        {"type": "message_start", "message": {"id": MOCK_PARTIAL_TURN_MESSAGE_ID, "usage": {"output_tokens": 1}}}
+    ),
+    create_mock_status_message(status=MOCK_COMPACTION_STATUS_VALUE),  # caller-visible — must pass through
+    create_mock_assistant_message(
+        "The answer is 4.", usage=MOCK_PARTIAL_SNAPSHOT_USAGE, message_id=MOCK_PARTIAL_TURN_MESSAGE_ID
+    ),
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
 # Simulates a pre-0.1.49 SDK where AssistantMessage carries no usage at all (the field was
 # added in 0.1.49). The only token source is the partial-message stream: message_start
 # carries the input/cache tokens and message_delta the true cumulative output. The
@@ -396,6 +424,54 @@ MOCK_PARTIAL_MESSAGES_SPLIT_TEXT_TOOL_SEQUENCE = [
     create_mock_stream_event(
         {"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_SPLIT_FINAL_OUTPUT_TOKENS}}
     ),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
+# Simulates a main agent and a subagent streaming concurrently: their StreamEvents interleave in
+# one stream, distinguished only by parent_tool_use_id. Both message_starts arrive before either
+# id-less message_delta, so a single shared cursor would attribute both deltas to whichever
+# message_start came last, clobbering one turn's output tokens. Scoping the cursor by
+# parent_tool_use_id keeps each turn's true output attributed to its own message.
+MOCK_SUBAGENT_TOOL_USE_ID = "toolu_01SubagentScopeAaaaaaaaa"
+MOCK_SUBAGENT_MAIN_MESSAGE_ID = "msg_01SubagentMainAaaaaaaaaa"
+MOCK_SUBAGENT_CHILD_MESSAGE_ID = "msg_01SubagentChildBbbbbbbbb"
+MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS = 100
+MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS = 50
+MOCK_SUBAGENT_INTERLEAVED_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    # Both turns begin streaming before either produces output: main first, then the subagent.
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_SUBAGENT_MAIN_MESSAGE_ID,
+                "usage": {"input_tokens": 10, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+            },
+        }
+    ),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_SUBAGENT_CHILD_MESSAGE_ID,
+                "usage": {"input_tokens": 20, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+            },
+        },
+        parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID,
+    ),
+    # Each turn's id-less true output must land on its own message_start via the scoped cursor.
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS}}),
+    create_mock_stream_event(
+        {"type": "message_delta", "usage": {"output_tokens": MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS}},
+        parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID,
+    ),
+    # Both turns arrive as id-less AssistantMessages (pre-0.1.49 style); scope alone joins the usage.
+    create_mock_assistant_message(
+        "Subagent finished.", usage=None, message_id=None, parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID
+    ),
+    create_mock_assistant_message("Main agent finished.", usage=None, message_id=None),
     create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
 ]
 

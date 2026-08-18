@@ -94,13 +94,18 @@ def wrap_prompt_if_async_iterable(args, kwargs):
 def _is_partial_stream_noise(chunk) -> bool:
     """Whether a chunk is one of the events we inject by forcing include_partial_messages.
 
-    The ``StreamEvent`` partials and the per-turn ``SystemMessage`` status pings only appear
-    because we set ``include_partial_messages``; the caller never asked for them.
+    Only the ``StreamEvent`` partials and the ``stream_request_start`` ping
+    (``SystemMessage(subtype="status")`` with ``data["status"] == "requesting"``) are ours.
+    Other ``status`` messages (compaction results/errors, permission-mode changes) are
+    caller-visible and not gated on partial messages, so we must let them through.
     """
     chunk_type = type(chunk).__name__
-    return chunk_type == "StreamEvent" or (
-        chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status"
-    )
+    if chunk_type == "StreamEvent":
+        return True
+    if chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status":
+        data = getattr(chunk, "data", None)
+        return isinstance(data, dict) and data.get("status") == "requesting"
+    return False
 
 
 async def filter_forced_partial_noise(resp):
@@ -138,7 +143,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         # output tokens. On SDK versions without AssistantMessage.usage (< 0.1.49) this is
         # the only token source; on newer versions it corrects the output snapshot.
         self._partial_usage_by_id: dict[str, dict] = {}
-        self._partial_current_id: Optional[str] = None
+        # The message id currently streaming, keyed by parent_tool_use_id scope: None for the main
+        # agent, the spawning tool-use id for a subagent. Scoping keeps concurrent subagent runs,
+        # whose StreamEvents interleave in one stream, from clobbering each other's cursor when an
+        # id-less message_delta is attributed back to its message_start.
+        self._partial_current_id_by_scope: dict[Optional[str], str] = {}
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
         self.current_step_span = None
@@ -170,17 +179,22 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         """Record per-turn token usage from a StreamEvent's raw Anthropic event.
 
         ``message_start`` seeds the turn's input/cache tokens; each ``message_delta``
-        updates the running true output tokens (the last one seen wins).
+        updates the running true output tokens (the last one seen wins). The id-less
+        ``message_delta`` is joined back to its ``message_start`` within the same
+        ``parent_tool_use_id`` scope, so concurrent subagent streams stay separate.
         """
         signal = extract_partial_message_usage(getattr(chunk, "event", None))
         if signal is None:
             return
+        scope = getattr(chunk, "parent_tool_use_id", None)
         message_id, usage = signal
         if message_id is not None:
-            self._partial_current_id = message_id
+            self._partial_current_id_by_scope[scope] = message_id
             self._partial_usage_by_id[message_id] = dict(usage)
-        elif usage and self._partial_current_id is not None:
-            self._partial_usage_by_id.setdefault(self._partial_current_id, {}).update(usage)
+        elif usage:
+            current_id = self._partial_current_id_by_scope.get(scope)
+            if current_id is not None:
+                self._partial_usage_by_id.setdefault(current_id, {}).update(usage)
 
     def should_yield_chunk(self, chunk) -> bool:
         return not self._is_forced_partial_noise(chunk)
@@ -414,6 +428,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         (unchanged until the next message_start), giving the same one-span-per-message result.
         """
         incoming_id = getattr(chunk, "message_id", None)
+        # The streaming message id currently active in this message's own subagent scope.
+        current_partial_id = self._partial_current_id_by_scope.get(getattr(chunk, "parent_tool_use_id", None))
 
         # Same turn continued: accumulate onto the buffered chunks (usage counted once). Match
         # on message_id when the SDK provides it, otherwise on the streaming message id, which
@@ -422,8 +438,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             (incoming_id is not None and incoming_id == self._pending_message_id)
             or (
                 incoming_id is None
-                and self._partial_current_id is not None
-                and self._partial_current_id == self._pending_partial_id
+                and current_partial_id is not None
+                and current_partial_id == self._pending_partial_id
             )
         )
         if same_turn:
@@ -439,7 +455,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._pending_message_id = incoming_id
         # Stamp the turn currently streaming so the usage can be joined back to it even when
         # the SDK gives the AssistantMessage no message_id.
-        self._pending_partial_id = self._partial_current_id
+        self._pending_partial_id = current_partial_id
         self._open_tool_spans(content)
 
     def _open_tool_spans(self, content: Any) -> None:

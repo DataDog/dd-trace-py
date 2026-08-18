@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partia
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 from ddtrace.llmobs._utils import _get_attr
 
@@ -39,13 +40,19 @@ def traced_client_init(func, instance, args, kwargs):
     whether we forced the flag so receive_messages() can tell the handler to filter the
     extra events.
 
-    A caller-supplied custom transport is constructed independently of these options, so
-    forcing (and therefore filtering) the flag there would only risk swallowing chunks the
-    transport emits on its own — skip it, exactly as the standalone query() path does.
+    Two cases skip forcing entirely:
+
+    - LLM Observability is disabled. The accurate per-turn output tokens the partial stream
+      exists to mine are an LLMObs concern, so APM-only users keep the SDK's default stream
+      and pay nothing for the extra events.
+    - The caller supplied a custom transport, which is constructed independently of these
+      options — forcing the flag would have no effect on it, and any chunks it emits are the
+      caller's own — so we skip it, exactly as the standalone query() path does.
     """
     func(*args, **kwargs)
-    transport = args[1] if len(args) > 1 else kwargs.get("transport")
-    if transport is not None:
+    integration = claude_agent_sdk._datadog_integration
+    transport = get_argument_value(args, kwargs, 1, "transport", optional=True)
+    if transport is not None or not integration.llmobs_enabled:
         instance._dd_forced_partial = False
         return
     try:
@@ -62,11 +69,13 @@ def traced_query_async_generator(func, _instance, args, kwargs):
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     # Turn on partial streaming so the handler can read accurate per-turn output tokens
-    # from the message_delta events. A caller-supplied custom transport is constructed
-    # independently of these options, so forcing (and therefore filtering) the flag would
-    # only risk swallowing chunks that transport emits on its own — skip it there.
+    # from the message_delta events. Only worth doing when LLM Observability is on (those
+    # tokens are an LLMObs concern); APM-only users keep the SDK's default stream. A
+    # caller-supplied custom transport is constructed independently of these options, so
+    # forcing (and therefore filtering) the flag would only risk swallowing chunks that
+    # transport emits on its own — skip it there.
     forced_partial = False
-    if wrapped_kwargs.get("transport") is None:
+    if integration.llmobs_enabled and wrapped_kwargs.get("transport") is None:
         options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
         if forced_partial:
             wrapped_kwargs = dict(wrapped_kwargs)

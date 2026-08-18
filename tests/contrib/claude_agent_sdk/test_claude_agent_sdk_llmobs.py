@@ -16,6 +16,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TE
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_COMPACTION_STATUS_VALUE
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
@@ -23,6 +24,8 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
 from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_SPLIT_TOOL_USE_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS
+from tests.contrib.claude_agent_sdk.utils import MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
 from tests.llmobs._utils import _assert_span_link
@@ -1306,6 +1309,78 @@ class TestLLMObsClaudeAgentSdk:
 
         client_default = claude_agent_sdk.ClaudeSDKClient()
         assert getattr(client_default, "_dd_forced_partial", None) is True
+
+    async def test_llmobs_disabled_does_not_force_partials(
+        self, claude_agent_sdk, mock_internal_client_partial_messages
+    ):
+        """The accurate per-turn output tokens the partial stream exists to mine are an LLMObs
+        concern, so when LLM Observability is disabled (APM-only) we must not force
+        include_partial_messages — the client leaves the flag alone and the query() path neither
+        forces nor filters, so any partial events reach the caller untouched.
+        """
+        integration = claude_agent_sdk._datadog_integration
+        assert integration.llmobs_enabled is False
+
+        # client path: __init__ must not flip the flag on
+        client = claude_agent_sdk.ClaudeSDKClient()
+        assert getattr(client, "_dd_forced_partial", None) is False
+
+        # query path: not forced → not filtered, so the sequence's own partial events pass through
+        messages = []
+        async for msg in claude_agent_sdk.query(prompt="What is 2+2?"):
+            messages.append(msg)
+        type_names = [type(m).__name__ for m in messages]
+        assert "StreamEvent" in type_names
+        assert any(
+            t == "SystemMessage" and getattr(m, "subtype", None) == "status" for t, m in zip(type_names, messages)
+        )
+
+    async def test_llmobs_forced_partials_passes_through_non_requesting_status(
+        self, claude_agent_sdk, mock_internal_client_partial_messages_status_passthrough, claude_agent_sdk_llmobs
+    ):
+        """Forcing partial streaming filters only our own noise — the "requesting" ping and the
+        StreamEvents. Other status SystemMessages (e.g. compaction results) are caller-visible and
+        not gated on partial streaming, so they must survive the filter and reach the caller.
+        """
+        messages = []
+        async for msg in claude_agent_sdk.query(prompt="What is 2+2?"):
+            messages.append(msg)
+
+        status_values = [
+            m.data.get("status")
+            for m in messages
+            if type(m).__name__ == "SystemMessage" and getattr(m, "subtype", None) == "status"
+        ]
+        # our "requesting" ping and the StreamEvents are filtered; the compaction status is not
+        assert "requesting" not in status_values
+        assert MOCK_COMPACTION_STATUS_VALUE in status_values
+        assert "StreamEvent" not in [type(m).__name__ for m in messages]
+
+    async def test_llmobs_interleaved_subagent_stream_events_do_not_clobber_output_tokens(
+        self, claude_agent_sdk, mock_internal_client_subagent_interleaved, claude_agent_sdk_llmobs, test_spans
+    ):
+        """A main agent and a subagent stream concurrently: both message_starts arrive before
+        either id-less message_delta. A single shared cursor would attribute both deltas to the
+        last message_start, losing one turn's output. Scoping the cursor by parent_tool_use_id
+        keeps each turn's true output on its own llm span.
+        """
+        async for _ in claude_agent_sdk.query(prompt="Delegate to a subagent"):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        assert len(llm_spans) == 2
+
+        # Map each llm span's corrected output tokens by its assistant content so the assertion
+        # doesn't depend on flush order.
+        outputs_by_content = {}
+        for span in llm_spans:
+            data = _get_llmobs_data_metastruct(span)
+            content = data["meta"]["output"]["messages"][0]["content"]
+            outputs_by_content[content] = data["metrics"]["output_tokens"]
+
+        assert outputs_by_content["Main agent finished."] == MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS
+        assert outputs_by_content["Subagent finished."] == MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS
 
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):
