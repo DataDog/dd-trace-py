@@ -3,7 +3,11 @@
 #include <echion/echion_sampler.h>
 
 void
-GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack)
+GreenletInfo::unwind(EchionSampler& echion,
+                     PyObject* cur_frame,
+                     PyThreadState* tstate,
+                     FrameStack& stack,
+                     PyObject* gc_frame)
 {
     PyObject* frame_addr = NULL;
 #if PY_VERSION_HEX >= 0x030d0000
@@ -40,5 +44,5 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch());
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, gc_frame);
 }

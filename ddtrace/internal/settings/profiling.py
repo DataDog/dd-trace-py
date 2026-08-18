@@ -423,6 +423,14 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
     )
 
+    gc_enabled = DDConfig.v(
+        bool,
+        "gc_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to add Garbage collection frames on stacks that initiated garbage collection.",
+    )
+
     fast_copy = DDConfig.v(
         bool,
         "fast_copy",
