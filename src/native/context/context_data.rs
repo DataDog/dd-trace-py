@@ -14,6 +14,17 @@ const W3C_TRACEPARENT_KEY: &str = "traceparent";
 const W3C_TRACESTATE_KEY: &str = "tracestate";
 const MAX_UINT_64BITS: u128 = (1u128 << 64) - 1;
 
+type ContextState<'py> = (
+    Option<u128>,
+    Option<u128>,
+    Bound<'py, PyDict>,
+    Bound<'py, PyDict>,
+    Bound<'py, PyList>,
+    Bound<'py, PyDict>,
+    bool,
+    bool,
+);
+
 // Cached lookups of Python callables this module needs repeatedly. Both are
 // resolved lazily (on first use, not at module-import time) to avoid forcing
 // an import order on `ddtrace.internal.threads` / `ddtrace.internal.utils.http`.
@@ -676,19 +687,7 @@ impl ContextData {
     }
 
     // --- pickling ---
-    fn __getstate__<'py>(
-        &mut self,
-        py: Python<'py>,
-    ) -> (
-        Option<u128>,
-        Option<u128>,
-        Bound<'py, PyDict>,
-        Bound<'py, PyDict>,
-        Bound<'py, PyList>,
-        Bound<'py, PyDict>,
-        bool,
-        bool,
-    ) {
+    fn __getstate__<'py>(&mut self, py: Python<'py>) -> ContextState<'py> {
         (
             self.trace_id,
             self.span_id,
