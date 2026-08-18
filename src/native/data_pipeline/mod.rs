@@ -80,6 +80,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_tracer_tags(
+        mut slf: PyRefMut<'_, Self>,
+        tracer_tags: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_tracer_tags(tracer_tags);
+        Ok(slf.into())
+    }
+
     fn set_tracer_version(mut slf: PyRefMut<'_, Self>, version: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_tracer_version(version);
         Ok(slf.into())
@@ -149,6 +157,14 @@ impl TraceExporterBuilderPy {
     fn enable_stats(mut slf: PyRefMut<'_, Self>, bucket_size_ns: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?
             .enable_stats(Duration::from_nanos(bucket_size_ns));
+        Ok(slf.into())
+    }
+
+    fn set_additional_metric_tag_keys(
+        mut slf: PyRefMut<'_, Self>,
+        tag_keys: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_additional_metric_tag_keys(tag_keys);
         Ok(slf.into())
     }
 

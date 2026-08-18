@@ -66,6 +66,72 @@ def _server_diagnostics(server_process, port: int, cmd: list) -> str:
     )
 
 
+def _dump_server_stacks(server_process) -> str:
+    """Fatally signal the server tree so faulthandler prints every thread's Python stack.
+
+    The servers run with PYTHONFAULTHANDLER=1, and that handler is C-level: it walks
+    interpreter state without taking the GIL, so it still reports when the process is wedged
+    holding it. A Python-level handler, or gevent's own run-info dump, needs the GIL and would
+    print nothing in the case this is here to explain.
+
+    SIGBUS rather than SIGABRT, even though both are armed by PYTHONFAULTHANDLER: gunicorn
+    workers install their own Python-level SIGABRT handler (Worker.handle_abort), which
+    replaces faulthandler's, drops the dump, and cannot run at all in a wedged process. The
+    worker is the process holding the request we need to see. gunicorn leaves SIGBUS alone.
+
+    The stacks go to the server's stderr, which is the captured output the caller points at.
+
+    Under gevent this reports the greenlet currently running on each OS thread. A greenlet
+    blocked in a C call cannot yield, so a request wedged that way is the one reported, which
+    is the case this exists for. A request merely parked on a gevent-aware wait shows up as
+    the hub instead.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        children = parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree to dump its stacks: {exc}"
+
+    # One process at a time throughout: the dumps share this stderr and interleave into
+    # nonsense if two are written at once. Waiting also lets each dump land before the
+    # teardown below tears the process group down.
+    signalled = []
+    for proc in children:
+        try:
+            proc.send_signal(signal.SIGBUS)
+        except psutil.Error:
+            # Already gone, or not ours to signal: the remaining targets still matter.
+            continue
+        signalled.append(proc.pid)
+        psutil.wait_procs([proc], timeout=3)
+
+    # The parent is this process's own child, so wait on it through its owner rather than
+    # through psutil: psutil.wait_procs() would reap it behind subprocess's back, which makes
+    # returncode read as 0 for a signalled process and leaves the teardown below with a pid
+    # that no longer exists.
+    try:
+        parent.send_signal(signal.SIGBUS)
+    except psutil.Error:
+        pass
+    else:
+        signalled.append(parent.pid)
+        _wait_for_owned_process(server_process, timeout=3)
+
+    return f"sent SIGBUS to {signalled} for a faulthandler stack dump; look for it in the output above"
+
+
+def _wait_for_owned_process(server_process, timeout: float) -> None:
+    """Wait for a process we spawned, whichever API its type provides."""
+    waiter = getattr(server_process, "wait", None) or getattr(server_process, "join", None)
+    if waiter is None:
+        return
+    try:
+        waiter(timeout=timeout)
+    except Exception:
+        # Best effort: this only exists to give the stack dump time to reach stderr.
+        pass
+
+
 @contextmanager
 def gunicorn_flask_server(
     use_ddtrace_cmd: bool = True,
@@ -445,6 +511,8 @@ def appsec_application_server(
             raise AssertionError(
                 "Server shutdown request failed; its output is in the captured stdout/stderr above.\n"
                 + _server_diagnostics(server_process, port, cmd)
+                + "\n"
+                + _dump_server_stacks(server_process)
             )
     finally:
         try:
@@ -462,7 +530,13 @@ def appsec_application_server(
                     pass
                 server_process.join(timeout=5)
             else:
-                os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                try:
+                    os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    # The server is already gone (_dump_server_stacks signals it, and a crashed
+                    # server needs no signal either). Raising here would replace the failure that
+                    # brought us into this block and skip the communicate() below.
+                    pass
                 server_process.terminate()
                 try:
                     _, stderr_output = server_process.communicate(timeout=10)
@@ -509,15 +583,10 @@ def _mp_target(_cmd: list[str], _env: dict) -> None:
 
 
 def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
-    """Create a preexec_fn that applies resource limits if configured.
-
-    Returns None if no limits were requested.
-    """
+    """Create a preexec_fn that disables core dumps and applies resource limits if configured."""
     mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
     cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
     nice_val = os.environ.get("TEST_SUBPROC_NICE")
-    if not any((mem_mb, cpu_aff, nice_val)):
-        return None
 
     # Import inside to keep portability on Windows.
     try:
@@ -526,6 +595,14 @@ def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
         resource = None  # type: ignore[assignment]
 
     def _preexec():  # pragma: no cover - exercised in integration tests
+        # No core dumps. _dump_server_stacks() fatally signals a server that failed to shut
+        # down, and the testrunner image runs with ulimit -c unlimited and core_pattern=core,
+        # which would drop a dump the size of the loaded native extensions into the workspace.
+        if resource is not None:
+            try:
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            except Exception:
+                pass
         # Set process group leader (already done via start_new_session)
         # Apply niceness first to reduce priority
         if nice_val is not None:

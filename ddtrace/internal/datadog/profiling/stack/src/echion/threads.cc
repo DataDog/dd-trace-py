@@ -868,6 +868,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     defer
     {
         reset_cycle_state();
+        renderer.abort_sample();
     };
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
