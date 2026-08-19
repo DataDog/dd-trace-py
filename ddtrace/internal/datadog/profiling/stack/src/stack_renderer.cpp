@@ -2,7 +2,7 @@
 
 #include "origin_task_links.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "dd_wrapper/include/clock.hpp"
 #include "dd_wrapper/include/sample_manager.hpp"

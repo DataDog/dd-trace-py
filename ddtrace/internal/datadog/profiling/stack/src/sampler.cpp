@@ -4,7 +4,7 @@
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "origin_task_links.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/danger.h"
 #include "echion/echion_sampler.h"

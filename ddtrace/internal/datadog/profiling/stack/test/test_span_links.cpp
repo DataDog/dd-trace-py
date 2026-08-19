@@ -1,4 +1,4 @@
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

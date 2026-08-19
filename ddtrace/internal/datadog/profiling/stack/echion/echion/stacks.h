@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include <echion/config.h>
 #include <echion/frame.h>

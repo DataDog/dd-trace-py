@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "python_headers.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
 

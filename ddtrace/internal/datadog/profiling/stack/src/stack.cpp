@@ -3,7 +3,7 @@
 #include "origin_task_links.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
