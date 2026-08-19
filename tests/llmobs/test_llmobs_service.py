@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_FRAMEWORK_NAME
 from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -2099,7 +2100,7 @@ DECLARED_AGENT = {
     "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
 }
 DECLARED_MANIFEST = {
-    "framework": "LLMObs SDK",
+    "framework": MANUAL_FRAMEWORK_NAME,
     "name": "travel_desk",
     "instructions": "Book travel.",
     "model": "gpt-4o",
@@ -2179,7 +2180,7 @@ def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
         llmobs.annotate(span=span, agent={"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
 
     assert len(llmobs_events) == 1, "the span still has to ship"
-    assert _agent_manifest(span) == {"framework": "LLMObs SDK", "name": "travel_desk"}
+    assert _agent_manifest(span) == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
 
 
 def test_declared_agent_manifest_replaces_an_integration_built_one(llmobs):

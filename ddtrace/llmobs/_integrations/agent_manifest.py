@@ -18,7 +18,7 @@ log = get_logger(__name__)
 
 # Names the manual path so a consumer can tell a hand-declared manifest from one an integration
 # read off a framework object. Set by the SDK; a caller-supplied framework is never read.
-MANUAL_FRAMEWORK_NAME = "LLMObs SDK"
+MANUAL_FRAMEWORK_NAME = "AgentObs SDK"
 
 # The keys build_manual_agent_manifest reads. The annotation path checks this before holding on to
 # a caller's mapping, so an agent declaring only a version costs nothing.
