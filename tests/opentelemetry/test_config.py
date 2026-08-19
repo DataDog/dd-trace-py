@@ -459,3 +459,49 @@ def test_agentless_otlp_export_carries_the_api_key():
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
     )
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "dd-api-key=foobarkey"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        # Datadog stats are on by default under agentless and would take precedence.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_otlp_trace_metrics_target_the_intake_when_agentless():
+    """Client-computed span stats have no agent OTLP receiver to fall back on in agentless mode."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.TRACE_METRICS_ENDPOINT == "https://otlp.datadoghq.com/v1/metrics"
+    # The intake authenticates with the API key; the agent's receiver does not.
+    assert "dd-api-key=foobarkey" in exporter.METRICS_HEADERS
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+        # Datadog stats are on by default under agentless and would take precedence.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_own_collector_keeps_trace_metrics_and_gets_no_credentials():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.TRACE_METRICS_ENDPOINT == "http://collector:4318/v1/metrics"
+    assert "dd-api-key" not in exporter.METRICS_HEADERS
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "OTEL_TRACES_SPAN_METRICS_ENABLED": "true"})
+def test_otlp_trace_metrics_target_the_agent_without_agentless():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert "otlp.datadoghq.com" not in exporter.TRACE_METRICS_ENDPOINT
+    assert "dd-api-key" not in exporter.METRICS_HEADERS
